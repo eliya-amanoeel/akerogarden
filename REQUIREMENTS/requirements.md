@@ -1,10 +1,31 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.5 — Working Draft  
+**Version:** 0.6 — Working Draft  
 **Date:** June 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.5:**
+- Approval email scope clarified: must state cancellation/deposit policy (Section 5.6) in addition to the expiry date
+- Denial email now requires an admin-entered reason, shown to the guest — new `DenialReason` field on Booking
+- New FR-50: admin must enter a denial reason when setting a booking to `Denied`, which is included in the denial email
+- Resolved contradiction between deferred Swedish admin UI and "Out of Scope" multi-language exclusion: English admin UI confirmed for v1, with Swedish admin UI now explicitly tracked as a near-term post-launch item (not someday-maybe), given NFR-19's non-technical Swedish-speaking admin
+- New NFR-25: PostgreSQL Flexible Server uses private network access only (VNet integration), replacing the old Windows-firewall-based "block port 5432" approach
+- New Section 7.7 Testing (NFR-26–28): unit tests for business logic (pricing, retention, token expiry) and integration tests for all API endpoints, required to pass in CI — addresses the old system's documented "no test suite" gap
+- NFR-04 rate limiter now requires a distributed store (Azure Cache for Redis) from day one rather than in-memory state, avoiding the old system's documented scaling known issue. Added to Technology Decisions (1.5) and Hosting cost table (Section 11, ~$16/month added)
+- New NFR-29: quarterly backup restore drill required, addressing README's "test the restore procedure" step that had no equivalent here
+- New NFR-30: SMTP credentials stored as encrypted secrets, not plain text/source control
+- New NFR-31: end-to-end email delivery verified against production SMTP before go-live
+- README.md deleted — all content migrated to requirements.md (this document), design.md, and operational-tasks.md
+- Q7 resolved: early check-in/late check-out surcharge is admin discretion, no fixed price, arranged outside the system — Section 2.7 updated, Q7 removed from Open Questions
+- Q9 resolved: game room named "Spelrum" — Q9 removed from Open Questions
+- Q10 resolved (structurally): Spelrum is selectable in the booking inquiry form and has its own cleaning line item, same as Kapell/Konferensrum. Q10 narrowed to just the pending price figures (placeholders added to Sections 5.4 and 5.5)
+- Section 2.1 lifecycle diagram updated: denial node now shows the admin-entered reason, approval node now shows the deposit/cancellation policy — diagram had drifted out of sync with Section 9/FR-50
+- Reversed the v0.6 "English admin UI" decision: the entire system (public site and admin panel) is Swedish-only — English was never actually needed, not even as a deferred item. New NFR-32; removed "Swedish admin UI" from both Out of Scope lists in Section 10
+- New Q11: whether Spelrum's cleaning should be its own line item in Section 5.5 (which is otherwise building-level zones only) or folded into its containing building's package — flagged, not yet resolved
+- Resolved conflict between booking-level `GuestChoosesRooms` and the per-participant "choose for me" flag: room choice is booking-level only. FR-56/57 rewritten — the completion form is filled in by the booking's contact person on behalf of the whole group (not by each participant individually), and only shows a room field at all when `GuestChoosesRooms` is true. Clarified that participant names are collected for fire-safety/headcount purposes
+- Renumbered FR-50 through FR-69 (previously the denial-reason requirement was appended out of sequence as FR-69 after FR-49). It's now FR-50 in its correct position in Section 6.4, and every subsequent FR shifted up by one — FR-01 through FR-69 now read sequentially top to bottom
 
 **Changes from v0.4:**
 - Q1 resolved: meal selection is per day (lunch & dinner), with a "same for all days" shortcut on the completion form
@@ -90,6 +111,7 @@ It serves as the single source of truth for all design, development, and testing
 | Database | PostgreSQL on Azure | Managed backups; familiar query model |
 | Hosting | Azure App Service (Linux, B1) | Managed SSL; CI/CD from GitHub Actions |
 | File storage | Azure Blob Storage | List downloads and media uploads |
+| Rate limiting store | Azure Cache for Redis | Distributed rate-limit counters; correct under multi-instance scale-out (NFR-04) |
 | Email | MailKit (SMTP via One.com) | Robust .NET email library |
 | ORM | Entity Framework Core | Standard .NET data access layer |
 | CI/CD | GitHub Actions | Existing pipeline muscle memory |
@@ -114,8 +136,8 @@ flowchart TD
     F --> G
     G --> H[Admin reviews in panel\nChecks calendar · reads details]
     H --> I{Approve or deny?}
-    I -->|Deny| J[Denial email sent to guest\nSuggests alternative dates]
-    I -->|Approve| K[Approval email sent\nContains magic link + deadline date]
+    I -->|Deny| J[Denial email sent to guest\nAdmin-entered reason · suggests alternative dates]
+    I -->|Approve| K[Approval email sent\nMagic link + deadline date · deposit/cancellation policy]
     J --> L([Flow ends\nRecord retained 12 months])
     K --> M([Continues to Phase 2])
 ```
@@ -191,7 +213,7 @@ Admin receives a warning email 30 days before any record is deleted.
 
 - Standard check-in: **14:00**
 - Standard check-out: **12:00**
-- Early check-in and late check-out are available for a surcharge — see Section 12, Q7 for open details
+- Early check-in and late check-out are available for a surcharge, at the admin's discretion (no fixed price rule). This is arranged directly between the guest and the admin outside the system — there is no field on the inquiry or completion form for it, and no PriceRule entry
 
 ---
 
@@ -360,6 +382,7 @@ Pricing is **per person per night** based on the number of guests declared in th
 | Grounds excursion (Utflykt — gården) | 2 000 kr | Per day |
 | Caravan pitch (Husvagn) | 300 kr | Per day |
 | Tent pitch (Tält) | 250 kr | Per day |
+| Game room (Spelrum) | *TBD* | Per day |
 
 ### 5.5 Cleaning Packages
 
@@ -374,6 +397,9 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | Conference building (Konferensbyggnad) | 2 000 kr |
 | Large residential wing (Stora bostadslängan) | 2 000 kr |
 | Entire camp (Hela lägret) | 8 000 kr |
+| Spelrum *(see note)* | *TBD* |
+
+> **Open question:** every other row above is a building-level zone; Spelrum is a single room. Still undecided whether it should remain its own line item or be folded into the cleaning package of whichever building contains it. See Section 12.
 
 ### 5.6 Payment Schedule
 
@@ -480,40 +506,41 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | FR-47 | The admin shall be able to create a booking manually on behalf of a guest, bypassing the public inquiry form. All fields available in the inquiry form must be editable by the admin when creating a booking this way |
 | FR-48 | The admin shall be able to edit the participant data on a booking directly in the admin panel after guest submission |
 | FR-49 | The admin shall be able to resend the completion magic link to the guest from the booking detail page, regardless of whether the previous link has expired or been used |
+| FR-50 | When setting a booking's status to `Denied`, the admin shall be required to enter a denial reason. The reason shall be included in the denial email sent to the guest |
 
 ### 6.5 Booking Completion (Guest-Facing)
 
 | ID | Requirement |
 |---|---|
-| FR-50 | On approval, the system shall generate a unique completion token and store it against the booking |
-| FR-51 | The approval email shall contain the magic link and must display the exact token expiry date in plain text |
-| FR-52 | The token shall expire at whichever is earlier: 30 days after issue, or 14 days before check-in |
-| FR-53 | The completion page requires no account — the URL token is the sole authentication |
-| FR-54 | The completion form shall present meal options drawn from the current active admin-managed meal list |
-| FR-55 | The completion form shall present room options drawn from the current active admin-managed room list, excluding any rooms or buildings blocked for the booking's dates |
-| FR-56 | The completion form shall collect per overnight participant: full name, meal selection per day (lunch and dinner), dietary requirements, room preference or "choose for me" flag |
-| FR-57 | The completion form shall collect per day guest: full name, which meals they attend (breakfast, lunch, dinner), dietary requirements. Day guests have no room assignment |
-| FR-58 | The completion form shall provide a "same for all days" shortcut for meal selection so a participant can apply one choice across all days without repeating each day individually |
-| FR-59 | The completion form shall collect org/invoice details if applicable |
-| FR-60 | On submission the admin receives a notification email |
-| FR-61 | On submission the token is invalidated and booking status updated to `DetailsComplete` |
+| FR-51 | On approval, the system shall generate a unique completion token and store it against the booking |
+| FR-52 | The approval email shall contain the magic link and must display the exact token expiry date in plain text |
+| FR-53 | The token shall expire at whichever is earlier: 30 days after issue, or 14 days before check-in |
+| FR-54 | The completion page requires no account — the URL token is the sole authentication |
+| FR-55 | The completion form shall present meal options drawn from the current active admin-managed meal list |
+| FR-56 | If `GuestChoosesRooms` is true, the completion form shall present room options drawn from the current active admin-managed room list, excluding any rooms or buildings blocked for the booking's dates, so the booking's contact person can assign a room per overnight participant. If `GuestChoosesRooms` is false, no room field is shown — the admin assigns rooms separately in the panel |
+| FR-57 | The completion form shall collect per overnight participant, entered by the booking's contact person on everyone's behalf (not by each participant individually): full name (required for fire safety/headcount purposes), meal selection per day (lunch and dinner), dietary requirements, and — only if `GuestChoosesRooms` is true — a room assignment |
+| FR-58 | The completion form shall collect per day guest: full name, which meals they attend (breakfast, lunch, dinner), dietary requirements. Day guests have no room assignment |
+| FR-59 | The completion form shall provide a "same for all days" shortcut for meal selection so a participant can apply one choice across all days without repeating each day individually |
+| FR-60 | The completion form shall collect org/invoice details if applicable |
+| FR-61 | On submission the admin receives a notification email |
+| FR-62 | On submission the token is invalidated and booking status updated to `DetailsComplete` |
 
 ### 6.6 Automated Notifications
 
 | ID | Requirement |
 |---|---|
-| FR-62 | The system shall send an automated reminder email 14 days before check-in |
-| FR-63 | The reminder shall confirm participant count, day guest count, meal summary, check-in time (14:00), and check-out time (12:00) |
-| FR-64 | The system shall send a standard fixed thank-you email when the admin marks the booking completed — this message is not customisable per booking |
-| FR-65 | The admin shall receive a warning email 30 days before automatic deletion of any record |
+| FR-63 | The system shall send an automated reminder email 14 days before check-in |
+| FR-64 | The reminder shall confirm participant count, day guest count, meal summary, check-in time (14:00), and check-out time (12:00) |
+| FR-65 | The system shall send a standard fixed thank-you email when the admin marks the booking completed — this message is not customisable per booking |
+| FR-66 | The admin shall receive a warning email 30 days before automatic deletion of any record |
 
 ### 6.7 Data Retention
 
 | ID | Requirement |
 |---|---|
-| FR-66 | Completed booking records shall be automatically deleted 2 years after check-out |
-| FR-67 | Denied or cancelled records shall be automatically deleted 12 months after denial or cancellation |
-| FR-68 | Deletion shall be performed by a scheduled background job |
+| FR-67 | Completed booking records shall be automatically deleted 2 years after check-out |
+| FR-68 | Denied or cancelled records shall be automatically deleted 12 months after denial or cancellation |
+| FR-69 | Deletion shall be performed by a scheduled background job |
 
 ---
 
@@ -526,10 +553,12 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | NFR-01 | All traffic served over HTTPS; SSL managed by Azure App Service |
 | NFR-02 | Admin routes redirect unauthenticated requests to login |
 | NFR-03 | Completion tokens are cryptographically random (min 128-bit entropy), single-use, time-limited |
-| NFR-04 | Inquiry endpoint enforces rate limiting: max 5 submissions per IP per 10 minutes |
+| NFR-04 | Inquiry endpoint enforces rate limiting: max 5 submissions per IP per 10 minutes, backed by a distributed store (Azure Cache for Redis) rather than in-memory state, so the limit holds correctly if App Service ever scales to multiple instances |
 | NFR-05 | No personal data stored in URL query parameters |
 | NFR-06 | All personal data stored within EU (Azure North Europe or Sweden Central) |
 | NFR-07 | The public calendar endpoint exposes only availability status — no data that could identify a guest, group size, or booking detail |
+| NFR-25 | The PostgreSQL Flexible Server shall have public network access disabled, reachable only via VNet integration from the App Service. No direct internet path to the database shall exist |
+| NFR-30 | SMTP credentials shall be stored as encrypted secrets (Azure App Service Application Settings or Key Vault), never committed to source control or stored in plain text configuration |
 
 ### 7.2 Performance
 
@@ -546,6 +575,8 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | NFR-11 | 99% uptime target, consistent with Azure App Service Basic tier SLA |
 | NFR-12 | Automated daily database backups with 7-day point-in-time restore |
 | NFR-13 | Failed email sends are logged and retried; email failure does not fail the booking operation |
+| NFR-29 | A restore drill shall be performed quarterly to confirm backups are actually restorable, with results documented. Not satisfied merely by the existence of automated backups |
+| NFR-31 | End-to-end email delivery (admin notification and all guest-facing emails) shall be verified against the production SMTP configuration before go-live, not assumed to work from a successful build |
 
 ### 7.4 Data Integrity
 
@@ -562,6 +593,7 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | NFR-17 | The public website shall be fully responsive on mobile devices |
 | NFR-18 | The booking completion flow shall be completable by a non-technical user with no instructions beyond the approval email |
 | NFR-19 | The admin panel shall be usable by a single non-technical admin for all day-to-day operations |
+| NFR-32 | All UI text — public website and admin panel alike — shall be in Swedish. English is not a target language; this is not a deferred/future item, it is the v1 default |
 
 ### 7.6 GDPR and Compliance
 
@@ -572,6 +604,14 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | NFR-22 | Privacy policy names data controller, states retention periods, references IMY |
 | NFR-23 | System does not collect personnummer |
 | NFR-24 | All data processing within Azure EU regions |
+
+### 7.7 Testing
+
+| ID | Requirement |
+|---|---|
+| NFR-26 | Unit test coverage required for business logic with non-trivial rules: pricing calculation, retention/deletion date computation, completion token expiry logic, and meal/participant validation |
+| NFR-27 | Integration test coverage required for all API endpoints, including the booking inquiry endpoint, admin approval/denial actions, and the token-authenticated completion submission |
+| NFR-28 | CI pipeline shall fail the build if unit or integration tests fail |
 
 ---
 
@@ -601,10 +641,11 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | `CleaningSelections` | GUID[] | References Facility records for which cleaning is requested |
 | `Message` | string | Max 5 000 characters |
 | `AdminNotes` | string | Internal only |
+| `DenialReason` | string | Required when `Status` is set to `Denied`; shown to the guest in the denial email |
 | `IsPubliclyVisible` | bool | Controls public calendar |
 | `CompletionToken` | string | Nullable |
 | `CompletionTokenExpiry` | datetime | Nullable |
-| `GuestChoosesRooms` | bool | False = admin assigns rooms |
+| `GuestChoosesRooms` | bool | Booking-wide setting, not per-participant. True = contact person assigns rooms for the whole group on the completion form (FR-56/57); false = admin assigns rooms separately in the panel |
 | `DepositInvoiced` | bool | |
 | `DepositPaid` | bool | |
 | `FinalInvoiced` | bool | |
@@ -732,8 +773,8 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 |---|---|---|---|
 | Inquiry acknowledgement | Inquiry submitted | Guest | Receipt confirmation; expected response time |
 | Admin — new inquiry | Inquiry submitted | Admin | All details; link to booking in panel |
-| Denial | Admin sets Denied | Guest | Polite denial; suggest alternative dates |
-| Approval + magic link | Admin sets Approved | Guest | Approval; magic link; **exact expiry date stated in plain text**; what to prepare |
+| Denial | Admin sets Denied | Guest | Polite denial; **admin-entered reason stated in plain text**; suggest alternative dates |
+| Approval + magic link | Admin sets Approved | Guest | Approval; magic link; **exact expiry date stated in plain text**; **deposit/cancellation policy (20% deposit, full refund >2 months before arrival, forfeited <2 months before)**; what to prepare |
 | Admin — details complete | Guest submits completion | Admin | Data ready; link to booking; reminder to download lists |
 | Two-week reminder | Automated — 14 days before check-in | Guest | Participant count; day guest count; meal summary; check-in 14:00; check-out 12:00; address |
 | Thank-you | Admin marks Completed | Guest | Standard fixed message; invitation to return — not customisable per booking |
@@ -747,7 +788,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 - Online payment processing
 - Automatic list delivery to coordinators or kitchen
 - Guest accounts or login
-- Multi-language support (Swedish for guests, English for admin)
+- English UI — not planned at all, not even as a future item. Public site and admin panel are Swedish-only (NFR-32)
 - Native mobile application
 - External calendar integration
 - SMS notifications
@@ -771,9 +812,10 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 | Azure App Service | Basic B1 (Linux) | ~$13 | Hosts the Blazor Server application |
 | Azure Database for PostgreSQL Flexible Server | Burstable B1ms | ~$13 | Primary database; automated daily backups |
 | Azure Blob Storage | Hot tier, LRS | ~$1–2 | List downloads; facility images; uploaded media |
+| Azure Cache for Redis | Basic C0 | ~$16 | Distributed rate-limit counters (NFR-04) |
 | Azure-managed SSL | Included | $0 | HTTPS certificate management |
 | Custom domain | Included on Basic+ | $0 | akerogarden.se |
-| **Total** | | **~$27–28/month** | |
+| **Total** | | **~$43–44/month** | |
 
 > Prices are USD pay-as-you-go list prices as of June 2026, North Europe or Sweden Central region. Verify at [azure.microsoft.com/pricing/calculator](https://azure.microsoft.com/pricing/calculator) before client sign-off.
 
@@ -783,26 +825,19 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 
 The following questions must be resolved before the relevant features are built. Each answer will trigger an update to this document.
 
-### Q7 — Check-in and check-out surcharge
-
-Standard check-in is 14:00 and check-out is 12:00. Early check-in and late check-out are available for an extra fee. Two sub-questions remain open:
-
-- Is the surcharge a fixed amount, or does Attaf decide it case by case per booking?
-- Does the guest request early/late check-in or check-out in the inquiry form, or do they arrange it directly with Attaf outside the system?
-
 ### Q8 — Tallstugan accessibility
 
 Is Tallstugan accessible (handikappanpassad) or not?
 
-### Q9 — Spelrum/Lekrum name
+### Q10 — Spelrum pricing
 
-The property has a game room containing foosball, pinball, and shuffleboard. What should it be called in the system — "Spelrum", "Lekrum", or something else?
+Confirmed: Spelrum is selectable in the booking inquiry form (Section 5.4) and has its own cleaning line item (Section 5.5), same as Kapell/Konferensrum. The actual price for both is still TBD — placeholder values are marked in the tables until set.
 
-### Q10 — Spelrum in booking and cleaning flow
+### Q11 — Spelrum cleaning granularity
 
-Should the game room be selectable as a facility in the booking inquiry form? Should it appear as an option in the cleaning checklist the same way as the chapel and conference room?
+Section 5.5's cleaning table is otherwise all building-level zones (Huvudbyggnad, Lilla bostadslängan, etc.). Spelrum is a single room, not a zone. Should it stay as its own standalone cleaning line item, or be folded into the cleaning package of whichever building physically contains it?
 
 ---
 
-*End of document — Version 0.5 Working Draft*  
+*End of document — Version 0.6 Working Draft*  
 *Åkerögården Booking System — Software Requirements Specification*

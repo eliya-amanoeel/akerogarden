@@ -66,7 +66,3 @@ SVG assets live in `public/logo/`. The `Logo.tsx` component takes a `variant` pr
 | `mark-light.svg` | Icon only, dark strokes | — |
 
 ---
-
-## Open Visual/UX Items
-
-Carried over from README.md's pre-launch checklist and known issues — these are tracked operationally there, but are design-related in nature:

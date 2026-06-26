@@ -1,10 +1,56 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.18 — Working Draft  
+**Version:** 0.31 — Working Draft  
 **Date:** June 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.30:**
+- Post-review consistency pass (Opus): caught inconsistencies introduced across the v0.19–v0.30 edits. FR-76 aligned to the §2.5 state machine — cancellation is allowed from `Approved`, `DetailsComplete`, or `Active` (was "any status except Completed/Denied", which wrongly implied `Pending`/`Closed` were cancellable). §5.5 terminology aligned to "cleaning zones" (was "building zones" in two places). §1.3 in-scope blocking bullet now includes whole-property scope (I8). §10 out-of-scope calendar wording updated to the three-state model (was the stale "booked/free"). §8.1 `DayGuestCount` clarified as the inquiry-stage estimate, with the day-guest `Participant` records authoritative for the kitchen list.
+
+**Changes from v0.29:**
+- I14 resolved (Round 2 architect review): room assignments now carry a live `RoomId` foreign key on `Participant` (alongside the existing `RoomAssignmentSnapshot` text, kept for history per NFR-16). Previously the assignment was text-only, so the system could not detect room conflicts, show occupancy, or exclude taken rooms. FR-56 updated to also exclude already-occupied rooms and to flag double-assignment conflicts in the admin panel. §8.5 updated. **This was the last open Round 2 item — all 20 are now resolved.**
+
+**Changes from v0.28:**
+- I11 resolved (Round 2 architect review): meals-by-day-of-stay rule defined for the check-in 14:00 / check-out 12:00 schedule — arrival day = dinner only, middle days = breakfast + lunch + dinner, departure day = breakfast only. The completion form shows a meal picker only for meals that actually occur on each day (so a one-night stay collects a single dinner selection). §4.1 and FR-57 updated.
+- I12 resolved (Round 2 architect review): day guests are single-day — a new `AttendanceDate` field (day guests only) records the one date attended; a visitor across multiple days is entered as one day-guest record per date, which keeps per-day kitchen headcount exact and lets `AttendsBreakfast` apply to a specific day. §4.2, FR-58, and §8.5 updated.
+
+**Changes from v0.27:**
+- I13 resolved (Round 2 architect review): the completion token could already be expired by the time the 14-days-before-check-in nudge fired (the token expires at the earlier of issue+30 days or check-in−14 days, so for bookings approved well in advance it dies before the nudge). Fix: when the nudge fires and the booking is still `Approved`, the system regenerates the completion token (fresh link, ≥48 h per §2.6, invalidating the prior link) and includes it in the nudge; the admin alert states the new expiry. FR-63 and the §9 nudge/alert rows updated.
+
+**Changes from v0.26:**
+- I10 resolved (Round 2 architect review): boundary conditions pinned down. (1) Deposit: cancellation **more than** 2 months before arrival → full refund; **2 months or less** → forfeited (exactly 2 months = forfeited). §5.6, FR-79, §9 updated. (2) Age tiers: the free/paid line is **age 4** — `Infant` = 0–3 (free), `Child` = 4–12, `Adult` = 13+ (the Child/Adult split is kitchen-portion-only, no price effect). §5.1/5.2 and §8.5 updated. (3) Completion-token thresholds are evaluated as exact timestamps (valid up to the expiry instant, rejected at/after it); §2.6 clarified. (4) FR-75 admin warning fires when check-in is 14 days away or sooner.
+
+**Changes from v0.25:**
+- I9 resolved (Round 2 architect review): the `IsPubliclyVisible` flag is **removed** from both `Booking` and `BlockedPeriod`. It was a footgun — a hidden booking or block left the public calendar showing dates as available when they were not, prompting guests to inquire on closed dates — and since the calendar exposes only aggregate Free/Partial/Full (NFR-07), hiding a booking served no privacy purpose. Now all occupying bookings and all blocks always count toward public availability. The "private stay / internal hold" need is covered by an admin-created booking (FR-47) or a block, both of which now correctly reduce availability. FR-12 and FR-41 removed; FR-10 simplified (no "publicly visible" qualifier); the field is dropped from §8.1 and §8.10.
+
+**Changes from v0.24:**
+- I8 resolved (Round 2 architect review): the two overlapping blocking entities (`RoomBlock` and `BlockedPeriod`) are merged into a single `BlockedPeriod` entity with a `Scope` field (`WholeProperty | Building | Room`). Previously a building could be blocked two different ways with different effects — and a building blocked via `RoomBlock` did not reduce public-calendar capacity. Now one feature, one admin screen: every block reduces the date's effective capacity for its scope, and the calendar reflects it. `RoomBlock` (§8.4) merged away; `AffectedBuildingIds` dropped from `BlockedPeriod`; FR-10 now computes against effective capacity; FR-21 and §3.3 reworded.
+
+**Changes from v0.23:**
+- Round 2 documentation-hygiene sweep:
+  - L8: FR-01 page list now includes the menu and prices pages (was inconsistent with §1.3 and FR-82/83).
+  - L10: §9 email catalog now includes the completion-nudge (guest) and not-completed-alert (admin) emails introduced by FR-63; the two-week reminder row scoped to `DetailsComplete`-or-later.
+  - L13: §8.1 now states that stay-specific fields are null/unused for `GeneralInquiry` bookings.
+  - L14: NFR-10 reconciled with unbounded day guests (§4.2) — target raised to 300 participants; larger lists must still succeed beyond the 10-second guarantee.
+  - L15: §5 no longer asserts a blanket 12% VAT — VAT is stored per `VatRate` (price rule / cleaning zone); exact rates per category to be confirmed with the client's accountant.
+  - (L11 design.md and L12 operational-tasks.md updated separately — outside requirements.md.)
+
+**Changes from v0.22:**
+- C10 resolved (Round 2 architect review): the contradiction between FR-49 ("resend the completion link regardless of whether it has been used") and the §2.5 state machine (which has no path back through the completion form) is resolved by an **admin-edits-only** model. After a guest submits, the booking is `DetailsComplete` and the completion link is never re-issued; any correction is made by the admin in the panel (FR-48), with no status change. FR-49 rewritten and scoped to the `Approved` (awaiting-completion) state; FR-43 merged into FR-49 (token regeneration and resend are now one requirement); §2.5 annotated to make the no-reopen rule explicit.
+
+**Changes from v0.21:**
+- C9 resolved (Round 2 architect review): retention now has a functional requirement for all four §2.7 cases. Previously only Completed (FR-67) and Denied/Cancelled (FR-68) had deletion FRs; Pending-no-response and Closed inquiries would have been left in the database indefinitely. New FR-89 (delete `Pending` 12 months after submission), FR-90 (delete `Closed` 12 months after submission), and FR-91 (defines when `DeleteAfter` is (re)computed for every state and confirms live in-progress states are never auto-deleted). §8.1 `DeleteAfter` note updated.
+
+**Changes from v0.20:**
+- C8 resolved (Round 2 architect review): (1) Confirmed as a deliberate design choice that the system stores and computes **no monetary amounts** — no booking total, deposit amount, or balance. Deposit/final tracking is purely paid/unpaid status (FR-42); the 20%/80% figures in emails are fixed policy wording, not computed values. Stated explicitly in Section 5.6. (2) New `AgeCategory` field (`Adult | Child | Infant`) on Participant (Section 8.5), so accommodation pricing tiers (standard rate vs free infant) and the free-infant headcount are derivable, and the kitchen can plan child portions. Collected per participant on the completion form (FR-57, FR-58); Sections 5.1/5.2 annotated. Exact Child/Infant age threshold deferred to I10.
+
+**Changes from v0.19:**
+- C7 resolved (Round 2 architect review): the public availability calendar now counts bookings in `Approved`, `DetailsComplete`, or `Active` status (termed "occupying bookings") — previously it counted only `Approved`, so a confirmed group vanished from the calendar the moment it advanced to `DetailsComplete`/`Active`, making fully-booked dates appear free. `Pending` inquiries still do not count (availability subject to admin confirmation); terminal statuses never count. FR-10 reworded; Section 2.3 diagram updated. (The separate `IsPubliclyVisible` interaction remains tracked under I9.)
+
+**Changes from v0.18:**
+- C6 resolved (Round 2 architect review): cleaning "building zones" now have a dedicated admin-managed `CleaningZone` entity (Section 8.11) — distinct from both bookable Facilities (resolving the I4 violation in the data model) and accommodation Buildings. The old `Booking.CleaningSelections` (GUID[] → Facility) is replaced by a `BookingCleaningSelection` child entity (Section 8.12) that snapshots zone name and amount at booking time, so the agreed price survives later edits to the zone. Hela lägret is modelled generically via `IncludesZoneIds`. New Section 6.3.6 + FR-85–88 (cleaning zone CRUD, which was entirely missing); FR-03 and Section 5.5 reworded (full active zone list shown at inquiry — no per-booking filtering); FR-82 extended to render cleaning zones on the public prices page; NFR-14 extended; new NFR-33 (cleaning snapshot). Stale document footer version stamp corrected (was "0.6"), closing L9.
 
 **Changes from v0.17:**
 - L1 resolved: public calendar shows 12 rolling months forward from today; no backward navigation — FR-84 added
@@ -152,7 +198,7 @@ It serves as the single source of truth for all design, development, and testing
 - A public availability calendar showing only whether dates are booked or free — no personal data, no detail beyond availability status
 - A full admin panel for booking management, review, approval, and all reference data management (buildings, rooms, meals, facilities, prices)
 - Admin ability to create bookings manually on behalf of guests
-- Admin ability to block individual rooms or buildings for a date range
+- Admin ability to block a room, a building, or the whole property for a date range
 - A token-based booking completion flow for approved guests — no account creation required
 - Automated and manual email workflows at defined lifecycle points
 - Downloadable participant and food preference lists (PDF and Excel)
@@ -251,7 +297,7 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-    A[Date on calendar] --> B{Any approved bookings\nor blocked periods?}
+    A[Date on calendar] --> B{Any occupying bookings\n(Approved/DetailsComplete/Active)\nor blocked periods?}
     B -->|No| C[🟢 Free]
     B -->|Yes — partial| D[🟡 Partially booked]
     B -->|Yes — full| E[🔴 Fully booked]
@@ -291,15 +337,18 @@ The system shall enforce the following allowed transitions. Any transition not i
 
 `Denied`, `Completed`, `Closed`, and `Cancelled` are terminal states — no transitions out.
 
+> **No reopen after completion (C10):** `DetailsComplete` has no transition back to the completion flow. Once the guest submits, they cannot re-open the form; the single-use token stays invalidated (FR-62) and is not re-issued (FR-49). Any correction after submission is made by the admin directly in the panel (FR-48) and does not change the booking's status.
+
 ### 2.6 Magic Link Rules
 
 - Cryptographically random token (minimum 128-bit entropy)
 - Expires at whichever comes first: 30 days after issue, or 14 days before check-in — with a minimum floor of 48 hours from issue regardless of how close check-in is
+- All three thresholds are evaluated as exact timestamps; the link is valid up to its computed expiry instant and is rejected at or after it
 - The approval email must display the exact expiry date and time in plain text so the guest knows their deadline
 - Single-use — invalidated immediately on form submission
 - Generating a new token immediately invalidates any previously issued token for the same booking
-- Admin can manually regenerate an expired token from the booking detail page at any time
-- When the admin approves a booking with check-in within 14 days, the system displays a warning stating the exact token expiry (e.g. "Completion link will expire in 48 hours — consider contacting the guest directly")
+- Admin can manually regenerate or resend the completion token from the booking detail page while the booking is awaiting completion (status `Approved`), whether or not the previous token has expired; once the booking is `DetailsComplete` the token is not re-issued (see FR-49)
+- When the admin approves a booking with check-in 14 days away or sooner, the system displays a warning stating the exact token expiry (e.g. "Completion link will expire in 48 hours — consider contacting the guest directly")
 
 ### 2.7 GDPR Retention
 
@@ -371,9 +420,9 @@ Admin receives a warning email 30 days before any record is deleted.
 | Smedjan | Room 1 | 2 | 1 double bed |
 | Tallstugan | Room 1 | 4 | 1 bunk bed + 2 singles |
 
-### 3.3 Room and Building Blocking
+### 3.3 Blocking (Room, Building, or Whole Property)
 
-The admin can mark a specific room or an entire building as unavailable for a defined date range — for example during renovation or when something is broken. Blocked rooms and buildings are excluded from the room selection on the completion form and from the admin's room assignment view for the affected dates. This is separate from the general blocked period feature (which blocks all bookings for a date range).
+The admin can block availability for a defined date range at one of three scopes — a single room, an entire building, or the whole property — for example during renovation or when something is broken. This is a single feature (one `BlockedPeriod` record per block; see Section 8.10). Room- and building-scoped blocks exclude the affected rooms from the room selection on the completion form (FR-56) and from the admin's room assignment view, and they reduce the date's effective capacity on the public availability calendar (FR-10). A whole-property block marks the date fully unavailable.
 
 ---
 
@@ -395,11 +444,18 @@ Full-board accommodation includes per day: breakfast (buffet, no selection requi
 
 The booking-level `MealPlan` pre-populates each participant's `IsFullBoard` field on the completion form. The contact person can override any individual participant's value at that point. The admin can also override per participant in the admin panel at any time (FR-48).
 
-**Meal selection is per day, for full-board participants only.** Each full-board participant selects a lunch and a dinner option for each day of their stay. The completion form must provide a "same for all days" shortcut. Self-catering participants have no meal selection.
+**Meal selection is per day, for full-board participants only.** Each full-board participant selects a lunch and a dinner option for each applicable day of their stay (see the meals-by-day rule below). The completion form must provide a "same for all days" shortcut. Self-catering participants have no meal selection.
+
+**Meals by day of stay** (based on check-in 14:00 / check-out 12:00):
+- **Arrival day:** dinner only — guests arrive after lunch; a dinner selection is collected.
+- **Middle days (full days):** breakfast (buffet, no selection), lunch, and dinner — lunch and dinner selections collected.
+- **Departure day:** breakfast only — guests leave before lunch; no selection (breakfast is a buffet).
+
+The completion form shows a meal picker only for meals that actually occur on each day, so a one-night stay (arrival + departure) collects a single dinner selection.
 
 ### 4.2 Day Guests
 
-A booking may include day guests in addition to overnight guests. Day guests do not occupy a bed or a room. They attend for meals only and are included in participant counts on the food preference list. The number of day guests (and which meals they attend) must be captured on the completion form. There is no upper limit on day guest count — groups may have more day visitors than the property's overnight bed capacity.
+A booking may include day guests in addition to overnight guests. Day guests do not occupy a bed or a room. They attend for meals only and are included in participant counts on the food preference list. The number of day guests (and which meals they attend) must be captured on the completion form. Each day guest attends a single date (captured as `AttendanceDate`, Section 8.5); a visitor who attends on multiple days is entered as a separate day-guest record per day. There is no upper limit on day guest count — groups may have more day visitors than the property's overnight bed capacity.
 
 > **Day guests are only applicable when `MealPlan` is `FullBoardAll` or `Mixed`.** A `SelfCateringAll` booking does not have catered meals, so there is no basis for day guest meal attendance. The inquiry form must not show the day guest field when `SelfCateringAll` is selected.
 
@@ -446,7 +502,7 @@ Fixed system values — not admin-managed. Adding a new dietary type requires a 
 ## 5. Pricing
 
 > **All prices are admin-managed** and can be changed at any time through the admin panel. Active price rules are displayed publicly on the prices page (FR-82).  
-> Invoicing is performed manually outside the system. All prices are **exclusive of VAT (12%)**. Currency is SEK.
+> Invoicing is performed manually outside the system. All prices are **exclusive of VAT**. VAT is stored per item via the `VatRate` field (on each price rule and cleaning zone), because rates differ by category — e.g. 12% for lodging and food, potentially 25% for facility/conference hire. The exact rate per category is admin-entered configuration to be confirmed with the client's accountant. Currency is SEK.
 
 ### 5.1 Accommodation With Meals (Full Board)
 
@@ -457,7 +513,9 @@ Pricing is **per person per night** based on the number of guests declared in th
 | Guest category | Price ex. VAT | Per |
 |---|---|---|
 | Adults and children aged 4 and over | 550 kr | Per person per night |
-| Children under 3 years | Free | Per night |
+| Children aged 3 and under | Free | Per night |
+
+> The applicable tier (standard rate vs free infant) is derived from each overnight participant's `AgeCategory` (Section 8.5).
 
 ### 5.2 Accommodation Without Meals (Self-Catering)
 
@@ -466,8 +524,10 @@ Applies to participants where `IsFullBoard` is false.
 | Guest category | Price ex. VAT | Per |
 |---|---|---|
 | Adults and children aged 4 and over | 250 kr | Per person per night |
-| Children under 3 years | Free | Per night |
+| Children aged 3 and under | Free | Per night |
 | Kitchen use (self-catering guests) | 100 kr per person | Per day |
+
+> As in 5.1, the standard-rate vs free-infant tier is derived from each overnight participant's `AgeCategory` (Section 8.5).
 
 ### 5.3 Cabins
 
@@ -500,9 +560,9 @@ Applies to participants where `IsFullBoard` is false.
 
 ### 5.5 Cleaning Packages
 
-Cleaning packages are selectable per facility in the booking inquiry form. The guest sees only the buildings and facilities relevant to their booking — not the full cleaning price list.
+Cleaning packages are admin-managed `CleaningZone` records (Section 8.11), selectable on the booking inquiry form. The guest sees the full list of active cleaning zones — there is no per-booking filtering, since at inquiry time no buildings or rooms have been chosen yet. Cleaning zones are distinct from both bookable facilities and accommodation buildings.
 
-If cleaning is not purchased for a facility, guests are responsible for cleaning it themselves before departure.
+If cleaning is not purchased for a given zone, guests are responsible for cleaning it themselves before departure.
 
 | Area | Price ex. VAT |
 |---|---|
@@ -512,7 +572,7 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | Large residential wing (Stora bostadslängan) | 2 000 kr |
 | Entire camp (Hela lägret) | 8 000 kr |
 
-> **Hela lägret** covers all four building zones: Huvudbyggnad, Lilla bostadslängan, Konferensbyggnad, and Stora bostadslängan. Spelrum cleaning is included in its facility fee and is not part of this package. Selecting Hela lägret on the inquiry form disables the individual building zone checkboxes — they are mutually exclusive.
+> **Hela lägret** covers all four cleaning zones: Huvudbyggnad, Lilla bostadslängan, Konferensbyggnad, and Stora bostadslängan. Spelrum cleaning is included in its facility fee and is not part of this package. Selecting Hela lägret on the inquiry form disables the individual cleaning zone checkboxes — they are mutually exclusive. This relationship is modelled on the `CleaningZone` entity via `IncludesZoneIds` (Section 8.11).
 
 ### 5.6 Payment Schedule
 
@@ -520,10 +580,10 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 |---|---|---|
 | Deposit | 20% of total | Due to confirm booking |
 | Deposit refund | Full refund | Cancelled more than 2 months before arrival |
-| Deposit forfeited | No refund | Cancelled less than 2 months before arrival |
+| Deposit forfeited | No refund | Cancelled 2 months or less before arrival |
 | Final balance | Remaining 80% | Due before arrival |
 
-> **Note on deposit tracking:** The system does not process payments. "Notera handpenning betald" means the admin manually marks in the panel that the 20% deposit invoice has been sent and/or that payment has been received. It is a status checkbox — not a payment integration.
+> **Note on deposit tracking:** The system does not process payments. "Notera handpenning betald" means the admin manually marks in the panel that the 20% deposit invoice has been sent and/or that payment has been received. It is a status checkbox — not a payment integration. No monetary amount — no booking total, deposit amount, or balance — is stored or calculated anywhere in the system; the 20% / 80% figures shown in emails are fixed policy wording, not values computed by the system.
 
 ---
 
@@ -533,15 +593,15 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 
 | ID | Requirement |
 |---|---|
-| FR-01 | The system shall provide a public-facing website with pages for: home, about, facilities, contact, availability calendar, and booking inquiry |
+| FR-01 | The system shall provide a public-facing website with pages for: home, about, facilities, menu, prices, contact, availability calendar, and booking inquiry |
 | FR-02 | The booking inquiry page shall present two tracks: stay request and general inquiry |
-| FR-03 | The stay request track shall collect: contact name, email, phone (optional), check-in date, check-out date, number of overnight guests, meal plan (FullBoardAll / SelfCateringAll / Mixed — required), number of day guests (optional — hidden when SelfCateringAll is selected), requested bookable facilities (multi-select from active facility list — e.g. Kapellet, Spelrum), cleaning service selection per applicable building zone (checklist — guest sees only building zones applicable to their booking; building zones are distinct from bookable facilities), organisation details (optional), and a free-text message |
+| FR-03 | The stay request track shall collect: contact name, email, phone (optional), check-in date, check-out date, number of overnight guests, meal plan (FullBoardAll / SelfCateringAll / Mixed — required), number of day guests (optional — hidden when SelfCateringAll is selected), requested bookable facilities (multi-select from active facility list — e.g. Kapellet, Spelrum), cleaning service selection (multi-select checklist drawn from the active `CleaningZone` list; the full active list is shown — there is no per-booking filtering, since no buildings or rooms are chosen at inquiry time; selecting a bundle package such as Hela lägret disables the individual zones it covers; cleaning zones are distinct from both bookable facilities and accommodation buildings), organisation details (optional), and a free-text message |
 | FR-04 | The general inquiry track shall collect: contact name, email, phone (optional), and a required free-text message |
 | FR-05 | The system shall send an automatic acknowledgement email to the guest immediately upon submission. Content differs by inquiry type: stay requests receive a booking receipt ("we received your stay request"); general inquiries receive a contact acknowledgement ("we received your message and will be in touch") |
 | FR-06 | The system shall send an admin notification email immediately upon submission with all details and a direct link to the booking record |
 | FR-07 | The public website shall display the privacy policy and link to it from the booking form and the site footer |
 | FR-81 | The public facilities page shall display active facility records in their configured display order, drawn dynamically from the admin-managed facility list (name, description, image) |
-| FR-82 | The public website shall include a prices page displaying current active price rules, drawn dynamically from the admin-managed price list |
+| FR-82 | The public website shall include a prices page displaying current active price rules and active cleaning zones, drawn dynamically from the admin-managed price and cleaning-zone lists |
 | FR-83 | The public website shall include a menu page displaying current active meal options (lunch and dinner), drawn dynamically from the admin-managed meal list |
 
 ### 6.2 Public Availability Calendar
@@ -550,10 +610,10 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 |---|---|
 | FR-08 | The system shall display a public-facing availability calendar |
 | FR-09 | The calendar shall show three states per date: Free, Partially booked, or Fully booked. No names, group sizes, booking references, or any other personal detail shall be exposed |
-| FR-10 | Calendar state per date is determined by summing `OvernightGuestCount` across all approved bookings whose date range includes that date, against total property capacity (79 beds): **Free** — no approved bookings and no publicly visible blocked periods; **Partially booked** — total booked guest count is between 1 and 78; **Fully booked** — total booked guest count reaches 79 or more, or a publicly visible admin-created blocked period covers all buildings on that date |
+| FR-10 | Calendar state per date is determined by summing `OvernightGuestCount` across all **occupying bookings** — those in status `Approved`, `DetailsComplete`, or `Active` — whose date range includes that date, against the date's **effective capacity**. Effective capacity = total property capacity (79 beds) minus the beds removed by any `Building`- or `Room`-scoped blocks active on that date. State: **Free** — no occupying bookings and no blocks; **Fully booked** — booked guest count reaches effective capacity, or a `WholeProperty` block covers that date; **Partially booked** — any date with occupying bookings and/or partial blocks that is neither Free nor Fully booked. `Pending` inquiries do not count (availability is subject to admin confirmation); `Denied`, `Cancelled`, `Completed`, and `Closed` bookings never count |
 | FR-10a | The public calendar page shall display a note clarifying that partially available dates are subject to admin confirmation — submitting an inquiry does not guarantee availability |
 | FR-11 | Selecting a date range on the public calendar shall pre-fill the check-in and check-out fields on the inquiry form |
-| FR-12 | The admin shall control whether a booking or blocked period contributes to the public calendar via an `IsPubliclyVisible` flag |
+| FR-12 | *(Removed in v0.26 — the `IsPubliclyVisible` flag is dropped; all occupying bookings and all blocks always contribute to public availability. See architect-review I9.)* |
 | FR-84 | The public calendar shall display 12 rolling months forward from today's date. Backward navigation to past months is not available |
 
 ### 6.3 Admin — Content Management
@@ -575,7 +635,7 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | FR-18 | The admin shall be able to edit any room field |
 | FR-19 | The admin shall be able to deactivate a room without deleting historical assignments |
 | FR-20 | The admin shall not be able to hard-delete a room referenced in an existing booking |
-| FR-21 | The admin shall be able to block a specific room or an entire building for a defined date range, with an internal reason (e.g. renovation, damage). Blocked rooms and buildings are excluded from room selection and assignment for the affected period |
+| FR-21 | The admin shall be able to create a block at room, building, or whole-property scope for a defined date range, with an internal reason (e.g. renovation, damage) — the unified blocked-period feature (Section 8.10, FR-40). Room- and building-scoped blocks are excluded from room selection (FR-56) and the admin assignment view for the affected period, and reduce effective calendar capacity (FR-10) |
 
 #### 6.3.3 Meal Options
 
@@ -605,6 +665,15 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | FR-33 | The admin shall be able to deactivate a price rule without deleting it |
 | FR-34 | Price rules are displayed as read-only reference information on booking records — not used for automatic calculation |
 
+#### 6.3.6 Cleaning Zones
+
+| ID | Requirement |
+|---|---|
+| FR-85 | The admin shall be able to create a cleaning zone with: name, description, amount (ex. VAT), VAT rate, included zones (optional — for bundle packages such as Hela lägret), active/inactive status, and display order |
+| FR-86 | The admin shall be able to edit any cleaning zone field |
+| FR-87 | The admin shall be able to deactivate a cleaning zone — it will no longer appear on the inquiry form. Deactivation shall not alter cleaning selections already saved on existing bookings |
+| FR-88 | The admin shall not be able to hard-delete a cleaning zone referenced by an existing booking's cleaning selection |
+
 ### 6.4 Admin — Authentication and Account Management
 
 | ID | Requirement |
@@ -629,20 +698,20 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | FR-38 | The admin shall be able to approve or deny an inquiry |
 | FR-39 | The admin shall be able to add internal notes to any booking |
 | FR-40 | The admin shall be able to create, edit, and delete blocked periods |
-| FR-41 | The admin shall be able to mark a booking or blocked period as publicly visible or hidden |
+| FR-41 | *(Removed in v0.26 — public-visibility flag dropped; see architect-review I9 and FR-12.)* |
 | FR-42 | The admin shall be able to track deposit and final payment status per booking |
-| FR-43 | The admin shall be able to manually regenerate an expired completion token from the booking detail page |
+| FR-43 | *(Merged into FR-49 in v0.23 — token regeneration and resend are a single requirement.)* |
 | FR-44 | When booking details are complete, a participant list download button shall be available (PDF and Excel) |
 | FR-45 | When booking details are complete, a food preference list download button shall be available (PDF and Excel) |
 | FR-47 | The admin shall be able to create a booking manually on behalf of a guest, bypassing the public inquiry form. All fields available in the inquiry form must be editable by the admin when creating a booking this way |
 | FR-48 | The admin shall be able to edit the participant data on a booking directly in the admin panel after guest submission |
-| FR-49 | The admin shall be able to resend the completion magic link to the guest from the booking detail page, regardless of whether the previous link has expired or been used |
+| FR-49 | The admin shall be able to (re)generate and resend the completion magic link from the booking detail page while the booking is still awaiting completion (status `Approved`), whether or not the previous link has expired. Generating a new link immediately invalidates any previous link (Section 2.6). Once the booking is `DetailsComplete`, the link is not re-issued — corrections after submission are made by the admin directly in the panel (FR-48), with no status change |
 | FR-50 | When setting a booking's status to `Denied`, the admin shall be required to enter a denial reason. The reason shall be included in the denial email sent to the guest |
-| FR-75 | When the admin sets a booking's status to `Approved` and check-in is within 14 days, the system shall display an inline warning stating the shortened completion link expiry (e.g. "Check-in is in X days — the completion link will expire in 48 hours. Consider contacting the guest directly."). Approval is not blocked |
-| FR-76 | The admin shall be able to cancel a booking from any status except `Completed` and `Denied`. Cancellation is an admin-only action |
+| FR-75 | When the admin sets a booking's status to `Approved` and check-in is 14 days away or sooner, the system shall display an inline warning stating the shortened completion link expiry (e.g. "Check-in is in X days — the completion link will expire in 48 hours. Consider contacting the guest directly."). Approval is not blocked |
+| FR-76 | The admin shall be able to cancel a booking from `Approved`, `DetailsComplete`, or `Active` status (matching the transitions in Section 2.5). Cancellation is an admin-only action. `Pending` inquiries are denied rather than cancelled; terminal states (`Completed`, `Denied`, `Closed`, already-`Cancelled`) cannot be cancelled |
 | FR-77 | When cancelling, the admin must select the cancellation type: Guest-initiated or Property-initiated. This selection controls the deposit clause in the cancellation email |
 | FR-78 | The admin may optionally enter a free-text cancellation reason, stored as an internal note on the booking |
-| FR-79 | On cancellation, the system shall automatically send a cancellation email to the guest. If Guest-initiated: the email states whether the deposit is refunded (full refund if cancelled more than 2 months before check-in) or forfeited (cancelled less than 2 months before check-in). If Property-initiated: the email states a full refund will be issued regardless of timing |
+| FR-79 | On cancellation, the system shall automatically send a cancellation email to the guest. If Guest-initiated: the email states whether the deposit is refunded (full refund if cancelled more than 2 months before check-in) or forfeited (cancelled 2 months or less before check-in). If Property-initiated: the email states a full refund will be issued regardless of timing |
 | FR-80 | General inquiries shall not have an approve or deny action. The only admin status action available for a general inquiry is to mark it as `Closed`. Promote-to-stay-request is not supported — if a guest wishes to book after a general inquiry, they submit a new stay request |
 
 ### 6.6 Booking Completion (Guest-Facing)
@@ -654,9 +723,9 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | FR-53 | The token shall expire at whichever is earlier: 30 days after issue, or 14 days before check-in — with a minimum floor of 48 hours from issue. A token generated when check-in is less than 14 days away shall always be valid for at least 48 hours regardless |
 | FR-54 | The completion page requires no account — the URL token is the sole authentication |
 | FR-55 | The completion form shall present meal options drawn from the current active admin-managed meal list — only for participants where `IsFullBoard` is true. Self-catering participants have no meal selection section |
-| FR-56 | If `GuestChoosesRooms` is true, the completion form shall present room options drawn from the current active admin-managed room list, excluding any rooms or buildings blocked for the booking's dates, so the booking's contact person can assign a room per overnight participant. If `GuestChoosesRooms` is false, no room field is shown — the admin assigns rooms separately in the panel |
-| FR-57 | The completion form shall collect per overnight participant, entered by the booking's contact person on everyone's behalf (not by each participant individually): full name (required for fire-safety/headcount purposes), meal plan (`IsFullBoard` — pre-populated from the booking's `MealPlan` setting but overridable per participant by the contact person), meal selection per day — lunch and dinner, shown only when `IsFullBoard` is true — dietary requirements, and — only if `GuestChoosesRooms` is true — a room assignment |
-| FR-58 | The completion form shall collect per day guest: full name, whether they attend breakfast (`AttendsBreakfast` — checkbox, no meal selection required), meal selection for lunch and/or dinner if attending (drawn from active meal options), dietary requirements. Day guests have no room assignment |
+| FR-56 | If `GuestChoosesRooms` is true, the completion form shall present room options drawn from the current active admin-managed room list, excluding any rooms or buildings blocked for the booking's dates and any rooms already fully occupied by other bookings on those dates (determined via the live `RoomId` link, Section 8.5), so the booking's contact person can assign a room per overnight participant. If `GuestChoosesRooms` is false, no room field is shown — the admin assigns rooms separately in the panel. The system shall flag room-assignment conflicts (a room assigned beyond its bed count for overlapping dates) in the admin panel |
+| FR-57 | The completion form shall collect per overnight participant, entered by the booking's contact person on everyone's behalf (not by each participant individually): full name (required for fire-safety/headcount purposes), age category (`Adult` / `Child` / `Infant`), meal plan (`IsFullBoard` — pre-populated from the booking's `MealPlan` setting but overridable per participant by the contact person), meal selection per applicable day — lunch and dinner, shown only when `IsFullBoard` is true and only for meals that occur that day (§4.1 meals-by-day rule: arrival day dinner only, departure day none) — dietary requirements, and — only if `GuestChoosesRooms` is true — a room assignment |
+| FR-58 | The completion form shall collect per day guest: full name, age category (`Adult` / `Child` / `Infant`), attendance date (the single day they attend), whether they attend breakfast (`AttendsBreakfast` — checkbox, no meal selection required), meal selection for lunch and/or dinner if attending (drawn from active meal options), dietary requirements. Day guests have no room assignment |
 | FR-59 | The completion form shall provide a "same for all days" shortcut for meal selection so a participant can apply one choice across all days without repeating each day individually |
 | FR-60 | The completion form shall collect org/invoice details if applicable |
 | FR-61 | On submission the admin receives a notification email |
@@ -666,7 +735,7 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 
 | ID | Requirement |
 |---|---|
-| FR-63 | The system shall send an automated reminder 14 days before check-in. Behaviour depends on booking status: if `DetailsComplete` or later — send the standard guest reminder (FR-64); if still `Approved` (guest has not submitted the completion form) — send the guest a nudge ("You have not yet completed your booking details") AND send the admin an alert ("Guest has not completed their booking — consider following up directly") |
+| FR-63 | The system shall send an automated reminder 14 days before check-in. Behaviour depends on booking status: if `DetailsComplete` or later — send the standard guest reminder (FR-64); if still `Approved` (guest has not submitted the completion form) — the system shall first **regenerate the completion token** (fresh link, valid for at least 48 hours per Section 2.6, invalidating any prior link) and send the guest a nudge containing that fresh link ("You have not yet completed your booking details"), AND send the admin an alert ("Guest has not completed their booking — consider following up directly") stating the new link expiry. This prevents nudging the guest with an already-expired link |
 | FR-64 | The reminder shall confirm participant count, day guest count, meal summary, check-in time (14:00), and check-out time (12:00) |
 | FR-65 | The system shall send a standard fixed thank-you email when the admin marks the booking completed — this message is not customisable per booking |
 | FR-66 | The admin shall receive a warning email 30 days before automatic deletion of any record |
@@ -678,6 +747,9 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | FR-67 | Completed booking records shall be automatically deleted 2 years after check-out |
 | FR-68 | Denied or cancelled records shall be automatically deleted 12 months after denial or cancellation |
 | FR-69 | Deletion shall be performed by a scheduled background job |
+| FR-89 | Records that remain in `Pending` status shall be automatically deleted 12 months after their submission date |
+| FR-90 | Closed general inquiries shall be automatically deleted 12 months after their submission date |
+| FR-91 | The `DeleteAfter` date shall be (re)computed whenever a booking enters a retention-relevant state: submission date + 12 months while `Pending`; check-out date + 2 years on `Completed`; denial or cancellation date + 12 months on `Denied`/`Cancelled`; submission date + 12 months on `Closed`. Records in the live in-progress states (`Approved`, `DetailsComplete`, `Active`) are not subject to automatic deletion. Both the pre-deletion warning (FR-66) and the deletion job (FR-69) operate off `DeleteAfter` |
 
 ---
 
@@ -703,7 +775,7 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 |---|---|
 | NFR-08 | Public pages load within 3 seconds on standard broadband |
 | NFR-09 | Admin pages load within 5 seconds |
-| NFR-10 | List downloads complete within 10 seconds for up to 200 participants (overnight + day guests combined) |
+| NFR-10 | List downloads complete within 10 seconds for up to 300 participants (overnight + day guests combined). Day guest counts are unbounded (Section 4.2); lists larger than 300 must still generate successfully but are not covered by the 10-second target |
 
 ### 7.3 Reliability
 
@@ -719,9 +791,10 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 
 | ID | Requirement |
 |---|---|
-| NFR-14 | Deactivating or editing a room, meal option, facility, or price rule shall not alter data already saved on existing bookings |
+| NFR-14 | Deactivating or editing a room, meal option, facility, price rule, or cleaning zone shall not alter data already saved on existing bookings |
 | NFR-15 | Meal preference records shall store a snapshot of the meal option name at submission time |
 | NFR-16 | Room assignment records shall store a snapshot of the room name and building at submission time |
+| NFR-33 | Cleaning selection records shall store a snapshot of the cleaning zone name and amount (ex. VAT) at the time of selection, so the price the guest agreed to is preserved if the zone is later edited |
 
 ### 7.5 Usability
 
@@ -758,6 +831,8 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 
 ### 8.1 Booking
 
+> For `GeneralInquiry` bookings the stay-specific fields below are null/unused and stored as nullable: `CheckIn`, `CheckOut`, `OvernightGuestCount`, `DayGuestCount`, `MealPlan`, `GuestChoosesRooms`, `RequestedFacilityIds`, cleaning selections, organisation/invoice fields, the deposit/payment flags, and the completion-token fields. Only the contact fields, `Message`, `BookingType`, `Status`, `AdminNotes`, and the retention fields apply to a general inquiry.
+
 | Field | Type | Notes |
 |---|---|---|
 | `Id` | GUID | Primary key |
@@ -769,17 +844,16 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | `CheckIn` | date | Required for stay requests |
 | `CheckOut` | date | Required for stay requests |
 | `OvernightGuestCount` | int | Required for stay requests |
-| `DayGuestCount` | int | Optional — guests attending meals only, no bed |
+| `DayGuestCount` | int | Optional — inquiry-stage estimate of guests attending meals only (no bed). The authoritative day-guest list for the kitchen comes from the day-guest `Participant` records (each with `AttendanceDate`), which may differ from this estimate |
 | `IsOrganisation` | bool | |
 | `OrgName` | string | Conditional |
 | `OrgNumber` | string | Conditional |
 | `InvoiceAddress` | string | Conditional |
 | `RequestedFacilityIds` | GUID[] | References Facility records |
-| `CleaningSelections` | GUID[] | References Facility records for which cleaning is requested |
+| *(cleaning selections)* | — | Stored as `BookingCleaningSelection` child records (Section 8.12), not an inline array — snapshots zone name and amount at booking time |
 | `Message` | string | Max 5 000 characters |
 | `AdminNotes` | string | Internal only |
 | `DenialReason` | string | Required when `Status` is set to `Denied`; shown to the guest in the denial email |
-| `IsPubliclyVisible` | bool | Controls public calendar |
 | `CompletionToken` | string | Nullable |
 | `CompletionTokenExpiry` | datetime | Nullable |
 | `MealPlan` | Enum | `FullBoardAll \| SelfCateringAll \| Mixed` — declared on inquiry form; determines default `IsFullBoard` value for all participants |
@@ -794,7 +868,7 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | `CreatedByAdmin` | bool | True when admin created booking on behalf of guest |
 | `CreatedAt` | datetime | Auto |
 | `UpdatedAt` | datetime | Auto |
-| `DeleteAfter` | date | Computed |
+| `DeleteAfter` | date | Computed per FR-91 — value depends on the booking's terminal/pending state; null for live in-progress states |
 | `DeletionWarningEmailSentAt` | datetime? | Set when the 30-day pre-deletion warning email is sent; prevents the daily background job from sending duplicate warnings |
 
 ### 8.2 Building
@@ -823,15 +897,7 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 
 ### 8.4 RoomBlock
 
-| Field | Type | Notes |
-|---|---|---|
-| `Id` | GUID | Primary key |
-| `RoomId` | GUID? | Nullable — null means entire building is blocked |
-| `BuildingId` | GUID | Required — defines scope |
-| `StartDate` | date | |
-| `EndDate` | date | |
-| `Reason` | string | Internal only — e.g. "Renovation", "Broken window" |
-| `CreatedAt` | datetime | Auto |
+> **Merged into `BlockedPeriod` (Section 8.10) in v0.25.** Room-, building-, and whole-property blocking are now a single entity with a `Scope` field. This section is retained as a pointer only — there is no separate `RoomBlock` table.
 
 ### 8.5 Participant
 
@@ -841,7 +907,10 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 | `BookingId` | GUID | Foreign key → Booking |
 | `FullName` | string | Required |
 | `ParticipantType` | Enum | `Overnight` \| `DayGuest` |
-| `RoomAssignmentSnapshot` | string | Stored as text at submission time; null for day guests |
+| `AgeCategory` | Enum | `Adult \| Child \| Infant` — fixed system values. Age bands: `Infant` = 0–3 years (free), `Child` = 4–12, `Adult` = 13+. Pricing tier: `Adult` and `Child` bill at the standard per-person rate, `Infant` is free (the free/paid line is age 4). The Child/Adult split is for kitchen portion planning only and does not affect price |
+| `AttendanceDate` | date? | Day guests only — the single date this day guest attends; null for overnight participants. A visitor attending multiple days is entered as one day-guest record per date (I12) |
+| `RoomId` | GUID? | Foreign key → Room (live). Null for day guests and for not-yet-assigned overnight participants. Enables room-conflict detection, occupancy views, and exclusion of assigned/blocked rooms (FR-21, FR-56) |
+| `RoomAssignmentSnapshot` | string | Room name + building captured at assignment time, for history (NFR-16); the live link is `RoomId`. Null for day guests |
 | `IsFullBoard` | bool | Pre-populated from booking `MealPlan` (`FullBoardAll` → true, `SelfCateringAll` → false, `Mixed` → set per participant on completion form); overridable by contact person on completion form and by admin in panel |
 | `AttendsBreakfast` | bool | Day guests only — true if attending breakfast buffet; always true for overnight guests (no selection needed) |
 | `DietaryRequirements` | Enum[] | Multi-select |
@@ -897,15 +966,44 @@ If cleaning is not purchased for a facility, guests are responsible for cleaning
 
 ### 8.10 BlockedPeriod
 
+> Unified blocking entity (absorbed the former `RoomBlock` in v0.25). One record blocks availability at a single scope for a date range.
+
 | Field | Type | Notes |
 |---|---|---|
 | `Id` | GUID | Primary key |
+| `Scope` | Enum | `WholeProperty \| Building \| Room` |
+| `BuildingId` | GUID? | Set for `Building` and `Room` scope; null for `WholeProperty` |
+| `RoomId` | GUID? | Set for `Room` scope only; null otherwise |
 | `StartDate` | date | |
 | `EndDate` | date | |
-| `Reason` | string | Internal only |
-| `AffectedBuildingIds` | GUID[] | Empty = all buildings |
-| `IsPubliclyVisible` | bool | |
+| `Reason` | string | Internal only — e.g. "Renovation", "Broken window" |
 | `CreatedAt` | datetime | Auto |
+
+### 8.11 CleaningZone
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | GUID | Primary key |
+| `Name` | string | e.g. Huvudbyggnad |
+| `Description` | string | Optional |
+| `AmountExVat` | decimal | Reference figure — invoicing is manual (no automatic calculation) |
+| `VatRate` | decimal | e.g. 0.12 — stored per zone, mirroring PriceRule |
+| `IncludesZoneIds` | GUID[] | Empty for a normal zone. For a bundle (e.g. Hela lägret) lists the zone IDs it covers; selecting it disables those zones on the inquiry form |
+| `IsActive` | bool | Inactive zones are hidden from the inquiry form |
+| `DisplayOrder` | int | |
+
+### 8.12 BookingCleaningSelection
+
+> Replaces the former `Booking.CleaningSelections` array. One row per cleaning zone selected on a booking. Snapshots preserve the agreed price even if the zone is later edited (NFR-33).
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | GUID | Primary key |
+| `BookingId` | GUID | Foreign key → Booking |
+| `CleaningZoneId` | GUID | Foreign key → CleaningZone (live reference; not hard-deletable while referenced — FR-88) |
+| `ZoneNameSnapshot` | string | Zone name stored at selection time |
+| `AmountExVatSnapshot` | decimal | Amount stored at selection time |
+| `VatRateSnapshot` | decimal | VAT rate stored at selection time |
 
 ---
 
@@ -919,10 +1017,12 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 | Inquiry acknowledgement — general inquiry | General inquiry submitted | Guest | Message receipt; "we will be in touch" |
 | Admin — new inquiry | Inquiry submitted | Admin | All details; link to booking in panel |
 | Denial | Admin sets Denied | Guest | Polite denial; **admin-entered reason stated in plain text**; fixed closing line: *"Kontakta oss för att diskutera alternativa datum"* |
-| Cancellation | Admin sets Cancelled | Guest | Cancellation confirmed; **deposit clause conditional on initiator and timing** — Guest-initiated + >2 months: full refund; Guest-initiated + <2 months: deposit forfeited; Property-initiated: full refund regardless of timing |
-| Approval + magic link | Admin sets Approved | Guest | Approval; magic link; **exact expiry date stated in plain text**; **deposit/cancellation policy (20% deposit, full refund >2 months before arrival, forfeited <2 months before)**; what to prepare |
+| Cancellation | Admin sets Cancelled | Guest | Cancellation confirmed; **deposit clause conditional on initiator and timing** — Guest-initiated + >2 months: full refund; Guest-initiated + ≤2 months: deposit forfeited; Property-initiated: full refund regardless of timing |
+| Approval + magic link | Admin sets Approved | Guest | Approval; magic link; **exact expiry date stated in plain text**; **deposit/cancellation policy (20% deposit, full refund >2 months before arrival, forfeited 2 months or less before)**; what to prepare |
 | Admin — details complete | Guest submits completion | Admin | Data ready; link to booking; reminder to download lists |
-| Two-week reminder | Automated — 14 days before check-in | Guest | Participant count; day guest count; meal summary; check-in 14:00; check-out 12:00; address |
+| Two-week reminder | Automated — 14 days before check-in (booking `DetailsComplete` or later) | Guest | Participant count; day guest count; meal summary; check-in 14:00; check-out 12:00; address |
+| Completion nudge | Automated — 14 days before check-in, booking still `Approved` (FR-63) | Guest | "You have not yet completed your booking details"; **freshly regenerated completion link (valid ≥48 h)**; instructions to complete |
+| Admin — guest not completed | Automated — 14 days before check-in, booking still `Approved` (FR-63) | Admin | "Guest has not completed their booking — consider following up directly"; link to booking; the new completion-link expiry |
 | Thank-you | Admin marks Completed | Guest | Standard fixed message; invitation to return — not customisable per booking |
 | Pre-deletion warning | Automated — 30 days before `DeleteAfter` | Admin | Record due for deletion; booking reference |
 
@@ -939,7 +1039,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 - External calendar integration
 - SMS notifications
 - Reviews or ratings
-- Room-level granularity on public calendar (availability only — booked/free)
+- Room-level granularity on public calendar (the three aggregate states only — Free / Partially booked / Fully booked; no room-level detail)
 - Room-based pricing (pricing is per person per night in phase 1 — room-based pricing deferred to a future release)
 
 **Deferred to future releases:**
@@ -972,5 +1072,5 @@ All known open questions have been resolved. This section will be updated if new
 
 ---
 
-*End of document — Version 0.6 Working Draft*  
+*End of document — Version 0.31 Working Draft*  
 *Åkerögården Booking System — Software Requirements Specification*

@@ -6,9 +6,11 @@ Visual design reference for the public-facing website: tokens, layout rules, key
 
 ## Architecture
 
-All styles live in `src/app/(frontend)/styles.css`. No CSS framework, no component library.
+The application is .NET 10 Blazor (Static SSR for all public-facing pages — see requirements.md §1.5). Styles live in `wwwroot/css/site.css`. No CSS framework, no component library — plain hand-written CSS.
 
 Mobile-first with two breakpoints: `480px` (tablet) and `1024px` (desktop).
+
+Public pages render as static server HTML (no SignalR circuit), so any client-side behaviour — such as the scroll-aware header below — is implemented with a small amount of plain JavaScript/CSS rather than Blazor interactivity.
 
 ---
 
@@ -55,7 +57,7 @@ Mobile-first with two breakpoints: `480px` (tablet) and `1024px` (desktop).
 
 ## Logo Variants
 
-SVG assets live in `public/logo/`. The `Logo.tsx` component takes a `variant` prop (`'on-dark' | 'on-light'`); `Header.tsx` switches between variants based on scroll position (transparent over the hero vs. solid on scroll).
+SVG assets live in `wwwroot/logo/`. A `Logo.razor` component takes a `Variant` parameter (`OnDark | OnLight`); the site header (`Header.razor`) switches between variants based on scroll position (transparent over the hero vs. solid on scroll). As noted under Architecture, the scroll detection is a small JavaScript/CSS concern, since public pages are Static SSR and have no Blazor interactivity.
 
 | File | Description | Used when |
 |---|---|---|

@@ -6,14 +6,14 @@ One-off content, migration, and go-live tasks that aren't system requirements �
 
 ## Open Items
 
-- [ ] **Playroom / Spelrum facility — upload images.** Photos already exist (not yet taken from scratch) — just need to be sourced from the admin and uploaded once the facility record exists in the new system. This is the same room as the "Spelrum" game room in requirements.md (foosball, pinball, shuffleboard) — **blocked on Q9** (final name: Spelrum, Lekrum, or other) and **Q10** (whether it's selectable in the booking inquiry form and the cleaning checklist) being resolved first, since the facility record's name and scope aren't final.
+- [ ] **Spelrum (game room) facility — upload images.** Photos already exist — just need to be sourced from the admin and uploaded once the facility record exists in the new system. This is the "Spelrum" game room in requirements.md (foosball, pinball, shuffleboard). Name and scope are now final (Q9/Q10 resolved): the facility is named **Spelrum**, is selectable on the booking inquiry form, and its cleaning is included in its 1 500 kr/day facility fee (not a separate cleaning line). No longer blocked — ready once the Facility record is created.
 - [ ] **Image migration.** README's stated source path (`old_source/wp-content/uploads/`) doesn't actually exist in this repo. The real source material currently on hand is at repo root:
   - `/images/chappell.jpg` → Kapell (chapel) facility image
   - `/images/about.jpg` → Om oss page image
   - `/images/welcome.jpg`, `/images/welcome-1.jpg` → homepage hero candidates
   - `/logo/*.svg` → already covered separately in design.md, not part of this task
 
-  **Not yet complete** — more source images exist outside this repo (other facilities, additional hero candidates) and still need to be gathered before the full migration can be scoped. Once gathered, upload everything via the new system's media/blob storage and wire each image to its corresponding Facility, Page, or SiteSettings field.
+  **Not yet complete** — more source images exist outside this repo (other facilities, additional hero candidates) and still need to be gathered before the full migration can be scoped. Once gathered, upload everything via the new system's media/blob storage (Azure Blob) and wire each Facility image to its `Facility` record. Hero and about-page images are hardcoded public-page assets — there is no `SiteSettings` entity (it was dropped in requirements v0.13), so those images are wired directly into the page markup, not an admin-managed field.
 - [ ] **Privacy policy legal text — must be (re)written before go-live.** The original approved copy lived only in the production Payload CMS database, which was already dropped during the server decommission — it's gone. There is no saved export, doc, or backup to carry over.
 
   New copy must be drafted (or a lawyer/Swedish-GDPR-literate reviewer engaged) covering the facts previously confirmed in README:

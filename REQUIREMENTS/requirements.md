@@ -1,10 +1,16 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.31 — Working Draft  
+**Version:** 0.33 — Working Draft  
 **Date:** June 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.32:**
+- Environment strategy added (§11.1): the spec previously detailed only production. Now defines all four environments — local dev (Dockerised PostgreSQL/Redis/Azurite + a local SMTP catcher on the developer's Mac), automated test (ephemeral containers in CI), a separate minimal Azure **staging** environment (`staging.akerogarden.se`, mirrors prod on cheapest tiers, powered down when idle, synthetic data only — no real PII), and production (unchanged). Deploy flow: dev → CI → staging → production. implementation-plan.md Phase 0 and Phase 6 updated accordingly.
+
+**Changes from v0.31:**
+- Facility selections aligned to the snapshot pattern (surfaced during the ERD pass; mirrors C6): `Booking.RequestedFacilityIds[]` replaced by a `BookingFacilitySelection` child entity (Section 8.13) — live `FacilityId` FK plus facility name and amount snapshots — so the agreed facility price survives later edits, consistent with `BookingCleaningSelection`, meals, and rooms. New NFR-34 (facility snapshot); §8.1 updated; ERD updated.
 
 **Changes from v0.30:**
 - Post-review consistency pass (Opus): caught inconsistencies introduced across the v0.19–v0.30 edits. FR-76 aligned to the §2.5 state machine — cancellation is allowed from `Approved`, `DetailsComplete`, or `Active` (was "any status except Completed/Denied", which wrongly implied `Pending`/`Closed` were cancellable). §5.5 terminology aligned to "cleaning zones" (was "building zones" in two places). §1.3 in-scope blocking bullet now includes whole-property scope (I8). §10 out-of-scope calendar wording updated to the three-state model (was the stale "booked/free"). §8.1 `DayGuestCount` clarified as the inquiry-stage estimate, with the day-guest `Participant` records authoritative for the kitchen list.
@@ -795,6 +801,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | NFR-15 | Meal preference records shall store a snapshot of the meal option name at submission time |
 | NFR-16 | Room assignment records shall store a snapshot of the room name and building at submission time |
 | NFR-33 | Cleaning selection records shall store a snapshot of the cleaning zone name and amount (ex. VAT) at the time of selection, so the price the guest agreed to is preserved if the zone is later edited |
+| NFR-34 | Facility selection records shall store a snapshot of the facility name and amount (ex. VAT) at the time of selection, so the price the guest agreed to is preserved if the facility is later edited |
 
 ### 7.5 Usability
 
@@ -831,7 +838,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 
 ### 8.1 Booking
 
-> For `GeneralInquiry` bookings the stay-specific fields below are null/unused and stored as nullable: `CheckIn`, `CheckOut`, `OvernightGuestCount`, `DayGuestCount`, `MealPlan`, `GuestChoosesRooms`, `RequestedFacilityIds`, cleaning selections, organisation/invoice fields, the deposit/payment flags, and the completion-token fields. Only the contact fields, `Message`, `BookingType`, `Status`, `AdminNotes`, and the retention fields apply to a general inquiry.
+> For `GeneralInquiry` bookings the stay-specific fields below are null/unused and stored as nullable: `CheckIn`, `CheckOut`, `OvernightGuestCount`, `DayGuestCount`, `MealPlan`, `GuestChoosesRooms`, facility selections, cleaning selections, organisation/invoice fields, the deposit/payment flags, and the completion-token fields. Only the contact fields, `Message`, `BookingType`, `Status`, `AdminNotes`, and the retention fields apply to a general inquiry.
 
 | Field | Type | Notes |
 |---|---|---|
@@ -849,7 +856,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | `OrgName` | string | Conditional |
 | `OrgNumber` | string | Conditional |
 | `InvoiceAddress` | string | Conditional |
-| `RequestedFacilityIds` | GUID[] | References Facility records |
+| *(facility selections)* | — | Stored as `BookingFacilitySelection` child records (Section 8.13), not an inline array — snapshots facility name and amount at booking time |
 | *(cleaning selections)* | — | Stored as `BookingCleaningSelection` child records (Section 8.12), not an inline array — snapshots zone name and amount at booking time |
 | `Message` | string | Max 5 000 characters |
 | `AdminNotes` | string | Internal only |
@@ -1005,6 +1012,19 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | `AmountExVatSnapshot` | decimal | Amount stored at selection time |
 | `VatRateSnapshot` | decimal | VAT rate stored at selection time |
 
+### 8.13 BookingFacilitySelection
+
+> Replaces the former `Booking.RequestedFacilityIds` array. One row per facility selected on a booking. Snapshots preserve the agreed price even if the facility is later edited (NFR-34).
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | GUID | Primary key |
+| `BookingId` | GUID | Foreign key → Booking |
+| `FacilityId` | GUID | Foreign key → Facility (live reference; not hard-deletable while referenced — FR-30) |
+| `FacilityNameSnapshot` | string | Facility name stored at selection time |
+| `AmountExVatSnapshot` | decimal | Amount stored at selection time |
+| `VatRateSnapshot` | decimal | VAT rate stored at selection time |
+
 ---
 
 ## 9. Email Templates
@@ -1052,6 +1072,8 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 
 ## 11. Hosting and Infrastructure
 
+> The cost table below specifies the **production** environment. All four environments (local dev, CI test, staging, production) are described in §11.1 below.
+
 | Service | Azure tier | Est. monthly (USD) | Purpose |
 |---|---|---|---|
 | Azure App Service | Basic B1 (Linux) | ~$13 | Hosts the Blazor Server application |
@@ -1064,6 +1086,23 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 
 > Prices are USD pay-as-you-go list prices as of June 2026, North Europe or Sweden Central region. Verify at [azure.microsoft.com/pricing/calculator](https://azure.microsoft.com/pricing/calculator) before client sign-off.
 
+### 11.1 Environments
+
+The system uses four environments. Production is the table above; the others:
+
+| Environment | Where | Make-up | Purpose |
+|---|---|---|---|
+| **Local dev** | Developer's machine (macOS) | .NET 10 SDK; PostgreSQL, Redis, and Azurite (Blob emulator) via Docker; a local SMTP catcher (e.g. Mailpit) so dev mail never sends; `dotnet user-secrets` for config | Day-to-day development. No Azure cost |
+| **Automated test** | GitHub Actions CI | Ephemeral PostgreSQL/Redis service containers per run | Runs the unit + integration suite (NFR-26–28) on every push; gates the build. No standing infra |
+| **Staging** | Azure — separate resource group, `staging.akerogarden.se` | Mirrors production's shape on minimal tiers: App Service B1, PostgreSQL Flexible Server Burstable B1ms, Blob (small), Redis Basic C0. Can be powered down when idle | Pre-go-live verification and admin UAT (NFR-18/19); migrations and config validated here before promotion. Deploy flow: dev → CI → staging → production |
+| **Production** | Azure (§11 table) | As specified above | Live system |
+
+**Staging notes:**
+- **No real personal data in staging** — seed with synthetic/anonymised data only (GDPR; NFR-23/24 still apply).
+- Staging uses its own SMTP configuration pointing to a **test inbox**, never real guest addresses.
+- Estimated staging cost ~$25–40/month while running; lower if stopped between uses.
+- Staging is a **separate resource group**, not a deployment slot, because production runs on App Service B1 Basic, which does not support slots (slots require Standard tier or higher).
+
 ---
 
 ## 12. Open Questions
@@ -1072,5 +1111,5 @@ All known open questions have been resolved. This section will be updated if new
 
 ---
 
-*End of document — Version 0.31 Working Draft*  
+*End of document — Version 0.33 Working Draft*  
 *Åkerögården Booking System — Software Requirements Specification*

@@ -22,6 +22,10 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+// Password reset links expire in 1 hour (FR-73 — UI text says "1 timme")
+builder.Services.Configure<DataProtectionTokenProviderOptions>(opts =>
+    opts.TokenLifespan = TimeSpan.FromHours(1));
+
 // ── Auth cookie ───────────────────────────────────────────────────────────────
 builder.Services.ConfigureApplicationCookie(options =>
 {
@@ -67,6 +71,9 @@ app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
 using (var scope = app.Services.CreateScope())
+{
+    await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
     await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();
+}
 
 app.Run();

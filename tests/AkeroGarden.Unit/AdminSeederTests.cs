@@ -14,7 +14,7 @@ public class AdminSeederTests
     {
         var store = new Mock<IUserStore<ApplicationUser>>();
         var mgr = new Mock<UserManager<ApplicationUser>>(
-            store.Object, null, null, null, null, null, null, null, null);
+            store.Object, null!, null!, null!, null!, null!, null!, null!, null!);
         mgr.Setup(m => m.Users).Returns(existingUsers.AsQueryable());
         return mgr;
     }

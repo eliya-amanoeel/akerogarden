@@ -6,9 +6,10 @@
     "location": { "value": "northeurope" },
     "appServiceSkuName": { "value": "B1" },
     "postgresAdminLogin": { "value": "akerogarden_admin" },
-    "postgresAdminPassword": { "reference": { "keyVault": { "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/akerogarden-prod/providers/Microsoft.KeyVault/vaults/akerogarden-prod-kv" }, "secretName": "postgres-admin-password" } },
+    "postgresAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
     "smtpFromAddress": { "value": "noreply@akerogarden.se" },
-    "smtpUsername": { "reference": { "keyVault": { "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/akerogarden-prod/providers/Microsoft.KeyVault/vaults/akerogarden-prod-kv" }, "secretName": "smtp-username" } },
-    "smtpPassword": { "reference": { "keyVault": { "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/akerogarden-prod/providers/Microsoft.KeyVault/vaults/akerogarden-prod-kv" }, "secretName": "smtp-password" } }
+    "smtpUsername": { "value": "REPLACE_VIA_CI_SECRET" },
+    "smtpPassword": { "value": "REPLACE_VIA_CI_SECRET" },
+    "customHostnames": { "value": ["akerogarden.se", "admin.akerogarden.se"] }
   }
 }

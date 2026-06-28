@@ -27,15 +27,43 @@ param smtpPort int = 587
 param smtpFromAddress string
 
 @secure()
-@description('SMTP username')
+@description('SMTP username — stored in Key Vault; App Service reads via managed identity')
 param smtpUsername string
 
 @secure()
-@description('SMTP password')
+@description('SMTP password — stored in Key Vault; App Service reads via managed identity')
 param smtpPassword string
+
+@description('Custom hostnames to bind to the App Service (e.g. ["akerogarden.se","admin.akerogarden.se"])')
+param customHostnames array = []
 
 // ── Naming ────────────────────────────────────────────────────────────────────
 var prefix = 'akerogarden-${environmentName}'
+
+// ── Key Vault ─────────────────────────────────────────────────────────────────
+resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
+  name: '${prefix}-kv'
+  location: location
+  properties: {
+    sku: { family: 'A', name: 'standard' }
+    tenantId: subscription().tenantId
+    enableRbacAuthorization: true
+    enableSoftDelete: true
+    softDeleteRetentionInDays: 7
+  }
+}
+
+resource smtpUsernameSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'smtp-username'
+  properties: { value: smtpUsername }
+}
+
+resource smtpPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'smtp-password'
+  properties: { value: smtpPassword }
+}
 
 // ── App Service Plan ──────────────────────────────────────────────────────────
 resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
@@ -55,12 +83,15 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
 resource appService 'Microsoft.Web/sites@2023-12-01' = {
   name: '${prefix}-app'
   location: location
+  identity: {
+    type: 'SystemAssigned'
+  }
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
-      alwaysOn: false // B1 doesn't guarantee AlwaysOn; acceptable for this tier
+      alwaysOn: false // B1 doesn't support AlwaysOn; acceptable for this tier
       appSettings: [
         {
           name: 'ASPNETCORE_ENVIRONMENT'
@@ -87,12 +118,14 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
           value: smtpFromAddress
         }
         {
+          // Read from Key Vault at runtime via managed identity (NFR-30)
           name: 'Smtp__Username'
-          value: smtpUsername
+          value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=smtp-username)'
         }
         {
+          // Read from Key Vault at runtime via managed identity (NFR-30)
           name: 'Smtp__Password'
-          value: smtpPassword
+          value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=smtp-password)'
         }
         {
           name: 'Blob__ConnectionString'
@@ -103,6 +136,30 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
     virtualNetworkSubnetId: appSubnet.id
   }
 }
+
+// ── Key Vault RBAC — App Service managed identity reads secrets ───────────────
+resource kvSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(keyVault.id, appService.id, '4633458b-17de-408a-b874-0445c86b69e0')
+  scope: keyVault
+  properties: {
+    // Key Vault Secrets User — read-only access to secret values
+    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e0')
+    principalId: appService.identity.principalId
+    principalType: 'ServicePrincipal'
+  }
+}
+
+// ── Custom hostname bindings ──────────────────────────────────────────────────
+// DNS must point to the App Service before running ssl.bicep to issue managed certs.
+resource hostNameBindings 'Microsoft.Web/sites/hostNameBindings@2023-12-01' = [for hostname in customHostnames: {
+  parent: appService
+  name: hostname
+  properties: {
+    siteName: appService.name
+    hostNameType: 'Verified'
+    customHostNameDnsRecordType: 'A'
+  }
+}]
 
 // ── VNet + Subnets ────────────────────────────────────────────────────────────
 resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
@@ -240,3 +297,4 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
 output appServiceName string = appService.name
 output appServiceHostname string = appService.properties.defaultHostName
 output postgresHostname string = postgresServer.properties.fullyQualifiedDomainName
+output keyVaultName string = keyVault.name

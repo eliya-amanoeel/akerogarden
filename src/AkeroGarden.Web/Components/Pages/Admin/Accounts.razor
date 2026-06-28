@@ -2,9 +2,11 @@
 @layout AdminLayout
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Identity
+@using Microsoft.AspNetCore.DataProtection
 @inject UserManager<ApplicationUser> UserManager
 @inject IEmailService EmailService
 @inject NavigationManager Nav
+@inject IDataProtectionProvider DataProtectionProvider
 @attribute [Authorize]
 
 <PageTitle>Administratörskonton — Åkerögården Admin</PageTitle>
@@ -129,10 +131,9 @@ else
         }
 
         var token = await UserManager.GeneratePasswordResetTokenAsync(newUser);
-        var encoded = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlEncode(
-            System.Text.Encoding.UTF8.GetBytes(token));
-        var setupUrl = Nav.ToAbsoluteUri(
-            $"/aterstall-losenord?token={encoded}&email={Uri.EscapeDataString(newUser.Email!)}");
+        var protector = DataProtectionProvider.CreateProtector("PasswordReset");
+        var code = Uri.EscapeDataString(protector.Protect($"{newUser.Email}|{token}"));
+        var setupUrl = Nav.ToAbsoluteUri($"/aterstall-losenord?code={code}");
 
         await EmailService.SendAsync(
             newUser.Email!,

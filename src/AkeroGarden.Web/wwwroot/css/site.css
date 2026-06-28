@@ -179,6 +179,11 @@ img { max-width: 100%; height: auto; display: block; }
 .site-header__logo { display: flex; align-items: center; }
 .site-header__logo .logo { height: 40px; width: auto; }
 
+/* Logo variant switching: dark logo on transparent header, light logo on scrolled */
+.site-header .logo-light { display: none; }
+.site-header.scrolled .logo-dark { display: none; }
+.site-header.scrolled .logo-light { display: inline-flex; }
+
 .site-header__nav {
     display: none;
     gap: 1.5rem;
@@ -314,6 +319,8 @@ img { max-width: 100%; height: auto; display: block; }
     background-color: var(--color-heading);
     color: #fff;
     padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
 }
 
 .admin-nav__logo { margin-bottom: 2rem; }
@@ -336,6 +343,22 @@ img { max-width: 100%; height: auto; display: block; }
 
 .admin-nav a:hover {
     background-color: rgba(255,255,255,0.1);
+    color: #fff;
+}
+
+.admin-nav__footer {
+    margin-top: auto;
+    padding-top: 1.5rem;
+}
+
+.admin-nav__footer .btn-ghost {
+    color: rgba(255,255,255,0.7);
+    padding-left: 0.75rem;
+    width: 100%;
+    text-align: left;
+}
+
+.admin-nav__footer .btn-ghost:hover {
     color: #fff;
 }
 

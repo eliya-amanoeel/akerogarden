@@ -1,5 +1,8 @@
 @inherits LayoutComponentBase
 @attribute [Authorize]
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Nav
 
 <div class="admin-shell">
     <nav class="admin-nav">
@@ -14,8 +17,11 @@
             <li><a href="/admin/faciliteter">Faciliteter</a></li>
             <li><a href="/admin/priser">Priser</a></li>
             <li><a href="/admin/stadszoner">Städzoner</a></li>
-            <li><a href="/admin/konton">Admininstratörskonton</a></li>
+            <li><a href="/admin/konton">Administratörskonton</a></li>
         </ul>
+        <div class="admin-nav__footer">
+            <button class="btn-ghost" @onclick="Logout">Logga ut</button>
+        </div>
     </nav>
 
     <div class="admin-content">
@@ -24,3 +30,11 @@
         </main>
     </div>
 </div>
+
+@code {
+    private async Task Logout()
+    {
+        await SignInManager.SignOutAsync();
+        Nav.NavigateTo("/login", forceLoad: true);
+    }
+}

@@ -54,10 +54,10 @@ jobs:
         run: dotnet build --no-restore --configuration Release
 
       - name: Unit tests
-        run: dotnet test tests/AkeroGarden.Unit --no-build --configuration Release --logger "github"
+        run: dotnet test tests/AkeroGarden.Unit --no-build --configuration Release --logger "console;verbosity=normal"
 
       - name: Integration tests
         env:
           ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=akerogarden_test;Username=akerogarden;Password=akerogarden_ci"
           Redis__ConnectionString: "localhost:6379"
-        run: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "github"
+        run: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "console;verbosity=normal"

@@ -1,0 +1,100 @@
+@page "/login"
+@layout AdminLoginLayout
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Identity
+@inject SignInManager<ApplicationUser> SignInManager
+@inject NavigationManager Nav
+
+<PageTitle>Logga in — Åkerögården Admin</PageTitle>
+
+<div class="login-card">
+    <div class="login-card__logo">
+        <Logo Variant="LogoVariant.OnDark" />
+    </div>
+
+    <h1>Logga in</h1>
+
+    @if (!string.IsNullOrEmpty(_error))
+    {
+        <p class="form-error">@_error</p>
+    }
+
+    <EditForm Model="_model" OnValidSubmit="HandleLogin" FormName="login" method="post">
+        <AntiforgeryToken />
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="email">E-postadress</label>
+            <InputText id="email" @bind-Value="_model!.Email" type="email" autocomplete="username" />
+            <ValidationMessage For="() => _model.Email" />
+        </div>
+
+        <div class="form-group">
+            <label for="password">Lösenord</label>
+            <InputText id="password" @bind-Value="_model.Password" type="password" autocomplete="current-password" />
+            <ValidationMessage For="() => _model.Password" />
+        </div>
+
+        <div class="form-group form-group--checkbox">
+            <label>
+                <InputCheckbox @bind-Value="_model.RememberMe" />
+                Kom ihåg mig i 30 dagar
+            </label>
+        </div>
+
+        <button type="submit" class="btn">Logga in</button>
+
+        <a href="/glomt-losenord" class="btn-ghost">Glömt lösenordet?</a>
+    </EditForm>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private LoginModel? _model { get; set; }
+
+    private string? _error;
+
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _model ??= new();
+        await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+    }
+
+    private async Task HandleLogin()
+    {
+        var user = await SignInManager.UserManager.FindByEmailAsync(_model!.Email);
+        if (user is { IsActive: false })
+        {
+            _error = "Det här kontot är inaktiverat.";
+            return;
+        }
+
+        var result = await SignInManager.PasswordSignInAsync(
+            _model!.Email, _model.Password, _model.RememberMe, lockoutOnFailure: true);
+
+        if (result.Succeeded)
+        {
+            Nav.NavigateTo("/admin");
+            return;
+        }
+
+        _error = result.IsLockedOut
+            ? "Kontot är tillfälligt låst på grund av för många felaktiga försök."
+            : "Felaktig e-postadress eller lösenord.";
+    }
+
+    private sealed class LoginModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "E-postadress krävs.")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Ange en giltig e-postadress.")]
+        public string Email { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Lösenord krävs.")]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; }
+    }
+}

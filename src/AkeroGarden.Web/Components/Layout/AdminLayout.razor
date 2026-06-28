@@ -1,0 +1,26 @@
+@inherits LayoutComponentBase
+@attribute [Authorize]
+
+<div class="admin-shell">
+    <nav class="admin-nav">
+        <div class="admin-nav__logo">
+            <Logo Variant="LogoVariant.OnDark" />
+        </div>
+        <ul>
+            <li><a href="/admin">Översikt</a></li>
+            <li><a href="/admin/bokningar">Bokningar</a></li>
+            <li><a href="/admin/byggnader">Byggnader &amp; rum</a></li>
+            <li><a href="/admin/matalternativ">Matalternativ</a></li>
+            <li><a href="/admin/faciliteter">Faciliteter</a></li>
+            <li><a href="/admin/priser">Priser</a></li>
+            <li><a href="/admin/stadszoner">Städzoner</a></li>
+            <li><a href="/admin/konton">Admininstratörskonton</a></li>
+        </ul>
+    </nav>
+
+    <div class="admin-content">
+        <main>
+            @Body
+        </main>
+    </div>
+</div>

@@ -1,0 +1,156 @@
+@page "/admin/konton"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using Microsoft.AspNetCore.Identity
+@inject UserManager<ApplicationUser> UserManager
+@inject IEmailService EmailService
+@inject NavigationManager Nav
+@attribute [Authorize]
+
+<PageTitle>Administratörskonton — Åkerögården Admin</PageTitle>
+
+<h1>Administratörskonton</h1>
+
+@if (_users is null)
+{
+    <p>Laddar...</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>E-postadress</th>
+                <th>Status</th>
+                <th>Åtgärd</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var user in _users)
+            {
+                <tr>
+                    <td>@user.Email</td>
+                    <td>@(user.IsActive ? "Aktiv" : "Inaktiv")</td>
+                    <td>
+                        @if (user.Id != _currentUserId)
+                        {
+                            @if (user.IsActive)
+                            {
+                                <button class="btn-ghost" @onclick="() => Deactivate(user)">Inaktivera</button>
+                            }
+                            else
+                            {
+                                <button class="btn-ghost" @onclick="() => Activate(user)">Aktivera</button>
+                            }
+                        }
+                        else
+                        {
+                            <span>—</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>Bjud in ny administratör</h2>
+
+    <EditForm Model="_invite" OnValidSubmit="SendInvite" FormName="invite">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="invite-email">E-postadress</label>
+            <InputText id="invite-email" @bind-Value="_invite.Email" type="email" />
+            <ValidationMessage For="() => _invite.Email" />
+        </div>
+
+        <button type="submit" class="btn">Skicka inbjudan</button>
+    </EditForm>
+
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <p>@_message</p>
+    }
+}
+
+@code {
+    private List<ApplicationUser>? _users;
+    private string? _currentUserId;
+    private string? _message;
+    private InviteModel _invite = new();
+
+    [CascadingParameter]
+    private Task<AuthenticationState> AuthState { get; set; } = default!;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var auth = await AuthState;
+        _currentUserId = UserManager.GetUserId(auth.User);
+        _users = UserManager.Users.OrderBy(u => u.Email).ToList();
+    }
+
+    private async Task Deactivate(ApplicationUser user)
+    {
+        user.IsActive = false;
+        await UserManager.UpdateAsync(user);
+        _message = $"{user.Email} har inaktiverats.";
+    }
+
+    private async Task Activate(ApplicationUser user)
+    {
+        user.IsActive = true;
+        await UserManager.UpdateAsync(user);
+        _message = $"{user.Email} har aktiverats.";
+    }
+
+    private async Task SendInvite()
+    {
+        var existing = await UserManager.FindByEmailAsync(_invite.Email);
+        if (existing is not null)
+        {
+            _message = "Det finns redan ett konto med den e-postadressen.";
+            return;
+        }
+
+        var newUser = new ApplicationUser
+        {
+            UserName = _invite.Email,
+            Email = _invite.Email,
+            IsActive = true
+        };
+
+        var tempPassword = Guid.NewGuid().ToString("N")[..16] + "Aa1!";
+        var createResult = await UserManager.CreateAsync(newUser, tempPassword);
+
+        if (!createResult.Succeeded)
+        {
+            _message = string.Join(" ", createResult.Errors.Select(e => e.Description));
+            return;
+        }
+
+        var token = await UserManager.GeneratePasswordResetTokenAsync(newUser);
+        var encoded = Microsoft.AspNetCore.WebUtilities.WebEncoders.Base64UrlEncode(
+            System.Text.Encoding.UTF8.GetBytes(token));
+        var setupUrl = Nav.ToAbsoluteUri(
+            $"/aterstall-losenord?token={encoded}&email={Uri.EscapeDataString(newUser.Email!)}");
+
+        await EmailService.SendAsync(
+            newUser.Email!,
+            newUser.Email!,
+            "Du har bjudits in som administratör — Åkerögården",
+            $"<p>Du har bjudits in att administrera Åkerögårdens bokningssystem.</p>" +
+            $"<p>Klicka på länken nedan för att välja ditt lösenord och aktivera ditt konto. Länken gäller i 1 timme.</p>" +
+            $"<p><a href=\"{setupUrl}\">{setupUrl}</a></p>");
+
+        _invite = new();
+        _users = UserManager.Users.OrderBy(u => u.Email).ToList();
+        _message = $"Inbjudan skickad till {newUser.Email}.";
+    }
+
+    private sealed class InviteModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "E-postadress krävs.")]
+        [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Ange en giltig e-postadress.")]
+        public string Email { get; set; } = string.Empty;
+    }
+}

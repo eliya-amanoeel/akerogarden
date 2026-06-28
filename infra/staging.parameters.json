@@ -1,0 +1,14 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": { "value": "staging" },
+    "location": { "value": "northeurope" },
+    "appServiceSkuName": { "value": "B1" },
+    "postgresAdminLogin": { "value": "akerogarden_admin" },
+    "postgresAdminPassword": { "reference": { "keyVault": { "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/akerogarden-staging/providers/Microsoft.KeyVault/vaults/akerogarden-staging-kv" }, "secretName": "postgres-admin-password" } },
+    "smtpFromAddress": { "value": "noreply-staging@akerogarden.se" },
+    "smtpUsername": { "reference": { "keyVault": { "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/akerogarden-staging/providers/Microsoft.KeyVault/vaults/akerogarden-staging-kv" }, "secretName": "smtp-username" } },
+    "smtpPassword": { "reference": { "keyVault": { "id": "/subscriptions/SUBSCRIPTION_ID/resourceGroups/akerogarden-staging/providers/Microsoft.KeyVault/vaults/akerogarden-staging-kv" }, "secretName": "smtp-password" } }
+  }
+}

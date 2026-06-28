@@ -32,7 +32,7 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 | `REQUIREMENTS/requirements.md` | Main SRS — v0.33, single source of truth |
 | `REQUIREMENTS/erd.md` | Mermaid entity-relationship diagram (12 app entities) |
 | `REQUIREMENTS/implementation-plan.md` | 7-phase dependency-ordered build plan |
-| `REQUIREMENTS/design.md` | Visual design tokens, CSS classes, logo usage |
+| `UX/design.md` | Visual design tokens, CSS classes, logo usage |
 | `REQUIREMENTS/operational-tasks.md` | Pre-go-live blockers (privacy policy, images, VAT rates) |
 | `REQUIREMENTS/architect-review.md` | Round 1 + Round 2 review findings — all resolved |
 

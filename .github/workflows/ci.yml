@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: akerogarden
+          POSTGRES_PASSWORD: akerogarden_ci
+          POSTGRES_DB: akerogarden_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U akerogarden"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.x"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release
+
+      - name: Unit tests
+        run: dotnet test tests/AkeroGarden.Unit --no-build --configuration Release --logger "github"
+
+      - name: Integration tests
+        env:
+          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=akerogarden_test;Username=akerogarden;Password=akerogarden_ci"
+          Redis__ConnectionString: "localhost:6379"
+        run: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "github"

@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AkeroGarden.Web/AkeroGarden.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AkeroGarden.Integration/AkeroGarden.Integration.csproj" />
+    <Project Path="tests/AkeroGarden.Unit/AkeroGarden.Unit.csproj" />
+  </Folder>
+</Solution>

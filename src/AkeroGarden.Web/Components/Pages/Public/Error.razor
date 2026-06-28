@@ -1,0 +1,27 @@
+@page "/Error"
+@layout MainLayout
+@using System.Diagnostics
+
+<PageTitle>Fel — Åkerögården</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <h1>Ett fel inträffade</h1>
+        <p>Något gick fel vid behandlingen av din förfrågan.</p>
+        @if (ShowRequestId)
+        {
+            <p><strong>Spårnings-ID:</strong> <code>@RequestId</code></p>
+        }
+    </div>
+</section>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

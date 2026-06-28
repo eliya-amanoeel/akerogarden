@@ -1,0 +1,368 @@
+/* ============================================================
+   Design tokens
+   ============================================================ */
+:root {
+    --color-primary:        #71b002;
+    --color-primary-hover:  #5e9600;
+    --color-secondary:      #865628;
+    --color-text:           #4a4845;
+    --color-heading:        #1e1c1a;
+    --color-bg:             #faf8f4;
+    --color-bg-warm:        #f0ebe1;
+    --color-footer-bg:      #1a1714;
+
+    --font-body:    'Roboto', sans-serif;
+    --font-heading: 'Playfair Display', Georgia, serif;
+
+    --max-width:  1200px;
+    --header-h:   72px;
+}
+
+/* ============================================================
+   Self-hosted fonts — files must be present in /fonts/
+   Download Roboto (400, 700) and Playfair Display (400, 700)
+   from fonts.google.com and place .woff2 files here.
+   ============================================================ */
+@font-face {
+    font-family: 'Roboto';
+    src: url('/fonts/roboto-regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Roboto';
+    src: url('/fonts/roboto-bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Playfair Display';
+    src: url('/fonts/playfair-display-regular.woff2') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: swap;
+}
+@font-face {
+    font-family: 'Playfair Display';
+    src: url('/fonts/playfair-display-bold.woff2') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: swap;
+}
+
+/* ============================================================
+   Reset & base
+   ============================================================ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { font-size: 16px; scroll-behavior: smooth; }
+
+body {
+    font-family: var(--font-body);
+    color: var(--color-text);
+    background-color: var(--color-bg);
+    line-height: 1.6;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    color: var(--color-heading);
+    line-height: 1.2;
+}
+
+a { color: var(--color-primary); text-decoration: none; }
+a:hover { color: var(--color-primary-hover); }
+
+img { max-width: 100%; height: auto; display: block; }
+
+/* ============================================================
+   Layout utilities
+   ============================================================ */
+.container {
+    width: 100%;
+    max-width: var(--max-width);
+    margin: 0 auto;
+    padding: 0 1rem;
+}
+
+@media (min-width: 480px) {
+    .container { padding: 0 1.5rem; }
+}
+
+@media (min-width: 1024px) {
+    .container { padding: 0 2rem; }
+}
+
+.section {
+    padding: 3rem 0;
+}
+
+@media (min-width: 1024px) {
+    .section { padding: 4.5rem 0; }
+}
+
+/* ============================================================
+   Buttons
+   ============================================================ */
+.btn, .btn-outline, .btn-ghost {
+    display: inline-block;
+    padding: 0.75rem 1.5rem;
+    border-radius: 4px;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.95rem;
+    cursor: pointer;
+    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
+    border: 2px solid transparent;
+    text-align: center;
+}
+
+.btn {
+    background-color: var(--color-primary);
+    color: #fff;
+    border-color: var(--color-primary);
+}
+.btn:hover {
+    background-color: var(--color-primary-hover);
+    border-color: var(--color-primary-hover);
+    color: #fff;
+}
+
+.btn-outline {
+    background-color: transparent;
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+}
+.btn-outline:hover {
+    background-color: var(--color-primary);
+    color: #fff;
+}
+
+.btn-ghost {
+    background-color: transparent;
+    color: var(--color-primary);
+    border-color: transparent;
+}
+.btn-ghost:hover {
+    color: var(--color-primary-hover);
+}
+
+/* ============================================================
+   Header — public site
+   Transparent over hero, solid on scroll (JS adds .scrolled)
+   ============================================================ */
+.site-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: var(--header-h);
+    z-index: 100;
+    background-color: transparent;
+    transition: background-color 0.2s;
+}
+
+.site-header.scrolled {
+    background-color: var(--color-bg);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+.site-header .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 100%;
+}
+
+.site-header__logo { display: flex; align-items: center; }
+.site-header__logo .logo { height: 40px; width: auto; }
+
+/* Logo variant switching: dark logo on transparent header, light logo on scrolled */
+.site-header .logo-light { display: none; }
+.site-header.scrolled .logo-dark { display: none; }
+.site-header.scrolled .logo-light { display: inline-flex; }
+
+.site-header__nav {
+    display: none;
+    gap: 1.5rem;
+    align-items: center;
+}
+
+@media (min-width: 1024px) {
+    .site-header__nav { display: flex; }
+}
+
+.site-header__nav a {
+    color: #fff;
+    font-weight: 500;
+}
+
+.site-header.scrolled .site-header__nav a {
+    color: var(--color-heading);
+}
+
+.site-header__nav .btn {
+    color: #fff;
+}
+
+/* ============================================================
+   Hero
+   ============================================================ */
+.hero {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    background-color: var(--color-heading);
+    color: #fff;
+    padding-top: var(--header-h);
+}
+
+.hero .container { position: relative; z-index: 1; }
+
+.hero h1 {
+    font-size: clamp(2rem, 5vw, 3.5rem);
+    color: #fff;
+    margin-bottom: 1rem;
+}
+
+.hero p {
+    font-size: 1.2rem;
+    margin-bottom: 2rem;
+    opacity: 0.9;
+}
+
+/* ============================================================
+   Footer
+   ============================================================ */
+.site-footer {
+    background-color: var(--color-footer-bg);
+    color: rgba(255,255,255,0.7);
+    padding: 2rem 0;
+}
+
+.site-footer .container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    align-items: center;
+    text-align: center;
+}
+
+@media (min-width: 1024px) {
+    .site-footer .container {
+        flex-direction: row;
+        justify-content: space-between;
+        text-align: left;
+    }
+}
+
+.site-footer a { color: rgba(255,255,255,0.7); }
+.site-footer a:hover { color: #fff; }
+
+/* ============================================================
+   Forms
+   ============================================================ */
+.form-row {
+    display: grid;
+    gap: 1rem;
+}
+
+@media (min-width: 480px) {
+    .form-row { grid-template-columns: 1fr 1fr; }
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.form-group label {
+    font-weight: 500;
+    font-size: 0.9rem;
+    color: var(--color-heading);
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+    padding: 0.6rem 0.75rem;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    color: var(--color-text);
+    background-color: #fff;
+    transition: border-color 0.15s;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: var(--color-primary);
+}
+
+/* ============================================================
+   Admin shell
+   ============================================================ */
+.admin-shell {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    min-height: 100vh;
+}
+
+.admin-nav {
+    background-color: var(--color-heading);
+    color: #fff;
+    padding: 1.5rem 1rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.admin-nav__logo { margin-bottom: 2rem; }
+.admin-nav__logo .logo { height: 32px; width: auto; }
+
+.admin-nav ul {
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.admin-nav a {
+    display: block;
+    color: rgba(255,255,255,0.8);
+    padding: 0.5rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.95rem;
+}
+
+.admin-nav a:hover {
+    background-color: rgba(255,255,255,0.1);
+    color: #fff;
+}
+
+.admin-nav__footer {
+    margin-top: auto;
+    padding-top: 1.5rem;
+}
+
+.admin-nav__footer .btn-ghost {
+    color: rgba(255,255,255,0.7);
+    padding-left: 0.75rem;
+    width: 100%;
+    text-align: left;
+}
+
+.admin-nav__footer .btn-ghost:hover {
+    color: #fff;
+}
+
+.admin-content {
+    background-color: var(--color-bg);
+    padding: 2rem;
+}

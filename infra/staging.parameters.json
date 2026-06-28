@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "environmentName": { "value": "staging" },
+    "location": { "value": "northeurope" },
+    "appServiceSkuName": { "value": "B1" },
+    "postgresAdminLogin": { "value": "akerogarden_admin" },
+    "postgresAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
+    "smtpFromAddress": { "value": "noreply-staging@akerogarden.se" },
+    "smtpUsername": { "value": "REPLACE_VIA_CI_SECRET" },
+    "smtpPassword": { "value": "REPLACE_VIA_CI_SECRET" },
+    "customHostnames": { "value": ["staging.akerogarden.se"] }
+  }
+}

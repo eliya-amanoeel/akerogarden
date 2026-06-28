@@ -1,0 +1,12 @@
+@if (Variant == LogoVariant.OnDark)
+{
+    <img src="/logo/lockup-dark.svg" alt="Åkerögården" class="logo" />
+}
+else
+{
+    <img src="/logo/lockup-light.svg" alt="Åkerögården" class="logo" />
+}
+
+@code {
+    [Parameter] public LogoVariant Variant { get; set; } = LogoVariant.OnLight;
+}

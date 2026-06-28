@@ -64,6 +64,25 @@ public class AuthFlowIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
+    public async Task DeactivatedUser_IsActiveIsFalse_AndPasswordRemainsValid()
+    {
+        // Login.razor checks: if (user is null || !user.IsActive) → reject before PasswordSignInAsync.
+        // This test pins that contract: a deactivated user is findable but their IsActive flag
+        // is false, which the login handler treats as a rejection.
+        var (userManager, user) = await CreateUserAsync();
+
+        user.IsActive = false;
+        await userManager.UpdateAsync(user);
+
+        var found = await userManager.FindByEmailAsync(user.Email!);
+        Assert.NotNull(found);
+        Assert.False(found!.IsActive);
+
+        // Password is still valid — the rejection is on IsActive, not credentials
+        Assert.True(await userManager.CheckPasswordAsync(found, "Testlösenord!99"));
+    }
+
+    [Fact]
     public async Task PasswordReset_TokenCanBeGenerated_AndConsumed()
     {
         const string newPassword = "NyttLösenord!77";

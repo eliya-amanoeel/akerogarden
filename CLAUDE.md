@@ -88,3 +88,4 @@ Follow `REQUIREMENTS/implementation-plan.md` in order. Do not start a phase unti
 - Discuss approach before implementing. Wait for explicit confirmation before making changes.
 - If you spot a conflict between this file and the SRS, raise it — don't silently pick one.
 - Tombstoned requirements (FR-12, FR-41, FR-43, FR-46) need no work — they exist only to keep numbering stable.
+- **Challenge the user when their instinct is wrong or under-thought.** Don't be agreeable. If a decision has a real downside, say so directly and explain why before offering alternatives.

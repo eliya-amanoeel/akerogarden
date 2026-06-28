@@ -92,3 +92,18 @@ Follow `REQUIREMENTS/implementation-plan.md` in order. Do not start a phase unti
 - Tombstoned requirements (FR-12, FR-41, FR-43, FR-46) need no work — they exist only to keep numbering stable.
 - **Challenge the user when their instinct is wrong or under-thought.** Don't be agreeable. If a decision has a real downside, say so directly and explain why before offering alternatives.
 - Be extremely careful when updating any document under the REQUIREMENTS folder, all these are strongly integrated into eachother, when updating any of these files, all other files should be checked to be kept in sync with the change.
+
+## Phase completion gate
+
+**Before merging any phase branch to main**, run a structured evaluation pass against all deliverables for that phase. The pass must check:
+
+1. **Phase exit criteria** (from `REQUIREMENTS/implementation-plan.md`) — list each criterion as pass / partial / fail with evidence.
+2. **Critical rules** in this file — Swedish-only UI, no PII in URLs, no monetary totals stored, self-hosted fonts, no hard-deletes of referenced data, booking state machine transitions, no personnummer, EU regions only.
+3. **NFR compliance** — specifically the NFRs listed in the phase's "Satisfies" row.
+4. **FR compliance** — every FR listed in the phase's "Satisfies" row implemented and correctly.
+5. **Security** — auth, cookie settings, antiforgery, no secrets in source, no sensitive data in URLs or logs.
+6. **Tests** — unit and integration tests written with the feature (not after); CI passes.
+7. **Infra** — Bicep covers every resource introduced in the phase; nothing provisioned by clicking.
+8. **Design system** — Swedish text, correct CSS tokens, self-hosted fonts, no external requests.
+
+Produce a structured report with three sections: ✅ CONFIRMED, ⚠️ GAPS / CONCERNS, ❌ VIOLATIONS. Be blunt — do not soften findings. Fix every finding before merging; do not carry gaps forward into the next phase.

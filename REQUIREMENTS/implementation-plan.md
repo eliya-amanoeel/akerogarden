@@ -1,6 +1,6 @@
 # Åkerögården — Implementation Plan
 
-**Based on:** requirements.md v0.33, erd.md
+**Based on:** requirements.md v0.34, erd.md
 **Audience:** the developer building v1.
 **Purpose:** a dependency-ordered, phased path from empty repo to production launch. Each phase lists its **goal**, **scope & deliverables**, the **requirements it satisfies**, and **exit criteria** (what "done" means before moving on).
 
@@ -28,14 +28,16 @@
 **Goal:** a deployable skeleton an admin can log into, with infrastructure, CI/CD, and the design system in place.
 
 **Scope & deliverables:**
+
 - .NET 10 Blazor solution scaffolded with the two render modes: **Static SSR** for public pages, **Interactive Server** for the admin panel (§1.5).
 - EF Core + PostgreSQL wired up; initial empty migration; connection via VNet integration.
 - **ASP.NET Core Identity** for admin auth: login at `admin.akerogarden.se/login`, "remember me" 30-day secure HTTP-only cookie, password reset (1-hour link), admin account create/deactivate (no self-deactivation).
 - Admin panel served on the `admin.akerogarden.se` subdomain; unauthenticated admin routes redirect to login.
 - **Design system:** tokens, base layout, key CSS classes, logo component per design.md (`wwwroot/css`, `Logo.razor`, scroll-aware header via JS/CSS).
 - **Local dev environment (§11.1):** Dockerised PostgreSQL, Redis, and Azurite (Blob emulator) plus a local SMTP catcher (e.g. Mailpit) so the Mac mirrors prod services at no cost; `dotnet user-secrets` for local config.
-- **Azure infra provisioned (production + staging, §11.1):** App Service (Linux B1), PostgreSQL Flexible Server (public access disabled, VNet-only), Blob Storage, Azure Cache for Redis, managed SSL, custom domains — for **production**, and a parallel **staging** resource group on minimal tiers at `staging.akerogarden.se` (synthetic data only, its own test SMTP inbox, powered down when idle).
-- **CI/CD:** GitHub Actions build + test + deploy pipeline following the dev → CI → **staging → production** flow; test projects (unit + integration) created and running against ephemeral containers in CI.
+- **Bicep templates written and checked in (early Phase 0 — no Azure spend yet):** `.bicep` files declare every resource (App Service, PostgreSQL Flexible Server, Blob Storage, Redis, managed SSL, custom domains) with environment-specific parameter files for production and staging. Templates are committed before any resource is provisioned — if it's not in Bicep, it doesn't exist.
+- **CI/CD (early Phase 0):** GitHub Actions build + test + deploy pipeline wired up; test projects (unit + integration) created and running against ephemeral containers in CI. The deploy job exists but targets nothing until Azure is provisioned.
+- **Azure infra provisioned (end of Phase 0 — once admin auth works locally):** Run the Bicep templates to create both resource groups: production (App Service B1, PostgreSQL Flexible Server VNet-only, Blob Storage, Redis, managed SSL, custom domains at `akerogarden.se` and `admin.akerogarden.se`) and staging (minimal tiers at `staging.akerogarden.se`, synthetic data only, test SMTP inbox, powered down when idle). Validate VNet isolation and run the first real deploy through the pipeline.
 - **Secrets:** SMTP and connection strings as encrypted app settings / Key Vault — never in source.
 
 **Satisfies:** FR-35, FR-70–74 · NFR-01, NFR-02, NFR-04 (Redis store stood up), NFR-06, NFR-11, NFR-12, NFR-24, NFR-25, NFR-28, NFR-30, NFR-32 · §1.5 technology decisions.
@@ -49,6 +51,7 @@
 **Goal:** the admin can enter and manage all the "reference data" that bookings will later point at.
 
 **Scope & deliverables:**
+
 - EF Core entities + migrations for: **Building, Room, MealOption, Facility, PriceRule, CleaningZone** (erd.md).
 - Admin CRUD screens (Interactive Server) for each, with: create, edit, deactivate (soft), display-order control, and **block on hard-delete when referenced**.
 - **Facility image upload** to Blob: JPEG/PNG/WebP, max 5 MB, inline validation error.
@@ -66,6 +69,7 @@
 **Goal:** the public-facing website, rendered dynamically from Phase 1 data.
 
 **Scope & deliverables:**
+
 - Static SSR pages: **home, about, contact** (hardcoded text/images — no admin CMS), **facilities** (FR-81), **menu** (FR-83), **prices** (FR-82, including cleaning zones).
 - **Availability calendar:** 12 rolling months forward, no backward nav; three states (Free / Partially booked / Fully booked) computed from effective capacity; disclaimer note; date-range selection pre-fills the inquiry form.
 - **Privacy policy** page, linked from footer and (later) the inquiry form.
@@ -84,6 +88,7 @@
 **Goal:** the core booking engine — from inquiry submission through the admin's approve / deny / close / cancel decisions.
 
 **Scope & deliverables:**
+
 - **Booking** and **BlockedPeriod** entities + migrations.
 - **Inquiry forms:** stay request (incl. meal plan, day guests hidden when SelfCateringAll, facility multi-select, cleaning-zone checklist with bundle mutual-exclusion) and general inquiry; privacy-policy acknowledgement on submit.
 - **Email infrastructure** (MailKit/SMTP) with logged retries that don't fail the booking; auto-acknowledgement (per type) and admin notification.
@@ -105,6 +110,7 @@
 **Goal:** approved guests complete their booking details via a magic link, with no account.
 
 **Scope & deliverables:**
+
 - **Participant, MealPreference, BookingCleaningSelection, BookingFacilitySelection** entities + migrations, with snapshot fields populated on save (NFR-15/16/33/34).
 - **Token-authenticated completion page** (URL token is the sole auth; single-use; expiry per §2.6 with the 48-hour floor; admin resend/regenerate while `Approved`).
 - **Completion form:**
@@ -126,6 +132,7 @@
 **Goal:** the automated lifecycle — reminders, downloadable lists, and GDPR auto-deletion.
 
 **Scope & deliverables:**
+
 - **Scheduled background-job** infrastructure.
 - **14-day reminder (FR-63):** standard reminder if `DetailsComplete`+; if still `Approved`, regenerate the token and send the guest a nudge with a fresh link **plus** an admin alert.
 - **Thank-you email** on Completed (fixed text).
@@ -143,6 +150,7 @@
 **Goal:** verify the non-functionals, clear the operational blockers, and launch.
 
 **Scope & deliverables:**
+
 - **Security:** full pass over NFR-01–07, NFR-25, NFR-30; confirm no PII in URLs/calendar; auth/rate-limit review.
 - **Performance:** verify NFR-08 (public < 3 s), NFR-09 (admin < 5 s), NFR-10 (lists).
 - **Reliability:** confirm backups (NFR-12) and run the **quarterly restore drill** (NFR-29); email failure handling (NFR-13).
@@ -160,7 +168,7 @@
 ## Phase → primary requirements map (quick reference)
 
 | Phase | Functional | Non-functional |
-|---|---|---|
+| --- | --- | --- |
 | 0 Foundation | FR-35, 70–74 | NFR-01,02,04,06,11,12,24,25,28,30,32 |
 | 1 Reference data | FR-13–34, 85–88 | NFR-09,14 |
 | 2 Public site | FR-01,07,08–11,10a,81–84 | NFR-07,08,17,20–23 |
@@ -173,4 +181,4 @@
 
 ---
 
-*Derived from requirements.md v0.32 and erd.md — Åkerögården Booking System.*
+*Derived from requirements.md v0.34 and erd.md — Åkerögården Booking System.*

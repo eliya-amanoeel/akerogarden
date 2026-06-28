@@ -1,10 +1,15 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.33 — Working Draft  
+**Version:** 0.34 — Working Draft  
 **Date:** June 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.33:**
+
+- Bicep adopted as the Azure infrastructure-as-code tool (§11): both production and staging are provisioned from `.bicep` templates with environment-specific parameter files. Click-through portal provisioning is not used. Azure provisioning in Phase 0 is deferred to the end of that phase — Bicep templates and CI pipeline are written first, Azure resources are actually provisioned only once there is a working deployable artifact (admin auth working locally). implementation-plan.md Phase 0 updated accordingly.
+- NFR-35 added (§7.6): fonts must be self-hosted; no external font CDN requests permitted (GDPR — loading Google Fonts sends user IPs to Google without a legal basis per Austrian DPA January 2022 ruling). UX/design.md updated with font hosting instructions.
 
 **Changes from v0.32:**
 - Environment strategy added (§11.1): the spec previously detailed only production. Now defines all four environments — local dev (Dockerised PostgreSQL/Redis/Azurite + a local SMTP catcher on the developer's Mac), automated test (ephemeral containers in CI), a separate minimal Azure **staging** environment (`staging.akerogarden.se`, mirrors prod on cheapest tiers, powered down when idle, synthetic data only — no real PII), and production (unchanged). Deploy flow: dev → CI → staging → production. implementation-plan.md Phase 0 and Phase 6 updated accordingly.
@@ -802,6 +807,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | NFR-16 | Room assignment records shall store a snapshot of the room name and building at submission time |
 | NFR-33 | Cleaning selection records shall store a snapshot of the cleaning zone name and amount (ex. VAT) at the time of selection, so the price the guest agreed to is preserved if the zone is later edited |
 | NFR-34 | Facility selection records shall store a snapshot of the facility name and amount (ex. VAT) at the time of selection, so the price the guest agreed to is preserved if the facility is later edited |
+| NFR-35 | All fonts shall be self-hosted (files in `wwwroot/fonts/`, declared via `@font-face`). No external font CDN requests (e.g. Google Fonts) are permitted — loading remote fonts sends visitor IP addresses to third-party servers without a legal basis under GDPR |
 
 ### 7.5 Usability
 
@@ -1073,6 +1079,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 ## 11. Hosting and Infrastructure
 
 > The cost table below specifies the **production** environment. All four environments (local dev, CI test, staging, production) are described in §11.1 below.
+> **Infrastructure-as-code:** All Azure resources (production and staging) are provisioned via **Bicep** templates checked into the repository, with environment-specific parameter files. Click-through portal provisioning is not used — if a resource is not in the Bicep templates, it does not exist and cannot be reproduced.
 
 | Service | Azure tier | Est. monthly (USD) | Purpose |
 |---|---|---|---|
@@ -1111,5 +1118,5 @@ All known open questions have been resolved. This section will be updated if new
 
 ---
 
-*End of document — Version 0.33 Working Draft*  
+*End of document — Version 0.34 Working Draft*  
 *Åkerögården Booking System — Software Requirements Specification*

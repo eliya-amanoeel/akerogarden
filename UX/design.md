@@ -14,6 +14,17 @@ Public pages render as static server HTML (no SignalR circuit), so any client-si
 
 ---
 
+## Fonts
+
+Both typefaces are **self-hosted** — no Google Fonts CDN, no external font requests. Reason: loading Google Fonts sends user IPs to Google servers without a legal basis (Austrian DPA ruling, January 2022; German courts have followed). For a GDPR-conscious Swedish business this is a real liability.
+
+Font files live in `wwwroot/fonts/`. Declare them with `@font-face` in `site.css`. No consent banner needed for self-hosted fonts.
+
+- **Roboto** — body text. Download from [fonts.google.com/specimen/Roboto](https://fonts.google.com/specimen/Roboto) and save the `.woff2` files to `wwwroot/fonts/roboto/`.
+- **Playfair Display** — headings. Download from [fonts.google.com/specimen/Playfair+Display](https://fonts.google.com/specimen/Playfair+Display) and save to `wwwroot/fonts/playfair-display/`.
+
+---
+
 ## Design Tokens
 
 ```css
@@ -28,8 +39,8 @@ Public pages render as static server HTML (no SignalR circuit), so any client-si
 --color-footer-bg:      #1a1714    /* dark footer */
 
 /* Typography */
---font-body:    var(--font-roboto, 'Roboto'), sans-serif
---font-heading: var(--font-playfair, 'Playfair Display'), Georgia, serif
+--font-body:    'Roboto', sans-serif
+--font-heading: 'Playfair Display', Georgia, serif
 
 /* Layout */
 --max-width:  1200px

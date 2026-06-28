@@ -16,6 +16,7 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 - **Azure Blob Storage** — images and list downloads
 - **MailKit** over One.com SMTP
 - **GitHub Actions** CI/CD
+- **Bicep** — Azure infrastructure-as-code. Both production and staging are provisioned from the same `.bicep` templates with different parameter files. Never click-through portal provisioning — if it's not in code, it doesn't exist.
 
 ## Architecture
 
@@ -55,6 +56,7 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 - **No PII in URLs** — no guest names, emails, or IDs in query strings or route segments (NFR-05).
 - **No personnummer** — never collect or store Swedish national ID numbers (NFR-23).
 - **No personal data outside EU regions** — all Azure resources in West Europe or North Europe (NFR-06/24).
+- **Self-hosted fonts only** — no Google Fonts CDN or any external font requests. Loading Google Fonts sends user IPs to Google without a legal basis (Austrian DPA ruling, Jan 2022; enforced in Germany too). Font files go in `wwwroot/fonts/` with `@font-face` declarations in `site.css` (NFR-35).
 
 ## Environments (§11.1)
 
@@ -89,3 +91,4 @@ Follow `REQUIREMENTS/implementation-plan.md` in order. Do not start a phase unti
 - If you spot a conflict between this file and the SRS, raise it — don't silently pick one.
 - Tombstoned requirements (FR-12, FR-41, FR-43, FR-46) need no work — they exist only to keep numbering stable.
 - **Challenge the user when their instinct is wrong or under-thought.** Don't be agreeable. If a decision has a real downside, say so directly and explain why before offering alternatives.
+- Be extremely careful when updating any document under the REQUIREMENTS folder, all these are strongly integrated into eachother, when updating any of these files, all other files should be checked to be kept in sync with the change.

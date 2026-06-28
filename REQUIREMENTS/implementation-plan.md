@@ -23,7 +23,7 @@
 
 ---
 
-## Phase 0 — Foundation
+## Phase 0 — Foundation ✅ COMPLETE (merged to main 2026-06-28)
 
 **Goal:** a deployable skeleton an admin can log into, with infrastructure, CI/CD, and the design system in place.
 

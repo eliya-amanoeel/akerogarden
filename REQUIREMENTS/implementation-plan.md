@@ -35,14 +35,14 @@
 - Admin panel served on the `admin.akerogarden.se` subdomain; unauthenticated admin routes redirect to login.
 - **Design system:** tokens, base layout, key CSS classes, logo component per design.md (`wwwroot/css`, `Logo.razor`, scroll-aware header via JS/CSS).
 - **Local dev environment (§11.1):** Dockerised PostgreSQL, Redis, and Azurite (Blob emulator) plus a local SMTP catcher (e.g. Mailpit) so the Mac mirrors prod services at no cost; `dotnet user-secrets` for local config.
-- **Bicep templates written and checked in (early Phase 0 — no Azure spend yet):** `.bicep` files declare every resource (App Service, PostgreSQL Flexible Server, Blob Storage, Redis, managed SSL, custom domains) with environment-specific parameter files for production and staging. Templates are committed before any resource is provisioned — if it's not in Bicep, it doesn't exist.
+- **Bicep templates written and checked in (early Phase 0 — no Azure spend yet):** `.bicep` files declare every resource (App Service, PostgreSQL Flexible Server, Blob Storage, Key Vault, managed identity, managed SSL, custom domains) with environment-specific parameter files for production and staging. Templates are committed before any resource is provisioned — if it's not in Bicep, it doesn't exist. *(Redis is deferred to Phase 3, where rate limiting is first built — it is not part of the Phase 0 templates.)*
 - **CI/CD (early Phase 0):** GitHub Actions build + test + deploy pipeline wired up; test projects (unit + integration) created and running against ephemeral containers in CI. The deploy job exists but targets nothing until Azure is provisioned.
-- **Azure infra provisioned (end of Phase 0 — once admin auth works locally):** Run the Bicep templates to create both resource groups: production (App Service B1, PostgreSQL Flexible Server VNet-only, Blob Storage, Redis, managed SSL, custom domains at `akerogarden.se` and `admin.akerogarden.se`) and staging (minimal tiers at `staging.akerogarden.se`, synthetic data only, test SMTP inbox, powered down when idle). Validate VNet isolation and run the first real deploy through the pipeline.
+- **Staging Azure infra provisioned (end of Phase 0 — once admin auth works locally):** Run the Bicep templates to create the staging resource group (App Service B1, PostgreSQL Flexible Server VNet-only, Blob Storage, Key Vault at `staging.akerogarden.se`, synthetic data only, test SMTP inbox, powered down when idle). Validate VNet isolation and run the first real deploy through the pipeline. *(Production provisioning is deliberately deferred to Phase 6.)*
 - **Secrets:** SMTP and connection strings as encrypted app settings / Key Vault — never in source.
 
-**Satisfies:** FR-35, FR-70–74 · NFR-01, NFR-02, NFR-04 (Redis store stood up), NFR-06, NFR-11, NFR-12, NFR-24, NFR-25, NFR-28, NFR-30, NFR-32 · §1.5 technology decisions.
+**Satisfies:** FR-35, FR-70–74 · NFR-01, NFR-02, NFR-06, NFR-11, NFR-12, NFR-24, NFR-25, NFR-28, NFR-30, NFR-32 · §1.5 technology decisions.
 
-**Exit criteria:** admin can log in / reset password / manage admin accounts on the subdomain over HTTPS; CI is green and runs the test suite; the local dev stack runs via Docker; **both production and staging** Azure environments are provisioned with the DB unreachable from the public internet; design tokens applied to a base layout.
+**Exit criteria:** admin can log in / reset password / manage admin accounts on the subdomain over HTTPS; CI is green and runs the test suite; the local dev stack runs via Docker; **staging** Azure environment is provisioned and the first deploy runs through the pipeline with the DB unreachable from the public internet; design tokens applied to a base layout. *(Production provisioning is deliberately deferred to Phase 6.)*
 
 ---
 
@@ -157,11 +157,12 @@
 - **Email E2E (NFR-31):** verify every guest/admin email against the **production** SMTP before go-live — not assumed from a successful build.
 - **Operational blockers (from operational-tasks.md):** privacy-policy legal text drafted/reviewed; image migration completed and wired to Facility/page assets; **VAT rates per category confirmed with the client's accountant**.
 - **UAT** with the admin **on the staging environment** (non-technical usability, NFR-18/19); Swedish-text review (NFR-32).
-- **Production deploy** + DNS for `akerogarden.se` and `admin.akerogarden.se`; go-live checklist.
+- **Production Azure environment provisioned:** run `main.bicep` with `prod.parameters.json` to create the production resource group (App Service B1, PostgreSQL Flexible Server VNet-only, Blob Storage, Redis, Key Vault); configure DNS for `akerogarden.se` and `admin.akerogarden.se`; run `ssl.bicep` for managed SSL; wire GitHub secrets for the production deploy job; validate VNet isolation.
+- **Production deploy** + go-live checklist.
 
 **Satisfies:** NFR-08, NFR-09, NFR-10, NFR-29, NFR-31 · all residual NFRs · operational-tasks.md items.
 
-**Exit criteria:** go-live checklist complete; backups proven restorable; all emails verified in production; privacy policy live and accurate; admin signed off via UAT; production reachable on both domains.
+**Exit criteria:** go-live checklist complete; production Azure environment provisioned and VNet isolation validated; backups proven restorable; all emails verified in production; privacy policy live and accurate; admin signed off via UAT; production reachable on both domains.
 
 ---
 
@@ -169,7 +170,7 @@
 
 | Phase | Functional | Non-functional |
 | --- | --- | --- |
-| 0 Foundation | FR-35, 70–74 | NFR-01,02,04,06,11,12,24,25,28,30,32 |
+| 0 Foundation | FR-35, 70–74 | NFR-01,02,06,11,12,24,25,28,30,32 |
 | 1 Reference data | FR-13–34, 85–88 | NFR-09,14 |
 | 2 Public site | FR-01,07,08–11,10a,81–84 | NFR-07,08,17,20–23 |
 | 3 Inquiry & lifecycle | FR-02–06,21,36–42,47,50,51–53,75–80 | NFR-03,04,05,09,13 |

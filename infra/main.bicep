@@ -40,6 +40,14 @@ param customHostnames array = []
 // ── Naming ────────────────────────────────────────────────────────────────────
 var prefix = 'akerogarden-${environmentName}'
 
+// ── User-Assigned Managed Identity ───────────────────────────────────────────
+// Created before Key Vault and App Service so the principalId is available for
+// the Key Vault access policy in the same deployment pass.
+resource appIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
+  name: '${prefix}-identity'
+  location: location
+}
+
 // ── Key Vault ─────────────────────────────────────────────────────────────────
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   name: '${prefix}-kv'
@@ -47,7 +55,10 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   properties: {
     sku: { family: 'A', name: 'standard' }
     tenantId: subscription().tenantId
-    enableRbacAuthorization: true
+    enableRbacAuthorization: false
+    // With RBAC disabled, Azure requires an accessPolicies array to be present.
+    // Start empty; the kvAccessPolicy resource below adds the app's policy.
+    accessPolicies: []
     enableSoftDelete: true
     softDeleteRetentionInDays: 7
   }
@@ -84,11 +95,17 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
   name: '${prefix}-app'
   location: location
   identity: {
-    type: 'SystemAssigned'
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${appIdentity.id}': {}
+    }
   }
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
+    // App Service must use the user-assigned identity (not the absent system one)
+    // to resolve @Microsoft.KeyVault(...) references in app settings.
+    keyVaultReferenceIdentity: appIdentity.id
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
       alwaysOn: false // B1 doesn't support AlwaysOn; acceptable for this tier
@@ -100,10 +117,6 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'ConnectionStrings__Postgres'
           value: 'Host=${postgresServer.properties.fullyQualifiedDomainName};Database=akerogarden;Username=${postgresAdminLogin};Password=${postgresAdminPassword};SslMode=Require'
-        }
-        {
-          name: 'ConnectionStrings__Redis'
-          value: '${redisCache.properties.hostName}:${redisCache.properties.sslPort},password=${redisCache.listKeys().primaryKey},ssl=True,abortConnect=False'
         }
         {
           name: 'Smtp__Host'
@@ -137,15 +150,20 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
   }
 }
 
-// ── Key Vault RBAC — App Service managed identity reads secrets ───────────────
-resource kvSecretsUser 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, appService.id, '4633458b-17de-408a-b874-0445c86b69e0')
-  scope: keyVault
+// ── Key Vault access policy — App Service managed identity reads secrets ──────
+resource kvAccessPolicy 'Microsoft.KeyVault/vaults/accessPolicies@2023-07-01' = {
+  parent: keyVault
+  name: 'add'
   properties: {
-    // Key Vault Secrets User — read-only access to secret values
-    roleDefinitionId: subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e0')
-    principalId: appService.identity.principalId
-    principalType: 'ServicePrincipal'
+    accessPolicies: [
+      {
+        tenantId: subscription().tenantId
+        objectId: appIdentity.properties.principalId
+        permissions: {
+          secrets: ['get', 'list']
+        }
+      }
+    ]
   }
 }
 
@@ -238,6 +256,7 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-pr
     highAvailability: {
       mode: 'Disabled'
     }
+    availabilityZone: '1'
   }
 }
 
@@ -260,21 +279,6 @@ resource postgresDnsZoneLink 'Microsoft.Network/privateDnsZones/virtualNetworkLi
       id: vnet.id
     }
     registrationEnabled: false
-  }
-}
-
-// ── Azure Cache for Redis ─────────────────────────────────────────────────────
-resource redisCache 'Microsoft.Cache/redis@2023-08-01' = {
-  name: '${prefix}-redis'
-  location: location
-  properties: {
-    sku: {
-      name: 'Basic'
-      family: 'C'
-      capacity: 0
-    }
-    enableNonSslPort: false
-    minimumTlsVersion: '1.2'
   }
 }
 

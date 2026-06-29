@@ -20,8 +20,12 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
         try
         {
             using var client = new SmtpClient();
-            // Port 1025 (Mailpit dev) needs no TLS; production uses STARTTLS on 587.
-            var socketOptions = _opts.Port == 1025 ? SecureSocketOptions.None : SecureSocketOptions.StartTls;
+            var socketOptions = _opts.Port switch
+            {
+                1025 => SecureSocketOptions.None,       // Mailpit — no TLS
+                465  => SecureSocketOptions.SslOnConnect, // One.com SSL
+                _    => SecureSocketOptions.StartTls    // standard STARTTLS (587)
+            };
             await client.ConnectAsync(_opts.Host, _opts.Port, socketOptions);
 
             if (!string.IsNullOrEmpty(_opts.Username) && _opts.Password is not null)

@@ -37,6 +37,13 @@ param smtpPassword string
 @description('Custom hostnames to bind to the App Service (e.g. ["akerogarden.se","admin.akerogarden.se"])')
 param customHostnames array = []
 
+@description('Bootstrap admin email — seeds the first admin account on startup if none exists')
+param seedAdminEmail string
+
+@secure()
+@description('Bootstrap admin password — seeds the first admin account on startup if none exists')
+param seedAdminPassword string
+
 // ── Naming ────────────────────────────────────────────────────────────────────
 var prefix = 'akerogarden-${environmentName}'
 
@@ -143,6 +150,15 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'Blob__ConnectionString'
           value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=core.windows.net'
+        }
+        {
+          // Bootstraps the first admin on startup if no users exist (AdminSeeder)
+          name: 'Seed__AdminEmail'
+          value: seedAdminEmail
+        }
+        {
+          name: 'Seed__AdminPassword'
+          value: seedAdminPassword
         }
       ]
     }

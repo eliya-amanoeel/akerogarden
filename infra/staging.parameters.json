@@ -11,6 +11,8 @@
     "smtpFromAddress": { "value": "temp@amaeli.se" },
     "smtpUsername": { "value": "REPLACE_VIA_CI_SECRET" },
     "smtpPassword": { "value": "REPLACE_VIA_CI_SECRET" },
+    "seedAdminEmail": { "value": "REPLACE_AT_DEPLOY" },
+    "seedAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
     "customHostnames": { "value": [] }
   }
 }

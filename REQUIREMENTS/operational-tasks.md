@@ -25,3 +25,11 @@ One-off content, migration, and go-live tasks that aren't system requirements �
   - Confirmation that personnummer is not collected
 
   **This blocks go-live** — NFR-20–24 in requirements.md require the policy to exist and cover these points, but there is currently no actual document satisfying them.
+- [ ] **Azure cost + health alerts (staging and production).** No alerting exists yet. Set up, ideally codified in Bicep (Azure Monitor / `Microsoft.CostManagement` budgets + `Microsoft.Insights` metric alerts) rather than clicked in the portal:
+  - **Cost / budget alerts** — a monthly budget per resource group (`akerogarden-staging`, `akerogarden-prod`) with email alerts at e.g. 50% / 80% / 100% of threshold. Staging especially, since it's meant to be powered down when idle — an alert catches a box left running.
+  - **App Service health** — alerts on HTTP 5xx rate, response time, and app restarts/availability (so a crash-looping deploy is noticed without watching the portal).
+  - **PostgreSQL** — alerts on high CPU/storage (Burstable B1ms is small), failed connections, and approaching storage limit.
+  - **Key Vault** — alert on access failures (would surface a broken managed-identity/access-policy wiring like the one hit during Phase 0 provisioning).
+  - **Optional** — Action Group wiring so all the above notify a real inbox/SMS; consider Application Insights for richer telemetry.
+
+  Not go-live-blocking on its own, but production should not run unmonitored. Revisit in Phase 6 (hardening) at the latest; staging cost alerts are worth doing sooner.

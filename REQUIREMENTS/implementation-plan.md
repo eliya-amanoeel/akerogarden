@@ -42,7 +42,7 @@
 
 **Satisfies:** FR-35, FR-70–74 · NFR-01, NFR-02, NFR-06, NFR-11, NFR-12, NFR-24, NFR-25, NFR-28, NFR-30, NFR-32 · §1.5 technology decisions.
 
-**Exit criteria:** admin can log in / reset password / manage admin accounts on the subdomain over HTTPS; CI is green and runs the test suite; the local dev stack runs via Docker; **staging** Azure environment is provisioned and the first deploy runs through the pipeline with the DB unreachable from the public internet; design tokens applied to a base layout. *(Production provisioning is deliberately deferred to Phase 6.)*
+**Exit criteria:** admin can log in / reset password / manage admin accounts over HTTPS; CI is green and runs the test suite; the local dev stack runs via Docker; **staging** Azure environment is provisioned and the first deploy runs through the pipeline with the DB unreachable from the public internet; design tokens applied to a base layout. *(Production provisioning is deliberately deferred to Phase 6. Staging runs on the Azure default `*.azurewebsites.net` hostname for now; binding the `staging.akerogarden.se` custom subdomain + managed SSL is also deferred to Phase 6, where DNS for all domains is configured.)*
 
 ---
 
@@ -158,6 +158,7 @@
 - **Operational blockers (from operational-tasks.md):** privacy-policy legal text drafted/reviewed; image migration completed and wired to Facility/page assets; **VAT rates per category confirmed with the client's accountant**.
 - **UAT** with the admin **on the staging environment** (non-technical usability, NFR-18/19); Swedish-text review (NFR-32).
 - **Production Azure environment provisioned:** run `main.bicep` with `prod.parameters.json` to create the production resource group (App Service B1, PostgreSQL Flexible Server VNet-only, Blob Storage, Redis, Key Vault); configure DNS for `akerogarden.se` and `admin.akerogarden.se`; run `ssl.bicep` for managed SSL; wire GitHub secrets for the production deploy job; validate VNet isolation.
+- **Staging custom domain bound:** configure DNS for `staging.akerogarden.se` (CNAME + `asuid` TXT), re-add it to the staging `customHostnames`, redeploy `main.bicep`, and run `ssl.bicep` for the managed certificate. *(Deferred here from Phase 0, which ran staging on the Azure default hostname.)*
 - **Production deploy** + go-live checklist.
 
 **Satisfies:** NFR-08, NFR-09, NFR-10, NFR-29, NFR-31 · all residual NFRs · operational-tasks.md items.

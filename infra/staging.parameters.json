@@ -3,13 +3,16 @@
   "contentVersion": "1.0.0.0",
   "parameters": {
     "environmentName": { "value": "staging" },
-    "location": { "value": "northeurope" },
+    "location": { "value": "swedencentral" },
     "appServiceSkuName": { "value": "B1" },
     "postgresAdminLogin": { "value": "akerogarden_admin" },
     "postgresAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
-    "smtpFromAddress": { "value": "noreply-staging@akerogarden.se" },
+    "smtpPort": { "value": 465 },
+    "smtpFromAddress": { "value": "temp@amaeli.se" },
     "smtpUsername": { "value": "REPLACE_VIA_CI_SECRET" },
     "smtpPassword": { "value": "REPLACE_VIA_CI_SECRET" },
-    "customHostnames": { "value": ["staging.akerogarden.se"] }
+    "seedAdminEmail": { "value": "REPLACE_AT_DEPLOY" },
+    "seedAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
+    "customHostnames": { "value": [] }
   }
 }

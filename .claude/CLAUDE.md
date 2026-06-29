@@ -55,7 +55,7 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 - **Booking state machine is one-way** — only the transitions defined in §2.5 are valid. Invalid transitions must be blocked in code, not just hidden in the UI.
 - **No PII in URLs** — no guest names, emails, or IDs in query strings or route segments (NFR-05).
 - **No personnummer** — never collect or store Swedish national ID numbers (NFR-23).
-- **No personal data outside EU regions** — all Azure resources in West Europe or North Europe (NFR-06/24).
+- **No personal data outside EU regions** — all Azure resources in North Europe or Sweden Central (NFR-06/24).
 - **Self-hosted fonts only** — no Google Fonts CDN or any external font requests. Loading Google Fonts sends user IPs to Google without a legal basis (Austrian DPA ruling, Jan 2022; enforced in Germany too). Font files go in `wwwroot/fonts/` with `@font-face` declarations in `site.css` (NFR-35).
 
 ## Environments (§11.1)
@@ -65,7 +65,7 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 | Local dev | Mac + Docker | PostgreSQL, Redis, Azurite (Blob emulator), Mailpit (SMTP catcher); `dotnet user-secrets` for config |
 | Automated test | Ephemeral GitHub Actions containers | Ephemeral DBs; CI fails on any test failure |
 | Staging | Separate Azure resource group | `staging.akerogarden.se`; synthetic data only; test SMTP inbox; power down when idle |
-| Production | Azure (West Europe) | See requirements.md §11 |
+| Production | Azure (North Europe or Sweden Central) | See requirements.md §11 |
 
 ## Testing
 

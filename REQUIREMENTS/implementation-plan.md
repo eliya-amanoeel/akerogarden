@@ -62,6 +62,24 @@
 
 **Exit criteria:** every reference entity is fully CRUD-able with validation; deactivation hides items from future selection without touching history; hard-delete is blocked when referenced; image upload enforces format/size; unit tests cover the deactivate / no-hard-delete rules.
 
+### Build order — five vertical slices
+
+Phase 1 is built as five independently reviewable vertical slices, not one batch. Each slice = entity + EF Core migration + Interactive Server CRUD screen (create / edit / deactivate / display-order) + its hard-delete guard + unit tests, merged to the phase branch before the next begins. The only intra-phase dependency is **Room → Building**; the remaining entities are independent and ordered simplest-first so the CRUD/soft-delete/guard pattern established in slice 1 is proven before the two slices with novel mechanics (CleaningZone's array bundle, Facility's Blob upload).
+
+| Slice | Migration | Entities | §ref | Notes |
+|---|---|---|---|---|
+| 1 | `AddBuildingAndRoom` | Building, Room | §8.2, §8.3 | Room FK → Building; establishes the reusable CRUD / soft-delete / display-order / guard pattern |
+| 2 | `AddMealOption` | MealOption | §8.7 | Simplest standalone; reuses slice-1 pattern with no new mechanics |
+| 3 | `AddPriceRule` | PriceRule | §8.9 | Standalone, no FKs; adds optional season-date fields |
+| 4 | `AddCleaningZone` | CleaningZone | §8.11 | Introduces the `uuid[]` self-referential bundle (`IncludesZoneIds`) |
+| 5 | `AddFacility` | Facility | §8.8 | Only slice touching Blob (Azurite locally); confirm storage wiring before starting |
+
+### Phase 1 implementation notes
+
+- **Hard-delete guard — unit-tested now, wired to real references later.** Every "block on hard-delete when referenced" rule (FR-16/20/26/30/88) targets entities that do not exist until Phase 3–4: Facility ← `BookingFacilitySelection` (§8.13) and CleaningZone ← `BookingCleaningSelection` (§8.12) arrive in Phase 3; MealOption ← `MealPreference` (§8.6) and Room ← `Participant.RoomId` (§8.5) arrive in Phase 4. Phase 1 implements a per-entity `CanHardDelete` check unit-tested against a stubbed reference-count source; the real reference counts are wired in as those tables land. **Building's guard is two-layered:** in Phase 1 it blocks deleting a building that still has rooms; the booking-transitive check (FR-16, "room assignments on any booking", via Room → `Participant.RoomId`) is added in Phase 4. Deactivation (soft) is fully implemented and tested in Phase 1.
+- **CleaningZone bundle scope (slice 4).** `IncludesZoneIds` is a PostgreSQL `uuid[]` column (Npgsql), not a foreign key — so there is no DB constraint and validation lives in the app layer. Phase 1 stores the array and validates in the admin CRUD that included IDs reference existing active zones and that a bundle does not include another bundle. The mutual-exclusion *checkbox behaviour* on the inquiry form is a Phase 3 concern (it lives on the public form), not Phase 1.
+- **No computed totals on CRUD screens (C8).** `AmountExVat` and `VatRate` on PriceRule and CleaningZone are stored and displayed exactly as entered. The admin edit screens must not render any derived "total incl. VAT" figure — that would violate the no-monetary-totals rule.
+
 ---
 
 ## Phase 2 — Public site

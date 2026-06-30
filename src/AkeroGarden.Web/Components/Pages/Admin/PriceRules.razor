@@ -1,0 +1,190 @@
+@page "/admin/priser"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Data.Entities
+@inject PriceRuleService PriceRuleService
+@attribute [Authorize]
+
+<PageTitle>Priser — Åkerögården Admin</PageTitle>
+
+<h1>Priser</h1>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <p role="status">@_message</p>
+}
+
+@if (_priceRules is null)
+{
+    <p>Laddar...</p>
+}
+else
+{
+    @* No total incl. VAT column — the system stores and computes no monetary totals (C8). *@
+    <table>
+        <thead>
+            <tr>
+                <th>Etikett</th>
+                <th>Belopp exkl. moms</th>
+                <th>Momssats</th>
+                <th>Enhet</th>
+                <th>Säsong</th>
+                <th>Status</th>
+                <th>Åtgärd</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var p in _priceRules)
+            {
+                <tr>
+                    <td>@p.Label</td>
+                    <td>@p.AmountExVat.ToString("0.00") kr</td>
+                    <td>@p.VatRate.ToString("0.##%")</td>
+                    <td>@p.Unit</td>
+                    <td>@SeasonText(p)</td>
+                    <td>@(p.IsActive ? "Aktiv" : "Inaktiv")</td>
+                    <td>
+                        <button class="btn-ghost" @onclick="() => Edit(p)">Redigera</button>
+                        @if (p.IsActive)
+                        {
+                            <button class="btn-ghost" @onclick="() => SetActive(p, false)">Inaktivera</button>
+                        }
+                        else
+                        {
+                            <button class="btn-ghost" @onclick="() => SetActive(p, true)">Aktivera</button>
+                        }
+                        <button class="btn-ghost" @onclick="() => Delete(p)">Ta bort</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>@(_editingId is null ? "Lägg till pris" : "Redigera pris")</h2>
+
+    <EditForm Model="_form" OnValidSubmit="Save" FormName="priceRule">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="p-label">Etikett</label>
+            <InputText id="p-label" @bind-Value="_form.Label" />
+            <ValidationMessage For="() => _form.Label" />
+        </div>
+
+        <div class="form-group">
+            <label for="p-amount">Belopp exkl. moms (kr)</label>
+            <InputNumber id="p-amount" @bind-Value="_form.AmountExVat" />
+            <ValidationMessage For="() => _form.AmountExVat" />
+        </div>
+
+        <div class="form-group">
+            <label for="p-vat">Momssats (andel, t.ex. 0.12 för 12 %)</label>
+            <InputNumber id="p-vat" @bind-Value="_form.VatRate" step="0.01" />
+            <ValidationMessage For="() => _form.VatRate" />
+        </div>
+
+        <div class="form-group">
+            <label for="p-unit">Enhet</label>
+            <InputText id="p-unit" @bind-Value="_form.Unit" placeholder="t.ex. per person och natt" />
+            <ValidationMessage For="() => _form.Unit" />
+        </div>
+
+        <div class="form-row">
+            <div class="form-group">
+                <label for="p-season-start">Säsong från (valfritt)</label>
+                <InputDate id="p-season-start" @bind-Value="_form.SeasonStart" />
+                <ValidationMessage For="() => _form.SeasonStart" />
+            </div>
+
+            <div class="form-group">
+                <label for="p-season-end">Säsong till (valfritt)</label>
+                <InputDate id="p-season-end" @bind-Value="_form.SeasonEnd" />
+                <ValidationMessage For="() => _form.SeasonEnd" />
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="p-notes">Anteckningar</label>
+            <InputTextArea id="p-notes" @bind-Value="_form.Notes" />
+            <ValidationMessage For="() => _form.Notes" />
+        </div>
+
+        <button type="submit" class="btn">Spara</button>
+        @if (_editingId is not null)
+        {
+            <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
+        }
+    </EditForm>
+}
+
+@code {
+    private List<PriceRule>? _priceRules;
+    private PriceRule _form = new();
+    private Guid? _editingId;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load() => _priceRules = await PriceRuleService.GetAllAsync();
+
+    private static string SeasonText(PriceRule p)
+    {
+        if (p.SeasonStart is null && p.SeasonEnd is null) return "Hela året";
+        return $"{p.SeasonStart?.ToString("yyyy-MM-dd") ?? "—"} – {p.SeasonEnd?.ToString("yyyy-MM-dd") ?? "—"}";
+    }
+
+    private void New()
+    {
+        _editingId = null;
+        _form = new();
+    }
+
+    private void Edit(PriceRule p)
+    {
+        _editingId = p.Id;
+        _form = new PriceRule
+        {
+            Id = p.Id,
+            Label = p.Label,
+            AmountExVat = p.AmountExVat,
+            VatRate = p.VatRate,
+            Unit = p.Unit,
+            SeasonStart = p.SeasonStart,
+            SeasonEnd = p.SeasonEnd,
+            Notes = p.Notes
+        };
+    }
+
+    private async Task Save()
+    {
+        if (_editingId is null)
+        {
+            await PriceRuleService.CreateAsync(_form);
+            _message = $"Priset \"{_form.Label}\" har lagts till.";
+        }
+        else
+        {
+            await PriceRuleService.UpdateAsync(_form);
+            _message = $"Priset \"{_form.Label}\" har uppdaterats.";
+        }
+
+        New();
+        await Load();
+    }
+
+    private async Task SetActive(PriceRule p, bool isActive)
+    {
+        await PriceRuleService.SetActiveAsync(p.Id, isActive);
+        _message = isActive
+            ? $"Priset \"{p.Label}\" har aktiverats."
+            : $"Priset \"{p.Label}\" har inaktiverats.";
+        await Load();
+    }
+
+    private async Task Delete(PriceRule p)
+    {
+        await PriceRuleService.DeleteAsync(p.Id);
+        _message = $"Priset \"{p.Label}\" har tagits bort.";
+        await Load();
+    }
+}

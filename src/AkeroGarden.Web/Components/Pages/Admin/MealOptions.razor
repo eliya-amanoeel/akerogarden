@@ -1,0 +1,181 @@
+@page "/admin/matalternativ"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Data.Entities
+@inject MealOptionService MealOptionService
+@attribute [Authorize]
+
+<PageTitle>Matalternativ — Åkerögården Admin</PageTitle>
+
+<h1>Matalternativ</h1>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <p role="status">@_message</p>
+}
+
+@if (_mealOptions is null)
+{
+    <p>Laddar...</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Ordning</th>
+                <th>Namn</th>
+                <th>Måltid</th>
+                <th>Vegetariskt</th>
+                <th>Status</th>
+                <th>Åtgärd</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var m in _mealOptions)
+            {
+                <tr>
+                    <td>@m.DisplayOrder</td>
+                    <td>@m.Name</td>
+                    <td>@MealTypeLabel(m.MealType)</td>
+                    <td>@(m.IsVegetarian ? "Ja" : "Nej")</td>
+                    <td>@(m.IsActive ? "Aktiv" : "Inaktiv")</td>
+                    <td>
+                        <button class="btn-ghost" @onclick="() => Edit(m)">Redigera</button>
+                        @if (m.IsActive)
+                        {
+                            <button class="btn-ghost" @onclick="() => SetActive(m, false)">Inaktivera</button>
+                        }
+                        else
+                        {
+                            <button class="btn-ghost" @onclick="() => SetActive(m, true)">Aktivera</button>
+                        }
+                        <button class="btn-ghost" @onclick="() => Delete(m)">Ta bort</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>@(_editingId is null ? "Lägg till matalternativ" : "Redigera matalternativ")</h2>
+
+    <EditForm Model="_form" OnValidSubmit="Save" FormName="mealOption">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="m-name">Namn</label>
+            <InputText id="m-name" @bind-Value="_form.Name" />
+            <ValidationMessage For="() => _form.Name" />
+        </div>
+
+        <div class="form-group">
+            <label for="m-description">Beskrivning</label>
+            <InputTextArea id="m-description" @bind-Value="_form.Description" />
+            <ValidationMessage For="() => _form.Description" />
+        </div>
+
+        <div class="form-group">
+            <label for="m-type">Måltid</label>
+            <InputSelect id="m-type" @bind-Value="_form.MealType">
+                <option value="@MealType.Lunch">@MealTypeLabel(MealType.Lunch)</option>
+                <option value="@MealType.Dinner">@MealTypeLabel(MealType.Dinner)</option>
+            </InputSelect>
+            <ValidationMessage For="() => _form.MealType" />
+        </div>
+
+        <div class="form-group">
+            <label>
+                <InputCheckbox @bind-Value="_form.IsVegetarian" />
+                Vegetariskt
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="m-order">Visningsordning</label>
+            <InputNumber id="m-order" @bind-Value="_form.DisplayOrder" />
+            <ValidationMessage For="() => _form.DisplayOrder" />
+        </div>
+
+        <button type="submit" class="btn">Spara</button>
+        @if (_editingId is not null)
+        {
+            <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
+        }
+    </EditForm>
+}
+
+@code {
+    private List<MealOption>? _mealOptions;
+    private MealOption _form = new();
+    private Guid? _editingId;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load() => _mealOptions = await MealOptionService.GetAllAsync();
+
+    private static string MealTypeLabel(MealType type) => type switch
+    {
+        MealType.Lunch => "Lunch",
+        MealType.Dinner => "Middag",
+        _ => type.ToString()
+    };
+
+    private void New()
+    {
+        _editingId = null;
+        _form = new();
+    }
+
+    private void Edit(MealOption m)
+    {
+        _editingId = m.Id;
+        _form = new MealOption
+        {
+            Id = m.Id,
+            Name = m.Name,
+            Description = m.Description,
+            MealType = m.MealType,
+            IsVegetarian = m.IsVegetarian,
+            DisplayOrder = m.DisplayOrder
+        };
+    }
+
+    private async Task Save()
+    {
+        if (_editingId is null)
+        {
+            await MealOptionService.CreateAsync(_form);
+            _message = $"Matalternativet \"{_form.Name}\" har lagts till.";
+        }
+        else
+        {
+            await MealOptionService.UpdateAsync(_form);
+            _message = $"Matalternativet \"{_form.Name}\" har uppdaterats.";
+        }
+
+        New();
+        await Load();
+    }
+
+    private async Task SetActive(MealOption m, bool isActive)
+    {
+        await MealOptionService.SetActiveAsync(m.Id, isActive);
+        _message = isActive
+            ? $"Matalternativet \"{m.Name}\" har aktiverats."
+            : $"Matalternativet \"{m.Name}\" har inaktiverats.";
+        await Load();
+    }
+
+    private async Task Delete(MealOption m)
+    {
+        var result = await MealOptionService.TryHardDeleteAsync(m.Id);
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Matalternativet \"{m.Name}\" har tagits bort.",
+            HardDeleteResult.Blocked => $"Matalternativet \"{m.Name}\" kan inte tas bort eftersom det används av en bokning. Inaktivera det i stället.",
+            _ => $"Matalternativet \"{m.Name}\" kunde inte hittas."
+        };
+        await Load();
+    }
+}

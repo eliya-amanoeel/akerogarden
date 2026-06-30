@@ -310,6 +310,25 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     accessTier: 'Hot'
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
+    // Facility images are non-personal public assets served on the public site (FR-81);
+    // they are read anonymously, so blob-level public access must be allowed. Azure
+    // defaults this to false, which would break the app's public-read upload (FR-27).
+    allowBlobPublicAccess: true
+  }
+}
+
+// Container for facility images (FR-27). Declared in IaC rather than left to the
+// app's runtime CreateIfNotExists, so it exists by deployment, not first upload.
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
+  parent: storageAccount
+  name: 'default'
+}
+
+resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobService
+  name: 'facility-images'
+  properties: {
+    publicAccess: 'Blob' // anonymous read of individual blobs; no container listing
   }
 }
 

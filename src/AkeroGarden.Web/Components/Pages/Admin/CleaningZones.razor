@@ -1,0 +1,235 @@
+@page "/admin/stadszoner"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Data.Entities
+@inject CleaningZoneService CleaningZoneService
+@attribute [Authorize]
+
+<PageTitle>Städzoner — Åkerögården Admin</PageTitle>
+
+<h1>Städzoner</h1>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <p role="status">@_message</p>
+}
+
+@if (_zones is null)
+{
+    <p>Laddar...</p>
+}
+else
+{
+    @* No total incl. VAT column — the system stores and computes no monetary totals (C8). *@
+    <table>
+        <thead>
+            <tr>
+                <th>Ordning</th>
+                <th>Namn</th>
+                <th>Belopp exkl. moms</th>
+                <th>Momssats</th>
+                <th>Typ</th>
+                <th>Status</th>
+                <th>Åtgärd</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var z in _zones)
+            {
+                <tr>
+                    <td>@z.DisplayOrder</td>
+                    <td>@z.Name</td>
+                    <td>@z.AmountExVat.ToString("0.00") kr</td>
+                    <td>@z.VatRate.ToString("0.##%")</td>
+                    <td>@BundleText(z)</td>
+                    <td>@(z.IsActive ? "Aktiv" : "Inaktiv")</td>
+                    <td>
+                        <button class="btn-ghost" @onclick="() => Edit(z)">Redigera</button>
+                        @if (z.IsActive)
+                        {
+                            <button class="btn-ghost" @onclick="() => SetActive(z, false)">Inaktivera</button>
+                        }
+                        else
+                        {
+                            <button class="btn-ghost" @onclick="() => SetActive(z, true)">Aktivera</button>
+                        }
+                        <button class="btn-ghost" @onclick="() => Delete(z)">Ta bort</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>@(_editingId is null ? "Lägg till städzon" : "Redigera städzon")</h2>
+
+    <EditForm Model="_form" OnValidSubmit="Save" FormName="cleaningZone">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="z-name">Namn</label>
+            <InputText id="z-name" @bind-Value="_form.Name" />
+            <ValidationMessage For="() => _form.Name" />
+        </div>
+
+        <div class="form-group">
+            <label for="z-description">Beskrivning</label>
+            <InputTextArea id="z-description" @bind-Value="_form.Description" />
+            <ValidationMessage For="() => _form.Description" />
+        </div>
+
+        <div class="form-group">
+            <label for="z-amount">Belopp exkl. moms (kr)</label>
+            <InputNumber id="z-amount" @bind-Value="_form.AmountExVat" />
+            <ValidationMessage For="() => _form.AmountExVat" />
+        </div>
+
+        <div class="form-group">
+            <label for="z-vat">Momssats (andel, t.ex. 0.12 för 12 %)</label>
+            <InputNumber id="z-vat" @bind-Value="_form.VatRate" step="0.01" />
+            <ValidationMessage For="() => _form.VatRate" />
+        </div>
+
+        <div class="form-group">
+            <label for="z-order">Visningsordning</label>
+            <InputNumber id="z-order" @bind-Value="_form.DisplayOrder" />
+            <ValidationMessage For="() => _form.DisplayOrder" />
+        </div>
+
+        <fieldset class="form-group">
+            <legend>Bunt — inkluderade zoner (valfritt)</legend>
+            <p>Kryssa i de zoner som denna zon paketerar (t.ex. Hela lägret). Lämna tomt för en vanlig zon.</p>
+            @if (_bundleCandidates.Count == 0)
+            {
+                <p>Inga tillgängliga zoner att inkludera.</p>
+            }
+            else
+            {
+                @foreach (var candidate in _bundleCandidates)
+                {
+                    <label>
+                        <input type="checkbox"
+                               checked="@_form.IncludesZoneIds.Contains(candidate.Id)"
+                               @onchange="e => ToggleInclude(candidate.Id, (bool)e.Value!)" />
+                        @candidate.Name
+                    </label>
+                    <br />
+                }
+            }
+        </fieldset>
+
+        <button type="submit" class="btn">Spara</button>
+        @if (_editingId is not null)
+        {
+            <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
+        }
+    </EditForm>
+}
+
+@code {
+    private List<CleaningZone>? _zones;
+    private CleaningZone _form = new();
+    private Guid? _editingId;
+    private string? _message;
+
+    // Zones eligible to be included in a bundle: active, not the zone being edited,
+    // and not themselves bundles (no nested bundles).
+    private List<CleaningZone> _bundleCandidates = [];
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load()
+    {
+        _zones = await CleaningZoneService.GetAllAsync();
+        RefreshCandidates();
+    }
+
+    private void RefreshCandidates()
+    {
+        _bundleCandidates = (_zones ?? [])
+            .Where(z => z.IsActive
+                        && z.Id != _editingId
+                        && z.IncludesZoneIds.Count == 0)
+            .OrderBy(z => z.DisplayOrder)
+            .ThenBy(z => z.Name)
+            .ToList();
+    }
+
+    private static string BundleText(CleaningZone z) =>
+        z.IncludesZoneIds.Count > 0 ? $"Bunt ({z.IncludesZoneIds.Count} zoner)" : "Enskild";
+
+    private void ToggleInclude(Guid id, bool selected)
+    {
+        if (selected)
+        {
+            if (!_form.IncludesZoneIds.Contains(id)) _form.IncludesZoneIds.Add(id);
+        }
+        else
+        {
+            _form.IncludesZoneIds.Remove(id);
+        }
+    }
+
+    private void New()
+    {
+        _editingId = null;
+        _form = new();
+        RefreshCandidates();
+    }
+
+    private void Edit(CleaningZone z)
+    {
+        _editingId = z.Id;
+        _form = new CleaningZone
+        {
+            Id = z.Id,
+            Name = z.Name,
+            Description = z.Description,
+            AmountExVat = z.AmountExVat,
+            VatRate = z.VatRate,
+            IncludesZoneIds = [.. z.IncludesZoneIds],
+            DisplayOrder = z.DisplayOrder
+        };
+        RefreshCandidates();
+    }
+
+    private async Task Save()
+    {
+        var result = _editingId is null
+            ? await CleaningZoneService.TryCreateAsync(_form)
+            : await CleaningZoneService.TryUpdateAsync(_form);
+
+        if (!result.Succeeded)
+        {
+            _message = result.Error;
+            return;
+        }
+
+        _message = _editingId is null
+            ? $"Städzonen \"{_form.Name}\" har lagts till."
+            : $"Städzonen \"{_form.Name}\" har uppdaterats.";
+
+        New();
+        await Load();
+    }
+
+    private async Task SetActive(CleaningZone z, bool isActive)
+    {
+        await CleaningZoneService.SetActiveAsync(z.Id, isActive);
+        _message = isActive
+            ? $"Städzonen \"{z.Name}\" har aktiverats."
+            : $"Städzonen \"{z.Name}\" har inaktiverats.";
+        await Load();
+    }
+
+    private async Task Delete(CleaningZone z)
+    {
+        var result = await CleaningZoneService.TryHardDeleteAsync(z.Id);
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Städzonen \"{z.Name}\" har tagits bort.",
+            HardDeleteResult.Blocked => $"Städzonen \"{z.Name}\" kan inte tas bort eftersom den används av en bokning. Inaktivera den i stället.",
+            _ => $"Städzonen \"{z.Name}\" kunde inte hittas."
+        };
+        await Load();
+    }
+}

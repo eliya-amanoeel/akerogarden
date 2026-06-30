@@ -52,6 +52,18 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 
+// ── Reference data services (Phase 1) ─────────────────────────────────────────
+builder.Services.AddScoped<BuildingService>();
+builder.Services.AddScoped<RoomService>();
+builder.Services.AddScoped<MealOptionService>();
+builder.Services.AddScoped<PriceRuleService>();
+builder.Services.AddScoped<CleaningZoneService>();
+builder.Services.AddScoped<FacilityService>();
+
+// ── Blob storage (facility images, FR-27) ─────────────────────────────────────
+builder.Services.Configure<BlobOptions>(builder.Configuration.GetSection("Blob"));
+builder.Services.AddScoped<IImageStorage, BlobImageStorage>();
+
 // ── Seeding ───────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<AdminSeeder>();
 

@@ -1,6 +1,7 @@
 using AkeroGarden.Web.Components;
 using AkeroGarden.Web.Data;
 using AkeroGarden.Web.Services;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
@@ -91,6 +92,28 @@ app.UseAntiforgery();
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
+
+// Logout runs in a real HTTP request (not the interactive circuit), so the auth
+// cookie can actually be cleared. POST-only; antiforgery is validated explicitly
+// because minimal APIs only auto-validate it for [FromForm]-bound endpoints — without
+// this, a cross-site POST could force-logout the admin.
+app.MapPost("/logout", async (
+    HttpContext httpContext,
+    IAntiforgery antiforgery,
+    SignInManager<ApplicationUser> signInManager) =>
+{
+    try
+    {
+        await antiforgery.ValidateRequestAsync(httpContext);
+    }
+    catch (AntiforgeryValidationException)
+    {
+        return Results.BadRequest();
+    }
+
+    await signInManager.SignOutAsync();
+    return Results.LocalRedirect("/login");
+});
 
 using (var scope = app.Services.CreateScope())
 {

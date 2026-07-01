@@ -1,0 +1,145 @@
+@page "/admin/bokningar/ny"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Data.Entities
+@using AkeroGarden.Web.Models
+@using AkeroGarden.Web.Services
+@inject BookingService BookingService
+@inject FacilityService FacilityService
+@inject CleaningZoneService CleaningZoneService
+@inject NavigationManager Nav
+@attribute [Authorize]
+
+<PageTitle>Skapa bokning — Åkerögården Admin</PageTitle>
+
+<p><a class="btn-ghost" href="/admin/bokningar">← Tillbaka till listan</a></p>
+<h1>Skapa bokning</h1>
+<p>Skapas för gästens räkning (FR-47). Inga automatiska e-postmeddelanden skickas.</p>
+
+<div class="form-group">
+    <label for="type">Typ</label>
+    <select id="type" @bind="_type">
+        <option value="@BookingType.StayRequest">Bokningsförfrågan</option>
+        <option value="@BookingType.GeneralInquiry">Allmän förfrågan</option>
+    </select>
+</div>
+
+@if (_type == BookingType.StayRequest)
+{
+    <EditForm Model="_stay" OnValidSubmit="CreateStay">
+        <DataAnnotationsValidator />
+
+        <div class="form-group"><label>Namn</label><InputText @bind-Value="_stay.ContactName" /><ValidationMessage For="() => _stay.ContactName" /></div>
+        <div class="form-group"><label>E-post</label><InputText @bind-Value="_stay.ContactEmail" /><ValidationMessage For="() => _stay.ContactEmail" /></div>
+        <div class="form-group"><label>Telefon</label><InputText @bind-Value="_stay.ContactPhone" /></div>
+
+        <div class="form-row">
+            <div class="form-group"><label>Incheckning</label><InputDate @bind-Value="_stay.CheckIn" /><ValidationMessage For="() => _stay.CheckIn" /></div>
+            <div class="form-group"><label>Utcheckning</label><InputDate @bind-Value="_stay.CheckOut" /><ValidationMessage For="() => _stay.CheckOut" /></div>
+        </div>
+
+        <div class="form-group"><label>Antal gäster (övernattning)</label><InputNumber @bind-Value="_stay.OvernightGuestCount" /><ValidationMessage For="() => _stay.OvernightGuestCount" /></div>
+
+        <div class="form-group">
+            <label>Måltidsplan</label>
+            <InputSelect @bind-Value="_stay.MealPlan">
+                <option value="">Välj...</option>
+                <option value="@MealPlan.FullBoardAll">Helpension för alla</option>
+                <option value="@MealPlan.SelfCateringAll">Självhushåll för alla</option>
+                <option value="@MealPlan.Mixed">Blandat</option>
+            </InputSelect>
+            <ValidationMessage For="() => _stay.MealPlan" />
+        </div>
+
+        @if (_stay.MealPlan != MealPlan.SelfCateringAll)
+        {
+            <div class="form-group"><label>Antal dagsgäster</label><InputNumber @bind-Value="_stay.DayGuestCount" /></div>
+        }
+
+        @if (_facilities.Count > 0)
+        {
+            <fieldset class="form-group">
+                <legend>Faciliteter</legend>
+                @foreach (var f in _facilities)
+                {
+                    <label class="checkbox-row">
+                        <input type="checkbox" checked="@_selectedFacilities.Contains(f.Id)"
+                               @onchange="e => Toggle(_selectedFacilities, f.Id, e)" />
+                        @f.Name
+                    </label>
+                }
+            </fieldset>
+        }
+
+        @if (_cleaningZones.Count > 0)
+        {
+            <fieldset class="form-group">
+                <legend>Städning</legend>
+                @foreach (var z in _cleaningZones)
+                {
+                    <label class="checkbox-row">
+                        <input type="checkbox" checked="@_selectedZones.Contains(z.Id)"
+                               @onchange="e => Toggle(_selectedZones, z.Id, e)" />
+                        @z.Name
+                    </label>
+                }
+            </fieldset>
+        }
+
+        <div class="form-group"><label><InputCheckbox @bind-Value="_stay.IsOrganisation" /> Organisation</label></div>
+        <div class="form-group"><label>Organisationsnamn</label><InputText @bind-Value="_stay.OrgName" /></div>
+        <div class="form-group"><label>Organisationsnummer</label><InputText @bind-Value="_stay.OrgNumber" /></div>
+        <div class="form-group"><label>Fakturaadress</label><InputTextArea @bind-Value="_stay.InvoiceAddress" /></div>
+        <div class="form-group"><label>Meddelande</label><InputTextArea @bind-Value="_stay.Message" /></div>
+
+        <button type="submit" class="btn">Skapa bokning</button>
+    </EditForm>
+}
+else
+{
+    <EditForm Model="_general" OnValidSubmit="CreateGeneral">
+        <DataAnnotationsValidator />
+        <div class="form-group"><label>Namn</label><InputText @bind-Value="_general.ContactName" /><ValidationMessage For="() => _general.ContactName" /></div>
+        <div class="form-group"><label>E-post</label><InputText @bind-Value="_general.ContactEmail" /><ValidationMessage For="() => _general.ContactEmail" /></div>
+        <div class="form-group"><label>Telefon</label><InputText @bind-Value="_general.ContactPhone" /></div>
+        <div class="form-group"><label>Meddelande</label><InputTextArea @bind-Value="_general.Message" /><ValidationMessage For="() => _general.Message" /></div>
+        <button type="submit" class="btn">Skapa förfrågan</button>
+    </EditForm>
+}
+
+@code {
+    private BookingType _type = BookingType.StayRequest;
+    private StayRequestInput _stay = new();
+    private GeneralInquiryInput _general = new();
+    private readonly HashSet<Guid> _selectedFacilities = [];
+    private readonly HashSet<Guid> _selectedZones = [];
+    private List<Facility> _facilities = [];
+    private List<CleaningZone> _cleaningZones = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        _facilities = await FacilityService.GetActiveAsync();
+        _cleaningZones = await CleaningZoneService.GetActiveAsync();
+    }
+
+    private static void Toggle(HashSet<Guid> set, Guid id, ChangeEventArgs e)
+    {
+        if (e.Value is true) set.Add(id); else set.Remove(id);
+    }
+
+    private async Task CreateStay()
+    {
+        _stay.SelectedFacilityIds = _selectedFacilities.ToList();
+        _stay.SelectedCleaningZoneIds = _selectedZones.ToList();
+        _stay.AcceptPrivacyPolicy = true; // admin-created on the guest's behalf; consent gate not applicable
+        var booking = await BookingService.CreateStayRequestAsync(_stay, createdByAdmin: true);
+        Nav.NavigateTo($"/admin/bokningar/{booking.Id}");
+    }
+
+    private async Task CreateGeneral()
+    {
+        _general.AcceptPrivacyPolicy = true;
+        var booking = await BookingService.CreateGeneralInquiryAsync(_general, createdByAdmin: true);
+        Nav.NavigateTo($"/admin/bokningar/{booking.Id}");
+    }
+}

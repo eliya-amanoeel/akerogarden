@@ -46,7 +46,7 @@
 
 ---
 
-## Phase 1 — Reference data + admin CRUD
+## Phase 1 — Reference data + admin CRUD ✅ COMPLETE (merged to main 2026-07-01)
 
 **Goal:** the admin can enter and manage all the "reference data" that bookings will later point at.
 

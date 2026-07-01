@@ -50,6 +50,8 @@ public class FacilityService(ApplicationDbContext db)
         existing.Name = input.Name;
         existing.Description = input.Description;
         existing.ImageUrl = input.ImageUrl;
+        existing.AmountExVat = input.AmountExVat;
+        existing.VatRate = input.VatRate;
         existing.DisplayOrder = input.DisplayOrder;
         await db.SaveChangesAsync();
     }

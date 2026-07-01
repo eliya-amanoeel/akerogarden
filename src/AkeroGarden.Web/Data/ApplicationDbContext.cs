@@ -67,6 +67,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             // IncludesZoneIds maps to a native PostgreSQL uuid[] column (Npgsql).
         });
 
+        builder.Entity<Facility>(f =>
+        {
+            // Reference figures only, mirroring CleaningZone/PriceRule — no totals (C8).
+            f.Property(x => x.AmountExVat).HasPrecision(18, 2);
+            f.Property(x => x.VatRate).HasPrecision(5, 4); // fraction, e.g. 0.2500
+        });
+
         // ── Phase 3: booking lifecycle ──────────────────────────────────────────
         builder.Entity<Booking>(b =>
         {

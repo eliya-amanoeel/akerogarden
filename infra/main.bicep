@@ -44,6 +44,18 @@ param seedAdminEmail string
 @description('Bootstrap admin password — seeds the first admin account on startup if none exists')
 param seedAdminPassword string
 
+@description('Public site base URL used in booking emails (magic link, privacy link) — §9')
+param publicBaseUrl string
+
+@description('Admin panel base URL used in the admin notification email — FR-06')
+param adminBaseUrl string
+
+@description('Address that receives admin notification emails (new inquiry, etc.)')
+param adminNotificationEmail string
+
+@description('Contact email shown in every booking email footer — §9')
+param contactEmail string
+
 // ── Naming ────────────────────────────────────────────────────────────────────
 var prefix = 'akerogarden-${environmentName}'
 
@@ -81,6 +93,16 @@ resource smtpPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'smtp-password'
   properties: { value: smtpPassword }
+}
+
+// Redis connection string (contains the access key) — stored as a secret, read by the app
+// via managed identity like the SMTP secrets (NFR-30). Distributed rate-limit store (NFR-04).
+resource redisConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'redis-connection'
+  properties: {
+    value: '${redisCache.properties.hostName}:${redisCache.properties.sslPort},password=${redisCache.listKeys().primaryKey},ssl=True,abortConnect=False'
+  }
 }
 
 // ── App Service Plan ──────────────────────────────────────────────────────────
@@ -159,6 +181,27 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'Seed__AdminPassword'
           value: seedAdminPassword
+        }
+        {
+          // Distributed rate-limit store (NFR-04) — read from Key Vault via managed identity (NFR-30)
+          name: 'Redis__ConnectionString'
+          value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=redis-connection)'
+        }
+        {
+          name: 'BookingEmail__PublicBaseUrl'
+          value: publicBaseUrl
+        }
+        {
+          name: 'BookingEmail__AdminBaseUrl'
+          value: adminBaseUrl
+        }
+        {
+          name: 'BookingEmail__AdminNotificationEmail'
+          value: adminNotificationEmail
+        }
+        {
+          name: 'BookingEmail__ContactEmail'
+          value: contactEmail
         }
       ]
     }
@@ -329,6 +372,24 @@ resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices
   name: 'facility-images'
   properties: {
     publicAccess: 'Blob' // anonymous read of individual blobs; no container listing
+  }
+}
+
+// ── Azure Cache for Redis (distributed rate limiting — NFR-04) ────────────────
+// Basic C0 is sufficient for rate-limit counters (§11 cost table). Non-SSL port disabled;
+// the app connects over TLS using the connection string held in Key Vault.
+resource redisCache 'Microsoft.Cache/redis@2024-03-01' = {
+  name: '${prefix}-redis'
+  location: location
+  properties: {
+    sku: {
+      name: 'Basic'
+      family: 'C'
+      capacity: 0
+    }
+    enableNonSslPort: false
+    minimumTlsVersion: '1.2'
+    redisVersion: '6'
   }
 }
 

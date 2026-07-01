@@ -10,6 +10,10 @@
     "smtpFromAddress": { "value": "noreply@akerogarden.se" },
     "smtpUsername": { "value": "REPLACE_VIA_CI_SECRET" },
     "smtpPassword": { "value": "REPLACE_VIA_CI_SECRET" },
-    "customHostnames": { "value": ["akerogarden.se", "admin.akerogarden.se"] }
+    "customHostnames": { "value": ["akerogarden.se", "admin.akerogarden.se"] },
+    "publicBaseUrl": { "value": "https://akerogarden.se" },
+    "adminBaseUrl": { "value": "https://admin.akerogarden.se" },
+    "adminNotificationEmail": { "value": "info@akerogarden.se" },
+    "contactEmail": { "value": "info@akerogarden.se" }
   }
 }

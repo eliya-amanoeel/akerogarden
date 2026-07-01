@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.34 — Working Draft  
+**Version:** 0.35 — Working Draft  
 **Date:** June 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.34:**
+
+- `Facility` (§8.8) gains `AmountExVat` and `VatRate` fields, mirroring `CleaningZone`. This resolves an internal inconsistency found during Phase 3: `BookingFacilitySelection` (§8.13) and NFR-34 require snapshotting the facility's agreed **amount**, and the erd.md modelling note calls facility and cleaning selections symmetric, but the `Facility` entity had no price to snapshot. Facility prices (§5.4) now have a home in the model. As with `CleaningZone`, these are reference figures only — no totals are computed (C8). erd.md updated; a Phase 1 retrofit (entity + migration + admin CRUD price inputs) is applied in the Phase 3 branch. Public display is unchanged: FR-81 still shows name/description/image and FR-82 still lists price rules + cleaning zones (facility prices remain admin-facing reference data).
 
 **Changes from v0.33:**
 
@@ -960,6 +964,8 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | `Name` | string | |
 | `Description` | string | |
 | `ImageUrl` | string | Azure Blob Storage URL |
+| `AmountExVat` | decimal | Reference figure — invoicing is manual (no automatic calculation). Snapshotted onto `BookingFacilitySelection` at selection time (NFR-34) |
+| `VatRate` | decimal | e.g. 0.25 — stored per facility, mirroring PriceRule/CleaningZone |
 | `IsActive` | bool | |
 | `DisplayOrder` | int | |
 
@@ -1118,5 +1124,5 @@ All known open questions have been resolved. This section will be updated if new
 
 ---
 
-*End of document — Version 0.34 Working Draft*  
+*End of document — Version 0.35 Working Draft*  
 *Åkerögården Booking System — Software Requirements Specification*

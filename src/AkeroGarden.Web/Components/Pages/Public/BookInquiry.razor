@@ -1,0 +1,291 @@
+@page "/boka"
+@layout MainLayout
+@using AkeroGarden.Web.Data.Entities
+@using AkeroGarden.Web.Models
+@inject BookingService BookingService
+@inject FacilityService FacilityService
+@inject CleaningZoneService CleaningZoneService
+@inject IInquiryRateLimiter RateLimiter
+@inject ILogger<BookInquiry> Logger
+
+<PageTitle>Boka — Åkerögården</PageTitle>
+
+<section class="section">
+    <div class="container">
+        @if (_submitted)
+        {
+            <h1>Tack!</h1>
+            <p>@_confirmation</p>
+            <p><a class="btn" href="/">Till startsidan</a></p>
+        }
+        else
+        {
+            <h1>Boka eller kontakta oss</h1>
+
+            @if (_rateLimited)
+            {
+                <p class="form-error" role="alert">Du har skickat för många förfrågningar. Försök igen om en stund.</p>
+            }
+
+            <h2>Bokningsförfrågan</h2>
+            <p>Skicka en förfrågan om att boka en vistelse. Förfrågan är inte en bekräftad bokning förrän vi har godkänt den.</p>
+
+            <EditForm Model="StayModel" OnValidSubmit="HandleStayRequest" FormName="stayrequest" method="post">
+                <DataAnnotationsValidator />
+
+                <div class="form-group">
+                    <label for="s-name">Namn</label>
+                    <InputText id="s-name" @bind-Value="StayModel!.ContactName" />
+                    <ValidationMessage For="() => StayModel!.ContactName" />
+                </div>
+
+                <div class="form-group">
+                    <label for="s-email">E-postadress</label>
+                    <InputText id="s-email" type="email" @bind-Value="StayModel!.ContactEmail" />
+                    <ValidationMessage For="() => StayModel!.ContactEmail" />
+                </div>
+
+                <div class="form-group">
+                    <label for="s-phone">Telefon (valfritt)</label>
+                    <InputText id="s-phone" @bind-Value="StayModel!.ContactPhone" />
+                    <ValidationMessage For="() => StayModel!.ContactPhone" />
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="s-checkin">Incheckning</label>
+                        <InputDate id="s-checkin" @bind-Value="StayModel!.CheckIn" />
+                        <ValidationMessage For="() => StayModel!.CheckIn" />
+                    </div>
+                    <div class="form-group">
+                        <label for="s-checkout">Utcheckning</label>
+                        <InputDate id="s-checkout" @bind-Value="StayModel!.CheckOut" />
+                        <ValidationMessage For="() => StayModel!.CheckOut" />
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="s-guests">Antal gäster (övernattning)</label>
+                    <InputNumber id="s-guests" @bind-Value="StayModel!.OvernightGuestCount" />
+                    <ValidationMessage For="() => StayModel!.OvernightGuestCount" />
+                </div>
+
+                <div class="form-group">
+                    <label for="mealplan">Måltidsplan</label>
+                    <InputSelect id="mealplan" @bind-Value="StayModel!.MealPlan">
+                        <option value="">Välj...</option>
+                        <option value="@MealPlan.FullBoardAll">Helpension för alla</option>
+                        <option value="@MealPlan.SelfCateringAll">Självhushåll för alla</option>
+                        <option value="@MealPlan.Mixed">Blandat (anges per deltagare)</option>
+                    </InputSelect>
+                    <ValidationMessage For="() => StayModel!.MealPlan" />
+                </div>
+
+                @* Day guests do not apply to self-catering (§4.2); hidden by JS, dropped server-side. *@
+                <div class="form-group" id="dayguests-group">
+                    <label for="s-dayguests">Antal dagsgäster (valfritt)</label>
+                    <InputNumber id="s-dayguests" @bind-Value="StayModel!.DayGuestCount" />
+                    <ValidationMessage For="() => StayModel!.DayGuestCount" />
+                </div>
+
+                @if (_facilities.Count > 0)
+                {
+                    <fieldset class="form-group">
+                        <legend>Faciliteter (valfritt)</legend>
+                        @foreach (var f in _facilities)
+                        {
+                            <label class="checkbox-row">
+                                <input type="checkbox" name="StayModel.SelectedFacilityIds" value="@f.Id"
+                                       checked="@(StayModel!.SelectedFacilityIds?.Contains(f.Id) ?? false)" />
+                                @f.Name
+                            </label>
+                        }
+                    </fieldset>
+                }
+
+                @if (_cleaningZones.Count > 0)
+                {
+                    <fieldset class="form-group">
+                        <legend>Städning (valfritt)</legend>
+                        @foreach (var z in _cleaningZones)
+                        {
+                            <label class="checkbox-row">
+                                <input type="checkbox" name="StayModel.SelectedCleaningZoneIds" value="@z.Id"
+                                       checked="@(StayModel!.SelectedCleaningZoneIds?.Contains(z.Id) ?? false)"
+                                       @attributes="BundleAttributes(z)" />
+                                @z.Name
+                            </label>
+                        }
+                    </fieldset>
+                }
+
+                <div class="form-group form-group--checkbox">
+                    <label>
+                        <InputCheckbox @bind-Value="StayModel!.IsOrganisation" />
+                        Bokningen görs för en organisation
+                    </label>
+                </div>
+
+                <div class="form-group">
+                    <label for="s-orgname">Organisationsnamn (valfritt)</label>
+                    <InputText id="s-orgname" @bind-Value="StayModel!.OrgName" />
+                </div>
+                <div class="form-group">
+                    <label for="s-orgnumber">Organisationsnummer (valfritt)</label>
+                    <InputText id="s-orgnumber" @bind-Value="StayModel!.OrgNumber" />
+                </div>
+                <div class="form-group">
+                    <label for="s-invoice">Fakturaadress (valfritt)</label>
+                    <InputTextArea id="s-invoice" @bind-Value="StayModel!.InvoiceAddress" />
+                </div>
+
+                <div class="form-group">
+                    <label for="s-message">Meddelande (valfritt)</label>
+                    <InputTextArea id="s-message" @bind-Value="StayModel!.Message" />
+                    <ValidationMessage For="() => StayModel!.Message" />
+                </div>
+
+                <div class="form-group form-group--checkbox">
+                    <label>
+                        <InputCheckbox @bind-Value="StayModel!.AcceptPrivacyPolicy" />
+                        Jag godkänner <a href="/integritetspolicy" target="_blank">integritetspolicyn</a>
+                    </label>
+                    <ValidationMessage For="() => StayModel!.AcceptPrivacyPolicy" />
+                </div>
+
+                <button type="submit" class="btn">Skicka bokningsförfrågan</button>
+            </EditForm>
+
+            <hr>
+
+            <h2>Allmän förfrågan</h2>
+            <p>Har du en fråga? Skicka ett meddelande så återkommer vi.</p>
+
+            <EditForm Model="GeneralModel" OnValidSubmit="HandleGeneralInquiry" FormName="generalinquiry" method="post">
+                <DataAnnotationsValidator />
+
+                <div class="form-group">
+                    <label for="g-name">Namn</label>
+                    <InputText id="g-name" @bind-Value="GeneralModel!.ContactName" />
+                    <ValidationMessage For="() => GeneralModel!.ContactName" />
+                </div>
+
+                <div class="form-group">
+                    <label for="g-email">E-postadress</label>
+                    <InputText id="g-email" type="email" @bind-Value="GeneralModel!.ContactEmail" />
+                    <ValidationMessage For="() => GeneralModel!.ContactEmail" />
+                </div>
+
+                <div class="form-group">
+                    <label for="g-phone">Telefon (valfritt)</label>
+                    <InputText id="g-phone" @bind-Value="GeneralModel!.ContactPhone" />
+                    <ValidationMessage For="() => GeneralModel!.ContactPhone" />
+                </div>
+
+                <div class="form-group">
+                    <label for="g-message">Meddelande</label>
+                    <InputTextArea id="g-message" @bind-Value="GeneralModel!.Message" />
+                    <ValidationMessage For="() => GeneralModel!.Message" />
+                </div>
+
+                <div class="form-group form-group--checkbox">
+                    <label>
+                        <InputCheckbox @bind-Value="GeneralModel!.AcceptPrivacyPolicy" />
+                        Jag godkänner <a href="/integritetspolicy" target="_blank">integritetspolicyn</a>
+                    </label>
+                    <ValidationMessage For="() => GeneralModel!.AcceptPrivacyPolicy" />
+                </div>
+
+                <button type="submit" class="btn">Skicka meddelande</button>
+            </EditForm>
+        }
+    </div>
+</section>
+
+@* Progressive enhancement only — the server re-applies both rules regardless (InquiryNormalizer). *@
+<script src="/js/inquiry-form.js"></script>
+
+@code {
+    [CascadingParameter]
+    private HttpContext HttpContext { get; set; } = default!;
+
+    [SupplyParameterFromForm(FormName = "stayrequest")]
+    private StayRequestInput? StayModel { get; set; }
+
+    [SupplyParameterFromForm(FormName = "generalinquiry")]
+    private GeneralInquiryInput? GeneralModel { get; set; }
+
+    [SupplyParameterFromQuery(Name = "incheckning")]
+    private string? CheckInParam { get; set; }
+
+    [SupplyParameterFromQuery(Name = "utcheckning")]
+    private string? CheckOutParam { get; set; }
+
+    private List<Facility> _facilities = [];
+    private List<CleaningZone> _cleaningZones = [];
+
+    private bool _submitted;
+    private string? _confirmation;
+    private bool _rateLimited;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Re-new any model the current post did not bind, so the other form always renders
+        // (avoids the BL0008 null-overwrite trap on a failed-validation re-render).
+        StayModel ??= new();
+        GeneralModel ??= new();
+
+        _facilities = await FacilityService.GetActiveAsync();
+        _cleaningZones = await CleaningZoneService.GetActiveAsync();
+
+        // Pre-fill dates from a calendar date-range selection (FR-11). Dates are not personal
+        // data, so passing them in the query string is fine (NFR-05).
+        if (DateOnly.TryParse(CheckInParam, out var checkIn))
+            StayModel.CheckIn ??= checkIn;
+        if (DateOnly.TryParse(CheckOutParam, out var checkOut))
+            StayModel.CheckOut ??= checkOut;
+    }
+
+    private async Task HandleStayRequest()
+    {
+        if (!await AllowedByRateLimitAsync()) return;
+        await BookingService.CreateStayRequestAsync(StayModel!);
+        _submitted = true;
+        _confirmation = "Vi har tagit emot din bokningsförfrågan och skickat en bekräftelse till din e-post. "
+            + "Vi återkommer med besked så snart vi kan.";
+    }
+
+    private async Task HandleGeneralInquiry()
+    {
+        if (!await AllowedByRateLimitAsync()) return;
+        await BookingService.CreateGeneralInquiryAsync(GeneralModel!);
+        _submitted = true;
+        _confirmation = "Vi har tagit emot ditt meddelande och skickat en bekräftelse till din e-post. "
+            + "Vi återkommer så snart vi kan.";
+    }
+
+    // NFR-04: rate-limit per client IP. Fails open (allows) if Redis is unreachable, so an
+    // infrastructure hiccup never blocks a legitimate booking — the outage is logged instead.
+    private async Task<bool> AllowedByRateLimitAsync()
+    {
+        var clientId = HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        try
+        {
+            if (await RateLimiter.TryAcquireAsync(clientId))
+                return true;
+            _rateLimited = true;
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Rate limiter unavailable; allowing inquiry submission (fail-open)");
+            return true;
+        }
+    }
+
+    // Exposes the zones a bundle covers to the progressive-enhancement script (§5.5).
+    private static Dictionary<string, object> BundleAttributes(CleaningZone zone) =>
+        zone.IncludesZoneIds.Count > 0
+            ? new() { ["data-covers"] = string.Join(",", zone.IncludesZoneIds) }
+            : [];
+}

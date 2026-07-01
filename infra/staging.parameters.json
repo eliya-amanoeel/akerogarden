@@ -13,6 +13,10 @@
     "smtpPassword": { "value": "REPLACE_VIA_CI_SECRET" },
     "seedAdminEmail": { "value": "REPLACE_AT_DEPLOY" },
     "seedAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
-    "customHostnames": { "value": [] }
+    "customHostnames": { "value": [] },
+    "publicBaseUrl": { "value": "https://akerogarden-staging-app.azurewebsites.net" },
+    "adminBaseUrl": { "value": "https://akerogarden-staging-app.azurewebsites.net" },
+    "adminNotificationEmail": { "value": "temp@amaeli.se" },
+    "contactEmail": { "value": "temp@amaeli.se" }
   }
 }

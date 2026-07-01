@@ -1,6 +1,6 @@
 # Åkerögården — Implementation Plan
 
-**Based on:** requirements.md v0.34, erd.md
+**Based on:** requirements.md v0.35, erd.md
 **Audience:** the developer building v1.
 **Purpose:** a dependency-ordered, phased path from empty repo to production launch. Each phase lists its **goal**, **scope & deliverables**, the **requirements it satisfies**, and **exit criteria** (what "done" means before moving on).
 
@@ -184,7 +184,7 @@ Only slice 1 introduces a migration — all four lifecycle entities land togethe
 
 **Scope & deliverables:**
 
-- **Security:** full pass over NFR-01–07, NFR-25, NFR-30; confirm no PII in URLs/calendar; auth/rate-limit review.
+- **Security:** full pass over NFR-01–07, NFR-25, NFR-30; confirm no PII in URLs/calendar; auth/rate-limit review. **Wire `ForwardedHeaders`** so the inquiry rate limiter (NFR-04) keys on the real client IP behind the App Service load balancer rather than `RemoteIpAddress` (deferred from Phase 3 — the distributed-store requirement is met there; accurate per-client IP is the hardening step).
 - **Performance:** verify NFR-08 (public < 3 s), NFR-09 (admin < 5 s), NFR-10 (lists).
 - **Reliability:** confirm backups (NFR-12) and run the **quarterly restore drill** (NFR-29); email failure handling (NFR-13).
 - **Email E2E (NFR-31):** verify every guest/admin email against the **production** SMTP before go-live — not assumed from a successful build.
@@ -216,4 +216,4 @@ Only slice 1 introduces a migration — all four lifecycle entities land togethe
 
 ---
 
-*Derived from requirements.md v0.34 and erd.md — Åkerögården Booking System.*
+*Derived from requirements.md v0.35 and erd.md — Åkerögården Booking System.*

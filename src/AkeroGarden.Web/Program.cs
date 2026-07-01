@@ -53,6 +53,10 @@ builder.Services.ConfigureApplicationCookie(options =>
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
 
+// Booking-lifecycle emails (§9) — composes Swedish templates and dispatches via IEmailService.
+builder.Services.Configure<BookingEmailOptions>(builder.Configuration.GetSection("BookingEmail"));
+builder.Services.AddScoped<BookingEmailService>();
+
 // ── Reference data services (Phase 1) ─────────────────────────────────────────
 builder.Services.AddScoped<BuildingService>();
 builder.Services.AddScoped<RoomService>();

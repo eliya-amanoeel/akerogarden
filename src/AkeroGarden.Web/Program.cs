@@ -76,6 +76,7 @@ builder.Services.AddScoped<IInquiryRateLimiter, RedisInquiryRateLimiter>();
 // ── Booking engine (Phase 3) ──────────────────────────────────────────────────
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<BlockedPeriodService>();
+builder.Services.AddScoped<OccupancyProvider>();
 
 // ── Reference data services (Phase 1) ─────────────────────────────────────────
 builder.Services.AddScoped<BuildingService>();

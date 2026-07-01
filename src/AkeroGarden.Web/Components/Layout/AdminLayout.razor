@@ -1,8 +1,5 @@
 @inherits LayoutComponentBase
 @attribute [Authorize]
-@using Microsoft.AspNetCore.Identity
-@inject SignInManager<ApplicationUser> SignInManager
-@inject NavigationManager Nav
 
 <div class="admin-shell">
     <nav class="admin-nav">
@@ -20,7 +17,12 @@
             <li><a href="/admin/konton">Administratörskonton</a></li>
         </ul>
         <div class="admin-nav__footer">
-            <button class="btn-ghost" @onclick="Logout">Logga ut</button>
+            @* Real form POST to the /logout endpoint — signing out from the interactive
+               circuit cannot clear the auth cookie (response already sent). *@
+            <form action="/logout" method="post">
+                <AntiforgeryToken />
+                <button class="btn-ghost" type="submit">Logga ut</button>
+            </form>
         </div>
     </nav>
 
@@ -30,11 +32,3 @@
         </main>
     </div>
 </div>
-
-@code {
-    private async Task Logout()
-    {
-        await SignInManager.SignOutAsync();
-        Nav.NavigateTo("/login", forceLoad: true);
-    }
-}

@@ -1,0 +1,207 @@
+@page "/admin/faciliteter"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Data.Entities
+@inject FacilityService FacilityService
+@inject IImageStorage ImageStorage
+@attribute [Authorize]
+
+<PageTitle>Faciliteter — Åkerögården Admin</PageTitle>
+
+<h1>Faciliteter</h1>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <p role="status">@_message</p>
+}
+
+@if (_facilities is null)
+{
+    <p>Laddar...</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Ordning</th>
+                <th>Namn</th>
+                <th>Bild</th>
+                <th>Status</th>
+                <th>Åtgärd</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var f in _facilities)
+            {
+                <tr>
+                    <td>@f.DisplayOrder</td>
+                    <td>@f.Name</td>
+                    <td>@(string.IsNullOrEmpty(f.ImageUrl) ? "—" : "Ja")</td>
+                    <td>@(f.IsActive ? "Aktiv" : "Inaktiv")</td>
+                    <td>
+                        <button class="btn-ghost" @onclick="() => Edit(f)">Redigera</button>
+                        @if (f.IsActive)
+                        {
+                            <button class="btn-ghost" @onclick="() => SetActive(f, false)">Inaktivera</button>
+                        }
+                        else
+                        {
+                            <button class="btn-ghost" @onclick="() => SetActive(f, true)">Aktivera</button>
+                        }
+                        <button class="btn-ghost" @onclick="() => Delete(f)">Ta bort</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>@(_editingId is null ? "Lägg till facilitet" : "Redigera facilitet")</h2>
+
+    <EditForm Model="_form" OnValidSubmit="Save" FormName="facility">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="f-name">Namn</label>
+            <InputText id="f-name" @bind-Value="_form.Name" />
+            <ValidationMessage For="() => _form.Name" />
+        </div>
+
+        <div class="form-group">
+            <label for="f-description">Beskrivning</label>
+            <InputTextArea id="f-description" @bind-Value="_form.Description" />
+            <ValidationMessage For="() => _form.Description" />
+        </div>
+
+        <div class="form-group">
+            <label for="f-order">Visningsordning</label>
+            <InputNumber id="f-order" @bind-Value="_form.DisplayOrder" />
+            <ValidationMessage For="() => _form.DisplayOrder" />
+        </div>
+
+        <div class="form-group">
+            <label for="f-image">Bild (JPEG, PNG eller WebP, max 5 MB)</label>
+            <InputFile id="f-image" OnChange="OnImageSelected" accept="image/jpeg,image/png,image/webp" />
+            @if (_imageError is not null)
+            {
+                <p role="alert">@_imageError</p>
+            }
+            @if (!string.IsNullOrEmpty(_form.ImageUrl))
+            {
+                <p>Uppladdad bild:</p>
+                <img src="@_form.ImageUrl" alt="Förhandsvisning av @_form.Name" width="200" />
+            }
+        </div>
+
+        <button type="submit" class="btn" disabled="@_uploading">Spara</button>
+        @if (_editingId is not null)
+        {
+            <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
+        }
+    </EditForm>
+}
+
+@code {
+    private List<Facility>? _facilities;
+    private Facility _form = new();
+    private Guid? _editingId;
+    private string? _message;
+    private string? _imageError;
+    private bool _uploading;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load() => _facilities = await FacilityService.GetAllAsync();
+
+    private async Task OnImageSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        // Validate format/size before opening the stream (FR-27).
+        var error = FacilityService.ValidateImage(file.ContentType, file.Size);
+        if (error is not null)
+        {
+            _imageError = error;
+            return;
+        }
+
+        _imageError = null;
+        _uploading = true;
+        try
+        {
+            await using var source = file.OpenReadStream(FacilityService.MaxImageBytes);
+            using var buffer = new MemoryStream();
+            await source.CopyToAsync(buffer);
+            buffer.Position = 0;
+
+            _form.ImageUrl = await ImageStorage.UploadFacilityImageAsync(buffer, file.Name, file.ContentType);
+        }
+        catch (Exception)
+        {
+            _imageError = "Bilden kunde inte laddas upp. Försök igen.";
+        }
+        finally
+        {
+            _uploading = false;
+        }
+    }
+
+    private void New()
+    {
+        _editingId = null;
+        _form = new();
+        _imageError = null;
+    }
+
+    private void Edit(Facility f)
+    {
+        _editingId = f.Id;
+        _imageError = null;
+        _form = new Facility
+        {
+            Id = f.Id,
+            Name = f.Name,
+            Description = f.Description,
+            ImageUrl = f.ImageUrl,
+            DisplayOrder = f.DisplayOrder
+        };
+    }
+
+    private async Task Save()
+    {
+        if (_editingId is null)
+        {
+            await FacilityService.CreateAsync(_form);
+            _message = $"Faciliteten \"{_form.Name}\" har lagts till.";
+        }
+        else
+        {
+            await FacilityService.UpdateAsync(_form);
+            _message = $"Faciliteten \"{_form.Name}\" har uppdaterats.";
+        }
+
+        New();
+        await Load();
+    }
+
+    private async Task SetActive(Facility f, bool isActive)
+    {
+        await FacilityService.SetActiveAsync(f.Id, isActive);
+        _message = isActive
+            ? $"Faciliteten \"{f.Name}\" har aktiverats."
+            : $"Faciliteten \"{f.Name}\" har inaktiverats.";
+        await Load();
+    }
+
+    private async Task Delete(Facility f)
+    {
+        var result = await FacilityService.TryHardDeleteAsync(f.Id);
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Faciliteten \"{f.Name}\" har tagits bort.",
+            HardDeleteResult.Blocked => $"Faciliteten \"{f.Name}\" kan inte tas bort eftersom den används av en bokning. Inaktivera den i stället.",
+            _ => $"Faciliteten \"{f.Name}\" kunde inte hittas."
+        };
+        await Load();
+    }
+}

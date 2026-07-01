@@ -1,0 +1,342 @@
+@page "/admin/byggnader"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Data.Entities
+@inject BuildingService BuildingService
+@inject RoomService RoomService
+@attribute [Authorize]
+
+<PageTitle>Byggnader &amp; rum — Åkerögården Admin</PageTitle>
+
+<h1>Byggnader &amp; rum</h1>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <p role="status">@_message</p>
+}
+
+@if (_buildings is null)
+{
+    <p>Laddar...</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr>
+                <th>Ordning</th>
+                <th>Namn</th>
+                <th>Tillgänglig</th>
+                <th>Status</th>
+                <th>Åtgärd</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var b in _buildings)
+            {
+                <tr>
+                    <td>@b.DisplayOrder</td>
+                    <td>@b.Name</td>
+                    <td>@(b.IsAccessible ? "Ja" : "Nej")</td>
+                    <td>@(b.IsActive ? "Aktiv" : "Inaktiv")</td>
+                    <td>
+                        <button class="btn-ghost" @onclick="() => EditBuilding(b)">Redigera</button>
+                        <button class="btn-ghost" @onclick="() => SelectBuilding(b)">Rum</button>
+                        @if (b.IsActive)
+                        {
+                            <button class="btn-ghost" @onclick="() => SetBuildingActive(b, false)">Inaktivera</button>
+                        }
+                        else
+                        {
+                            <button class="btn-ghost" @onclick="() => SetBuildingActive(b, true)">Aktivera</button>
+                        }
+                        <button class="btn-ghost" @onclick="() => DeleteBuilding(b)">Ta bort</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+
+    <h2>@(_editingBuildingId is null ? "Lägg till byggnad" : "Redigera byggnad")</h2>
+
+    <EditForm Model="_buildingForm" OnValidSubmit="SaveBuilding" FormName="building">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="b-name">Namn</label>
+            <InputText id="b-name" @bind-Value="_buildingForm.Name" />
+            <ValidationMessage For="() => _buildingForm.Name" />
+        </div>
+
+        <div class="form-group">
+            <label for="b-description">Beskrivning</label>
+            <InputTextArea id="b-description" @bind-Value="_buildingForm.Description" />
+            <ValidationMessage For="() => _buildingForm.Description" />
+        </div>
+
+        <div class="form-group">
+            <label for="b-shared">Gemensamma utrymmen</label>
+            <InputTextArea id="b-shared" @bind-Value="_buildingForm.SharedFacilities" />
+            <ValidationMessage For="() => _buildingForm.SharedFacilities" />
+        </div>
+
+        <div class="form-group">
+            <label>
+                <InputCheckbox @bind-Value="_buildingForm.IsAccessible" />
+                Tillgänglig
+            </label>
+        </div>
+
+        <div class="form-group">
+            <label for="b-order">Visningsordning</label>
+            <InputNumber id="b-order" @bind-Value="_buildingForm.DisplayOrder" />
+            <ValidationMessage For="() => _buildingForm.DisplayOrder" />
+        </div>
+
+        <button type="submit" class="btn">Spara</button>
+        @if (_editingBuildingId is not null)
+        {
+            <button type="button" class="btn-ghost" @onclick="NewBuilding">Avbryt</button>
+        }
+    </EditForm>
+
+    @if (_selectedBuilding is not null)
+    {
+        <hr />
+        <h2>Rum i @_selectedBuilding.Name</h2>
+
+        @if (_rooms is not null)
+        {
+            <table>
+                <thead>
+                    <tr>
+                        <th>Ordning</th>
+                        <th>Namn</th>
+                        <th>Bäddar</th>
+                        <th>Konfiguration</th>
+                        <th>Status</th>
+                        <th>Åtgärd</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var r in _rooms)
+                    {
+                        <tr>
+                            <td>@r.DisplayOrder</td>
+                            <td>@r.Name</td>
+                            <td>@r.BedCount</td>
+                            <td>@r.BedConfiguration</td>
+                            <td>@(r.IsActive ? "Aktiv" : "Inaktiv")</td>
+                            <td>
+                                <button class="btn-ghost" @onclick="() => EditRoom(r)">Redigera</button>
+                                @if (r.IsActive)
+                                {
+                                    <button class="btn-ghost" @onclick="() => SetRoomActive(r, false)">Inaktivera</button>
+                                }
+                                else
+                                {
+                                    <button class="btn-ghost" @onclick="() => SetRoomActive(r, true)">Aktivera</button>
+                                }
+                                <button class="btn-ghost" @onclick="() => DeleteRoom(r)">Ta bort</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <h3>@(_editingRoomId is null ? "Lägg till rum" : "Redigera rum")</h3>
+
+        <EditForm Model="_roomForm" OnValidSubmit="SaveRoom" FormName="room">
+            <DataAnnotationsValidator />
+
+            <div class="form-group">
+                <label for="r-name">Namn</label>
+                <InputText id="r-name" @bind-Value="_roomForm.Name" />
+                <ValidationMessage For="() => _roomForm.Name" />
+            </div>
+
+            <div class="form-group">
+                <label for="r-beds">Antal bäddar</label>
+                <InputNumber id="r-beds" @bind-Value="_roomForm.BedCount" />
+                <ValidationMessage For="() => _roomForm.BedCount" />
+            </div>
+
+            <div class="form-group">
+                <label for="r-config">Bäddkonfiguration</label>
+                <InputText id="r-config" @bind-Value="_roomForm.BedConfiguration" />
+                <ValidationMessage For="() => _roomForm.BedConfiguration" />
+            </div>
+
+            <div class="form-group">
+                <label for="r-order">Visningsordning</label>
+                <InputNumber id="r-order" @bind-Value="_roomForm.DisplayOrder" />
+                <ValidationMessage For="() => _roomForm.DisplayOrder" />
+            </div>
+
+            <button type="submit" class="btn">Spara</button>
+            @if (_editingRoomId is not null)
+            {
+                <button type="button" class="btn-ghost" @onclick="NewRoom">Avbryt</button>
+            }
+        </EditForm>
+    }
+}
+
+@code {
+    private List<Building>? _buildings;
+    private Building _buildingForm = new();
+    private Guid? _editingBuildingId;
+
+    private Building? _selectedBuilding;
+    private List<Room>? _rooms;
+    private Room _roomForm = new();
+    private Guid? _editingRoomId;
+
+    private string? _message;
+
+    protected override async Task OnInitializedAsync() => await LoadBuildings();
+
+    private async Task LoadBuildings() => _buildings = await BuildingService.GetAllAsync();
+
+    // ── Buildings ──────────────────────────────────────────────────────────────
+    private void NewBuilding()
+    {
+        _editingBuildingId = null;
+        _buildingForm = new();
+    }
+
+    private void EditBuilding(Building b)
+    {
+        _editingBuildingId = b.Id;
+        _buildingForm = new Building
+        {
+            Id = b.Id,
+            Name = b.Name,
+            Description = b.Description,
+            SharedFacilities = b.SharedFacilities,
+            IsAccessible = b.IsAccessible,
+            DisplayOrder = b.DisplayOrder
+        };
+    }
+
+    private async Task SaveBuilding()
+    {
+        if (_editingBuildingId is null)
+        {
+            await BuildingService.CreateAsync(_buildingForm);
+            _message = $"Byggnaden \"{_buildingForm.Name}\" har lagts till.";
+        }
+        else
+        {
+            await BuildingService.UpdateAsync(_buildingForm);
+            _message = $"Byggnaden \"{_buildingForm.Name}\" har uppdaterats.";
+        }
+
+        NewBuilding();
+        await LoadBuildings();
+    }
+
+    private async Task SetBuildingActive(Building b, bool isActive)
+    {
+        await BuildingService.SetActiveAsync(b.Id, isActive);
+        _message = isActive
+            ? $"Byggnaden \"{b.Name}\" har aktiverats."
+            : $"Byggnaden \"{b.Name}\" har inaktiverats.";
+        await LoadBuildings();
+    }
+
+    private async Task DeleteBuilding(Building b)
+    {
+        var result = await BuildingService.TryHardDeleteAsync(b.Id);
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Byggnaden \"{b.Name}\" har tagits bort.",
+            HardDeleteResult.Blocked => $"Byggnaden \"{b.Name}\" kan inte tas bort eftersom den har rum. Inaktivera den i stället.",
+            _ => $"Byggnaden \"{b.Name}\" kunde inte hittas."
+        };
+
+        if (result == HardDeleteResult.Deleted && _selectedBuilding?.Id == b.Id)
+        {
+            _selectedBuilding = null;
+            _rooms = null;
+        }
+
+        await LoadBuildings();
+    }
+
+    // ── Rooms ──────────────────────────────────────────────────────────────────
+    private async Task SelectBuilding(Building b)
+    {
+        _selectedBuilding = b;
+        NewRoom();
+        await LoadRooms();
+    }
+
+    private async Task LoadRooms()
+    {
+        if (_selectedBuilding is not null)
+            _rooms = await RoomService.GetForBuildingAsync(_selectedBuilding.Id);
+    }
+
+    private void NewRoom()
+    {
+        _editingRoomId = null;
+        _roomForm = new() { BedCount = 1 };
+    }
+
+    private void EditRoom(Room r)
+    {
+        _editingRoomId = r.Id;
+        _roomForm = new Room
+        {
+            Id = r.Id,
+            BuildingId = r.BuildingId,
+            Name = r.Name,
+            BedCount = r.BedCount,
+            BedConfiguration = r.BedConfiguration,
+            DisplayOrder = r.DisplayOrder
+        };
+    }
+
+    private async Task SaveRoom()
+    {
+        if (_selectedBuilding is null) return;
+
+        if (_editingRoomId is null)
+        {
+            _roomForm.BuildingId = _selectedBuilding.Id;
+            await RoomService.CreateAsync(_roomForm);
+            _message = $"Rummet \"{_roomForm.Name}\" har lagts till.";
+        }
+        else
+        {
+            await RoomService.UpdateAsync(_roomForm);
+            _message = $"Rummet \"{_roomForm.Name}\" har uppdaterats.";
+        }
+
+        NewRoom();
+        await LoadRooms();
+    }
+
+    private async Task SetRoomActive(Room r, bool isActive)
+    {
+        await RoomService.SetActiveAsync(r.Id, isActive);
+        _message = isActive
+            ? $"Rummet \"{r.Name}\" har aktiverats."
+            : $"Rummet \"{r.Name}\" har inaktiverats.";
+        await LoadRooms();
+    }
+
+    private async Task DeleteRoom(Room r)
+    {
+        var result = await RoomService.TryHardDeleteAsync(r.Id);
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Rummet \"{r.Name}\" har tagits bort.",
+            HardDeleteResult.Blocked => $"Rummet \"{r.Name}\" kan inte tas bort eftersom det används av en bokning. Inaktivera det i stället.",
+            _ => $"Rummet \"{r.Name}\" kunde inte hittas."
+        };
+        await LoadRooms();
+    }
+}

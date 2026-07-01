@@ -36,7 +36,9 @@ services:
       - "10002:10002"  # Table
     volumes:
       - azurite_data:/data
-    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0
+    # --skipApiVersionCheck tolerates the newer service API version the Azure SDK
+    # negotiates than the pinned Azurite image advertises (local dev only).
+    command: azurite --blobHost 0.0.0.0 --queueHost 0.0.0.0 --tableHost 0.0.0.0 --skipApiVersionCheck
 
   mailpit:
     image: axllent/mailpit

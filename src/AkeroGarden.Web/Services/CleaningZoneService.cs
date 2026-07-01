@@ -17,6 +17,14 @@ public class CleaningZoneService(ApplicationDbContext db)
             .ThenBy(c => c.Name)
             .ToListAsync();
 
+    /// <summary>Active cleaning zones only, in display order — for the public prices page (FR-82).</summary>
+    public async Task<List<CleaningZone>> GetActiveAsync() =>
+        await db.CleaningZones
+            .Where(c => c.IsActive)
+            .OrderBy(c => c.DisplayOrder)
+            .ThenBy(c => c.Name)
+            .ToListAsync();
+
     public async Task<CleaningZone?> GetAsync(Guid id) =>
         await db.CleaningZones.FindAsync(id);
 

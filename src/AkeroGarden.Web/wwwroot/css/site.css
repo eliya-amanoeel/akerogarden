@@ -184,27 +184,100 @@ img { max-width: 100%; height: auto; display: block; }
 .site-header.scrolled .logo-dark { display: none; }
 .site-header.scrolled .logo-light { display: inline-flex; }
 
+/* --- Mobile-first nav: CSS-only hamburger (no JS; works under Static SSR) --- */
+
+/* The toggle checkbox is kept off-screen but operable (keyboard-focusable). */
+.site-header__toggle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.site-header__burger {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 5px;
+    width: 44px;
+    height: 44px;
+    padding: 10px;
+    cursor: pointer;
+}
+
+.site-header__burger span {
+    display: block;
+    height: 2px;
+    background-color: #fff;
+    border-radius: 2px;
+}
+
+/* Burger bars must stay visible over a light header (scrolled or non-hero page). */
+.site-header.scrolled .site-header__burger span,
+body:not(:has(.hero)) .site-header__burger span {
+    background-color: var(--color-heading);
+}
+
+/* Collapsed by default; opens as a dropdown panel below the fixed header. */
 .site-header__nav {
     display: none;
-    gap: 1.5rem;
-    align-items: center;
+    position: absolute;
+    top: var(--header-h);
+    left: 0;
+    right: 0;
+    flex-direction: column;
+    gap: 0;
+    padding: 0.5rem 1rem 1rem;
+    background-color: var(--color-bg);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
 
-@media (min-width: 1024px) {
-    .site-header__nav { display: flex; }
+.site-header__toggle:checked ~ .site-header__nav {
+    display: flex;
 }
 
+/* Dropdown sits on a light background, so links are always dark on mobile. */
 .site-header__nav a {
-    color: #fff;
-    font-weight: 500;
-}
-
-.site-header.scrolled .site-header__nav a {
     color: var(--color-heading);
+    font-weight: 500;
+    padding: 0.6rem 0;
 }
 
 .site-header__nav .btn {
     color: #fff;
+    margin-top: 0.5rem;
+    text-align: center;
+}
+
+/* --- Desktop: inline horizontal nav, no hamburger --- */
+@media (min-width: 1024px) {
+    .site-header__burger { display: none; }
+
+    .site-header__nav {
+        display: flex;
+        position: static;
+        flex-direction: row;
+        gap: 1.5rem;
+        align-items: center;
+        padding: 0;
+        background-color: transparent;
+        box-shadow: none;
+    }
+
+    .site-header__nav a {
+        color: #fff;
+        padding: 0;
+    }
+
+    .site-header.scrolled .site-header__nav a {
+        color: var(--color-heading);
+    }
+
+    .site-header__nav .btn {
+        color: #fff;
+        margin-top: 0;
+    }
 }
 
 /* ============================================================

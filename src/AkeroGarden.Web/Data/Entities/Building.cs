@@ -24,6 +24,7 @@ public class Building
 
     public bool IsActive { get; set; } = true;
 
+    [Range(0, int.MaxValue, ErrorMessage = "Visningsordningen kan inte vara negativ.")]
     public int DisplayOrder { get; set; }
 
     public ICollection<Room> Rooms { get; set; } = new List<Room>();

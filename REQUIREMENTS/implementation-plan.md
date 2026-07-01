@@ -82,7 +82,7 @@ Phase 1 is built as five independently reviewable vertical slices, not one batch
 
 ---
 
-## Phase 2 — Public site
+## Phase 2 — Public site ✅ COMPLETE (merged to main 2026-07-01)
 
 **Goal:** the public-facing website, rendered dynamically from Phase 1 data.
 

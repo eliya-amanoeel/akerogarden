@@ -129,8 +129,9 @@ public class CleaningZoneService(ApplicationDbContext db)
     public static bool CanHardDelete(int referenceCount) => referenceCount == 0;
 
     /// <summary>
-    /// Counts references that block a hard-delete. Phase 1: none exist yet —
-    /// zones are first referenced by BookingCleaningSelection.CleaningZoneId in Phase 3 (FR-88), wired in then.
+    /// Counts booking selections that reference this cleaning zone (FR-88). Wired to the real
+    /// BookingCleaningSelection table in Phase 3; a non-zero count blocks the hard-delete.
     /// </summary>
-    private Task<int> CountReferencesAsync(Guid cleaningZoneId) => Task.FromResult(0);
+    private async Task<int> CountReferencesAsync(Guid cleaningZoneId) =>
+        await db.BookingCleaningSelections.CountAsync(s => s.CleaningZoneId == cleaningZoneId);
 }

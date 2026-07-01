@@ -121,6 +121,21 @@ Phase 1 is built as five independently reviewable vertical slices, not one batch
 
 **Exit criteria:** an inquiry flows to a Pending booking with correct emails; the state machine blocks illegal transitions; approve/deny/close/cancel behave per spec with correct conditional emails; rate limiting holds; the public calendar page shows correct states from real bookings/blocks, exposes no personal data, and a date-range selection pre-fills the inquiry form; integration tests cover the inquiry, approval, and denial endpoints.
 
+### Build order — six vertical slices
+
+Like Phase 1, Phase 3 is built as independently reviewable vertical slices, each merged to the phase branch (with its tests) before the next begins. The ordering is dependency-driven: the data foundation and pure state machine come first; email infrastructure next (the inquiry flow needs it); the public inquiry form + Redis rate limiting follow; then the admin management and blocking; the **public calendar page is deliberately last** so it is verified end-to-end against bookings that actually reached an occupying status (`Approved`+, slice 4) and real blocks (slice 5), per the Phase 2 "Calendar split" rationale.
+
+| Slice | Migration | Delivers | Key §/FR refs |
+|---|---|---|---|
+| 1 | `AddBookingLifecycleEntities` | `Booking`, `BlockedPeriod`, `BookingFacilitySelection`, `BookingCleaningSelection` entities; string enums; pure `BookingStateMachine` (§2.5), `RetentionCalculator` (FR-91), `CompletionTokenPolicy` (§2.6); wire Facility/CleaningZone hard-delete guards to real selection counts | §8.1/8.10/8.12/8.13, §2.5, §2.6, FR-30/88, FR-91, NFR-03 |
+| 2 | — | Email infrastructure: logged SMTP retry (NFR-13); `BookingEmailService` composing the §9 Swedish templates (2 acknowledgements, admin new-inquiry, denial, approval + magic link, cancellation) | §9, FR-05/06, NFR-13 |
+| 3 | — | Public inquiry forms `/boka` (stay request + general inquiry, Static SSR, server-authoritative conditional UI); privacy-policy acknowledgement; selection snapshots; ack + admin emails on submit; Redis-backed rate limiting (5/IP/10 min) **and its Bicep addition** (Azure Cache for Redis, both parameter files) | FR-02–06, FR-21, NFR-04/05, §8.12/8.13 |
+| 4 | — | Admin booking management (Interactive Server): list with filters, detail, internal notes, deposit/payment flags, state-machine actions (approve + token gen + FR-75 warning, deny + reason, close, cancel + type/reason/conditional email), manual booking creation, admin calendar view | FR-36–42, FR-47, FR-49–53, FR-75–80 |
+| 5 | — | Blocking: `BlockedPeriodService` + admin CRUD at whole-property / building / room scope | FR-21, FR-40, §3.3 |
+| 6 | — | Public availability calendar page (Static SSR): EF-backed occupancy provider feeding the **existing** Phase 2 `AvailabilityCalculator`; 12 rolling months, no back-nav, three states + FR-10a disclaimer, aggregate-only (NFR-07); date-range pre-fills `/boka` (FR-11) | FR-08–11, FR-10a, FR-84, NFR-07 |
+
+Only slice 1 introduces a migration — all four lifecycle entities land together, so a single `AddBookingLifecycleEntities` migration covers them (rather than splitting artificially within one slice). Slices 2–6 add no new tables. `BlockedPeriod.BuildingId`/`RoomId` are logical references validated in the service layer, not enforced foreign keys (mirroring `CleaningZone.IncludesZoneIds`), so a stale block never blocks a building/room hard-delete at the DB level.
+
 ---
 
 ## Phase 4 — Completion flow

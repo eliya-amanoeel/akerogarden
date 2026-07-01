@@ -18,6 +18,15 @@ public class MealOptionService(ApplicationDbContext db)
             .ThenBy(m => m.Name)
             .ToListAsync();
 
+    /// <summary>Active meal options only, grouped by meal type in display order — for the public menu page (FR-83).</summary>
+    public async Task<List<MealOption>> GetActiveAsync() =>
+        await db.MealOptions
+            .Where(m => m.IsActive)
+            .OrderBy(m => m.MealType)
+            .ThenBy(m => m.DisplayOrder)
+            .ThenBy(m => m.Name)
+            .ToListAsync();
+
     public async Task<MealOption?> GetAsync(Guid id) =>
         await db.MealOptions.FindAsync(id);
 

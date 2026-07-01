@@ -23,6 +23,14 @@ public class FacilityService(ApplicationDbContext db)
             .ThenBy(f => f.Name)
             .ToListAsync();
 
+    /// <summary>Active facilities only, in display order — for the public facilities page (FR-81).</summary>
+    public async Task<List<Facility>> GetActiveAsync() =>
+        await db.Facilities
+            .Where(f => f.IsActive)
+            .OrderBy(f => f.DisplayOrder)
+            .ThenBy(f => f.Name)
+            .ToListAsync();
+
     public async Task<Facility?> GetAsync(Guid id) =>
         await db.Facilities.FindAsync(id);
 

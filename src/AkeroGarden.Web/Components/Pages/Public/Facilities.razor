@@ -1,0 +1,43 @@
+@page "/faciliteter"
+@layout MainLayout
+@using AkeroGarden.Web.Data.Entities
+@inject FacilityService FacilityService
+
+<PageTitle>Faciliteter — Åkerögården</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <h1>Faciliteter</h1>
+
+        @if (facilities.Count == 0)
+        {
+            <p>Inga faciliteter finns för närvarande.</p>
+        }
+        else
+        {
+            <div class="facility-list">
+                @foreach (var facility in facilities)
+                {
+                    <article class="facility-card">
+                        @if (!string.IsNullOrEmpty(facility.ImageUrl))
+                        {
+                            <img src="@facility.ImageUrl" alt="@facility.Name" class="facility-card__image" />
+                        }
+                        <h2>@facility.Name</h2>
+                        @if (!string.IsNullOrEmpty(facility.Description))
+                        {
+                            <p>@facility.Description</p>
+                        }
+                    </article>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private List<Facility> facilities = [];
+
+    protected override async Task OnInitializedAsync() =>
+        facilities = await FacilityService.GetActiveAsync();
+}

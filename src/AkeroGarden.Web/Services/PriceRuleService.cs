@@ -19,6 +19,13 @@ public class PriceRuleService(ApplicationDbContext db)
             .OrderBy(p => p.Label)
             .ToListAsync();
 
+    /// <summary>Active price rules only, ordered by label — for the public prices page (FR-82).</summary>
+    public async Task<List<PriceRule>> GetActiveAsync() =>
+        await db.PriceRules
+            .Where(p => p.IsActive)
+            .OrderBy(p => p.Label)
+            .ToListAsync();
+
     public async Task<PriceRule?> GetAsync(Guid id) =>
         await db.PriceRules.FindAsync(id);
 

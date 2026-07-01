@@ -1,0 +1,109 @@
+@page "/priser"
+@layout MainLayout
+@using System.Globalization
+@using AkeroGarden.Web.Data.Entities
+@inject PriceRuleService PriceRuleService
+@inject CleaningZoneService CleaningZoneService
+
+<PageTitle>Priser — Åkerögården</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <h1>Priser</h1>
+        <p>Alla belopp anges exklusive moms.</p>
+
+        <h2>Prislista</h2>
+        @if (priceRules.Count == 0)
+        {
+            <p>Inga priser finns för närvarande.</p>
+        }
+        else
+        {
+            <table class="price-table">
+                <thead>
+                    <tr>
+                        <th>Post</th>
+                        <th>Pris (exkl. moms)</th>
+                        <th>Moms</th>
+                        <th>Enhet</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var rule in priceRules)
+                    {
+                        <tr>
+                            <td>
+                                @rule.Label
+                                @if (rule.SeasonStart is not null && rule.SeasonEnd is not null)
+                                {
+                                    <span class="price-table__season">
+                                        (@rule.SeasonStart.Value.ToString("d MMM", Sv)–@rule.SeasonEnd.Value.ToString("d MMM", Sv))
+                                    </span>
+                                }
+                                @if (!string.IsNullOrEmpty(rule.Notes))
+                                {
+                                    <div class="price-table__note">@rule.Notes</div>
+                                }
+                            </td>
+                            <td>@Amount(rule.AmountExVat)</td>
+                            <td>@Vat(rule.VatRate)</td>
+                            <td>@rule.Unit</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        <h2>Städning</h2>
+        @if (cleaningZones.Count == 0)
+        {
+            <p>Inga städalternativ finns för närvarande.</p>
+        }
+        else
+        {
+            <table class="price-table">
+                <thead>
+                    <tr>
+                        <th>Städzon</th>
+                        <th>Pris (exkl. moms)</th>
+                        <th>Moms</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var zone in cleaningZones)
+                    {
+                        <tr>
+                            <td>
+                                @zone.Name
+                                @if (!string.IsNullOrEmpty(zone.Description))
+                                {
+                                    <div class="price-table__note">@zone.Description</div>
+                                }
+                            </td>
+                            <td>@Amount(zone.AmountExVat)</td>
+                            <td>@Vat(zone.VatRate)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+</section>
+
+@code {
+    private static readonly CultureInfo Sv = CultureInfo.GetCultureInfo("sv-SE");
+
+    private List<PriceRule> priceRules = [];
+    private List<CleaningZone> cleaningZones = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        priceRules = await PriceRuleService.GetActiveAsync();
+        cleaningZones = await CleaningZoneService.GetActiveAsync();
+    }
+
+    // Reference figures shown exactly as entered — no incl-VAT total is computed (C8).
+    private static string Amount(decimal amountExVat) => $"{amountExVat.ToString("0.##", Sv)} kr";
+
+    private static string Vat(decimal vatRate) => $"{(vatRate * 100).ToString("0.##", Sv)} %";
+}

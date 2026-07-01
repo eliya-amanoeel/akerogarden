@@ -89,15 +89,15 @@ Phase 1 is built as five independently reviewable vertical slices, not one batch
 **Scope & deliverables:**
 
 - Static SSR pages: **home, about, contact** (hardcoded text/images — no admin CMS), **facilities** (FR-81), **menu** (FR-83), **prices** (FR-82, including cleaning zones).
-- **Availability calendar:** 12 rolling months forward, no backward nav; three states (Free / Partially booked / Fully booked) computed from effective capacity; disclaimer note; date-range selection pre-fills the inquiry form.
+- **Availability calculator (logic only, no page):** a pure, unit-tested component that computes a date's state (Free / Partially booked / Fully booked) from **effective capacity** — total active-room bed count (Phase 1 data, live) minus beds removed by blocks — against summed occupying-guest counts. Built and fully unit-tested here against directly supplied inputs; the visible calendar **page** that consumes it is deferred to Phase 3 (see note).
 - **Privacy policy** page, linked from footer and (later) the inquiry form.
 - Responsive (mobile-first) across all pages.
 
-> **Dependency note:** the calendar's occupancy inputs (bookings + blocks) don't exist until Phase 3. Build the calendar UI and the effective-capacity computation here, validated against seeded data; it goes fully live once Phase 3 supplies real bookings and blocks.
+> **Calendar split (plan deviation from the original single-phase calendar — logged here, not silently diverged):** the calendar's occupancy inputs (bookings + blocks) do not exist until Phase 3, and the date-range → inquiry-form pre-fill (FR-11) targets a form that also does not exist until Phase 3. Building the *page* against stubbed/fake occupancy in Phase 2 would prove only that a grid renders (routine) while risking a fictional-availability page reaching staging, and can never be verified end-to-end until Phase 3. Therefore the feature is split: the **effective-capacity + state computation** — the only intellectually risky part, and largely property-shaped (bed counts, block rules) rather than booking-shaped — is built and unit-tested **here** in Phase 2; the **calendar page** (12 rolling months, no back nav, three-state display, disclaimer note, date-range pre-fill) is built in **Phase 3**, wired to real bookings/blocks via the already-proven calculator and verified end-to-end. FR-08, FR-09, FR-10, FR-10a, FR-11, FR-84 and NFR-07 accordingly move to Phase 3's Satisfies row.
 
-**Satisfies:** FR-01, FR-07, FR-08, FR-09, FR-10, FR-10a, FR-11, FR-81, FR-82, FR-83, FR-84 · NFR-07, NFR-08, NFR-17, NFR-20, NFR-21 (form ack lands in Phase 3), NFR-22, NFR-23.
+**Satisfies:** FR-01 (availability-calendar and inquiry pages complete in Phase 3), FR-07, FR-81, FR-82, FR-83 · NFR-08, NFR-17, NFR-20, NFR-21 (form ack lands in Phase 3), NFR-22, NFR-23. *(The availability calculator built here is preparatory for FR-08–11/10a/84 and NFR-07, which are delivered in Phase 3.)*
 
-**Exit criteria:** all public pages render from admin-managed data; calendar shows correct states from seeded bookings/blocks and exposes no personal data; site is responsive and public pages load within 3 s.
+**Exit criteria:** all public pages render from admin-managed data; site is responsive and public pages load within 3 s; the availability calculator's effective-capacity and state logic is unit-tested across the edge cases (exactly-full, capacity-minus-one, whole-property block, partial block, empty). *(The visible calendar page and its end-to-end verification against real bookings/blocks are Phase 3 exit criteria.)*
 
 ---
 
@@ -114,12 +114,12 @@ Phase 1 is built as five independently reviewable vertical slices, not one batch
 - **Admin booking management:** list with filters, calendar view, internal notes, deposit/payment status tracking, manual booking creation on behalf of a guest.
 - **Status state machine (§2.5) enforced** — invalid transitions blocked. Approve (+ token generation, + ≤14-day warning), deny (+ required reason), close (general inquiry only), cancel (Approved/DetailsComplete/Active; type + optional reason; conditional deposit email).
 - **Blocking:** create/edit/delete blocks at whole-property / building / room scope.
-- Calendar occupancy now wired to real bookings + blocks (completes Phase 2's calendar).
+- **Public availability calendar page (Static SSR):** 12 rolling months forward, no backward navigation (FR-84); three-state display (Free / Partially booked / Fully booked) with the FR-10a disclaimer note; exposes only aggregate availability, no personal data (NFR-07); date-range selection pre-fills the inquiry form (FR-11). Built on Phase 2's already-unit-tested effective-capacity calculator, now wired to real bookings + blocks and verified end-to-end. *(Deferred here from Phase 2 — see the Phase 2 "Calendar split" note.)*
 - Emails: inquiry acknowledgement (×2), admin new-inquiry, denial, approval + magic link, cancellation.
 
-**Satisfies:** FR-02–06, FR-21, FR-36–42, FR-47, FR-50, FR-51–53, FR-75–80 · NFR-03, NFR-04, NFR-05, NFR-09, NFR-13.
+**Satisfies:** FR-02–06, FR-08, FR-09, FR-10, FR-10a, FR-11, FR-21, FR-36–42, FR-47, FR-50, FR-51–53, FR-75–80, FR-84 · NFR-03, NFR-04, NFR-05, NFR-07, NFR-09, NFR-13. *(FR-08–11/10a/84 and NFR-07 moved here from Phase 2 with the calendar page — see the Phase 2 "Calendar split" note.)*
 
-**Exit criteria:** an inquiry flows to a Pending booking with correct emails; the state machine blocks illegal transitions; approve/deny/close/cancel behave per spec with correct conditional emails; rate limiting holds; integration tests cover the inquiry, approval, and denial endpoints.
+**Exit criteria:** an inquiry flows to a Pending booking with correct emails; the state machine blocks illegal transitions; approve/deny/close/cancel behave per spec with correct conditional emails; rate limiting holds; the public calendar page shows correct states from real bookings/blocks, exposes no personal data, and a date-range selection pre-fills the inquiry form; integration tests cover the inquiry, approval, and denial endpoints.
 
 ---
 
@@ -191,8 +191,8 @@ Phase 1 is built as five independently reviewable vertical slices, not one batch
 | --- | --- | --- |
 | 0 Foundation | FR-35, 70–74 | NFR-01,02,06,11,12,24,25,28,30,32 |
 | 1 Reference data | FR-13–34, 85–88 | NFR-09,14 |
-| 2 Public site | FR-01,07,08–11,10a,81–84 | NFR-07,08,17,20–23 |
-| 3 Inquiry & lifecycle | FR-02–06,21,36–42,47,50,51–53,75–80 | NFR-03,04,05,09,13 |
+| 2 Public site | FR-01,07,81–83 | NFR-08,17,20–23 |
+| 3 Inquiry & lifecycle | FR-02–06,08–11,10a,21,36–42,47,50,51–53,75–80,84 | NFR-03,04,05,07,09,13 |
 | 4 Completion | FR-48,49,54–62 | NFR-15,16,18,33,34 |
 | 5 Notifications/lists/retention | FR-44,45,63–69,89–91 | NFR-10 |
 | 6 Hardening & go-live | — | NFR-08,09,10,29,31 + residual |

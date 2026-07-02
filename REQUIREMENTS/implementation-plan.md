@@ -101,7 +101,7 @@ Phase 1 is built as five independently reviewable vertical slices, not one batch
 
 ---
 
-## Phase 3 — Inquiry & booking lifecycle
+## Phase 3 — Inquiry & booking lifecycle ✅ COMPLETE (merged to main 2026-07-02)
 
 **Goal:** the core booking engine — from inquiry submission through the admin's approve / deny / close / cancel decisions.
 

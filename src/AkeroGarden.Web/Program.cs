@@ -59,19 +59,29 @@ builder.Services.Configure<BookingEmailOptions>(builder.Configuration.GetSection
 builder.Services.AddScoped<BookingEmailService>();
 
 // ── Redis (distributed rate limiting — NFR-04) ────────────────────────────────
-// AbortOnConnectFail=false so a transient Redis hiccup doesn't stop app startup; the
-// inquiry handler fails open (allows the submission) if Redis is unreachable at call time.
-builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-{
-    var connectionString = builder.Configuration.GetConnectionString("Redis")
-        ?? builder.Configuration["Redis:ConnectionString"]
-        ?? "localhost:6379";
-    var config = ConfigurationOptions.Parse(connectionString);
-    config.AbortOnConnectFail = false;
-    return ConnectionMultiplexer.Connect(config);
-});
+// The Redis multiplexer is built at startup so a bad/unresolved connection string (e.g. an
+// unresolved Key Vault reference) degrades to "no rate limiting" (fail open, logged) rather than
+// crashing the public inquiry page at request time. AbortOnConnectFail=false means a valid string
+// with Redis merely unreachable still yields a real multiplexer that reconnects — only an
+// unparseable string falls back to the no-op limiter.
 builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection("RateLimit"));
-builder.Services.AddScoped<IInquiryRateLimiter, RedisInquiryRateLimiter>();
+var redisConnectionString = builder.Configuration.GetConnectionString("Redis")
+    ?? builder.Configuration["Redis:ConnectionString"]
+    ?? "localhost:6379";
+try
+{
+    var redisConfig = ConfigurationOptions.Parse(redisConnectionString);
+    redisConfig.AbortOnConnectFail = false;
+    builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConfig));
+    builder.Services.AddScoped<IInquiryRateLimiter, RedisInquiryRateLimiter>();
+}
+catch (Exception ex)
+{
+    // Console at bootstrap (the logging pipeline isn't built yet); surfaces in the container log stream.
+    Console.Error.WriteLine(
+        $"[RateLimit] Redis could not be initialised — rate limiting disabled (fail open): {ex.Message}");
+    builder.Services.AddSingleton<IInquiryRateLimiter, NoOpInquiryRateLimiter>();
+}
 
 // ── Booking engine (Phase 3) ──────────────────────────────────────────────────
 builder.Services.AddScoped<BookingService>();

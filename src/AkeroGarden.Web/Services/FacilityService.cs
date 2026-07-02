@@ -50,6 +50,8 @@ public class FacilityService(ApplicationDbContext db)
         existing.Name = input.Name;
         existing.Description = input.Description;
         existing.ImageUrl = input.ImageUrl;
+        existing.AmountExVat = input.AmountExVat;
+        existing.VatRate = input.VatRate;
         existing.DisplayOrder = input.DisplayOrder;
         await db.SaveChangesAsync();
     }
@@ -106,8 +108,9 @@ public class FacilityService(ApplicationDbContext db)
     public static bool CanHardDelete(int referenceCount) => referenceCount == 0;
 
     /// <summary>
-    /// Counts references that block a hard-delete. Phase 1: none exist yet —
-    /// facilities are first referenced by BookingFacilitySelection.FacilityId in Phase 3 (FR-30), wired in then.
+    /// Counts booking selections that reference this facility (FR-30). Wired to the real
+    /// BookingFacilitySelection table in Phase 3; a non-zero count blocks the hard-delete.
     /// </summary>
-    private Task<int> CountReferencesAsync(Guid facilityId) => Task.FromResult(0);
+    private async Task<int> CountReferencesAsync(Guid facilityId) =>
+        await db.BookingFacilitySelections.CountAsync(s => s.FacilityId == facilityId);
 }

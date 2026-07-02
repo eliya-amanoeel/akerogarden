@@ -21,6 +21,15 @@ public class Facility
     /// <summary>Azure Blob Storage URL of the facility image; null until one is uploaded.</summary>
     public string? ImageUrl { get; set; }
 
+    // Reference figure only — snapshotted onto BookingFacilitySelection at selection time
+    // (NFR-34). No totals are computed from it (C8). Mirrors CleaningZone.
+    [Range(0, 1_000_000, ErrorMessage = "Beloppet måste vara mellan 0 och 1 000 000.")]
+    public decimal AmountExVat { get; set; }
+
+    // VAT stored as a fraction, e.g. 0.25 for 25 % (§8.8), mirroring PriceRule/CleaningZone.
+    [Range(0, 1, ErrorMessage = "Momssatsen anges som andel mellan 0 och 1 (t.ex. 0,25 för 25 %).")]
+    public decimal VatRate { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     [Range(0, int.MaxValue, ErrorMessage = "Visningsordningen kan inte vara negativ.")]

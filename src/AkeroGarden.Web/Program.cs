@@ -4,6 +4,7 @@ using AkeroGarden.Web.Services;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,6 +53,30 @@ builder.Services.ConfigureApplicationCookie(options =>
 // ── Email ─────────────────────────────────────────────────────────────────────
 builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddScoped<IEmailService, SmtpEmailService>();
+
+// Booking-lifecycle emails (§9) — composes Swedish templates and dispatches via IEmailService.
+builder.Services.Configure<BookingEmailOptions>(builder.Configuration.GetSection("BookingEmail"));
+builder.Services.AddScoped<BookingEmailService>();
+
+// ── Redis (distributed rate limiting — NFR-04) ────────────────────────────────
+// AbortOnConnectFail=false so a transient Redis hiccup doesn't stop app startup; the
+// inquiry handler fails open (allows the submission) if Redis is unreachable at call time.
+builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
+{
+    var connectionString = builder.Configuration.GetConnectionString("Redis")
+        ?? builder.Configuration["Redis:ConnectionString"]
+        ?? "localhost:6379";
+    var config = ConfigurationOptions.Parse(connectionString);
+    config.AbortOnConnectFail = false;
+    return ConnectionMultiplexer.Connect(config);
+});
+builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection("RateLimit"));
+builder.Services.AddScoped<IInquiryRateLimiter, RedisInquiryRateLimiter>();
+
+// ── Booking engine (Phase 3) ──────────────────────────────────────────────────
+builder.Services.AddScoped<BookingService>();
+builder.Services.AddScoped<BlockedPeriodService>();
+builder.Services.AddScoped<OccupancyProvider>();
 
 // ── Reference data services (Phase 1) ─────────────────────────────────────────
 builder.Services.AddScoped<BuildingService>();

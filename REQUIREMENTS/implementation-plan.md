@@ -1,6 +1,6 @@
 # Åkerögården — Implementation Plan
 
-**Based on:** requirements.md v0.34, erd.md
+**Based on:** requirements.md v0.35, erd.md
 **Audience:** the developer building v1.
 **Purpose:** a dependency-ordered, phased path from empty repo to production launch. Each phase lists its **goal**, **scope & deliverables**, the **requirements it satisfies**, and **exit criteria** (what "done" means before moving on).
 
@@ -121,6 +121,21 @@ Phase 1 is built as five independently reviewable vertical slices, not one batch
 
 **Exit criteria:** an inquiry flows to a Pending booking with correct emails; the state machine blocks illegal transitions; approve/deny/close/cancel behave per spec with correct conditional emails; rate limiting holds; the public calendar page shows correct states from real bookings/blocks, exposes no personal data, and a date-range selection pre-fills the inquiry form; integration tests cover the inquiry, approval, and denial endpoints.
 
+### Build order — six vertical slices
+
+Like Phase 1, Phase 3 is built as independently reviewable vertical slices, each merged to the phase branch (with its tests) before the next begins. The ordering is dependency-driven: the data foundation and pure state machine come first; email infrastructure next (the inquiry flow needs it); the public inquiry form + Redis rate limiting follow; then the admin management and blocking; the **public calendar page is deliberately last** so it is verified end-to-end against bookings that actually reached an occupying status (`Approved`+, slice 4) and real blocks (slice 5), per the Phase 2 "Calendar split" rationale.
+
+| Slice | Migration | Delivers | Key §/FR refs |
+|---|---|---|---|
+| 1 | `AddBookingLifecycleEntities` | `Booking`, `BlockedPeriod`, `BookingFacilitySelection`, `BookingCleaningSelection` entities; string enums; pure `BookingStateMachine` (§2.5), `RetentionCalculator` (FR-91), `CompletionTokenPolicy` (§2.6); wire Facility/CleaningZone hard-delete guards to real selection counts | §8.1/8.10/8.12/8.13, §2.5, §2.6, FR-30/88, FR-91, NFR-03 |
+| 2 | — | Email infrastructure: logged SMTP retry (NFR-13); `BookingEmailService` composing the §9 Swedish templates (2 acknowledgements, admin new-inquiry, denial, approval + magic link, cancellation) | §9, FR-05/06, NFR-13 |
+| 3 | — | Public inquiry forms `/boka` (stay request + general inquiry, Static SSR, server-authoritative conditional UI); privacy-policy acknowledgement; selection snapshots; ack + admin emails on submit; Redis-backed rate limiting (5/IP/10 min) **and its Bicep addition** (Azure Managed Redis — Balanced B0; classic Azure Cache for Redis was retired mid-phase, both parameter files) | FR-02–06, FR-21, NFR-04/05, §8.12/8.13 |
+| 4 | — | Admin booking management (Interactive Server): list with filters, detail, internal notes, deposit/payment flags, state-machine actions (approve + token gen + FR-75 warning, deny + reason, close, cancel + type/reason/conditional email), manual booking creation, admin calendar view | FR-36–42, FR-47, FR-49–53, FR-75–80 |
+| 5 | — | Blocking: `BlockedPeriodService` + admin CRUD at whole-property / building / room scope | FR-21, FR-40, §3.3 |
+| 6 | — | Public availability calendar page (Static SSR): EF-backed occupancy provider feeding the **existing** Phase 2 `AvailabilityCalculator`; 12 rolling months, no back-nav, three states + FR-10a disclaimer, aggregate-only (NFR-07); date-range pre-fills `/boka` (FR-11) | FR-08–11, FR-10a, FR-84, NFR-07 |
+
+Only slice 1 introduces a migration — all four lifecycle entities land together, so a single `AddBookingLifecycleEntities` migration covers them (rather than splitting artificially within one slice). Slices 2–6 add no new tables. `BlockedPeriod.BuildingId`/`RoomId` are logical references validated in the service layer, not enforced foreign keys (mirroring `CleaningZone.IncludesZoneIds`), so a stale block never blocks a building/room hard-delete at the DB level.
+
 ---
 
 ## Phase 4 — Completion flow
@@ -169,12 +184,13 @@ Phase 1 is built as five independently reviewable vertical slices, not one batch
 
 **Scope & deliverables:**
 
-- **Security:** full pass over NFR-01–07, NFR-25, NFR-30; confirm no PII in URLs/calendar; auth/rate-limit review.
+- **Security:** full pass over NFR-01–07, NFR-25, NFR-30; confirm no PII in URLs/calendar; auth/rate-limit review. **Wire `ForwardedHeaders`** so the inquiry rate limiter (NFR-04) keys on the real client IP behind the App Service load balancer rather than `RemoteIpAddress` (deferred from Phase 3 — the distributed-store requirement is met there; accurate per-client IP is the hardening step).
 - **Performance:** verify NFR-08 (public < 3 s), NFR-09 (admin < 5 s), NFR-10 (lists).
 - **Reliability:** confirm backups (NFR-12) and run the **quarterly restore drill** (NFR-29); email failure handling (NFR-13).
 - **Email E2E (NFR-31):** verify every guest/admin email against the **production** SMTP before go-live — not assumed from a successful build.
 - **Operational blockers (from operational-tasks.md):** privacy-policy legal text drafted/reviewed; image migration completed and wired to Facility/page assets; **VAT rates per category confirmed with the client's accountant**.
 - **UAT** with the admin **on the staging environment** (non-technical usability, NFR-18/19); Swedish-text review (NFR-32).
+- **Public inquiry-form input polish (found during Phase 3 manual testing):** (a) stricter phone-number validation on the stay/general forms (currently the optional `[Phone]` check is lenient and accepts letters); (b) a safeguard against a mistyped guest email — a well-formed but wrong address is currently accepted silently (the admin still receives the inquiry via FR-06, but the guest never gets their acknowledgement and bounces are not surfaced in-app). Pragmatic fix: a "confirm email" second field on the public forms. Product decision on scope.
 - **Production Azure environment provisioned:** run `main.bicep` with `prod.parameters.json` to create the production resource group (App Service B1, PostgreSQL Flexible Server VNet-only, Blob Storage, Redis, Key Vault); configure DNS for `akerogarden.se` and `admin.akerogarden.se`; run `ssl.bicep` for managed SSL; wire GitHub secrets for the production deploy job; validate VNet isolation.
 - **Staging custom domain bound:** configure DNS for `staging.akerogarden.se` (CNAME + `asuid` TXT), re-add it to the staging `customHostnames`, redeploy `main.bicep`, and run `ssl.bicep` for the managed certificate. *(Deferred here from Phase 0, which ran staging on the Azure default hostname.)*
 - **Production deploy** + go-live checklist.
@@ -201,4 +217,4 @@ Phase 1 is built as five independently reviewable vertical slices, not one batch
 
 ---
 
-*Derived from requirements.md v0.34 and erd.md — Åkerögården Booking System.*
+*Derived from requirements.md v0.35 and erd.md — Åkerögården Booking System.*

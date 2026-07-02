@@ -576,3 +576,99 @@ body:not(:has(.hero)) .site-header .logo-light {
     font-size: 0.9rem;
     margin-top: 0.25rem;
 }
+
+/* ── Phase 3: inquiry form, admin booking mgmt, availability calendar ───────── */
+
+.checkbox-row {
+    display: block;
+    margin: 0.25rem 0;
+}
+
+.form-status {
+    color: var(--color-primary-hover);
+    font-weight: 600;
+}
+
+.action-panel {
+    border: 1px solid var(--color-bg-warm);
+    border-radius: 6px;
+    padding: 1rem;
+    margin: 1rem 0;
+}
+
+.admin-toolbar,
+.admin-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    align-items: end;
+    margin-bottom: 1.5rem;
+}
+
+/* Availability calendar */
+.cal-note {
+    background: var(--color-bg-warm);
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+}
+
+.cal-legend {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin: 1rem 0;
+}
+
+.cal-swatch {
+    display: inline-block;
+    width: 1rem;
+    height: 1rem;
+    border-radius: 3px;
+    margin-left: 0.75rem;
+}
+
+.cal-selection {
+    position: sticky;
+    top: var(--header-h);
+    background: var(--color-bg);
+    padding: 0.5rem 0;
+    z-index: 1;
+}
+
+.cal-month {
+    margin: 1.5rem 0;
+}
+
+.cal-grid {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.cal-grid th {
+    text-align: center;
+    font-size: 0.85rem;
+    padding: 0.25rem;
+}
+
+.cal-day,
+.cal-empty {
+    height: 3rem;
+    text-align: center;
+    vertical-align: middle;
+    border: 1px solid #fff;
+}
+
+.cal-day a {
+    display: block;
+    line-height: 3rem;
+    text-decoration: none;
+    color: var(--color-heading);
+}
+
+.cal-free { background: #d9f0c2; }         /* green-ish — ledigt */
+.cal-partial { background: #fbe8a6; }      /* amber — delvis bokat */
+.cal-full { background: #f0c2c2; color: #7a5a5a; } /* red-ish — fullbokat */
+.cal-past { background: var(--color-bg-warm); color: #b5b0a8; }
+.cal-selected { outline: 3px solid var(--color-primary); outline-offset: -3px; }

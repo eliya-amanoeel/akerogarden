@@ -15,7 +15,8 @@ public class SmtpEmailServiceTests
             Host = "localhost",
             Port = 19999, // nothing listening here
             FromAddress = "noreply@akerogarden.se",
-            FromName = "Åkerögården"
+            FromName = "Åkerögården",
+            RetryDelayMs = 0 // retry immediately so the test stays fast (NFR-13 retry path)
         });
         var svc = new SmtpEmailService(opts, NullLogger<SmtpEmailService>.Instance);
 

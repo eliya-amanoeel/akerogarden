@@ -1,0 +1,92 @@
+@page "/admin/kalender"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Data.Entities
+@using AkeroGarden.Web.Services
+@inject BookingService BookingService
+@attribute [Authorize]
+
+<PageTitle>Kalendervy — Åkerögården Admin</PageTitle>
+
+<h1>Kalendervy</h1>
+<p>Kommande bokningar och blockeringar. (Listvy — grafisk kalender är en Phase 6-förbättring.)</p>
+
+<h2>Bokningar</h2>
+@if (_bookings is null)
+{
+    <p>Laddar...</p>
+}
+else if (_bookings.Count == 0)
+{
+    <p>Inga kommande bokningar.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th>Incheckning</th><th>Utcheckning</th><th>Namn</th><th>Gäster</th><th>Status</th><th></th></tr>
+        </thead>
+        <tbody>
+            @foreach (var b in _bookings)
+            {
+                <tr>
+                    <td>@b.CheckIn?.ToString("yyyy-MM-dd")</td>
+                    <td>@b.CheckOut?.ToString("yyyy-MM-dd")</td>
+                    <td>@b.ContactName</td>
+                    <td>@(b.OvernightGuestCount?.ToString() ?? "—")</td>
+                    <td>@BookingDisplay.StatusLabel(b.Status)</td>
+                    <td><a class="btn-ghost" href="/admin/bokningar/@b.Id">Öppna</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<h2>Blockeringar</h2>
+@if (_blocks is null)
+{
+    <p>Laddar...</p>
+}
+else if (_blocks.Count == 0)
+{
+    <p>Inga blockeringar.</p>
+}
+else
+{
+    <table>
+        <thead>
+            <tr><th>Från</th><th>Till</th><th>Omfattning</th><th>Orsak</th></tr>
+        </thead>
+        <tbody>
+            @foreach (var p in _blocks)
+            {
+                <tr>
+                    <td>@p.StartDate.ToString("yyyy-MM-dd")</td>
+                    <td>@p.EndDate.ToString("yyyy-MM-dd")</td>
+                    <td>@BookingDisplay.ScopeLabel(p.Scope)</td>
+                    <td>@(p.Reason ?? "—")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<Booking>? _bookings;
+    private List<BlockedPeriod>? _blocks;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var horizon = today.AddMonths(12);
+
+        // Upcoming stay bookings (those whose stay has not ended), newest-checkin first.
+        var stays = await BookingService.GetBookingsAsync(type: BookingType.StayRequest);
+        _bookings = stays
+            .Where(b => b.CheckOut is not null && b.CheckOut >= today)
+            .OrderBy(b => b.CheckIn)
+            .ToList();
+
+        _blocks = await BookingService.GetBlocksInRangeAsync(today, horizon);
+    }
+}

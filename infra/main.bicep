@@ -44,6 +44,18 @@ param seedAdminEmail string
 @description('Bootstrap admin password — seeds the first admin account on startup if none exists')
 param seedAdminPassword string
 
+@description('Public site base URL used in booking emails (magic link, privacy link) — §9')
+param publicBaseUrl string
+
+@description('Admin panel base URL used in the admin notification email — FR-06')
+param adminBaseUrl string
+
+@description('Address that receives admin notification emails (new inquiry, etc.)')
+param adminNotificationEmail string
+
+@description('Contact email shown in every booking email footer — §9')
+param contactEmail string
+
 // ── Naming ────────────────────────────────────────────────────────────────────
 var prefix = 'akerogarden-${environmentName}'
 
@@ -81,6 +93,16 @@ resource smtpPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'smtp-password'
   properties: { value: smtpPassword }
+}
+
+// Redis connection string (contains the access key) — stored as a secret, read by the app
+// via managed identity like the SMTP secrets (NFR-30). Distributed rate-limit store (NFR-04).
+resource redisConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'redis-connection'
+  properties: {
+    value: '${redisEnterprise.properties.hostName}:10000,password=${redisDatabase.listKeys().primaryKey},ssl=True,abortConnect=False'
+  }
 }
 
 // ── App Service Plan ──────────────────────────────────────────────────────────
@@ -159,6 +181,27 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
         {
           name: 'Seed__AdminPassword'
           value: seedAdminPassword
+        }
+        {
+          // Distributed rate-limit store (NFR-04) — read from Key Vault via managed identity (NFR-30)
+          name: 'Redis__ConnectionString'
+          value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=redis-connection)'
+        }
+        {
+          name: 'BookingEmail__PublicBaseUrl'
+          value: publicBaseUrl
+        }
+        {
+          name: 'BookingEmail__AdminBaseUrl'
+          value: adminBaseUrl
+        }
+        {
+          name: 'BookingEmail__AdminNotificationEmail'
+          value: adminNotificationEmail
+        }
+        {
+          name: 'BookingEmail__ContactEmail'
+          value: contactEmail
         }
       ]
     }
@@ -329,6 +372,31 @@ resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices
   name: 'facility-images'
   properties: {
     publicAccess: 'Blob' // anonymous read of individual blobs; no container listing
+  }
+}
+
+// ── Azure Managed Redis (distributed rate limiting — NFR-04) ──────────────────
+// Classic Azure Cache for Redis is retiring and can no longer be created; Azure Managed Redis
+// (Microsoft.Cache/redisEnterprise) is its successor. Balanced B0 is the entry tier — ample for
+// rate-limit counters. The app connects over TLS on port 10000 via the connection string held
+// in Key Vault; StackExchange.Redis is unchanged. EnterpriseCluster clustering exposes a single
+// logical endpoint, so the client needs no OSS-cluster configuration.
+resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2024-10-01' = {
+  name: '${prefix}-redis'
+  location: location
+  sku: {
+    name: 'Balanced_B0'
+  }
+}
+
+resource redisDatabase 'Microsoft.Cache/redisEnterprise/databases@2024-10-01' = {
+  parent: redisEnterprise
+  name: 'default'
+  properties: {
+    clientProtocol: 'Encrypted' // TLS only
+    port: 10000
+    clusteringPolicy: 'EnterpriseCluster'
+    evictionPolicy: 'NoEviction' // rate-limit keys always carry a TTL
   }
 }
 

@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.35 — Working Draft  
+**Version:** 0.36 — Working Draft  
 **Date:** June 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.35:**
+
+- Rate-limit store changed from **Azure Cache for Redis (Basic C0)** to **Azure Managed Redis (Balanced B0)** — forced by Microsoft retiring the classic Azure Cache for Redis and blocking new instance creation (the deploy failed with "Azure Cache for Redis is retiring, create Azure Managed Redis instance instead"). Azure Managed Redis is the successor, speaks the same Redis protocol (no application code change — StackExchange.Redis is unchanged), and is provisioned from the same Bicep via `Microsoft.Cache/redisEnterprise` (Balanced B0, EnterpriseCluster policy, TLS on port 10000). Cost rises from ~$16 to ~$45/month; §1.5, §11 cost table, §11.1 and NFR-04 updated. NFR-04's intent (distributed rate-limit store, correct under multi-instance scale-out) is unchanged.
 
 **Changes from v0.34:**
 
@@ -244,7 +248,7 @@ It serves as the single source of truth for all design, development, and testing
 | Database | PostgreSQL on Azure | Managed backups; familiar query model |
 | Hosting | Azure App Service (Linux, B1) | Managed SSL; CI/CD from GitHub Actions |
 | File storage | Azure Blob Storage | List downloads and media uploads |
-| Rate limiting store | Azure Cache for Redis | Distributed rate-limit counters; correct under multi-instance scale-out (NFR-04) |
+| Rate limiting store | Azure Managed Redis | Distributed rate-limit counters; correct under multi-instance scale-out (NFR-04). Successor to the retired Azure Cache for Redis |
 | Email | MailKit (SMTP via One.com) | Robust .NET email library |
 | ORM | Entity Framework Core | Standard .NET data access layer |
 | CI/CD | GitHub Actions | Existing pipeline muscle memory |
@@ -777,7 +781,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | NFR-01 | All traffic served over HTTPS; SSL managed by Azure App Service |
 | NFR-02 | All routes under `admin.akerogarden.se` redirect unauthenticated requests to the login page |
 | NFR-03 | Completion tokens are cryptographically random (min 128-bit entropy), single-use, time-limited |
-| NFR-04 | Inquiry endpoint enforces rate limiting: max 5 submissions per IP per 10 minutes, backed by a distributed store (Azure Cache for Redis) rather than in-memory state, so the limit holds correctly if App Service ever scales to multiple instances |
+| NFR-04 | Inquiry endpoint enforces rate limiting: max 5 submissions per IP per 10 minutes, backed by a distributed store (Azure Managed Redis) rather than in-memory state, so the limit holds correctly if App Service ever scales to multiple instances |
 | NFR-05 | No personal data stored in URL query parameters |
 | NFR-06 | All personal data stored within EU (Azure North Europe or Sweden Central) |
 | NFR-07 | The public calendar endpoint exposes only availability status — no data that could identify a guest, group size, or booking detail |
@@ -1092,10 +1096,10 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 | Azure App Service | Basic B1 (Linux) | ~$13 | Hosts the Blazor Server application |
 | Azure Database for PostgreSQL Flexible Server | Burstable B1ms | ~$13 | Primary database; automated daily backups |
 | Azure Blob Storage | Hot tier, LRS | ~$1–2 | List downloads; facility images; uploaded media |
-| Azure Cache for Redis | Basic C0 | ~$16 | Distributed rate-limit counters (NFR-04) |
+| Azure Managed Redis | Balanced B0 | ~$45 | Distributed rate-limit counters (NFR-04); successor to the retired Azure Cache for Redis |
 | Azure-managed SSL | Included | $0 | HTTPS certificate management |
 | Custom domains | Included on Basic+ | $0 | akerogarden.se (public site) + admin.akerogarden.se (admin panel) — both point to the same App Service |
-| **Total** | | **~$43–44/month** | |
+| **Total** | | **~$72–73/month** | |
 
 > Prices are USD pay-as-you-go list prices as of June 2026, North Europe or Sweden Central region. Verify at [azure.microsoft.com/pricing/calculator](https://azure.microsoft.com/pricing/calculator) before client sign-off.
 
@@ -1107,7 +1111,7 @@ The system uses four environments. Production is the table above; the others:
 |---|---|---|---|
 | **Local dev** | Developer's machine (macOS) | .NET 10 SDK; PostgreSQL, Redis, and Azurite (Blob emulator) via Docker; a local SMTP catcher (e.g. Mailpit) so dev mail never sends; `dotnet user-secrets` for config | Day-to-day development. No Azure cost |
 | **Automated test** | GitHub Actions CI | Ephemeral PostgreSQL/Redis service containers per run | Runs the unit + integration suite (NFR-26–28) on every push; gates the build. No standing infra |
-| **Staging** | Azure — separate resource group, `staging.akerogarden.se` | Mirrors production's shape on minimal tiers: App Service B1, PostgreSQL Flexible Server Burstable B1ms, Blob (small), Redis Basic C0. Can be powered down when idle | Pre-go-live verification and admin UAT (NFR-18/19); migrations and config validated here before promotion. Deploy flow: dev → CI → staging → production |
+| **Staging** | Azure — separate resource group, `staging.akerogarden.se` | Mirrors production's shape on minimal tiers: App Service B1, PostgreSQL Flexible Server Burstable B1ms, Blob (small), Azure Managed Redis Balanced B0. Can be powered down when idle (Redis has no stop — delete + recreate via Bicep to zero its cost between sessions) | Pre-go-live verification and admin UAT (NFR-18/19); migrations and config validated here before promotion. Deploy flow: dev → CI → staging → production |
 | **Production** | Azure (§11 table) | As specified above | Live system |
 
 **Staging notes:**
@@ -1124,5 +1128,5 @@ All known open questions have been resolved. This section will be updated if new
 
 ---
 
-*End of document — Version 0.35 Working Draft*  
+*End of document — Version 0.36 Working Draft*  
 *Åkerögården Booking System — Software Requirements Specification*

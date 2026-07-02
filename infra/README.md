@@ -14,8 +14,9 @@ the SMTP secrets, App Service Plan + App Service (Linux, .NET 10), PostgreSQL
 Flexible Server (VNet-only, `publicNetworkAccess: Disabled`, zone 1), VNet with
 delegated app/db subnets, private DNS zone for Postgres, and Blob storage.
 
-Redis (Azure Cache for Redis, Basic C0) backs the inquiry rate limiter (NFR-04); its
-connection string is stored in Key Vault and read by the app via managed identity.
+Redis (Azure Managed Redis, Balanced B0 — the successor to the retired classic Azure
+Cache for Redis) backs the inquiry rate limiter (NFR-04); its connection string is stored
+in Key Vault and read by the app via managed identity.
 
 ## Prerequisites
 
@@ -101,10 +102,10 @@ az webapp stop --resource-group akerogarden-staging --name akerogarden-staging-a
 az postgres flexible-server stop --resource-group akerogarden-staging --name akerogarden-staging-pg
 ```
 
-> **Redis cannot be stopped.** Azure Cache for Redis has no start/stop — Basic C0 (~$16/mo)
+> **Redis cannot be stopped.** Azure Managed Redis has no start/stop — Balanced B0 (~$45/mo)
 > keeps billing even while the App Service and Postgres are stopped. To fully zero staging
-> cost when idle, delete the cache (`az redis delete -g akerogarden-staging -n akerogarden-staging-redis`)
-> and let the next `main.bicep` deploy recreate it; otherwise leave it running.
+> cost when idle, delete the cache (`az redisenterprise delete -g akerogarden-staging -n akerogarden-staging-redis`)
+> and let the next `main.bicep` deploy recreate it (~15 min); otherwise leave it running.
 
 ## Gotchas hit during Phase 0 provisioning
 

@@ -12,7 +12,7 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 - **EF Core + PostgreSQL** on Azure Flexible Server (VNet-only, no public internet access)
 - **ASP.NET Core Identity** for admin authentication (email + password)
 - **Azure App Service** Basic B1 (Linux)
-- **Azure Cache for Redis** — distributed rate limiting
+- **Azure Managed Redis** — distributed rate limiting (successor to the retired Azure Cache for Redis)
 - **Azure Blob Storage** — images and list downloads
 - **MailKit** over One.com SMTP
 - **GitHub Actions** CI/CD

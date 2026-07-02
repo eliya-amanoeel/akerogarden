@@ -101,7 +101,7 @@ resource redisConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = 
   parent: keyVault
   name: 'redis-connection'
   properties: {
-    value: '${redisCache.properties.hostName}:${redisCache.properties.sslPort},password=${redisCache.listKeys().primaryKey},ssl=True,abortConnect=False'
+    value: '${redisEnterprise.properties.hostName}:10000,password=${redisDatabase.listKeys().primaryKey},ssl=True,abortConnect=False'
   }
 }
 
@@ -375,21 +375,28 @@ resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices
   }
 }
 
-// ── Azure Cache for Redis (distributed rate limiting — NFR-04) ────────────────
-// Basic C0 is sufficient for rate-limit counters (§11 cost table). Non-SSL port disabled;
-// the app connects over TLS using the connection string held in Key Vault.
-resource redisCache 'Microsoft.Cache/redis@2024-03-01' = {
+// ── Azure Managed Redis (distributed rate limiting — NFR-04) ──────────────────
+// Classic Azure Cache for Redis is retiring and can no longer be created; Azure Managed Redis
+// (Microsoft.Cache/redisEnterprise) is its successor. Balanced B0 is the entry tier — ample for
+// rate-limit counters. The app connects over TLS on port 10000 via the connection string held
+// in Key Vault; StackExchange.Redis is unchanged. EnterpriseCluster clustering exposes a single
+// logical endpoint, so the client needs no OSS-cluster configuration.
+resource redisEnterprise 'Microsoft.Cache/redisEnterprise@2024-10-01' = {
   name: '${prefix}-redis'
   location: location
+  sku: {
+    name: 'Balanced_B0'
+  }
+}
+
+resource redisDatabase 'Microsoft.Cache/redisEnterprise/databases@2024-10-01' = {
+  parent: redisEnterprise
+  name: 'default'
   properties: {
-    sku: {
-      name: 'Basic'
-      family: 'C'
-      capacity: 0
-    }
-    enableNonSslPort: false
-    minimumTlsVersion: '1.2'
-    redisVersion: '6'
+    clientProtocol: 'Encrypted' // TLS only
+    port: 10000
+    clusteringPolicy: 'EnterpriseCluster'
+    evictionPolicy: 'NoEviction' // rate-limit keys always carry a TTL
   }
 }
 

@@ -1,16 +1,23 @@
 @inherits LayoutComponentBase
 
-<Header />
+@* Public pages are Static SSR with plain progressive-enhancement JS and full-page form posts.
+   Blazor's enhanced navigation (in-place page swaps) would prevent those inline scripts from
+   running and interfere with post-submit re-renders, so it's disabled for the whole public
+   subtree — every public navigation is a normal full page load. (Admin uses AdminLayout and is
+   unaffected.) *@
+<div data-enhance-nav="false">
+    <Header />
 
-<main>
-    @Body
-</main>
+    <main>
+        @Body
+    </main>
 
-<footer class="site-footer">
-    <div class="container">
-        <p>&copy; @DateTime.Now.Year Åkerögården</p>
-        <nav>
-            <a href="/integritetspolicy">Integritetspolicy</a>
-        </nav>
-    </div>
-</footer>
+    <footer class="site-footer">
+        <div class="container">
+            <p>&copy; @DateTime.Now.Year Åkerögården</p>
+            <nav>
+                <a href="/integritetspolicy">Integritetspolicy</a>
+            </nav>
+        </div>
+    </footer>
+</div>

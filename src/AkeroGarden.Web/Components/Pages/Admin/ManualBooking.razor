@@ -109,8 +109,11 @@ else
 
 @code {
     private BookingType _type = BookingType.StayRequest;
-    private StayRequestInput _stay = new();
-    private GeneralInquiryInput _general = new();
+    // Admin creates on the guest's behalf (FR-47) — the guest privacy-consent gate does not apply
+    // and there is no consent checkbox on this form, so pre-satisfy it or validation would block
+    // the submit with no visible error.
+    private StayRequestInput _stay = new() { AcceptPrivacyPolicy = true };
+    private GeneralInquiryInput _general = new() { AcceptPrivacyPolicy = true };
     private readonly HashSet<Guid> _selectedFacilities = [];
     private readonly HashSet<Guid> _selectedZones = [];
     private List<Facility> _facilities = [];
@@ -131,14 +134,12 @@ else
     {
         _stay.SelectedFacilityIds = _selectedFacilities.ToList();
         _stay.SelectedCleaningZoneIds = _selectedZones.ToList();
-        _stay.AcceptPrivacyPolicy = true; // admin-created on the guest's behalf; consent gate not applicable
         var booking = await BookingService.CreateStayRequestAsync(_stay, createdByAdmin: true);
         Nav.NavigateTo($"/admin/bokningar/{booking.Id}");
     }
 
     private async Task CreateGeneral()
     {
-        _general.AcceptPrivacyPolicy = true;
         var booking = await BookingService.CreateGeneralInquiryAsync(_general, createdByAdmin: true);
         Nav.NavigateTo($"/admin/bokningar/{booking.Id}");
     }

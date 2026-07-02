@@ -6,7 +6,7 @@
 
     var start = null;
     var end = null;
-    var days = Array.prototype.slice.call(document.querySelectorAll('.cal-day[data-date] a[data-date]'));
+    var days = Array.prototype.slice.call(document.querySelectorAll('.cal-day a[data-date]'));
     var selectionBar = document.getElementById('cal-selection');
     var rangeLabel = document.getElementById('cal-range');
     var goButton = document.getElementById('cal-go');

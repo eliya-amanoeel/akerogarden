@@ -8,7 +8,9 @@
     var dayGuests = document.getElementById('dayguests-group');
     function toggleDayGuests() {
         if (!mealPlan || !dayGuests) return;
-        dayGuests.hidden = mealPlan.value === 'SelfCateringAll';
+        // Use inline display (not the hidden attribute): .form-group sets display:flex, which
+        // would override the browser's [hidden] rule and keep the field visible.
+        dayGuests.style.display = mealPlan.value === 'SelfCateringAll' ? 'none' : '';
     }
     if (mealPlan) {
         mealPlan.addEventListener('change', toggleDayGuests);

@@ -77,9 +77,16 @@ public class BuildingService(ApplicationDbContext db)
     public static bool CanHardDelete(int referenceCount) => referenceCount == 0;
 
     /// <summary>
-    /// Counts references that block a hard-delete. Phase 1: rooms in the building.
-    /// Phase 4 (FR-16): also overnight participants assigned to those rooms via Participant.RoomId.
+    /// Counts references that block a hard-delete (FR-16). Two-layered: rooms in the building
+    /// (Phase 1), plus the transitive check added in Phase 4 — participants assigned to any of
+    /// those rooms via the live <see cref="Participant.RoomId"/> link (§8.5). Either being non-zero
+    /// blocks the delete.
     /// </summary>
-    private async Task<int> CountReferencesAsync(Guid buildingId) =>
-        await db.Rooms.CountAsync(r => r.BuildingId == buildingId);
+    private async Task<int> CountReferencesAsync(Guid buildingId)
+    {
+        var roomCount = await db.Rooms.CountAsync(r => r.BuildingId == buildingId);
+        var participantCount = await db.Participants
+            .CountAsync(p => p.Room != null && p.Room.BuildingId == buildingId);
+        return roomCount + participantCount;
+    }
 }

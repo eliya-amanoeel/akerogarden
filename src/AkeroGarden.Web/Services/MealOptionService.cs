@@ -87,8 +87,10 @@ public class MealOptionService(ApplicationDbContext db)
     public static bool CanHardDelete(int referenceCount) => referenceCount == 0;
 
     /// <summary>
-    /// Counts references that block a hard-delete. Phase 1: none exist yet —
-    /// meal options are first referenced by MealPreference.MealOptionId in Phase 4 (FR-26), wired in then.
+    /// Counts references that block a hard-delete (FR-26): meal preferences pointing at this
+    /// option via the live <see cref="MealPreference.MealOptionId"/> link (§8.6). Wired in Phase 4
+    /// now that MealPreference exists.
     /// </summary>
-    private Task<int> CountReferencesAsync(Guid mealOptionId) => Task.FromResult(0);
+    private Task<int> CountReferencesAsync(Guid mealOptionId) =>
+        db.MealPreferences.CountAsync(mp => mp.MealOptionId == mealOptionId);
 }

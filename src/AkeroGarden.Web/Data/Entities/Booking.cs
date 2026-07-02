@@ -72,6 +72,10 @@ public class Booking
 
     public List<BookingCleaningSelection> CleaningSelections { get; set; } = [];
 
+    /// <summary>Participants captured on the completion form (Phase 4, §8.5) — overnight guests
+    /// and day guests. Empty until the guest submits the completion form.</summary>
+    public List<Participant> Participants { get; set; } = [];
+
     // ── Message / notes ─────────────────────────────────────────────────────────
     [StringLength(5000, ErrorMessage = "Meddelandet får vara högst 5000 tecken.")]
     public string? Message { get; set; }

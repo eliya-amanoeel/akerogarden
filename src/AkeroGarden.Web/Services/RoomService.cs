@@ -74,8 +74,10 @@ public class RoomService(ApplicationDbContext db)
     public static bool CanHardDelete(int referenceCount) => referenceCount == 0;
 
     /// <summary>
-    /// Counts references that block a hard-delete. Phase 1: none exist yet —
-    /// rooms are first referenced by Participant.RoomId in Phase 4 (FR-20), wired in then.
+    /// Counts references that block a hard-delete (FR-20): participants assigned to this room via
+    /// the live <see cref="Participant.RoomId"/> link (§8.5). Wired in Phase 4 now that Participant
+    /// exists.
     /// </summary>
-    private Task<int> CountReferencesAsync(Guid roomId) => Task.FromResult(0);
+    private Task<int> CountReferencesAsync(Guid roomId) =>
+        db.Participants.CountAsync(p => p.RoomId == roomId);
 }

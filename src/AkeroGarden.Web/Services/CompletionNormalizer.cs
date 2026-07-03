@@ -1,0 +1,139 @@
+using AkeroGarden.Web.Data.Entities;
+using AkeroGarden.Web.Models;
+
+namespace AkeroGarden.Web.Services;
+
+/// <summary>
+/// Pure, server-authoritative validation + construction of the completion form's overnight
+/// participants (NFR-26, §6.6). Mirrors <see cref="InquiryNormalizer"/>: the browser shows/hides
+/// the meal grid on the full-board toggle, but these rules re-apply on the server regardless of
+/// what the client posts — self-catering participants get no meals, a meal option of the wrong
+/// type or one that is not currently active is dropped, and meals are only accepted for the
+/// server-derived slots of the stay (§4.1). Snapshots (<see cref="MealPreference.MealOptionSnapshot"/>)
+/// are captured here at build time (NFR-15).
+/// </summary>
+public static class CompletionNormalizer
+{
+    /// <summary>
+    /// Validates the submitted form against the booking's expected overnight count and the
+    /// server-derived meal slots. Returns Swedish error messages (empty ⇒ valid). Kept separate
+    /// from <see cref="BuildParticipants"/> so the page can re-render errors without persisting.
+    /// </summary>
+    public static List<string> Validate(
+        CompletionFormModel form,
+        IReadOnlyList<MealSlot> slots,
+        int expectedOvernightCount)
+    {
+        var errors = new List<string>();
+
+        if (form.Overnight.Count != expectedOvernightCount)
+        {
+            // A mismatch means the posted rows do not match the booking — do not try to validate
+            // per-row against a different shape.
+            errors.Add("Antalet deltagare stämmer inte med bokningen. Ladda om sidan och försök igen.");
+            return errors;
+        }
+
+        for (var i = 0; i < form.Overnight.Count; i++)
+        {
+            var entry = form.Overnight[i];
+            var label = $"Deltagare {i + 1}";
+
+            if (string.IsNullOrWhiteSpace(entry.FullName))
+                errors.Add($"{label}: namn krävs.");
+            else if (entry.FullName.Trim().Length > 200)
+                errors.Add($"{label}: namnet får vara högst 200 tecken.");
+
+            if (entry.IsFullBoard && SlotsMissingChoice(entry, slots))
+                errors.Add($"{label}: välj måltid för alla dagar.");
+
+            // An unchecked checkbox group binds to null on SSR post — treat as no requirements.
+            if ((entry.Dietary?.Contains(DietaryRequirement.Other) ?? false) && string.IsNullOrWhiteSpace(entry.DietaryNotes))
+                errors.Add($"{label}: beskriv kostbehovet i fältet för 'Annat'.");
+
+            if (!string.IsNullOrEmpty(entry.DietaryNotes) && entry.DietaryNotes.Length > 200)
+                errors.Add($"{label}: kostanteckningen får vara högst 200 tecken.");
+        }
+
+        if (form.IsOrganisation && string.IsNullOrWhiteSpace(form.OrgName))
+            errors.Add("Organisationsnamn krävs när fakturan ska ställas till en organisation.");
+
+        return errors;
+    }
+
+    /// <summary>
+    /// Builds the overnight <see cref="Participant"/> graph (with meal preferences + snapshots) from
+    /// a form assumed to have passed <see cref="Validate"/>. Applies the server-authoritative rules:
+    /// no meals for self-catering participants; each meal choice must be an active option of the
+    /// slot's meal type or it is dropped. Room assignment (<see cref="Participant.RoomId"/>) is left
+    /// null here — it is a slice-5 concern.
+    /// </summary>
+    public static List<Participant> BuildParticipants(
+        CompletionFormModel form,
+        IReadOnlyList<MealSlot> slots,
+        IReadOnlyDictionary<Guid, MealOption> activeOptionsById)
+    {
+        var participants = new List<Participant>(form.Overnight.Count);
+
+        foreach (var entry in form.Overnight)
+        {
+            var participant = new Participant
+            {
+                ParticipantType = ParticipantType.Overnight,
+                FullName = (entry.FullName ?? string.Empty).Trim(),
+                AgeCategory = entry.AgeCategory,
+                IsFullBoard = entry.IsFullBoard,
+                AttendsBreakfast = true, // overnight guests always — no selection needed (§8.5)
+                DietaryRequirements = NormalizeDietary(entry.Dietary ?? []),
+                DietaryNotes = string.IsNullOrWhiteSpace(entry.DietaryNotes) ? null : entry.DietaryNotes.Trim(),
+            };
+
+            if (entry.IsFullBoard)
+            {
+                var choices = entry.MealChoices ?? [];
+                for (var j = 0; j < slots.Count; j++)
+                {
+                    var choice = j < choices.Count ? choices[j] : null;
+                    if (choice is null) continue;
+                    if (!activeOptionsById.TryGetValue(choice.Value, out var option)) continue;
+                    if (option.MealType != slots[j].MealType) continue; // wrong-type option → drop
+
+                    participant.MealPreferences.Add(new MealPreference
+                    {
+                        Date = slots[j].Date,
+                        MealType = slots[j].MealType,
+                        MealOptionId = option.Id,
+                        MealOptionSnapshot = option.Name,
+                    });
+                }
+            }
+
+            participants.Add(participant);
+        }
+
+        return participants;
+    }
+
+    /// <summary>True if any applicable slot has no meal option chosen (used for the full-board rule).
+    /// A null <see cref="OvernightParticipantEntry.MealChoices"/> (nothing posted) counts as all missing.</summary>
+    private static bool SlotsMissingChoice(OvernightParticipantEntry entry, IReadOnlyList<MealSlot> slots)
+    {
+        var choices = entry.MealChoices ?? [];
+        for (var j = 0; j < slots.Count; j++)
+        {
+            var choice = j < choices.Count ? choices[j] : null;
+            if (choice is null) return true;
+        }
+        return false;
+    }
+
+    /// <summary>Dedupes dietary requirements and drops the meaningless <see cref="DietaryRequirement.None"/>
+    /// when any real requirement is present.</summary>
+    private static List<DietaryRequirement> NormalizeDietary(IEnumerable<DietaryRequirement> dietary)
+    {
+        var set = dietary.Distinct().ToList();
+        if (set.Count > 1)
+            set.Remove(DietaryRequirement.None);
+        return set;
+    }
+}

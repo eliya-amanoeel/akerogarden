@@ -175,6 +175,72 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails)
     }
 
     /// <summary>
+    /// Submits the completion form (FR-55/57/59/60/61/62). Re-validates the link server-side (token
+    /// found, Approved, unexpired — never trusting the earlier GET), then validates + builds the
+    /// overnight participants and their per-day meal preferences with snapshots via the pure
+    /// <see cref="CompletionNormalizer"/>, updates org/invoice details, transitions
+    /// <c>Approved → DetailsComplete</c> through <see cref="BookingStateMachine"/>, and notifies the
+    /// admin (FR-61). The token string is retained — single-use is enforced by the status gate
+    /// (once <c>DetailsComplete</c> the link reports AlreadyCompleted, C10), not by erasing it.
+    /// Day guests (§4.2) and room assignment (FR-56) are added in later slices.
+    /// </summary>
+    public async Task<CompletionSubmitResult> SubmitCompletionAsync(
+        string token, CompletionFormModel form, DateTime nowUtc)
+    {
+        var booking = await db.Bookings
+            .Include(b => b.Participants)
+            .SingleOrDefaultAsync(b => b.CompletionToken == token);
+
+        if (booking is null)
+            return CompletionSubmitResult.LinkFailed(CompletionAccess.NotFound);
+
+        var access = CompletionAccessPolicy.Evaluate(booking.Status, booking.CompletionTokenExpiry, nowUtc);
+        if (access != CompletionAccess.Valid)
+            return CompletionSubmitResult.LinkFailed(access);
+
+        // Belt-and-suspenders against a double submit racing the status gate: a completed booking
+        // already holds participants.
+        if (booking.Participants.Count > 0)
+            return CompletionSubmitResult.LinkFailed(CompletionAccess.AlreadyCompleted);
+
+        if (booking.CheckIn is null || booking.CheckOut is null)
+            return CompletionSubmitResult.LinkFailed(CompletionAccess.NotActive);
+
+        var slots = MealsByDayCalculator.Slots(booking.CheckIn.Value, booking.CheckOut.Value);
+        var expectedOvernight = booking.OvernightGuestCount ?? 0;
+
+        var errors = CompletionNormalizer.Validate(form, slots, expectedOvernight);
+        if (errors.Count > 0)
+            return CompletionSubmitResult.Invalid(errors);
+
+        // Authoritative active meal list — queried here, not trusted from the page.
+        var activeOptions = await db.MealOptions.Where(m => m.IsActive).ToListAsync();
+        var optionsById = activeOptions.ToDictionary(o => o.Id);
+
+        var participants = CompletionNormalizer.BuildParticipants(form, slots, optionsById);
+        foreach (var participant in participants)
+        {
+            participant.BookingId = booking.Id;
+            booking.Participants.Add(participant);
+        }
+
+        // Org/invoice (FR-60) — only retained when the booking is invoiced to an organisation.
+        booking.IsOrganisation = form.IsOrganisation;
+        booking.OrgName = form.IsOrganisation ? form.OrgName?.Trim() : null;
+        booking.OrgNumber = form.IsOrganisation ? form.OrgNumber?.Trim() : null;
+        booking.InvoiceAddress = form.IsOrganisation ? form.InvoiceAddress?.Trim() : null;
+
+        // One-way transition (§2.5) — routed through the state machine, not set blindly (FR-62).
+        BookingStateMachine.EnsureCanTransition(booking.Status, BookingStatus.DetailsComplete);
+        booking.Status = BookingStatus.DetailsComplete;
+        booking.UpdatedAt = nowUtc; // DetailsComplete is a live state → DeleteAfter stays null (FR-91)
+        await db.SaveChangesAsync();
+
+        await emails.SendAdminDetailsCompleteAsync(booking);
+        return CompletionSubmitResult.Ok();
+    }
+
+    /// <summary>
     /// The admin booking list, filterable by status, type, and check-in date range (FR-36).
     /// Newest first. The date range matches a stay's check-in; general inquiries (no dates)
     /// are excluded when a date range is supplied.

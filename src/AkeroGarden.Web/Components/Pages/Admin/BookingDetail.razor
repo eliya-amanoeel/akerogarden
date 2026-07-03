@@ -2,8 +2,11 @@
 @layout AdminLayout
 @rendermode InteractiveServer
 @using AkeroGarden.Web.Data.Entities
+@using AkeroGarden.Web.Models
 @using AkeroGarden.Web.Services
 @inject BookingService BookingService
+@inject RoomAvailabilityService RoomAvailability
+@inject MealOptionService MealOptionService
 @attribute [Authorize]
 
 <PageTitle>Bokning — Åkerögården Admin</PageTitle>
@@ -68,6 +71,128 @@ else
                 }
             </ul>
         }
+    }
+
+    @if (_booking.BookingType == BookingType.StayRequest)
+    {
+        @* Room-choice mode (FR-56) — set by the admin before the guest completes. *@
+        <h2>Rumsval</h2>
+        <div class="form-group">
+            <label>
+                <input type="checkbox" @bind="_guestChoosesRooms" />
+                Gästen väljer rum själv på slutförandeformuläret
+            </label>
+        </div>
+        <p class="cal-note">Av: administratören tilldelar rummen här nedan.</p>
+        <button class="btn" @onclick="SaveGuestChoosesRooms">Spara rumsval-inställning</button>
+    }
+
+    @* ── Participants (after guest submission — FR-48) ─────────────────────────── *@
+    @if (_edits.Count > 0)
+    {
+        <h2>Deltagare</h2>
+
+        @if (_conflicts.Count > 0)
+        {
+            <div class="form-error" role="alert">
+                <p>Rumskonflikter (fler tilldelade än bäddar):</p>
+                <ul>
+                    @foreach (var c in _conflicts)
+                    {
+                        <li>@c.RoomName (@c.BuildingName): @c.AssignedBeds tilldelade av @c.BedCount bäddar</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        @foreach (var edit in _edits)
+        {
+            var participant = _participants.First(p => p.Id == edit.Id);
+            var isOvernight = participant.ParticipantType == ParticipantType.Overnight;
+            <fieldset class="participant">
+                <legend>@(isOvernight ? "Övernattande gäst" : $"Dagsgäst ({participant.AttendanceDate:yyyy-MM-dd})")</legend>
+
+                <div class="form-group">
+                    <label>Namn</label>
+                    <input @bind="edit.FullName" maxlength="200" />
+                </div>
+
+                <div class="form-group">
+                    <label>Ålderskategori</label>
+                    <select @bind="edit.AgeCategory">
+                        @foreach (var age in AgeCategories)
+                        {
+                            <option value="@age">@AgeLabel(age)</option>
+                        }
+                    </select>
+                </div>
+
+                @if (isOvernight)
+                {
+                    <div class="form-group">
+                        <label>Rum</label>
+                        <select @bind="edit.RoomId">
+                            <option value="">– ej tilldelat –</option>
+                            @foreach (var group in _rooms.GroupBy(r => r.BuildingName))
+                            {
+                                <optgroup label="@group.Key">
+                                    @foreach (var room in group)
+                                    {
+                                        <option value="@room.Id">@room.Name (@room.BedCount bäddar)</option>
+                                    }
+                                </optgroup>
+                            }
+                        </select>
+                    </div>
+                }
+                else
+                {
+                    <div class="form-group">
+                        <label><input type="checkbox" @bind="edit.AttendsBreakfast" /> Deltar på frukost</label>
+                    </div>
+                }
+
+                @if (edit.Meals.Count > 0)
+                {
+                    <div class="form-group">
+                        <span class="label">Måltider</span>
+                        @foreach (var mealEdit in edit.Meals)
+                        {
+                            var meal = participant.MealPreferences.First(m => m.Id == mealEdit.Id);
+                            var options = meal.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
+                            <div class="form-row">
+                                <label>@meal.Date.ToString("yyyy-MM-dd") @(meal.MealType == MealType.Lunch ? "lunch" : "middag")</label>
+                                <select @bind="mealEdit.MealOptionId">
+                                    @foreach (var o in options)
+                                    {
+                                        <option value="@o.Id">@o.Name</option>
+                                    }
+                                </select>
+                            </div>
+                        }
+                    </div>
+                }
+
+                <div class="form-group">
+                    <span class="label">Kostbehov</span>
+                    @foreach (var diet in DietaryOptions)
+                    {
+                        <label class="form-check">
+                            <input type="checkbox" checked="@edit.Dietary.Contains(diet)"
+                                   @onchange="e => ToggleDietary(edit, diet, (bool)(e.Value ?? false))" />
+                            @DietaryLabel(diet)
+                        </label>
+                    }
+                </div>
+
+                <div class="form-group">
+                    <label>Kostanteckning</label>
+                    <input @bind="edit.DietaryNotes" maxlength="200" />
+                </div>
+            </fieldset>
+        }
+
+        <button class="btn" @onclick="SaveParticipants">Spara deltagaruppgifter</button>
     }
 
     @if (!string.IsNullOrWhiteSpace(_booking.Message))
@@ -167,6 +292,21 @@ else
     private string? _cancelReason;
     private CancellationInitiator _cancelInitiator = CancellationInitiator.GuestInitiated;
 
+    // Participant editing (FR-48) + room assignment (FR-56).
+    private bool _guestChoosesRooms;
+    private List<Participant> _participants = [];
+    private List<ParticipantEdit> _edits = [];
+    private IReadOnlyList<RoomInfo> _rooms = [];
+    private IReadOnlyList<RoomConflict> _conflicts = [];
+    private List<MealOption> _lunchOptions = [];
+    private List<MealOption> _dinnerOptions = [];
+
+    private static readonly AgeCategory[] AgeCategories =
+        [AgeCategory.Adult, AgeCategory.Child, AgeCategory.Infant];
+    private static readonly DietaryRequirement[] DietaryOptions =
+        [DietaryRequirement.Vegetarian, DietaryRequirement.Vegan, DietaryRequirement.GlutenFree,
+         DietaryRequirement.LactoseFree, DietaryRequirement.NutAllergy, DietaryRequirement.Other];
+
     private int DaysToCheckIn =>
         _booking?.CheckIn is null ? int.MaxValue
         : _booking.CheckIn.Value.DayNumber - DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
@@ -182,14 +322,87 @@ else
     {
         _booking = await BookingService.GetWithSelectionsAsync(Id);
         _loaded = true;
-        if (_booking is not null)
+        if (_booking is null) return;
+
+        _notes = _booking.AdminNotes;
+        _depositInvoiced = _booking.DepositInvoiced;
+        _depositPaid = _booking.DepositPaid;
+        _finalInvoiced = _booking.FinalInvoiced;
+        _finalPaid = _booking.FinalPaid;
+        _guestChoosesRooms = _booking.GuestChoosesRooms;
+
+        // Participants exist only after the guest submits (DetailsComplete+). Load them plus the
+        // rooms/options/conflicts the admin editor needs.
+        var withParticipants = await BookingService.GetWithParticipantsAsync(Id);
+        _participants = withParticipants?.Participants.OrderBy(p => p.ParticipantType).ToList() ?? [];
+
+        if (_participants.Count > 0)
         {
-            _notes = _booking.AdminNotes;
-            _depositInvoiced = _booking.DepositInvoiced;
-            _depositPaid = _booking.DepositPaid;
-            _finalInvoiced = _booking.FinalInvoiced;
-            _finalPaid = _booking.FinalPaid;
+            _rooms = await RoomAvailability.GetAllActiveRoomsAsync();
+            _conflicts = await RoomAvailability.GetConflictsAsync(Id);
+            var options = await MealOptionService.GetActiveAsync();
+            _lunchOptions = options.Where(o => o.MealType == MealType.Lunch).ToList();
+            _dinnerOptions = options.Where(o => o.MealType == MealType.Dinner).ToList();
+            _edits = _participants.Select(ToEdit).ToList();
         }
+        else
+        {
+            _edits = [];
+        }
+    }
+
+    private static ParticipantEdit ToEdit(Participant p) => new()
+    {
+        Id = p.Id,
+        FullName = p.FullName,
+        AgeCategory = p.AgeCategory,
+        RoomId = p.RoomId,
+        AttendsBreakfast = p.AttendsBreakfast,
+        Dietary = [.. p.DietaryRequirements],
+        DietaryNotes = p.DietaryNotes,
+        Meals = p.MealPreferences
+            .OrderBy(m => m.Date).ThenBy(m => m.MealType)
+            .Select(m => new MealEdit { Id = m.Id, MealOptionId = m.MealOptionId })
+            .ToList(),
+    };
+
+    private static void ToggleDietary(ParticipantEdit edit, DietaryRequirement diet, bool on)
+    {
+        if (on) { if (!edit.Dietary.Contains(diet)) edit.Dietary.Add(diet); }
+        else edit.Dietary.Remove(diet);
+    }
+
+    private static string AgeLabel(AgeCategory age) => age switch
+    {
+        AgeCategory.Adult => "Vuxen (13+)",
+        AgeCategory.Child => "Barn (4–12)",
+        AgeCategory.Infant => "Barn (0–3)",
+        _ => age.ToString(),
+    };
+
+    private static string DietaryLabel(DietaryRequirement diet) => diet switch
+    {
+        DietaryRequirement.Vegetarian => "Vegetarian",
+        DietaryRequirement.Vegan => "Vegan",
+        DietaryRequirement.GlutenFree => "Glutenintolerans",
+        DietaryRequirement.LactoseFree => "Laktosintolerans",
+        DietaryRequirement.NutAllergy => "Nötallergi",
+        DietaryRequirement.Other => "Annat",
+        _ => diet.ToString(),
+    };
+
+    private async Task SaveGuestChoosesRooms()
+    {
+        await BookingService.SetGuestChoosesRoomsAsync(Id, _guestChoosesRooms);
+        _message = "Rumsval-inställningen är sparad.";
+        await Load();
+    }
+
+    private async Task SaveParticipants()
+    {
+        await BookingService.SaveParticipantEditsAsync(Id, _edits);
+        _message = "Deltagaruppgifterna är sparade.";
+        await Load();
     }
 
     private async Task Approve()

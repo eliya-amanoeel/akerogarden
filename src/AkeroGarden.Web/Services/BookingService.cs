@@ -404,6 +404,83 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
     }
 
     /// <summary>Sets a booking's internal admin notes (FR-39).</summary>
+    // ── Participant data (admin, post-submission — FR-48/56) ───────────────────────
+
+    /// <summary>Loads a booking with its participants + meal preferences (admin participant view/edit).</summary>
+    public async Task<Booking?> GetWithParticipantsAsync(Guid id) =>
+        await db.Bookings
+            .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
+            .SingleOrDefaultAsync(b => b.Id == id);
+
+    /// <summary>Toggles whether the guest assigns rooms on the completion form (FR-56); the admin
+    /// sets this before the guest completes. Booking-wide, not per-participant.</summary>
+    public async Task SetGuestChoosesRoomsAsync(Guid id, bool value)
+    {
+        var booking = await db.Bookings.FindAsync(id);
+        if (booking is null) return;
+        booking.GuestChoosesRooms = value;
+        booking.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Applies the admin's post-submission edits to a booking's participants (FR-48): names, age,
+    /// dietary, day-guest breakfast, overnight room assignment (re-snapshotting name + building,
+    /// NFR-16), and corrections to existing meal choices. <b>No status change and no guest
+    /// reopen</b> — this is the only post-submission edit path (C10). The admin may assign any active
+    /// room (overrides allowed); conflicts are flagged separately.
+    /// </summary>
+    public async Task SaveParticipantEditsAsync(Guid bookingId, IReadOnlyList<ParticipantEdit> edits)
+    {
+        var booking = await db.Bookings
+            .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
+            .SingleOrDefaultAsync(b => b.Id == bookingId);
+        if (booking is null) return;
+
+        var roomsById = (await rooms.GetAllActiveRoomsAsync()).ToDictionary(r => r.Id);
+        var optionsById = (await db.MealOptions.Where(m => m.IsActive).ToListAsync()).ToDictionary(o => o.Id);
+        var editsById = edits.ToDictionary(e => e.Id);
+
+        foreach (var participant in booking.Participants)
+        {
+            if (!editsById.TryGetValue(participant.Id, out var edit)) continue;
+
+            participant.FullName = (edit.FullName ?? string.Empty).Trim();
+            participant.AgeCategory = edit.AgeCategory;
+            participant.DietaryRequirements = edit.Dietary ?? [];
+            participant.DietaryNotes = string.IsNullOrWhiteSpace(edit.DietaryNotes) ? null : edit.DietaryNotes.Trim();
+
+            if (participant.ParticipantType == ParticipantType.DayGuest)
+            {
+                participant.AttendsBreakfast = edit.AttendsBreakfast;
+            }
+            else if (edit.RoomId is { } roomId && roomsById.TryGetValue(roomId, out var room))
+            {
+                participant.RoomId = roomId;
+                participant.RoomAssignmentSnapshot = $"{room.Name} — {room.BuildingName}";
+            }
+            else if (edit.RoomId is null)
+            {
+                participant.RoomId = null;
+                participant.RoomAssignmentSnapshot = null;
+            }
+
+            // Correct existing meal choices only (right type + active) — the set of days is fixed.
+            foreach (var mealEdit in edit.Meals)
+            {
+                var meal = participant.MealPreferences.FirstOrDefault(m => m.Id == mealEdit.Id);
+                if (meal is null) continue;
+                if (!optionsById.TryGetValue(mealEdit.MealOptionId, out var option)) continue;
+                if (option.MealType != meal.MealType) continue;
+                meal.MealOptionId = option.Id;
+                meal.MealOptionSnapshot = option.Name;
+            }
+        }
+
+        booking.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
     public async Task SetAdminNotesAsync(Guid id, string? notes)
     {
         var booking = await db.Bookings.FindAsync(id);

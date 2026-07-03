@@ -28,6 +28,10 @@ public class RoomAvailabilityService(ApplicationDbContext db)
         return RoomExclusionCalculator.AvailableRooms(rooms, blocks, occupiedByOthers);
     }
 
+    /// <summary>All active rooms (in active buildings). The admin room-assignment dropdown offers
+    /// these — the admin may override into any room, with conflicts flagged (FR-56).</summary>
+    public async Task<IReadOnlyList<RoomInfo>> GetAllActiveRoomsAsync() => await LoadRoomsAsync();
+
     /// <summary>Room-assignment conflicts for a booking (a room assigned beyond its bed count over
     /// overlapping dates, FR-56) — surfaced in the admin panel (slice 6).</summary>
     public async Task<IReadOnlyList<RoomConflict>> GetConflictsAsync(Guid bookingId)

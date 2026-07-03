@@ -40,11 +40,14 @@ public class OvernightParticipantEntry
     /// When false the participant has no meal selection (self-catering).</summary>
     public bool IsFullBoard { get; set; }
 
-    /// <summary>Chosen meal option per applicable meal slot, aligned by index to the server-derived
-    /// slot list (<see cref="AkeroGarden.Web.Services.MealsByDayCalculator"/>). A null entry is an
-    /// unselected slot. Only the option id round-trips; the slot's date + meal type are re-derived
-    /// on the server, never trusted from the post.</summary>
-    public List<Guid?> MealChoices { get; set; } = [];
+    /// <summary>Chosen meal option id (as a string) per applicable meal slot, aligned by index to
+    /// the server-derived slot list (<see cref="AkeroGarden.Web.Services.MealsByDayCalculator"/>).
+    /// A null/empty entry is an unselected slot. Kept as <see cref="string"/> (not
+    /// <see cref="Guid"/>?) because a placeholder select posts an empty value for every unselected
+    /// slot, and the SSR model binder fails to bind "" into a <c>List&lt;Guid?&gt;</c> element —
+    /// nulling the whole collection. Parsed to a Guid server-side in <see cref="CompletionNormalizer"/>.
+    /// Only the id round-trips; the slot's date + meal type are re-derived on the server.</summary>
+    public List<string?> MealChoices { get; set; } = [];
 
     /// <summary>Multi-select dietary requirements (§4.6). Empty when none apply.</summary>
     public List<DietaryRequirement> Dietary { get; set; } = [];

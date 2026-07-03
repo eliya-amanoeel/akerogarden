@@ -94,8 +94,8 @@ public static class CompletionNormalizer
                 for (var j = 0; j < slots.Count; j++)
                 {
                     var choice = j < choices.Count ? choices[j] : null;
-                    if (choice is null) continue;
-                    if (!activeOptionsById.TryGetValue(choice.Value, out var option)) continue;
+                    if (!Guid.TryParse(choice, out var optionId)) continue; // unselected / unparseable
+                    if (!activeOptionsById.TryGetValue(optionId, out var option)) continue;
                     if (option.MealType != slots[j].MealType) continue; // wrong-type option → drop
 
                     participant.MealPreferences.Add(new MealPreference
@@ -122,7 +122,7 @@ public static class CompletionNormalizer
         for (var j = 0; j < slots.Count; j++)
         {
             var choice = j < choices.Count ? choices[j] : null;
-            if (choice is null) return true;
+            if (string.IsNullOrEmpty(choice)) return true;
         }
         return false;
     }

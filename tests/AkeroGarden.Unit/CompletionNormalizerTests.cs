@@ -28,7 +28,7 @@ public class CompletionNormalizerTests
         FullName = name,
         AgeCategory = AgeCategory.Adult,
         IsFullBoard = true,
-        MealChoices = [Dinner1.Id, Lunch1.Id, Dinner1.Id],
+        MealChoices = [Dinner1.Id.ToString(), Lunch1.Id.ToString(), Dinner1.Id.ToString()],
     };
 
     private static CompletionFormModel FormWith(params OvernightParticipantEntry[] entries) =>
@@ -136,7 +136,7 @@ public class CompletionNormalizerTests
     public void Build_WrongTypeOption_IsDropped()
     {
         var entry = FullBoardEntry();
-        entry.MealChoices[0] = Lunch1.Id; // slot 0 is a Dinner slot — a lunch option is invalid here
+        entry.MealChoices[0] = Lunch1.Id.ToString(); // slot 0 is a Dinner slot — a lunch option is invalid here
 
         var participants = CompletionNormalizer.BuildParticipants(FormWith(entry), Slots, Options());
 
@@ -149,7 +149,7 @@ public class CompletionNormalizerTests
     public void Build_UnknownOption_IsDropped()
     {
         var entry = FullBoardEntry();
-        entry.MealChoices[0] = Guid.NewGuid(); // not in the active option set
+        entry.MealChoices[0] = Guid.NewGuid().ToString(); // not in the active option set
 
         var participants = CompletionNormalizer.BuildParticipants(FormWith(entry), Slots, Options());
 
@@ -186,6 +186,22 @@ public class CompletionNormalizerTests
         var p = Assert.Single(participants);
         Assert.Empty(p.MealPreferences);       // null choices → no meals
         Assert.Empty(p.DietaryRequirements);   // null dietary → none
+    }
+
+    [Fact]
+    public void EmptyStringChoice_IsTreatedAsUnselected()
+    {
+        // A placeholder <select> posts "" for an unselected slot — must count as missing, not a meal.
+        var entry = FullBoardEntry();
+        entry.MealChoices[1] = ""; // unselect the lunch slot
+
+        Assert.Contains(
+            CompletionNormalizer.Validate(FormWith(entry), Slots, 1),
+            e => e.Contains("måltid", StringComparison.OrdinalIgnoreCase));
+
+        entry.IsFullBoard = false; // now self-catering — the empty string must not crash the build
+        var p = Assert.Single(CompletionNormalizer.BuildParticipants(FormWith(entry), Slots, Options()));
+        Assert.Empty(p.MealPreferences);
     }
 
     [Fact]

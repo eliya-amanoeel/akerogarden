@@ -81,9 +81,13 @@
                         </div>
 
                         <div class="form-group form-check">
+                            @* Hidden companion so an unchecked box posts "false" (raw checkboxes
+                               otherwise post nothing when unchecked, which the SSR binder does not
+                               read as false). Checkbox first, hidden second → checked wins. *@
                             <input type="checkbox" id="p@(index)-fb" name="Form.Overnight[@index].IsFullBoard"
                                    value="true" checked="@entry.IsFullBoard"
                                    data-fullboard-participant="@index" />
+                            <input type="hidden" name="Form.Overnight[@index].IsFullBoard" value="false" />
                             <label for="p@(index)-fb">Helpension (måltider ingår)</label>
                         </div>
 
@@ -142,7 +146,7 @@
                                             <option value="">– välj –</option>
                                             @foreach (var o in options)
                                             {
-                                                <option value="@o.Id" selected="@(chosen == o.Id)">@o.Name</option>
+                                                <option value="@o.Id" selected="@(chosen == o.Id.ToString())">@o.Name</option>
                                             }
                                         </select>
                                     </div>
@@ -174,6 +178,7 @@
                 <div class="form-group form-check">
                     <input type="checkbox" id="is-org" name="Form.IsOrganisation" value="true"
                            checked="@_form.IsOrganisation" />
+                    <input type="hidden" name="Form.IsOrganisation" value="false" />
                     <label for="is-org">Fakturera en organisation</label>
                 </div>
                 <div class="form-group">
@@ -264,10 +269,13 @@
             _lunchOptions = options.Where(o => o.MealType == MealType.Lunch).ToList();
             _dinnerOptions = options.Where(o => o.MealType == MealType.Dinner).ToList();
 
-            // On POST the framework binds Form; on GET seed a blank form (one row per overnight guest).
-            _form = Form ?? BuildEmptyForm(_booking, _slots.Count);
+            // On POST the framework binds Form; on GET (or a post that bound no participant rows)
+            // seed a blank form (one row per overnight guest). Guarding Overnight — not just Form —
+            // is essential: the SSR binder can hand back a non-null Form with a null Overnight, and
+            // dereferencing that is the line-273 NRE.
+            _form = Form is { Overnight: not null } ? Form : BuildEmptyForm(_booking, _slots.Count);
 
-            // SSR model binding leaves an un-posted checkbox/select group null (e.g. no dietary
+            // SSR model binding also leaves an un-posted checkbox/select group null (e.g. no dietary
             // ticked, or a self-catering participant with no meal selects) — normalise to empty so
             // the re-render and the submit never dereference null (the Phase-3 null-list trap).
             foreach (var entry in _form.Overnight)
@@ -320,7 +328,7 @@
             {
                 AgeCategory = AgeCategory.Adult,
                 IsFullBoard = defaultFullBoard,
-                MealChoices = Enumerable.Repeat<Guid?>(null, slotCount).ToList(),
+                MealChoices = Enumerable.Repeat<string?>(null, slotCount).ToList(),
             });
         }
         return form;

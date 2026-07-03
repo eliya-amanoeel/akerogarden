@@ -83,7 +83,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
                 AgeCategory = AgeCategory.Adult,
                 IsFullBoard = true,
                 MealChoices = seed.Slots
-                    .Select(s => (Guid?)(s.MealType == MealType.Lunch ? seed.LunchId : seed.DinnerId))
+                    .Select(s => (string?)(s.MealType == MealType.Lunch ? seed.LunchId : seed.DinnerId).ToString())
                     .ToList(),
                 Dietary = [DietaryRequirement.Vegetarian],
             });

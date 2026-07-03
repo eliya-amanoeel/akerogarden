@@ -174,6 +174,103 @@
                     </fieldset>
                 }
 
+                @if (_dayGuestsApplicable)
+                {
+                    <h2>Dagsgäster</h2>
+                    <p>Dagsgäster deltar endast på måltider (ingen övernattning). Lägg till en rad per
+                        person och dag.</p>
+
+                    @for (var d = 0; d < _form.DayGuests.Count; d++)
+                    {
+                        var di = d;
+                        var dg = _form.DayGuests[di];
+                        <fieldset class="dayguest">
+                            <legend>Dagsgäst @(di + 1)</legend>
+
+                            <div class="form-group">
+                                <label for="d@(di)-name">Namn</label>
+                                <input id="d@(di)-name" name="Form.DayGuests[@di].FullName"
+                                       value="@dg.FullName" maxlength="200" />
+                            </div>
+
+                            <div class="form-group">
+                                <label for="d@(di)-age">Ålderskategori</label>
+                                <select id="d@(di)-age" name="Form.DayGuests[@di].AgeCategory">
+                                    @foreach (var age in AgeCategories)
+                                    {
+                                        <option value="@age" selected="@(dg.AgeCategory == age)">@AgeLabel(age)</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="d@(di)-date">Dag</label>
+                                <select id="d@(di)-date" name="Form.DayGuests[@di].AttendanceDate">
+                                    <option value="">– välj dag –</option>
+                                    @foreach (var date in _stayDates)
+                                    {
+                                        var iso = date.ToString("yyyy-MM-dd");
+                                        <option value="@iso" selected="@(dg.AttendanceDate == iso)">@iso</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="form-group form-check">
+                                <input type="checkbox" id="d@(di)-bf" name="Form.DayGuests[@di].AttendsBreakfast"
+                                       value="true" checked="@dg.AttendsBreakfast" />
+                                <input type="hidden" name="Form.DayGuests[@di].AttendsBreakfast" value="false" />
+                                <label for="d@(di)-bf">Deltar på frukost</label>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="d@(di)-lunch">Lunch (om deltar)</label>
+                                <select id="d@(di)-lunch" name="Form.DayGuests[@di].LunchChoice">
+                                    <option value="">– ingen –</option>
+                                    @foreach (var o in _lunchOptions)
+                                    {
+                                        <option value="@o.Id" selected="@(dg.LunchChoice == o.Id.ToString())">@o.Name</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="d@(di)-dinner">Middag (om deltar)</label>
+                                <select id="d@(di)-dinner" name="Form.DayGuests[@di].DinnerChoice">
+                                    <option value="">– ingen –</option>
+                                    @foreach (var o in _dinnerOptions)
+                                    {
+                                        <option value="@o.Id" selected="@(dg.DinnerChoice == o.Id.ToString())">@o.Name</option>
+                                    }
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <span class="label">Kostbehov</span>
+                                @foreach (var diet in DietaryOptions)
+                                {
+                                    <label class="form-check">
+                                        <input type="checkbox" name="Form.DayGuests[@di].Dietary" value="@diet"
+                                               checked="@dg.Dietary.Contains(diet)" />
+                                        @DietaryLabel(diet)
+                                    </label>
+                                }
+                            </div>
+
+                            <div class="form-group">
+                                <label for="d@(di)-notes">Kostanteckning (om "Annat" eller övrigt)</label>
+                                <textarea id="d@(di)-notes" name="Form.DayGuests[@di].DietaryNotes"
+                                          maxlength="200">@dg.DietaryNotes</textarea>
+                            </div>
+
+                            <button type="submit" name="Action" value="remove-dayguest:@di"
+                                    class="btn-ghost" formnovalidate>Ta bort dagsgäst</button>
+                        </fieldset>
+                    }
+
+                    <button type="submit" name="Action" value="add-dayguest"
+                            class="btn-outline" formnovalidate>Lägg till dagsgäst</button>
+                }
+
                 <h2>Faktureringsuppgifter</h2>
                 <div class="form-group form-check">
                     <input type="checkbox" id="is-org" name="Form.IsOrganisation" value="true"
@@ -194,7 +291,7 @@
                     <textarea id="invoice-address" name="Form.InvoiceAddress" maxlength="500">@_form.InvoiceAddress</textarea>
                 </div>
 
-                <button type="submit" class="btn">Skicka in uppgifter</button>
+                <button type="submit" name="Action" value="complete" class="btn">Skicka in uppgifter</button>
             </EditForm>
         }
         else if (_access == CompletionAccess.AlreadyCompleted)
@@ -233,6 +330,10 @@
     [SupplyParameterFromForm(FormName = "completion")]
     private CompletionFormModel? Form { get; set; }
 
+    // Which submit button was pressed: "complete", "add-dayguest", or "remove-dayguest:{index}".
+    [SupplyParameterFromForm(FormName = "completion")]
+    private string? Action { get; set; }
+
     private bool _loaded;
     private bool _submitted;
     private CompletionAccess _access;
@@ -243,6 +344,8 @@
     private List<MealOption> _dinnerOptions = [];
     private int _lunchSlotCount;
     private int _dinnerSlotCount;
+    private bool _dayGuestsApplicable;
+    private IReadOnlyList<DateOnly> _stayDates = [];
     private IReadOnlyList<string> _errors = [];
 
     private static readonly AgeCategory[] AgeCategories = [AgeCategory.Adult, AgeCategory.Child, AgeCategory.Infant];
@@ -269,6 +372,10 @@
             _lunchOptions = options.Where(o => o.MealType == MealType.Lunch).ToList();
             _dinnerOptions = options.Where(o => o.MealType == MealType.Dinner).ToList();
 
+            // Day guests apply only for a catered plan (§4.2); the section is hidden otherwise.
+            _dayGuestsApplicable = _booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
+            _stayDates = EnumerateDates(_booking.CheckIn.Value, _booking.CheckOut.Value);
+
             // On POST the framework binds Form; on GET (or a post that bound no participant rows)
             // seed a blank form (one row per overnight guest). Guarding Overnight — not just Form —
             // is essential: the SSR binder can hand back a non-null Form with a null Overnight, and
@@ -283,6 +390,9 @@
                 entry.MealChoices ??= [];
                 entry.Dietary ??= [];
             }
+            _form.DayGuests ??= [];
+            foreach (var dg in _form.DayGuests)
+                dg.Dietary ??= [];
         }
 
         _loaded = true;
@@ -291,6 +401,22 @@
     private async Task HandleSubmit()
     {
         _errors = [];
+
+        // Add/remove day-guest rows are server round-trips that just mutate the model and re-render
+        // (no validation, no submission) — the robust SSR alternative to client-side row cloning.
+        if (Action == "add-dayguest")
+        {
+            _form!.DayGuests.Add(new DayGuestEntry());
+            return;
+        }
+        if (Action is { } a && a.StartsWith("remove-dayguest:", StringComparison.Ordinal)
+            && int.TryParse(a["remove-dayguest:".Length..], out var removeIndex)
+            && removeIndex >= 0 && removeIndex < _form!.DayGuests.Count)
+        {
+            _form.DayGuests.RemoveAt(removeIndex);
+            return;
+        }
+
         var result = await BookingService.SubmitCompletionAsync(Token, _form!, DateTime.UtcNow);
         switch (result.Outcome)
         {
@@ -306,6 +432,14 @@
                 _booking = null;
                 break;
         }
+    }
+
+    private static IReadOnlyList<DateOnly> EnumerateDates(DateOnly from, DateOnly to)
+    {
+        var dates = new List<DateOnly>();
+        for (var d = from; d <= to; d = d.AddDays(1))
+            dates.Add(d);
+        return dates;
     }
 
     private static CompletionFormModel BuildEmptyForm(Booking booking, int slotCount)

@@ -44,7 +44,8 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         IReadOnlyList<MealSlot> Slots);
 
     /// <summary>Seeds active lunch/dinner options + an approved 2-night booking; returns its token and ids.</summary>
-    private static async Task<Seed> SeedAsync(IServiceProvider provider, int overnightCount = 1)
+    private static async Task<Seed> SeedAsync(
+        IServiceProvider provider, int overnightCount = 1, MealPlan mealPlan = MealPlan.FullBoardAll)
     {
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -62,7 +63,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
             CheckIn = new DateOnly(2026, 8, 10),
             CheckOut = new DateOnly(2026, 8, 12), // 2 nights
             OvernightGuestCount = overnightCount,
-            MealPlan = MealPlan.FullBoardAll,
+            MealPlan = mealPlan,
             AcceptPrivacyPolicy = true
         }, createdByAdmin: true);
         await service.ApproveAsync(booking.Id);
@@ -125,6 +126,79 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         }
 
         Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se" && e.Subject.Contains("inskickade"));
+    }
+
+    private static DayGuestEntry DayGuest(Seed seed, string date = "2026-08-11") => new()
+    {
+        FullName = "Dagsgäst D",
+        AgeCategory = AgeCategory.Child,
+        AttendanceDate = date,
+        AttendsBreakfast = true,
+        LunchChoice = seed.LunchId.ToString(),
+        DinnerChoice = seed.DinnerId.ToString(),
+    };
+
+    [Fact]
+    public async Task Submit_WithDayGuest_PersistsDayGuestWithDateAndMeals()
+    {
+        var provider = NewProvider(out _);
+        var seed = await SeedAsync(provider); // FullBoardAll
+
+        var form = FullBoardForm(seed);
+        form.DayGuests.Add(DayGuest(seed));
+
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.Equal(CompletionSubmitOutcome.Success,
+                (await service.SubmitCompletionAsync(seed.Token, form, DateTime.UtcNow)).Outcome);
+        }
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var booking = await db.Bookings
+                .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
+                .SingleAsync(b => b.Id == seed.BookingId);
+
+            var dayGuest = Assert.Single(booking.Participants, p => p.ParticipantType == ParticipantType.DayGuest);
+            Assert.Equal(new DateOnly(2026, 8, 11), dayGuest.AttendanceDate);
+            Assert.True(dayGuest.AttendsBreakfast);
+            Assert.Null(dayGuest.RoomId);
+            Assert.Equal(2, dayGuest.MealPreferences.Count); // lunch + dinner for the attended date
+        }
+    }
+
+    [Fact]
+    public async Task Submit_SelfCateringAll_DropsDayGuests()
+    {
+        var provider = NewProvider(out _);
+        var seed = await SeedAsync(provider, mealPlan: MealPlan.SelfCateringAll);
+
+        // A self-catering overnight participant + a posted day guest that must be dropped (§4.2).
+        var form = new CompletionFormModel();
+        form.Overnight.Add(new OvernightParticipantEntry
+        {
+            FullName = "Självhushåll",
+            AgeCategory = AgeCategory.Adult,
+            IsFullBoard = false,
+        });
+        form.DayGuests.Add(DayGuest(seed));
+
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.Equal(CompletionSubmitOutcome.Success,
+                (await service.SubmitCompletionAsync(seed.Token, form, DateTime.UtcNow)).Outcome);
+        }
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var booking = await db.Bookings.Include(b => b.Participants).SingleAsync(b => b.Id == seed.BookingId);
+            Assert.DoesNotContain(booking.Participants, p => p.ParticipantType == ParticipantType.DayGuest);
+            Assert.Single(booking.Participants); // only the overnight participant
+        }
     }
 
     [Fact]

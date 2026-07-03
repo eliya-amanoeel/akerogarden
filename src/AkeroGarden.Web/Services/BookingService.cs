@@ -209,7 +209,14 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails)
         var slots = MealsByDayCalculator.Slots(booking.CheckIn.Value, booking.CheckOut.Value);
         var expectedOvernight = booking.OvernightGuestCount ?? 0;
 
+        // Day guests apply only for a catered meal plan (§4.2); for SelfCateringAll they are dropped
+        // server-side regardless of what was posted.
+        var dayGuestsApplicable = booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
+
         var errors = CompletionNormalizer.Validate(form, slots, expectedOvernight);
+        if (dayGuestsApplicable)
+            errors = [.. errors, .. CompletionNormalizer.ValidateDayGuests(
+                form.DayGuests ?? [], booking.CheckIn.Value, booking.CheckOut.Value)];
         if (errors.Count > 0)
             return CompletionSubmitResult.Invalid(errors);
 
@@ -218,6 +225,8 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails)
         var optionsById = activeOptions.ToDictionary(o => o.Id);
 
         var participants = CompletionNormalizer.BuildParticipants(form, slots, optionsById);
+        if (dayGuestsApplicable)
+            participants.AddRange(CompletionNormalizer.BuildDayGuests(form.DayGuests ?? [], optionsById));
         foreach (var participant in participants)
         {
             participant.BookingId = booking.Id;

@@ -1,3 +1,4 @@
+using System.Globalization;
 using AkeroGarden.Web.Data.Entities;
 using AkeroGarden.Web.Models;
 
@@ -113,6 +114,102 @@ public static class CompletionNormalizer
 
         return participants;
     }
+
+    /// <summary>
+    /// Validates the day guests (§4.2, FR-58): each non-empty row needs a name and an attendance
+    /// date within the stay; a fully-blank row (an accidental "add") is ignored. Returns Swedish
+    /// errors (empty ⇒ valid). Callers only invoke this when day guests are applicable (the meal
+    /// plan is FullBoardAll or Mixed).
+    /// </summary>
+    public static List<string> ValidateDayGuests(
+        IReadOnlyList<DayGuestEntry> dayGuests, DateOnly checkIn, DateOnly checkOut)
+    {
+        var errors = new List<string>();
+        for (var i = 0; i < dayGuests.Count; i++)
+        {
+            var entry = dayGuests[i];
+            if (IsBlank(entry)) continue; // ignore an empty row rather than block submission
+
+            var label = $"Dagsgäst {i + 1}";
+            if (string.IsNullOrWhiteSpace(entry.FullName))
+                errors.Add($"{label}: namn krävs.");
+            else if (entry.FullName.Trim().Length > 200)
+                errors.Add($"{label}: namnet får vara högst 200 tecken.");
+
+            if (!TryParseDate(entry.AttendanceDate, out var date))
+                errors.Add($"{label}: välj vilken dag gästen deltar.");
+            else if (date < checkIn || date > checkOut)
+                errors.Add($"{label}: dagen måste ligga inom vistelsen.");
+
+            if ((entry.Dietary?.Contains(DietaryRequirement.Other) ?? false) && string.IsNullOrWhiteSpace(entry.DietaryNotes))
+                errors.Add($"{label}: beskriv kostbehovet i fältet för 'Annat'.");
+
+            if (!string.IsNullOrEmpty(entry.DietaryNotes) && entry.DietaryNotes.Length > 200)
+                errors.Add($"{label}: kostanteckningen får vara högst 200 tecken.");
+        }
+        return errors;
+    }
+
+    /// <summary>
+    /// Builds the day-guest <see cref="Participant"/> records (§4.2, §8.5). Each has a single
+    /// <see cref="Participant.AttendanceDate"/>, the breakfast flag, and up to a lunch + a dinner
+    /// meal preference for that date (dropped if the chosen option is inactive or the wrong type).
+    /// Day guests are never full-board and never get a room. Blank rows are skipped.
+    /// </summary>
+    public static List<Participant> BuildDayGuests(
+        IReadOnlyList<DayGuestEntry> dayGuests,
+        IReadOnlyDictionary<Guid, MealOption> activeOptionsById)
+    {
+        var participants = new List<Participant>();
+
+        foreach (var entry in dayGuests)
+        {
+            if (IsBlank(entry) || !TryParseDate(entry.AttendanceDate, out var date)) continue;
+
+            var participant = new Participant
+            {
+                ParticipantType = ParticipantType.DayGuest,
+                FullName = (entry.FullName ?? string.Empty).Trim(),
+                AgeCategory = entry.AgeCategory,
+                AttendanceDate = date,
+                AttendsBreakfast = entry.AttendsBreakfast,
+                IsFullBoard = false, // day guests are meals-only, not full-board accommodation
+                DietaryRequirements = NormalizeDietary(entry.Dietary ?? []),
+                DietaryNotes = string.IsNullOrWhiteSpace(entry.DietaryNotes) ? null : entry.DietaryNotes.Trim(),
+            };
+
+            AddDayGuestMeal(participant, entry.LunchChoice, MealType.Lunch, date, activeOptionsById);
+            AddDayGuestMeal(participant, entry.DinnerChoice, MealType.Dinner, date, activeOptionsById);
+
+            participants.Add(participant);
+        }
+
+        return participants;
+    }
+
+    private static void AddDayGuestMeal(
+        Participant participant, string? choice, MealType mealType, DateOnly date,
+        IReadOnlyDictionary<Guid, MealOption> activeOptionsById)
+    {
+        if (!Guid.TryParse(choice, out var optionId)) return;
+        if (!activeOptionsById.TryGetValue(optionId, out var option)) return;
+        if (option.MealType != mealType) return;
+
+        participant.MealPreferences.Add(new MealPreference
+        {
+            Date = date,
+            MealType = mealType,
+            MealOptionId = option.Id,
+            MealOptionSnapshot = option.Name,
+        });
+    }
+
+    /// <summary>A day-guest row with neither a name nor a date is treated as not filled in.</summary>
+    private static bool IsBlank(DayGuestEntry entry) =>
+        string.IsNullOrWhiteSpace(entry.FullName) && string.IsNullOrWhiteSpace(entry.AttendanceDate);
+
+    private static bool TryParseDate(string? value, out DateOnly date) =>
+        DateOnly.TryParse(value, CultureInfo.InvariantCulture, out date);
 
     /// <summary>True if any applicable slot has no meal option chosen (used for the full-board rule).
     /// A null <see cref="OvernightParticipantEntry.MealChoices"/> (nothing posted) counts as all missing.</summary>

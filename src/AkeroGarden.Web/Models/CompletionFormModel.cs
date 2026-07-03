@@ -19,6 +19,11 @@ public class CompletionFormModel
     /// <c>OvernightGuestCount</c> — the rows are server-pre-rendered, not client-added.</summary>
     public List<OvernightParticipantEntry> Overnight { get; set; } = [];
 
+    /// <summary>Optional day guests (§4.2, FR-58) — variable count, added/removed via server
+    /// postback. Only applicable when the booking's meal plan is <c>FullBoardAll</c> or <c>Mixed</c>;
+    /// dropped server-side for <c>SelfCateringAll</c>.</summary>
+    public List<DayGuestEntry> DayGuests { get; set; } = [];
+
     // ── Org / invoice (FR-60) ────────────────────────────────────────────────────
     public bool IsOrganisation { get; set; }
 
@@ -50,6 +55,33 @@ public class OvernightParticipantEntry
     public List<string?> MealChoices { get; set; } = [];
 
     /// <summary>Multi-select dietary requirements (§4.6). Empty when none apply.</summary>
+    public List<DietaryRequirement> Dietary { get; set; } = [];
+
+    public string? DietaryNotes { get; set; }
+}
+
+/// <summary>One day guest's entry on the completion form (§4.2, §8.5, FR-58). A day guest occupies
+/// no bed/room and attends a single date for meals only.</summary>
+public class DayGuestEntry
+{
+    public string? FullName { get; set; }
+
+    public AgeCategory AgeCategory { get; set; } = AgeCategory.Adult;
+
+    /// <summary>The single date attended (§4.2), as a string (<c>yyyy-MM-dd</c>) — kept as string
+    /// for the same SSR-binding reason as <see cref="OvernightParticipantEntry.MealChoices"/>
+    /// (an empty select value fails to bind into a nullable value type). Parsed server-side.</summary>
+    public string? AttendanceDate { get; set; }
+
+    /// <summary>Whether the day guest attends the breakfast buffet (no meal selection needed).</summary>
+    public bool AttendsBreakfast { get; set; }
+
+    /// <summary>Chosen lunch option id (string; empty = not attending lunch).</summary>
+    public string? LunchChoice { get; set; }
+
+    /// <summary>Chosen dinner option id (string; empty = not attending dinner).</summary>
+    public string? DinnerChoice { get; set; }
+
     public List<DietaryRequirement> Dietary { get; set; } = [];
 
     public string? DietaryNotes { get; set; }

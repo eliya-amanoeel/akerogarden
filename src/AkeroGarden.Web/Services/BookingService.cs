@@ -147,6 +147,33 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails)
             .Include(b => b.CleaningSelections)
             .SingleOrDefaultAsync(b => b.Id == id);
 
+    // ── Completion link (magic link — §2.6, Phase 4) ───────────────────────────────
+
+    /// <summary>
+    /// Looks up a booking by its completion token (§2.6). Returns null when no booking holds that
+    /// token — never issued, or superseded by a regenerated link (FR-49). The token string is the
+    /// sole authentication (FR-54), so callers must treat a null result as "no access".
+    /// </summary>
+    public async Task<Booking?> GetByCompletionTokenAsync(string token) =>
+        string.IsNullOrEmpty(token)
+            ? null
+            : await db.Bookings.SingleOrDefaultAsync(b => b.CompletionToken == token);
+
+    /// <summary>
+    /// Evaluates whether a completion link is usable right now: combines the token lookup with the
+    /// pure <see cref="CompletionAccessPolicy"/> (a missing token maps to
+    /// <see cref="CompletionAccess.NotFound"/>). The returned booking is null unless access is
+    /// evaluated against a real booking — callers must not render booking data unless
+    /// access is <see cref="CompletionAccess.Valid"/>.
+    /// </summary>
+    public async Task<(CompletionAccess Access, Booking? Booking)> EvaluateCompletionAccessAsync(
+        string token, DateTime nowUtc)
+    {
+        var booking = await GetByCompletionTokenAsync(token);
+        if (booking is null) return (CompletionAccess.NotFound, null);
+        return (CompletionAccessPolicy.Evaluate(booking.Status, booking.CompletionTokenExpiry, nowUtc), booking);
+    }
+
     /// <summary>
     /// The admin booking list, filterable by status, type, and check-in date range (FR-36).
     /// Newest first. The date range matches a stay's check-in; general inquiries (no dates)

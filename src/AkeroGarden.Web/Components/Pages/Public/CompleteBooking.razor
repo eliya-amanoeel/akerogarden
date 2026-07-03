@@ -1,0 +1,95 @@
+@page "/slutfor/{token}"
+@layout MainLayout
+@using AkeroGarden.Web.Data.Entities
+@using AkeroGarden.Web.Services
+@inject BookingService BookingService
+
+@* Token-authenticated booking completion page (Phase 4, §2.6, FR-53/54). Static SSR: the token in
+   the URL is the sole authentication, validated server-side on every request. Slice 2 renders the
+   validation states + a form shell for a valid link; the participant/meal form fields arrive in
+   slice 3. *@
+
+<PageTitle>Slutför din bokning — Åkerögården</PageTitle>
+
+<section class="section">
+    <div class="container">
+        @* Render nothing until OnInitializedAsync has resolved access. ComponentBase renders once
+           before the async init completes (at the DB-query await); without this guard that early
+           render would hit the default enum value (Valid) with a null booking and throw. *@
+        @if (!_loaded)
+        {
+        }
+        else
+        {
+        @switch (_access)
+        {
+            case CompletionAccess.Valid:
+                <h1>Slutför din bokning</h1>
+                <p>
+                    Hej @(_booking!.ContactName)! Här fyller du i uppgifter om deltagarna i din
+                    bokning. Fyll i för hela sällskapet — du behöver inte göra det i flera steg.
+                </p>
+
+                <dl class="booking-summary">
+                    <dt>Incheckning</dt>
+                    <dd>@Fmt(_booking!.CheckIn)</dd>
+                    <dt>Utcheckning</dt>
+                    <dd>@Fmt(_booking!.CheckOut)</dd>
+                    <dt>Antal gäster med övernattning</dt>
+                    <dd>@(_booking!.OvernightGuestCount)</dd>
+                </dl>
+
+                @* Slice 3 replaces this placeholder with the participant + meal form. *@
+                <p class="form-placeholder">Deltagarformuläret läggs till i nästa steg.</p>
+                break;
+
+            case CompletionAccess.AlreadyCompleted:
+                <h1>Uppgifterna är redan inskickade</h1>
+                <p>
+                    Du har redan skickat in deltagaruppgifterna för den här bokningen. Behöver du
+                    ändra något? Kontakta oss så hjälper vi dig.
+                </p>
+                <p><a class="btn" href="/kontakt">Kontakta oss</a></p>
+                break;
+
+            case CompletionAccess.Expired:
+                <h1>Länken har gått ut</h1>
+                <p>
+                    Länken för att slutföra din bokning har gått ut. Kontakta oss så skickar vi en
+                    ny länk.
+                </p>
+                <p><a class="btn" href="/kontakt">Kontakta oss</a></p>
+                break;
+
+            default: // NotFound and NotActive — do not distinguish, to avoid leaking booking state
+                <h1>Länken är inte giltig</h1>
+                <p>
+                    Den här länken är inte giltig. Den kan ha ersatts av en nyare länk eller inte
+                    längre vara aktuell. Kontakta oss om du behöver en ny länk.
+                </p>
+                <p><a class="btn" href="/kontakt">Kontakta oss</a></p>
+                break;
+        }
+        }
+    </div>
+</section>
+
+@code {
+    [Parameter]
+    public string Token { get; set; } = string.Empty;
+
+    private bool _loaded;
+    private CompletionAccess _access;
+    private Booking? _booking;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var (access, booking) = await BookingService.EvaluateCompletionAccessAsync(Token, DateTime.UtcNow);
+        _access = access;
+        // Only retain the booking when the link is valid — no booking data is rendered otherwise.
+        _booking = access == CompletionAccess.Valid ? booking : null;
+        _loaded = true;
+    }
+
+    private static string Fmt(DateOnly? date) => date?.ToString("yyyy-MM-dd") ?? "—";
+}

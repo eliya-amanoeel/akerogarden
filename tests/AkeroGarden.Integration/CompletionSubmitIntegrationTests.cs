@@ -29,6 +29,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         {
             s.AddSingleton<IEmailService>(fake);
             s.AddScoped<BookingEmailService>();
+            s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
             s.Configure<BookingEmailOptions>(o =>
             {

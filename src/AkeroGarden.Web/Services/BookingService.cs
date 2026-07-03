@@ -15,7 +15,7 @@ namespace AkeroGarden.Web.Services;
 /// <para>Status changes (approve/deny/close/cancel) are added in slice 4 and will route through
 /// <see cref="BookingStateMachine"/>; this service is the only place bookings are mutated.</para>
 /// </summary>
-public class BookingService(ApplicationDbContext db, BookingEmailService emails)
+public class BookingService(ApplicationDbContext db, BookingEmailService emails, RoomAvailabilityService rooms)
 {
     /// <summary>Creates a Pending stay request from the public inquiry form (FR-03).
     /// When <paramref name="createdByAdmin"/> is true the booking is created on the guest's
@@ -224,7 +224,13 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails)
         var activeOptions = await db.MealOptions.Where(m => m.IsActive).ToListAsync();
         var optionsById = activeOptions.ToDictionary(o => o.Id);
 
-        var participants = CompletionNormalizer.BuildParticipants(form, slots, optionsById);
+        // Room assignment is only collected when the booking lets the guest choose (FR-56);
+        // the available set is re-derived here, never trusted from the page.
+        IReadOnlyDictionary<Guid, RoomInfo>? roomsById = null;
+        if (booking.GuestChoosesRooms)
+            roomsById = (await rooms.GetAvailableRoomsAsync(booking.Id)).ToDictionary(r => r.Id);
+
+        var participants = CompletionNormalizer.BuildParticipants(form, slots, optionsById, roomsById);
         if (dayGuestsApplicable)
             participants.AddRange(CompletionNormalizer.BuildDayGuests(form.DayGuests ?? [], optionsById));
         foreach (var participant in participants)

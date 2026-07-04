@@ -138,7 +138,7 @@ Only slice 1 introduces a migration — all four lifecycle entities land togethe
 
 ---
 
-## Phase 4 — Completion flow
+## Phase 4 — Completion flow ✅ COMPLETE (merged to main 2026-07-04)
 
 **Goal:** approved guests complete their booking details via a magic link, with no account.
 

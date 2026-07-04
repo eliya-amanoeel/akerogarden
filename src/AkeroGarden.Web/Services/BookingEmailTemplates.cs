@@ -72,6 +72,25 @@ public static class BookingEmailTemplates
             body.ToString());
     }
 
+    /// <summary>Admin notification that the guest has submitted the completion form (§9 "Admin —
+    /// details complete", FR-61): data is ready, a link to the booking, and a reminder to download
+    /// the lists (list downloads land in Phase 5).</summary>
+    public static EmailContent AdminDetailsComplete(Booking booking, string adminBookingUrl)
+    {
+        var body = new StringBuilder();
+        body.Append("<p>Gästen har slutfört sina bokningsuppgifter.</p>");
+        body.Append("<ul>");
+        body.Append($"<li><strong>Namn:</strong> {Enc(booking.ContactName)}</li>");
+        body.Append($"<li><strong>Incheckning:</strong> {FormatDate(booking.CheckIn)}</li>");
+        body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(booking.CheckOut)}</li>");
+        body.Append($"<li><strong>Antal deltagare:</strong> {booking.Participants.Count.ToString(Sv)}</li>");
+        body.Append("</ul>");
+        body.Append("<p>Uppgifterna är redo. Kom ihåg att ladda ner deltagar- och matlistorna inför vistelsen.</p>");
+        body.Append($"<p><a href=\"{Enc(adminBookingUrl)}\">Öppna bokningen i adminpanelen</a></p>");
+
+        return new EmailContent("Bokningsuppgifter inskickade", body.ToString());
+    }
+
     /// <summary>Denial email — includes the admin's reason and a fixed closing line (§9, FR-50).</summary>
     public static EmailContent Denial(string contactName, string denialReason)
     {

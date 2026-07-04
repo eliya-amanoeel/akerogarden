@@ -1,6 +1,8 @@
 using AkeroGarden.Web.Data.Entities;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace AkeroGarden.Web.Data;
 
@@ -29,6 +31,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BookingFacilitySelection> BookingFacilitySelections => Set<BookingFacilitySelection>();
     public DbSet<BookingCleaningSelection> BookingCleaningSelections => Set<BookingCleaningSelection>();
     public DbSet<BlockedPeriod> BlockedPeriods => Set<BlockedPeriod>();
+
+    // Phase 4 slice 1: completion flow — Participant + MealPreference.
+    public DbSet<Participant> Participants => Set<Participant>();
+    public DbSet<MealPreference> MealPreferences => Set<MealPreference>();
 
     protected override void OnModelCreating(ModelBuilder builder)
     {
@@ -98,6 +104,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .WithOne(s => s.Booking!)
                 .HasForeignKey(s => s.BookingId)
                 .OnDelete(DeleteBehavior.Cascade);
+            // Participants are children of the booking; retention deletion (Phase 5) cascades.
+            b.HasMany(x => x.Participants)
+                .WithOne(p => p.Booking!)
+                .HasForeignKey(p => p.BookingId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         builder.Entity<BookingFacilitySelection>(s =>
@@ -138,6 +149,68 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             // enforced FKs (see BlockedPeriod remarks) — no relationship configured on purpose.
             // The public calendar and admin views query blocks by date range (FR-10/37).
             p.HasIndex(x => new { x.StartDate, x.EndDate });
+        });
+
+        // ── Phase 4: completion flow ────────────────────────────────────────────
+        // Multi-select dietary requirements persist as a comma-joined string of enum names —
+        // legible, and never queried in a WHERE, so no join table or PG array is warranted.
+        var dietaryConverter = new ValueConverter<List<DietaryRequirement>, string>(
+            v => string.Join(',', v.Select(d => d.ToString())),
+            v => string.IsNullOrEmpty(v)
+                ? new List<DietaryRequirement>()
+                : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
+                    .Select(Enum.Parse<DietaryRequirement>)
+                    .ToList());
+        // EF needs a value comparer for a mutable reference-typed property to track edits correctly.
+        var dietaryComparer = new ValueComparer<List<DietaryRequirement>>(
+            (a, b) => (a ?? new()).SequenceEqual(b ?? new()),
+            v => v.Aggregate(0, (acc, d) => HashCode.Combine(acc, d.GetHashCode())),
+            v => v.ToList());
+
+        builder.Entity<Participant>(p =>
+        {
+            // Enums persisted as strings: legible in the DB and stable against reordering.
+            p.Property(x => x.ParticipantType).HasConversion<string>().HasMaxLength(20);
+            p.Property(x => x.AgeCategory).HasConversion<string>().HasMaxLength(20);
+            p.Property(x => x.FullName).HasMaxLength(200);
+            p.Property(x => x.RoomAssignmentSnapshot).HasMaxLength(300);
+            p.Property(x => x.DietaryNotes).HasMaxLength(200);
+
+            p.Property(x => x.DietaryRequirements)
+                .HasConversion(dietaryConverter)
+                .Metadata.SetValueComparer(dietaryComparer);
+
+            // Live FK → Room; Restrict so a room referenced by a participant cannot be
+            // hard-deleted (FR-20) — defence in depth behind RoomService.CanHardDelete.
+            p.HasOne(x => x.Room)
+                .WithMany()
+                .HasForeignKey(x => x.RoomId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Query participants by booking (completion + admin views) and by room (conflict
+            // detection / exclusion / the FR-20 guard count).
+            p.HasIndex(x => x.BookingId);
+            p.HasIndex(x => x.RoomId);
+        });
+
+        builder.Entity<MealPreference>(m =>
+        {
+            m.Property(x => x.MealType).HasConversion<string>().HasMaxLength(20);
+            m.Property(x => x.MealOptionSnapshot).HasMaxLength(200);
+
+            // Meal preferences cascade with their participant (retention deletion, Phase 5).
+            m.HasOne(x => x.Participant!)
+                .WithMany(x => x.MealPreferences)
+                .HasForeignKey(x => x.ParticipantId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Live FK → MealOption; Restrict so a referenced option cannot be hard-deleted
+            // (FR-26) — defence in depth behind MealOptionService.CanHardDelete.
+            m.HasOne(x => x.MealOption!)
+                .WithMany()
+                .HasForeignKey(x => x.MealOptionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            m.HasIndex(x => x.MealOptionId);
         });
     }
 }

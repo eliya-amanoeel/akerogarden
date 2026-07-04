@@ -87,6 +87,7 @@ catch (Exception ex)
 builder.Services.AddScoped<BookingService>();
 builder.Services.AddScoped<BlockedPeriodService>();
 builder.Services.AddScoped<OccupancyProvider>();
+builder.Services.AddScoped<RoomAvailabilityService>();
 
 // ── Reference data services (Phase 1) ─────────────────────────────────────────
 builder.Services.AddScoped<BuildingService>();

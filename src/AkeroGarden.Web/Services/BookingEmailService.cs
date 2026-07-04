@@ -31,6 +31,14 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToAdminAsync(content);
     }
 
+    /// <summary>Admin notification that the guest submitted the completion form (FR-61). Requires
+    /// <see cref="Booking.Participants"/> to be loaded for the participant count.</summary>
+    public Task SendAdminDetailsCompleteAsync(Booking booking)
+    {
+        var content = BookingEmailTemplates.AdminDetailsComplete(booking, BuildAdminBookingUrl(booking.Id));
+        return SendToAdminAsync(content);
+    }
+
     /// <summary>Denial email to the guest, including the admin's reason (FR-50).</summary>
     public Task SendDenialAsync(Booking booking)
     {

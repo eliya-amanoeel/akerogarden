@@ -15,7 +15,7 @@ namespace AkeroGarden.Web.Services;
 /// <para>Status changes (approve/deny/close/cancel) are added in slice 4 and will route through
 /// <see cref="BookingStateMachine"/>; this service is the only place bookings are mutated.</para>
 /// </summary>
-public class BookingService(ApplicationDbContext db, BookingEmailService emails)
+public class BookingService(ApplicationDbContext db, BookingEmailService emails, RoomAvailabilityService rooms)
 {
     /// <summary>Creates a Pending stay request from the public inquiry form (FR-03).
     /// When <paramref name="createdByAdmin"/> is true the booking is created on the guest's
@@ -146,6 +146,115 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails)
             .Include(b => b.FacilitySelections)
             .Include(b => b.CleaningSelections)
             .SingleOrDefaultAsync(b => b.Id == id);
+
+    // ── Completion link (magic link — §2.6, Phase 4) ───────────────────────────────
+
+    /// <summary>
+    /// Looks up a booking by its completion token (§2.6). Returns null when no booking holds that
+    /// token — never issued, or superseded by a regenerated link (FR-49). The token string is the
+    /// sole authentication (FR-54), so callers must treat a null result as "no access".
+    /// </summary>
+    public async Task<Booking?> GetByCompletionTokenAsync(string token) =>
+        string.IsNullOrEmpty(token)
+            ? null
+            : await db.Bookings.SingleOrDefaultAsync(b => b.CompletionToken == token);
+
+    /// <summary>
+    /// Evaluates whether a completion link is usable right now: combines the token lookup with the
+    /// pure <see cref="CompletionAccessPolicy"/> (a missing token maps to
+    /// <see cref="CompletionAccess.NotFound"/>). The returned booking is null unless access is
+    /// evaluated against a real booking — callers must not render booking data unless
+    /// access is <see cref="CompletionAccess.Valid"/>.
+    /// </summary>
+    public async Task<(CompletionAccess Access, Booking? Booking)> EvaluateCompletionAccessAsync(
+        string token, DateTime nowUtc)
+    {
+        var booking = await GetByCompletionTokenAsync(token);
+        if (booking is null) return (CompletionAccess.NotFound, null);
+        return (CompletionAccessPolicy.Evaluate(booking.Status, booking.CompletionTokenExpiry, nowUtc), booking);
+    }
+
+    /// <summary>
+    /// Submits the completion form (FR-55/57/59/60/61/62). Re-validates the link server-side (token
+    /// found, Approved, unexpired — never trusting the earlier GET), then validates + builds the
+    /// overnight participants and their per-day meal preferences with snapshots via the pure
+    /// <see cref="CompletionNormalizer"/>, updates org/invoice details, transitions
+    /// <c>Approved → DetailsComplete</c> through <see cref="BookingStateMachine"/>, and notifies the
+    /// admin (FR-61). The token string is retained — single-use is enforced by the status gate
+    /// (once <c>DetailsComplete</c> the link reports AlreadyCompleted, C10), not by erasing it.
+    /// Day guests (§4.2) and room assignment (FR-56) are added in later slices.
+    /// </summary>
+    public async Task<CompletionSubmitResult> SubmitCompletionAsync(
+        string token, CompletionFormModel form, DateTime nowUtc)
+    {
+        var booking = await db.Bookings
+            .Include(b => b.Participants)
+            .SingleOrDefaultAsync(b => b.CompletionToken == token);
+
+        if (booking is null)
+            return CompletionSubmitResult.LinkFailed(CompletionAccess.NotFound);
+
+        var access = CompletionAccessPolicy.Evaluate(booking.Status, booking.CompletionTokenExpiry, nowUtc);
+        if (access != CompletionAccess.Valid)
+            return CompletionSubmitResult.LinkFailed(access);
+
+        // Belt-and-suspenders against a double submit racing the status gate: a completed booking
+        // already holds participants.
+        if (booking.Participants.Count > 0)
+            return CompletionSubmitResult.LinkFailed(CompletionAccess.AlreadyCompleted);
+
+        if (booking.CheckIn is null || booking.CheckOut is null)
+            return CompletionSubmitResult.LinkFailed(CompletionAccess.NotActive);
+
+        var slots = MealsByDayCalculator.Slots(booking.CheckIn.Value, booking.CheckOut.Value);
+        var expectedOvernight = booking.OvernightGuestCount ?? 0;
+
+        // Day guests apply only for a catered meal plan (§4.2); for SelfCateringAll they are dropped
+        // server-side regardless of what was posted.
+        var dayGuestsApplicable = booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
+
+        var errors = CompletionNormalizer.Validate(form, slots, expectedOvernight);
+        if (dayGuestsApplicable)
+            errors = [.. errors, .. CompletionNormalizer.ValidateDayGuests(
+                form.DayGuests ?? [], booking.CheckIn.Value, booking.CheckOut.Value)];
+        if (errors.Count > 0)
+            return CompletionSubmitResult.Invalid(errors);
+
+        // Authoritative active meal list — queried here, not trusted from the page.
+        var activeOptions = await db.MealOptions.Where(m => m.IsActive).ToListAsync();
+        var optionsById = activeOptions.ToDictionary(o => o.Id);
+
+        // Room assignment is only collected when the booking lets the guest choose (FR-56);
+        // the available set is re-derived here, never trusted from the page.
+        IReadOnlyDictionary<Guid, RoomInfo>? roomsById = null;
+        if (booking.GuestChoosesRooms)
+            roomsById = (await rooms.GetAvailableRoomsAsync(booking.Id)).ToDictionary(r => r.Id);
+
+        var participants = CompletionNormalizer.BuildParticipants(form, slots, optionsById, roomsById);
+        if (dayGuestsApplicable)
+            participants.AddRange(CompletionNormalizer.BuildDayGuests(
+                form.DayGuests ?? [], optionsById, booking.CheckIn.Value, booking.CheckOut.Value));
+        foreach (var participant in participants)
+        {
+            participant.BookingId = booking.Id;
+            booking.Participants.Add(participant);
+        }
+
+        // Org/invoice (FR-60) — only retained when the booking is invoiced to an organisation.
+        booking.IsOrganisation = form.IsOrganisation;
+        booking.OrgName = form.IsOrganisation ? form.OrgName?.Trim() : null;
+        booking.OrgNumber = form.IsOrganisation ? form.OrgNumber?.Trim() : null;
+        booking.InvoiceAddress = form.IsOrganisation ? form.InvoiceAddress?.Trim() : null;
+
+        // One-way transition (§2.5) — routed through the state machine, not set blindly (FR-62).
+        BookingStateMachine.EnsureCanTransition(booking.Status, BookingStatus.DetailsComplete);
+        booking.Status = BookingStatus.DetailsComplete;
+        booking.UpdatedAt = nowUtc; // DetailsComplete is a live state → DeleteAfter stays null (FR-91)
+        await db.SaveChangesAsync();
+
+        await emails.SendAdminDetailsCompleteAsync(booking);
+        return CompletionSubmitResult.Ok();
+    }
 
     /// <summary>
     /// The admin booking list, filterable by status, type, and check-in date range (FR-36).
@@ -296,6 +405,83 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails)
     }
 
     /// <summary>Sets a booking's internal admin notes (FR-39).</summary>
+    // ── Participant data (admin, post-submission — FR-48/56) ───────────────────────
+
+    /// <summary>Loads a booking with its participants + meal preferences (admin participant view/edit).</summary>
+    public async Task<Booking?> GetWithParticipantsAsync(Guid id) =>
+        await db.Bookings
+            .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
+            .SingleOrDefaultAsync(b => b.Id == id);
+
+    /// <summary>Toggles whether the guest assigns rooms on the completion form (FR-56); the admin
+    /// sets this before the guest completes. Booking-wide, not per-participant.</summary>
+    public async Task SetGuestChoosesRoomsAsync(Guid id, bool value)
+    {
+        var booking = await db.Bookings.FindAsync(id);
+        if (booking is null) return;
+        booking.GuestChoosesRooms = value;
+        booking.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Applies the admin's post-submission edits to a booking's participants (FR-48): names, age,
+    /// dietary, day-guest breakfast, overnight room assignment (re-snapshotting name + building,
+    /// NFR-16), and corrections to existing meal choices. <b>No status change and no guest
+    /// reopen</b> — this is the only post-submission edit path (C10). The admin may assign any active
+    /// room (overrides allowed); conflicts are flagged separately.
+    /// </summary>
+    public async Task SaveParticipantEditsAsync(Guid bookingId, IReadOnlyList<ParticipantEdit> edits)
+    {
+        var booking = await db.Bookings
+            .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
+            .SingleOrDefaultAsync(b => b.Id == bookingId);
+        if (booking is null) return;
+
+        var roomsById = (await rooms.GetAllActiveRoomsAsync()).ToDictionary(r => r.Id);
+        var optionsById = (await db.MealOptions.Where(m => m.IsActive).ToListAsync()).ToDictionary(o => o.Id);
+        var editsById = edits.ToDictionary(e => e.Id);
+
+        foreach (var participant in booking.Participants)
+        {
+            if (!editsById.TryGetValue(participant.Id, out var edit)) continue;
+
+            participant.FullName = (edit.FullName ?? string.Empty).Trim();
+            participant.AgeCategory = edit.AgeCategory;
+            participant.DietaryRequirements = edit.Dietary ?? [];
+            participant.DietaryNotes = string.IsNullOrWhiteSpace(edit.DietaryNotes) ? null : edit.DietaryNotes.Trim();
+
+            if (participant.ParticipantType == ParticipantType.DayGuest)
+            {
+                participant.AttendsBreakfast = edit.AttendsBreakfast;
+            }
+            else if (edit.RoomId is { } roomId && roomsById.TryGetValue(roomId, out var room))
+            {
+                participant.RoomId = roomId;
+                participant.RoomAssignmentSnapshot = $"{room.Name} — {room.BuildingName}";
+            }
+            else if (edit.RoomId is null)
+            {
+                participant.RoomId = null;
+                participant.RoomAssignmentSnapshot = null;
+            }
+
+            // Correct existing meal choices only (right type + active) — the set of days is fixed.
+            foreach (var mealEdit in edit.Meals)
+            {
+                var meal = participant.MealPreferences.FirstOrDefault(m => m.Id == mealEdit.Id);
+                if (meal is null) continue;
+                if (!optionsById.TryGetValue(mealEdit.MealOptionId, out var option)) continue;
+                if (option.MealType != meal.MealType) continue;
+                meal.MealOptionId = option.Id;
+                meal.MealOptionSnapshot = option.Name;
+            }
+        }
+
+        booking.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+    }
+
     public async Task SetAdminNotesAsync(Guid id, string? notes)
     {
         var booking = await db.Bookings.FindAsync(id);

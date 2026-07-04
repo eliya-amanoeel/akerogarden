@@ -93,4 +93,41 @@ public class MealsByDayCalculatorTests
                 || (cur.Date == prev.Date && prev.MealType == MealType.Lunch && cur.MealType == MealType.Dinner));
         }
     }
+
+    // ── ServedOn (which meals the kitchen serves that day, §4.1) ────────────────────
+
+    [Fact]
+    public void ServedOn_ArrivalDay_DinnerOnly()
+    {
+        var served = MealsByDayCalculator.ServedOn(Day1, Day1, Day4);
+        Assert.Equal(new MealsServed(Breakfast: false, Lunch: false, Dinner: true), served);
+    }
+
+    [Fact]
+    public void ServedOn_MiddleDay_AllMeals()
+    {
+        var served = MealsByDayCalculator.ServedOn(Day2, Day1, Day4);
+        Assert.Equal(new MealsServed(true, true, true), served);
+    }
+
+    [Fact]
+    public void ServedOn_DepartureDay_BreakfastOnly()
+    {
+        var served = MealsByDayCalculator.ServedOn(Day4, Day1, Day4);
+        Assert.Equal(new MealsServed(Breakfast: true, Lunch: false, Dinner: false), served);
+    }
+
+    [Fact]
+    public void ServedOn_OneNightStay_ArrivalDinner_DepartureBreakfast()
+    {
+        Assert.Equal(new MealsServed(false, false, true), MealsByDayCalculator.ServedOn(Day1, Day1, Day2)); // arrival
+        Assert.Equal(new MealsServed(true, false, false), MealsByDayCalculator.ServedOn(Day2, Day1, Day2)); // departure
+    }
+
+    [Fact]
+    public void ServedOn_OutsideStay_Nothing()
+    {
+        var served = MealsByDayCalculator.ServedOn(Day1.AddDays(-1), Day1, Day4);
+        Assert.Equal(new MealsServed(false, false, false), served);
+    }
 }

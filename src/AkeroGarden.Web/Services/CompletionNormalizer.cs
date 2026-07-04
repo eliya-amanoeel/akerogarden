@@ -173,7 +173,9 @@ public static class CompletionNormalizer
     /// </summary>
     public static List<Participant> BuildDayGuests(
         IReadOnlyList<DayGuestEntry> dayGuests,
-        IReadOnlyDictionary<Guid, MealOption> activeOptionsById)
+        IReadOnlyDictionary<Guid, MealOption> activeOptionsById,
+        DateOnly checkIn,
+        DateOnly checkOut)
     {
         var participants = new List<Participant>();
 
@@ -181,20 +183,27 @@ public static class CompletionNormalizer
         {
             if (IsBlank(entry) || !TryParseDate(entry.AttendanceDate, out var date)) continue;
 
+            // Constrain to the meals actually served on the attended day (§4.1): e.g. no lunch/dinner
+            // on the departure day, no breakfast/lunch on the arrival day. Server-authoritative — a
+            // choice for a meal not served that day is dropped regardless of what was posted.
+            var served = MealsByDayCalculator.ServedOn(date, checkIn, checkOut);
+
             var participant = new Participant
             {
                 ParticipantType = ParticipantType.DayGuest,
                 FullName = (entry.FullName ?? string.Empty).Trim(),
                 AgeCategory = entry.AgeCategory,
                 AttendanceDate = date,
-                AttendsBreakfast = entry.AttendsBreakfast,
+                AttendsBreakfast = entry.AttendsBreakfast && served.Breakfast,
                 IsFullBoard = false, // day guests are meals-only, not full-board accommodation
                 DietaryRequirements = NormalizeDietary(entry.Dietary ?? []),
                 DietaryNotes = string.IsNullOrWhiteSpace(entry.DietaryNotes) ? null : entry.DietaryNotes.Trim(),
             };
 
-            AddDayGuestMeal(participant, entry.LunchChoice, MealType.Lunch, date, activeOptionsById);
-            AddDayGuestMeal(participant, entry.DinnerChoice, MealType.Dinner, date, activeOptionsById);
+            if (served.Lunch)
+                AddDayGuestMeal(participant, entry.LunchChoice, MealType.Lunch, date, activeOptionsById);
+            if (served.Dinner)
+                AddDayGuestMeal(participant, entry.DinnerChoice, MealType.Dinner, date, activeOptionsById);
 
             participants.Add(participant);
         }

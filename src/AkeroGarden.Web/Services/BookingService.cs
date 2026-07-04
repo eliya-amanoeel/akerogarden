@@ -232,7 +232,8 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
 
         var participants = CompletionNormalizer.BuildParticipants(form, slots, optionsById, roomsById);
         if (dayGuestsApplicable)
-            participants.AddRange(CompletionNormalizer.BuildDayGuests(form.DayGuests ?? [], optionsById));
+            participants.AddRange(CompletionNormalizer.BuildDayGuests(
+                form.DayGuests ?? [], optionsById, booking.CheckIn.Value, booking.CheckOut.Value));
         foreach (var participant in participants)
         {
             participant.BookingId = booking.Id;

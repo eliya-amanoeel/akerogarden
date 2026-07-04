@@ -1,5 +1,6 @@
 @page "/slutfor/{token}"
 @layout MainLayout
+@using System.Globalization
 @using AkeroGarden.Web.Data.Entities
 @using AkeroGarden.Web.Models
 @using AkeroGarden.Web.Services
@@ -196,14 +197,21 @@
 
                 @if (_dayGuestsApplicable)
                 {
-                    <h2>Dagsgäster</h2>
+                    var stayCheckIn = _booking.CheckIn!.Value;
+                    var stayCheckOut = _booking.CheckOut!.Value;
+                    <h2 id="dagsgaster">Dagsgäster</h2>
                     <p>Dagsgäster deltar endast på måltider (ingen övernattning). Lägg till en rad per
-                        person och dag.</p>
+                        person och dag. Måltidsvalen anpassas efter vilken dag gästen deltar.</p>
 
                     @for (var d = 0; d < _form.DayGuests.Count; d++)
                     {
                         var di = d;
                         var dg = _form.DayGuests[di];
+                        // Server-side initial meal visibility for this day guest's selected date (§4.1);
+                        // completion-form.js keeps it in sync when the date changes.
+                        var served = DateOnly.TryParse(dg.AttendanceDate, CultureInfo.InvariantCulture, out var dgDate)
+                            ? MealsByDayCalculator.ServedOn(dgDate, stayCheckIn, stayCheckOut)
+                            : new MealsServed(false, false, false);
                         <fieldset class="dayguest">
                             <legend>Dagsgäst @(di + 1)</legend>
 
@@ -225,24 +233,31 @@
 
                             <div class="form-group">
                                 <label for="d@(di)-date">Dag</label>
-                                <select id="d@(di)-date" name="Form.DayGuests[@di].AttendanceDate">
-                                    <option value="">– välj dag –</option>
+                                <select id="d@(di)-date" name="Form.DayGuests[@di].AttendanceDate"
+                                        data-dg-date-participant="@di">
+                                    <option value="" data-breakfast="0" data-lunch="0" data-dinner="0">– välj dag –</option>
                                     @foreach (var date in _stayDates)
                                     {
                                         var iso = date.ToString("yyyy-MM-dd");
-                                        <option value="@iso" selected="@(dg.AttendanceDate == iso)">@iso</option>
+                                        var dayServed = MealsByDayCalculator.ServedOn(date, stayCheckIn, stayCheckOut);
+                                        <option value="@iso" selected="@(dg.AttendanceDate == iso)"
+                                                data-breakfast="@(dayServed.Breakfast ? "1" : "0")"
+                                                data-lunch="@(dayServed.Lunch ? "1" : "0")"
+                                                data-dinner="@(dayServed.Dinner ? "1" : "0")">@iso</option>
                                     }
                                 </select>
                             </div>
 
-                            <div class="form-group form-check">
+                            <div class="form-group form-check" data-dg-meal="breakfast" data-dg-participant="@di"
+                                 style="@(served.Breakfast ? "" : "display:none")">
                                 <input type="checkbox" id="d@(di)-bf" name="Form.DayGuests[@di].AttendsBreakfast"
                                        value="true" checked="@dg.AttendsBreakfast" />
                                 <input type="hidden" name="Form.DayGuests[@di].AttendsBreakfast" value="false" />
                                 <label for="d@(di)-bf">Deltar på frukost</label>
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" data-dg-meal="lunch" data-dg-participant="@di"
+                                 style="@(served.Lunch ? "" : "display:none")">
                                 <label for="d@(di)-lunch">Lunch (om deltar)</label>
                                 <select id="d@(di)-lunch" name="Form.DayGuests[@di].LunchChoice">
                                     <option value="">– ingen –</option>
@@ -253,7 +268,8 @@
                                 </select>
                             </div>
 
-                            <div class="form-group">
+                            <div class="form-group" data-dg-meal="dinner" data-dg-participant="@di"
+                                 style="@(served.Dinner ? "" : "display:none")">
                                 <label for="d@(di)-dinner">Middag (om deltar)</label>
                                 <select id="d@(di)-dinner" name="Form.DayGuests[@di].DinnerChoice">
                                     <option value="">– ingen –</option>
@@ -283,11 +299,13 @@
                             </div>
 
                             <button type="submit" name="Action" value="remove-dayguest:@di"
+                                    formaction="@($"/slutfor/{Token}#dagsgaster")"
                                     class="btn-ghost" formnovalidate>Ta bort dagsgäst</button>
                         </fieldset>
                     }
 
                     <button type="submit" name="Action" value="add-dayguest"
+                            formaction="@($"/slutfor/{Token}#dagsgaster")"
                             class="btn-outline" formnovalidate>Lägg till dagsgäst</button>
                 }
 

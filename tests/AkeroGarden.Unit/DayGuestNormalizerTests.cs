@@ -78,7 +78,7 @@ public class DayGuestNormalizerTests
     [Fact]
     public void Build_Guest_IsDayGuest_WithDateBreakfastAndMeals()
     {
-        var p = Assert.Single(CompletionNormalizer.BuildDayGuests([Guest()], Options()));
+        var p = Assert.Single(CompletionNormalizer.BuildDayGuests([Guest()], Options(), CheckIn, CheckOut));
 
         Assert.Equal(ParticipantType.DayGuest, p.ParticipantType);
         Assert.Equal(new DateOnly(2026, 8, 11), p.AttendanceDate);
@@ -96,7 +96,7 @@ public class DayGuestNormalizerTests
         var g = Guest();
         g.LunchChoice = "";
         g.DinnerChoice = "";
-        var p = Assert.Single(CompletionNormalizer.BuildDayGuests([g], Options()));
+        var p = Assert.Single(CompletionNormalizer.BuildDayGuests([g], Options(), CheckIn, CheckOut));
 
         Assert.True(p.AttendsBreakfast);
         Assert.Empty(p.MealPreferences);
@@ -104,16 +104,39 @@ public class DayGuestNormalizerTests
 
     [Fact]
     public void Build_BlankRow_IsSkipped() =>
-        Assert.Empty(CompletionNormalizer.BuildDayGuests([new DayGuestEntry()], Options()));
+        Assert.Empty(CompletionNormalizer.BuildDayGuests([new DayGuestEntry()], Options(), CheckIn, CheckOut));
 
     [Fact]
     public void Build_WrongTypeOption_IsDropped()
     {
         var g = Guest();
         g.LunchChoice = Dinner.Id.ToString(); // a dinner option in the lunch slot
-        var p = Assert.Single(CompletionNormalizer.BuildDayGuests([g], Options()));
+        var p = Assert.Single(CompletionNormalizer.BuildDayGuests([g], Options(), CheckIn, CheckOut));
 
         Assert.DoesNotContain(p.MealPreferences, mp => mp.MealType == MealType.Lunch);
         Assert.Single(p.MealPreferences); // only the valid dinner remains
+    }
+
+    [Fact]
+    public void Build_DepartureDay_DropsLunchAndDinner_KeepsBreakfast()
+    {
+        // Check-out day (2026-08-12): breakfast only (§4.1). Lunch/dinner choices must be dropped.
+        var g = Guest(date: "2026-08-12");
+        var p = Assert.Single(CompletionNormalizer.BuildDayGuests([g], Options(), CheckIn, CheckOut));
+
+        Assert.True(p.AttendsBreakfast);
+        Assert.Empty(p.MealPreferences); // no lunch/dinner served on departure day
+    }
+
+    [Fact]
+    public void Build_ArrivalDay_DropsBreakfastAndLunch_KeepsDinner()
+    {
+        // Check-in day (2026-08-10): dinner only (§4.1). Breakfast + lunch must be dropped.
+        var g = Guest(date: "2026-08-10");
+        var p = Assert.Single(CompletionNormalizer.BuildDayGuests([g], Options(), CheckIn, CheckOut));
+
+        Assert.False(p.AttendsBreakfast); // no breakfast on arrival day
+        Assert.Single(p.MealPreferences);
+        Assert.Equal(MealType.Dinner, p.MealPreferences[0].MealType);
     }
 }

@@ -7,6 +7,10 @@ namespace AkeroGarden.Web.Services;
 /// </summary>
 public readonly record struct MealSlot(DateOnly Date, MealType MealType);
 
+/// <summary>Which meals the kitchen serves on a given day of a stay (§4.1). Used to constrain a
+/// day guest's meal choices to their attendance date.</summary>
+public readonly record struct MealsServed(bool Breakfast, bool Lunch, bool Dinner);
+
 /// <summary>
 /// The meals-by-day-of-stay rule of requirements.md §4.1, based on the standard check-in 14:00 /
 /// check-out 12:00 schedule (§2.8). Pure and unit-testable (NFR-26) — no database, no clock.
@@ -47,5 +51,24 @@ public static class MealsByDayCalculator
 
         // Departure day (checkOut): no meals collected.
         return slots;
+    }
+
+    /// <summary>
+    /// Which meals the kitchen actually serves on <paramref name="date"/> of a stay (§4.1), based
+    /// on the check-in 14:00 / check-out 12:00 schedule — arrival day: dinner only (guests arrive
+    /// after lunch, no breakfast); middle days: breakfast + lunch + dinner; departure day: breakfast
+    /// only (guests leave before lunch). A date outside the stay serves nothing. This constrains a
+    /// day guest's selectable meals to their attendance date.
+    /// </summary>
+    public static MealsServed ServedOn(DateOnly date, DateOnly checkIn, DateOnly checkOut)
+    {
+        if (checkOut <= checkIn || date < checkIn || date > checkOut)
+            return new MealsServed(false, false, false);
+
+        if (date == checkIn)
+            return new MealsServed(Breakfast: false, Lunch: false, Dinner: true);   // arrival
+        if (date == checkOut)
+            return new MealsServed(Breakfast: true, Lunch: false, Dinner: false);    // departure
+        return new MealsServed(Breakfast: true, Lunch: true, Dinner: true);          // middle
     }
 }

@@ -171,6 +171,35 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
+    public async Task Submit_DayGuestOnDepartureDay_DropsLunchAndDinner()
+    {
+        var provider = NewProvider(out _);
+        var seed = await SeedAsync(provider); // stay 2026-08-10 → 2026-08-12
+
+        var form = FullBoardForm(seed);
+        form.DayGuests.Add(DayGuest(seed, date: "2026-08-12")); // departure day — breakfast only
+
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.Equal(CompletionSubmitOutcome.Success,
+                (await service.SubmitCompletionAsync(seed.Token, form, DateTime.UtcNow)).Outcome);
+        }
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var booking = await db.Bookings
+                .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
+                .SingleAsync(b => b.Id == seed.BookingId);
+
+            var dayGuest = Assert.Single(booking.Participants, p => p.ParticipantType == ParticipantType.DayGuest);
+            Assert.True(dayGuest.AttendsBreakfast);       // breakfast is served on the departure day
+            Assert.Empty(dayGuest.MealPreferences);       // lunch + dinner dropped (§4.1)
+        }
+    }
+
+    [Fact]
     public async Task Submit_SelfCateringAll_DropsDayGuests()
     {
         var provider = NewProvider(out _);

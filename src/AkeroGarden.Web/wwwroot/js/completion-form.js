@@ -20,6 +20,32 @@
         });
     });
 
+    // Day guests: show only the meals actually served on the chosen attendance date (§4.1) — no
+    // lunch/dinner on the departure day, no breakfast/lunch on the arrival day. Data lives on the
+    // date <option>s; the server also renders + drops authoritatively.
+    function applyDayGuestMeals(dateSelect) {
+        var i = dateSelect.getAttribute("data-dg-date-participant");
+        var opt = dateSelect.options[dateSelect.selectedIndex];
+        var served = {
+            breakfast: opt && opt.getAttribute("data-breakfast") === "1",
+            lunch: opt && opt.getAttribute("data-lunch") === "1",
+            dinner: opt && opt.getAttribute("data-dinner") === "1"
+        };
+        ["breakfast", "lunch", "dinner"].forEach(function (meal) {
+            var el = document.querySelector('[data-dg-meal="' + meal + '"][data-dg-participant="' + i + '"]');
+            if (el) {
+                el.style.display = served[meal] ? "" : "none";
+            }
+        });
+    }
+
+    document.querySelectorAll("select[data-dg-date-participant]").forEach(function (dateSelect) {
+        applyDayGuestMeals(dateSelect);
+        dateSelect.addEventListener("change", function () {
+            applyDayGuestMeals(dateSelect);
+        });
+    });
+
     // "Same for all days" (FR-59): copy one choice into every matching per-day select for that
     // participant + meal type.
     document.querySelectorAll("select[data-sameall-participant]").forEach(function (source) {

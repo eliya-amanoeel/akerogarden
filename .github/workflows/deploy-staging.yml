@@ -1,14 +1,14 @@
 name: Deploy — Staging
 
+# Manual-only. Staging is powered down when idle, so deploys are triggered on demand
+# (Actions → "Deploy — Staging" → Run workflow, or `gh workflow run deploy-staging.yml`)
+# rather than automatically on every merge to main. Before running: start staging in order
+# — PostgreSQL first (wait until Ready), then the app — so the on-boot EF migrations succeed.
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
-    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     environment:
       name: staging
@@ -19,8 +19,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
 
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4

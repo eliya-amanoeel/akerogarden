@@ -211,6 +211,31 @@ Like Phases 1 and 3, Phase 4 is built as independently reviewable vertical slice
 
 **Exit criteria:** the 14-day job sends the right variant per status; lists generate correctly within the 10 s / 300-participant target; the retention job deletes exactly the right records and the warning fires once each; unit tests cover retention/deletion-date computation.
 
+### Scheduled-job mechanism — in-process `BackgroundService` + Always On (NOT app-only deploy)
+
+The daily automation (14-day reminders, 30-day pre-deletion warnings, GDPR deletion) runs from a single in-process hosted **`BackgroundService`** (`DailyJobRunner`) — no new Azure resource. It ticks once per day (computes the delay to the next configured run hour in **Europe/Stockholm**, sleeps, runs), and on each tick it opens a **fresh DI scope per run** (the booking/email services are scoped) and runs each job in turn; a job that throws is logged and never aborts the others (NFR-13 style). Each job is **idempotent** — guarded by a persisted sent-marker (`DeletionWarningEmailSentAt` for the warning, a new `ReminderEmailSentAt` for the reminder) so a restart or double-run cannot double-send or double-delete.
+
+On App Service **B1 the app is unloaded after ~20 min idle**, which would stop the `BackgroundService` and skip runs. Reliable daily execution therefore requires **`alwaysOn: true`** in `main.bicep`'s `siteConfig`. Always On is free and does not change the flat B1 price (the server is billed whether awake or idle). Because this is an infra/config change and the pipeline deploys only app code, **Phase 5 is not an app-only deploy** (like Phase 3's Redis): the Always On setting must be applied to staging by hand (`az webapp config set --always-on true`, or a `main.bicep` redeploy) **before the phase branch merges**, and reconciled into prod at Phase 6. B1 is single-instance, so no distributed-lock/leader-election is needed.
+
+### List downloads — libraries & delivery
+
+Participant and food-preference lists are generated **on demand from an admin button** and **streamed directly** as a file download (in-memory, not persisted to Blob) — the lists are ≤300 rows, always reflect current snapshot data, and persisting copies would only add cleanup and stale-copy risk. **PDF** via **QuestPDF** (Community license — free for orgs under the revenue threshold; set `QuestPDF.Settings.License = LicenseType.Community` at startup), **Excel (`.xlsx`)** via **ClosedXML** (MIT). Both build off the **snapshot** fields (`MealPreference.MealOptionSnapshot`, `Participant.RoomAssignmentSnapshot`, dietary, attendance date) so a list reflects what was agreed even if reference data changed since (NFR-15/16).
+
+### Scope note — admin lifecycle transitions deferred from Phase 4
+
+`DetailsComplete → Active` ("markera anländ") and `Active → Completed` ("markera avslutad") — plus the thank-you email on `Completed` (FR-65) — were deferred from Phase 4 (the §2.5 state machine already permits both). They land here in **slice 1**. Completing a booking is the one remaining transition that sets `DeleteAfter` (check-out + 2 years, FR-91); all other retention-relevant transitions (Pending on create, Denied, Cancelled, Closed) already set it in Phase 3, so slice 1 closes the last `DeleteAfter` gap before the retention job (slice 2) begins deleting.
+
+### Build order — four vertical slices (Phase 5)
+
+Like Phases 1, 3, and 4, Phase 5 is built as independently reviewable vertical slices, each merged to the phase branch (with its unit **and** integration tests, plus a per-slice curl/browser smoke) before the next begins. The ordering is dependency-driven: slice 1 is self-contained and finishes the `DeleteAfter` wiring the deletion job relies on; slice 2 introduces the `DailyJobRunner` host (and the Always On infra change) with the simplest, guarded job to prove the daily tick + email dispatch; slice 3 adds the richer, multi-variant reminder job on the now-proven host; slice 4 (list downloads) is independent and last — the only non-job feature and the only slice adding NuGet packages. Only slice 3 introduces a migration.
+
+| Slice | Migration | Delivers | Key §/FR refs |
+|---|---|---|---|
+| 1 | — | Admin lifecycle end: `DetailsComplete → Active` ("Markera anländ") + `Active → Completed` ("Markera avslutad") buttons on `BookingDetail`; `MarkArrivedAsync`/`MarkCompletedAsync` in `BookingService` (routed through `BookingStateMachine`). `MarkCompleted` sets `DeleteAfter` = check-out + 2 yr via `RetentionCalculator` (closes the last `DeleteAfter` gap) and sends the **thank-you email** (new §9 template). No background infra | §2.5, FR-65, FR-91 |
+| 2 | — | **`DailyJobRunner`** hosted `BackgroundService` (daily tick, Europe/Stockholm, scope-per-run, resilient) + **Always On** in `main.bicep`. First job: GDPR retention — **deletion** off `Booking.DeleteAfter` (Completed 2 yr, Denied/Cancelled 12 mo, Pending 12 mo, Closed 12 mo) with cascade to participants/meals/selections; **30-day pre-deletion admin warning** deduped via `DeletionWarningEmailSentAt` (new §9 template) | FR-66/67/68/69/89/90/91, §2.7 |
+| 3 | `AddReminderSentAt` | **14-day reminder job** (idempotent via new `ReminderEmailSentAt`): if `DetailsComplete`+ → standard guest reminder (participant/day-guest counts, meal summary, 14:00/12:00, address — FR-64); if still `Approved` → regenerate completion token (fresh link ≥48 h) + guest nudge + admin alert (FR-63). Refactor the token-regen core out of `RegenerateCompletionLinkAsync` so both callers share it. Three new §9 templates | FR-63/64, §2.6, §9 |
+| 4 | — | List downloads: participant list + food-preference list, each as **PDF (QuestPDF)** and **Excel (ClosedXML)**, **streamed** from admin buttons on `BookingDetail`, gated on `DetailsComplete`+. Pure list-shaping builder off snapshot fields; NFR-10 perf test (≤10 s for 300 participants). Adds `QuestPDF` + `ClosedXML` packages | FR-44/45, NFR-10, §8.5/8.6 |
+
 ---
 
 ## Phase 6 — Hardening & go-live

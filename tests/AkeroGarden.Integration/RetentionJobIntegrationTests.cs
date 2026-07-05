@@ -119,6 +119,20 @@ public class RetentionJobIntegrationTests : IClassFixture<DbFixture>
         Assert.False(await ExistsAsync(provider, id));
     }
 
+    [Theory]
+    [InlineData(BookingStatus.Pending)]   // FR-89
+    [InlineData(BookingStatus.Closed)]    // FR-90
+    [InlineData(BookingStatus.Denied)]    // FR-68
+    public async Task Deletes_AnyTerminalOrPendingRecord_PastDeleteAfter(BookingStatus status)
+    {
+        var provider = NewProvider(out _);
+        var today = new DateOnly(2026, 7, 5);
+        var id = await SeedAsync(provider, status, deleteAfter: today.AddDays(-1));
+
+        Assert.Equal(1, (await RunAsync(provider, today)).Deleted);
+        Assert.False(await ExistsAsync(provider, id));
+    }
+
     [Fact]
     public async Task LiveInProgressBooking_WithNullDeleteAfter_IsNeverTouched()
     {

@@ -89,6 +89,12 @@ builder.Services.AddScoped<BlockedPeriodService>();
 builder.Services.AddScoped<OccupancyProvider>();
 builder.Services.AddScoped<RoomAvailabilityService>();
 
+// ── Scheduled background jobs (Phase 5) ───────────────────────────────────────
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.Configure<JobOptions>(builder.Configuration.GetSection("Jobs"));
+builder.Services.AddScoped<IScheduledJob, RetentionJob>();
+builder.Services.AddHostedService<DailyJobRunner>();
+
 // ── Reference data services (Phase 1) ─────────────────────────────────────────
 builder.Services.AddScoped<BuildingService>();
 builder.Services.AddScoped<RoomService>();

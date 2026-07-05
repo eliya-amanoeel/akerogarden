@@ -60,6 +60,18 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToGuestAsync(booking, content);
     }
 
+    /// <summary>Admin warning 30 days before a record is auto-deleted (FR-66). Requires
+    /// <see cref="Booking.DeleteAfter"/> to be set.</summary>
+    public Task SendPreDeletionWarningAsync(Booking booking)
+    {
+        if (booking.DeleteAfter is null)
+            throw new InvalidOperationException("Gallringsvarning kräver ett satt raderingsdatum (DeleteAfter).");
+
+        var content = BookingEmailTemplates.PreDeletionWarning(
+            booking, BuildAdminBookingUrl(booking.Id), booking.DeleteAfter.Value);
+        return SendToAdminAsync(content);
+    }
+
     /// <summary>Standard fixed thank-you email when the admin marks the booking Completed (FR-65).</summary>
     public Task SendThankYouAsync(Booking booking)
     {

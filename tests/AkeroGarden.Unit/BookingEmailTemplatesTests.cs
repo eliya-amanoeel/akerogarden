@@ -111,6 +111,23 @@ public class BookingEmailTemplatesTests
     }
 
     [Fact]
+    public void PreDeletionWarning_StatesDeletionDate_AndLinksToBooking()
+    {
+        var booking = new Booking
+        {
+            BookingType = BookingType.StayRequest,
+            Status = BookingStatus.Completed,
+            ContactName = "Anna",
+            CheckIn = new DateOnly(2026, 6, 1),
+            CheckOut = new DateOnly(2026, 6, 4),
+        };
+        var c = BookingEmailTemplates.PreDeletionWarning(booking, "https://admin.akerogarden.se/admin/bokningar/x", new DateOnly(2028, 6, 4));
+        Assert.Contains("gallring", c.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("2028", c.HtmlBody); // the deletion date
+        Assert.Contains("admin/bokningar/x", c.HtmlBody);
+    }
+
+    [Fact]
     public void ThankYou_IsSwedish_GreetsGuest_AndInvitesReturn()
     {
         var c = BookingEmailTemplates.ThankYou("Anna");

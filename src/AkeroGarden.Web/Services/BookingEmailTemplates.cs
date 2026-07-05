@@ -117,6 +117,27 @@ public static class BookingEmailTemplates
         return new EmailContent("Din bokning är godkänd – slutför dina uppgifter", body.ToString());
     }
 
+    /// <summary>Admin warning that a record is 30 days from automatic GDPR deletion (§9, FR-66).</summary>
+    public static EmailContent PreDeletionWarning(Booking booking, string adminBookingUrl, DateOnly deleteAfter)
+    {
+        var isStay = booking.BookingType == BookingType.StayRequest;
+        var body = new StringBuilder();
+        body.Append("<p>En bokningspost är schemalagd för automatisk radering (GDPR-gallring) om 30 dagar.</p>");
+        body.Append("<ul>");
+        body.Append($"<li><strong>Typ:</strong> {(isStay ? "Bokningsförfrågan" : "Allmän förfrågan")}</li>");
+        body.Append($"<li><strong>Namn:</strong> {Enc(booking.ContactName)}</li>");
+        body.Append($"<li><strong>Status:</strong> {Enc(booking.Status.ToString())}</li>");
+        if (isStay)
+        {
+            body.Append($"<li><strong>Incheckning:</strong> {FormatDate(booking.CheckIn)}</li>");
+            body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(booking.CheckOut)}</li>");
+        }
+        body.Append($"<li><strong>Raderas efter:</strong> {FormatDate(deleteAfter)}</li>");
+        body.Append("</ul>");
+        body.Append($"<p><a href=\"{Enc(adminBookingUrl)}\">Öppna bokningen i adminpanelen</a></p>");
+        return new EmailContent("Bokningspost raderas snart (GDPR-gallring)", body.ToString());
+    }
+
     /// <summary>Thank-you email sent when the admin marks the booking <c>Completed</c> (§9, FR-65).
     /// Fixed text — not customisable per booking.</summary>
     public static EmailContent ThankYou(string contactName)

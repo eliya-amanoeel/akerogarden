@@ -195,6 +195,22 @@ else
         <button class="btn" @onclick="SaveParticipants">Spara deltagaruppgifter</button>
     }
 
+    @* ── List downloads (FR-44/45) ─────────────────────────────────────────── *@
+    @if (ListShaper.IsAvailableFor(_booking.Status))
+    {
+        <h2>Listor</h2>
+        <p>
+            <strong>Deltagarlista:</strong>
+            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/deltagarlista.pdf">PDF</a>
+            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/deltagarlista.xlsx">Excel</a>
+        </p>
+        <p>
+            <strong>Matlista:</strong>
+            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/matlista.pdf">PDF</a>
+            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/matlista.xlsx">Excel</a>
+        </p>
+    }
+
     @if (!string.IsNullOrWhiteSpace(_booking.Message))
     {
         <h2>Meddelande</h2>

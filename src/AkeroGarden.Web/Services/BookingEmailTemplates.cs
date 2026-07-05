@@ -117,6 +117,93 @@ public static class BookingEmailTemplates
         return new EmailContent("Din bokning är godkänd – slutför dina uppgifter", body.ToString());
     }
 
+    /// <summary>Standard 14-day reminder to the guest (§9, FR-64) — participant/day-guest counts,
+    /// meal summary, check-in 14:00 / check-out 12:00, and the property address. Sent when the
+    /// booking is <c>DetailsComplete</c> or later.</summary>
+    public static EmailContent TwoWeekReminder(
+        string contactName,
+        int overnightCount,
+        int dayGuestCount,
+        int fullBoardMealCount,
+        DateOnly? checkIn,
+        DateOnly? checkOut,
+        string propertyAddress)
+    {
+        var body = new StringBuilder();
+        body.Append(Greeting(contactName));
+        body.Append("<p>Snart är det dags för er vistelse hos Åkerögården! Här är en påminnelse med era uppgifter.</p>");
+        body.Append("<ul>");
+        body.Append($"<li><strong>Incheckning:</strong> {FormatDate(checkIn)} kl. 14:00</li>");
+        body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(checkOut)} kl. 12:00</li>");
+        body.Append($"<li><strong>Antal deltagare (övernattning):</strong> {overnightCount.ToString(Sv)}</li>");
+        body.Append($"<li><strong>Antal dagsgäster:</strong> {dayGuestCount.ToString(Sv)}</li>");
+        body.Append($"<li><strong>Antal beställda måltider:</strong> {fullBoardMealCount.ToString(Sv)}</li>");
+        body.Append($"<li><strong>Adress:</strong> {Enc(propertyAddress)}</li>");
+        body.Append("</ul>");
+        body.Append("<p>Har ni frågor inför ankomsten är ni välkomna att kontakta oss.</p>");
+        return new EmailContent("Påminnelse inför er vistelse hos Åkerögården", body.ToString());
+    }
+
+    /// <summary>Completion nudge to a guest who has not yet submitted their details 14 days before
+    /// check-in (§9, FR-63) — carries a freshly regenerated link and its exact expiry.</summary>
+    public static EmailContent CompletionNudge(string contactName, string magicLinkUrl, DateTime expiryUtc)
+    {
+        var body = new StringBuilder();
+        body.Append(Greeting(contactName));
+        body.Append("<p>Ni har ännu inte slutfört era bokningsuppgifter (deltagare och måltider) inför er vistelse hos Åkerögården. Snart är det dags för incheckning – fyll gärna i uppgifterna så snart som möjligt.</p>");
+        body.Append($"<p><a href=\"{Enc(magicLinkUrl)}\">Slutför din bokning här</a></p>");
+        body.Append($"<p>Länken är giltig till och med <strong>{FormatDateTime(expiryUtc)}</strong>.</p>");
+        return new EmailContent("Påminnelse: slutför dina bokningsuppgifter", body.ToString());
+    }
+
+    /// <summary>Admin alert that a guest has not completed their details 14 days before check-in
+    /// (§9, FR-63) — link to the booking and the new completion-link expiry.</summary>
+    public static EmailContent AdminGuestNotCompleted(Booking booking, string adminBookingUrl, DateTime newExpiryUtc)
+    {
+        var body = new StringBuilder();
+        body.Append("<p>En gäst har inte slutfört sina bokningsuppgifter och incheckning närmar sig – överväg att kontakta gästen direkt.</p>");
+        body.Append("<ul>");
+        body.Append($"<li><strong>Namn:</strong> {Enc(booking.ContactName)}</li>");
+        body.Append($"<li><strong>E-post:</strong> {Enc(booking.ContactEmail)}</li>");
+        body.Append($"<li><strong>Incheckning:</strong> {FormatDate(booking.CheckIn)}</li>");
+        body.Append($"<li><strong>Ny länk giltig till:</strong> {FormatDateTime(newExpiryUtc)}</li>");
+        body.Append("</ul>");
+        body.Append($"<p><a href=\"{Enc(adminBookingUrl)}\">Öppna bokningen i adminpanelen</a></p>");
+        return new EmailContent("Gäst har inte slutfört sin bokning", body.ToString());
+    }
+
+    /// <summary>Admin warning that a record is 30 days from automatic GDPR deletion (§9, FR-66).</summary>
+    public static EmailContent PreDeletionWarning(Booking booking, string adminBookingUrl, DateOnly deleteAfter)
+    {
+        var isStay = booking.BookingType == BookingType.StayRequest;
+        var body = new StringBuilder();
+        body.Append("<p>En bokningspost är schemalagd för automatisk radering (GDPR-gallring) om 30 dagar.</p>");
+        body.Append("<ul>");
+        body.Append($"<li><strong>Typ:</strong> {(isStay ? "Bokningsförfrågan" : "Allmän förfrågan")}</li>");
+        body.Append($"<li><strong>Namn:</strong> {Enc(booking.ContactName)}</li>");
+        body.Append($"<li><strong>Status:</strong> {Enc(booking.Status.ToString())}</li>");
+        if (isStay)
+        {
+            body.Append($"<li><strong>Incheckning:</strong> {FormatDate(booking.CheckIn)}</li>");
+            body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(booking.CheckOut)}</li>");
+        }
+        body.Append($"<li><strong>Raderas efter:</strong> {FormatDate(deleteAfter)}</li>");
+        body.Append("</ul>");
+        body.Append($"<p><a href=\"{Enc(adminBookingUrl)}\">Öppna bokningen i adminpanelen</a></p>");
+        return new EmailContent("Bokningspost raderas snart (GDPR-gallring)", body.ToString());
+    }
+
+    /// <summary>Thank-you email sent when the admin marks the booking <c>Completed</c> (§9, FR-65).
+    /// Fixed text — not customisable per booking.</summary>
+    public static EmailContent ThankYou(string contactName)
+    {
+        var body = new StringBuilder();
+        body.Append(Greeting(contactName));
+        body.Append("<p>Tack för att ni valde Åkerögården! Vi hoppas att ni hade en trevlig vistelse hos oss.</p>");
+        body.Append("<p>Ni är varmt välkomna tillbaka. Hör gärna av er om ni vill boka ett nytt besök.</p>");
+        return new EmailContent("Tack för ditt besök hos Åkerögården", body.ToString());
+    }
+
     /// <summary>Cancellation email — deposit clause conditional on initiator and timing (§9, FR-79).</summary>
     public static EmailContent Cancellation(
         string contactName,

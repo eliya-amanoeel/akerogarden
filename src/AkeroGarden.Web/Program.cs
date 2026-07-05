@@ -89,6 +89,13 @@ builder.Services.AddScoped<BlockedPeriodService>();
 builder.Services.AddScoped<OccupancyProvider>();
 builder.Services.AddScoped<RoomAvailabilityService>();
 
+// ── Scheduled background jobs (Phase 5) ───────────────────────────────────────
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.Configure<JobOptions>(builder.Configuration.GetSection("Jobs"));
+builder.Services.AddScoped<IScheduledJob, RetentionJob>();
+builder.Services.AddScoped<IScheduledJob, ReminderJob>();
+builder.Services.AddHostedService<DailyJobRunner>();
+
 // ── Reference data services (Phase 1) ─────────────────────────────────────────
 builder.Services.AddScoped<BuildingService>();
 builder.Services.AddScoped<RoomService>();
@@ -150,6 +157,33 @@ app.MapPost("/logout", async (
     await signInManager.SignOutAsync();
     return Results.LocalRedirect("/login");
 });
+
+// ── Admin list downloads (FR-44/45) ───────────────────────────────────────────
+// PDF + Excel participant and food-preference lists, streamed on demand from the booking detail
+// page. Auth-required; the booking id in the path is a Guid, not PII (NFR-05). Lists are only
+// available once details are submitted (DetailsComplete or later).
+const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+var lists = app.MapGroup("/admin/bokningar/{id:guid}").RequireAuthorization();
+lists.MapGet("/deltagarlista.pdf", (Guid id, BookingService bookings) =>
+    BuildListAsync(id, bookings, "deltagarlista.pdf", "application/pdf", ListPdfGenerator.ParticipantList));
+lists.MapGet("/deltagarlista.xlsx", (Guid id, BookingService bookings) =>
+    BuildListAsync(id, bookings, "deltagarlista.xlsx", XlsxContentType, ListExcelGenerator.ParticipantList));
+lists.MapGet("/matlista.pdf", (Guid id, BookingService bookings) =>
+    BuildListAsync(id, bookings, "matlista.pdf", "application/pdf", ListPdfGenerator.FoodPreferenceList));
+lists.MapGet("/matlista.xlsx", (Guid id, BookingService bookings) =>
+    BuildListAsync(id, bookings, "matlista.xlsx", XlsxContentType, ListExcelGenerator.FoodPreferenceList));
+
+static async Task<IResult> BuildListAsync(
+    Guid id, BookingService bookings, string fileName, string contentType, Func<BookingListData, byte[]> render)
+{
+    var booking = await bookings.GetWithParticipantsAsync(id);
+    if (booking is null || !ListShaper.IsAvailableFor(booking.Status))
+        return Results.NotFound();
+
+    var bytes = render(ListShaper.Shape(booking));
+    return Results.File(bytes, contentType, fileName);
+}
 
 using (var scope = app.Services.CreateScope())
 {

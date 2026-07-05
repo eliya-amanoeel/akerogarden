@@ -195,6 +195,22 @@ else
         <button class="btn" @onclick="SaveParticipants">Spara deltagaruppgifter</button>
     }
 
+    @* ── List downloads (FR-44/45) ─────────────────────────────────────────── *@
+    @if (ListShaper.IsAvailableFor(_booking.Status))
+    {
+        <h2>Listor</h2>
+        <p>
+            <strong>Deltagarlista:</strong>
+            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/deltagarlista.pdf">PDF</a>
+            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/deltagarlista.xlsx">Excel</a>
+        </p>
+        <p>
+            <strong>Matlista:</strong>
+            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/matlista.pdf">PDF</a>
+            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/matlista.xlsx">Excel</a>
+        </p>
+    }
+
     @if (!string.IsNullOrWhiteSpace(_booking.Message))
     {
         <h2>Meddelande</h2>
@@ -245,6 +261,16 @@ else
     {
         <p><strong>Slutförandelänk giltig till:</strong> @(_booking.CompletionTokenExpiry?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</p>
         <button class="btn-ghost" @onclick="Regenerate">Återutfärda och skicka länk på nytt</button>
+    }
+
+    @if (_booking.Status == BookingStatus.DetailsComplete)
+    {
+        <button class="btn" @onclick="MarkArrived">Markera anländ</button>
+    }
+
+    @if (_booking.Status == BookingStatus.Active)
+    {
+        <button class="btn" @onclick="MarkCompleted">Markera avslutad</button>
     }
 
     @if (CanCancel)
@@ -442,6 +468,20 @@ else
     {
         var result = await BookingService.RegenerateCompletionLinkAsync(Id);
         _message = result.Succeeded ? "En ny slutförandelänk är skickad till gästen." : result.Error;
+        await Load();
+    }
+
+    private async Task MarkArrived()
+    {
+        var result = await BookingService.MarkArrivedAsync(Id);
+        _message = result.Succeeded ? "Bokningen är markerad som anländ." : result.Error;
+        await Load();
+    }
+
+    private async Task MarkCompleted()
+    {
+        var result = await BookingService.MarkCompletedAsync(Id);
+        _message = result.Succeeded ? "Bokningen är markerad som avslutad och ett tackmejl har skickats till gästen." : result.Error;
         await Load();
     }
 

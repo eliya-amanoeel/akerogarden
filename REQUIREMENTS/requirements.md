@@ -891,6 +891,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | `UpdatedAt` | datetime | Auto |
 | `DeleteAfter` | date | Computed per FR-91 — value depends on the booking's terminal/pending state; null for live in-progress states |
 | `DeletionWarningEmailSentAt` | datetime? | Set when the 30-day pre-deletion warning email is sent; prevents the daily background job from sending duplicate warnings |
+| `ReminderEmailSentAt` | datetime? | Set when the automated 14-days-before-check-in reminder (standard reminder, or completion nudge if still `Approved`) is sent; ensures the daily background job fires it exactly once (FR-63) |
 
 ### 8.2 Building
 
@@ -1083,6 +1084,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 - Dedicated GDPR contact address (dataskydd@akerogarden.se)
 - Role-based admin permissions (multiple admin accounts are supported in v1 — role differentiation and per-admin access control are deferred)
 - Room-based pricing model
+- **External scheduler for the daily jobs** — evaluate replacing the in-process hosted `BackgroundService` + Always On (v1 mechanism for the reminder/retention jobs) with an external Azure scheduler (Azure Functions timer trigger, or a Logic App calling a protected trigger endpoint). Benefits to assess: survives app idle without Always On, decouples scheduling from the web process, and scales cleanly to multiple instances (the in-process loop assumes a single B1 instance). Costs to weigh: a new Azure resource, its own deploy/secret story, and a callable trigger surface. Not required for v1's volume; captured for a future study.
 
 ---
 

@@ -23,4 +23,8 @@ public class BookingEmailOptions
 
     /// <summary>Contact email shown in every email footer (§9).</summary>
     public string ContactEmail { get; set; } = string.Empty;
+
+    /// <summary>Property address stated in the 14-day reminder (FR-64). Configurable so the
+    /// go-live address can be set without a code change.</summary>
+    public string PropertyAddress { get; set; } = "Åkerögården, Norrtälje";
 }

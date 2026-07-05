@@ -137,7 +137,7 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
     keyVaultReferenceIdentity: appIdentity.id
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
-      alwaysOn: false // B1 doesn't support AlwaysOn; acceptable for this tier
+      alwaysOn: true // Basic B1 supports Always On (only Free/Shared do not); required so the daily BackgroundService (Phase 5 — reminders, retention warning, GDPR deletion) is not unloaded on idle
       appSettings: [
         {
           name: 'ASPNETCORE_ENVIRONMENT'

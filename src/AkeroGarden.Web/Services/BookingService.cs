@@ -382,6 +382,49 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
     }
 
     /// <summary>
+    /// Admin marks an arrived guest: <c>DetailsComplete → Active</c> (§2.5, "markera anländ").
+    /// A live in-progress state, so <c>DeleteAfter</c> stays null (FR-91). No email.
+    /// </summary>
+    public async Task<SaveResult> MarkArrivedAsync(Guid id)
+    {
+        var booking = await db.Bookings.FindAsync(id);
+        if (booking is null) return SaveResult.Fail("Bokningen kunde inte hittas.");
+        if (!BookingStateMachine.CanTransition(booking.Status, BookingStatus.Active))
+            return SaveResult.Fail("Bokningen kan inte markeras som anländ i sitt nuvarande läge.");
+
+        booking.Status = BookingStatus.Active;
+        booking.DeleteAfter = null; // live in-progress state (FR-91)
+        booking.UpdatedAt = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+        return SaveResult.Success;
+    }
+
+    /// <summary>
+    /// Admin marks a finished stay: <c>Active → Completed</c> (§2.5, "markera avslutad"). Sets the
+    /// 2-year retention date from check-out (FR-91) — the last retention-relevant transition to do
+    /// so — and sends the fixed thank-you email (FR-65).
+    /// </summary>
+    public async Task<SaveResult> MarkCompletedAsync(Guid id)
+    {
+        var booking = await db.Bookings.FindAsync(id);
+        if (booking is null) return SaveResult.Fail("Bokningen kunde inte hittas.");
+        if (!BookingStateMachine.CanTransition(booking.Status, BookingStatus.Completed))
+            return SaveResult.Fail("Bokningen kan inte markeras som avslutad i sitt nuvarande läge.");
+        if (booking.CheckOut is null)
+            return SaveResult.Fail("Bokningen saknar utcheckningsdatum.");
+
+        var now = DateTime.UtcNow;
+        booking.Status = BookingStatus.Completed;
+        booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
+            BookingStatus.Completed, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
+        booking.UpdatedAt = now;
+        await db.SaveChangesAsync();
+
+        await emails.SendThankYouAsync(booking);
+        return SaveResult.Success;
+    }
+
+    /// <summary>
     /// Regenerates and resends the completion magic link while the booking is still awaiting
     /// completion (status Approved) — invalidating any previous link (FR-49, §2.6).
     /// </summary>
@@ -394,14 +437,28 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         if (booking.CheckIn is null)
             return SaveResult.Fail("Bokningen saknar incheckningsdatum.");
 
-        var now = DateTime.UtcNow;
-        booking.CompletionToken = CompletionTokenPolicy.GenerateToken();
-        booking.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(now, booking.CheckIn.Value);
-        booking.UpdatedAt = now;
+        RegenerateCompletionToken(booking);
         await db.SaveChangesAsync();
 
         await emails.SendApprovalAsync(booking);
         return SaveResult.Success;
+    }
+
+    /// <summary>
+    /// Generates a fresh completion token + expiry on the booking (§2.6), invalidating any previous
+    /// link, without saving or sending mail — the shared core used both by
+    /// <see cref="RegenerateCompletionLinkAsync"/> (admin resend, approval email) and by the 14-day
+    /// reminder job's still-<c>Approved</c> nudge (FR-63). Caller persists and sends the appropriate mail.
+    /// </summary>
+    public void RegenerateCompletionToken(Booking booking)
+    {
+        if (booking.CheckIn is null)
+            throw new InvalidOperationException("Slutförandelänk kräver ett incheckningsdatum.");
+
+        var now = DateTime.UtcNow;
+        booking.CompletionToken = CompletionTokenPolicy.GenerateToken();
+        booking.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(now, booking.CheckIn.Value);
+        booking.UpdatedAt = now;
     }
 
     /// <summary>Sets a booking's internal admin notes (FR-39).</summary>

@@ -111,6 +111,79 @@ public class BookingEmailTemplatesTests
     }
 
     [Fact]
+    public void TwoWeekReminder_StatesCounts_Times_AndAddress()
+    {
+        var c = BookingEmailTemplates.TwoWeekReminder(
+            "Anna", overnightCount: 8, dayGuestCount: 3, fullBoardMealCount: 20,
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4), "Åkerögården, Norrtälje");
+        Assert.Contains("Hej Anna", c.HtmlBody);
+        Assert.Contains("14:00", c.HtmlBody);
+        Assert.Contains("12:00", c.HtmlBody);
+        Assert.Contains("övernattning):</strong> 8", c.HtmlBody);  // overnight count
+        Assert.Contains("dagsgäster:</strong> 3", c.HtmlBody);     // day guest count
+        Assert.Contains("Adress:", c.HtmlBody);
+        Assert.Contains("Norrt", c.HtmlBody);                       // address (ä is HTML-encoded)
+    }
+
+    [Fact]
+    public void CompletionNudge_CarriesFreshLinkAndExpiry()
+    {
+        var c = BookingEmailTemplates.CompletionNudge("Anna", "https://akerogarden.se/slutfor/tok123", new DateTime(2026, 7, 20, 10, 0, 0, DateTimeKind.Utc));
+        Assert.Contains("slutfor/tok123", c.HtmlBody);
+        Assert.Contains("2026", c.HtmlBody);
+        Assert.Contains("inte", c.HtmlBody, StringComparison.OrdinalIgnoreCase); // "har ännu inte slutfört"
+    }
+
+    [Fact]
+    public void AdminGuestNotCompleted_StatesGuestAndNewExpiry_AndLink()
+    {
+        var booking = new Booking
+        {
+            ContactName = "Anna",
+            ContactEmail = "anna@test.se",
+            CheckIn = new DateOnly(2026, 7, 25),
+        };
+        var c = BookingEmailTemplates.AdminGuestNotCompleted(booking, "https://admin.akerogarden.se/admin/bokningar/y", new DateTime(2026, 7, 20, 10, 0, 0, DateTimeKind.Utc));
+        Assert.Contains("Anna", c.HtmlBody);
+        Assert.Contains("admin/bokningar/y", c.HtmlBody);
+        Assert.Contains("2026", c.HtmlBody);
+    }
+
+    [Fact]
+    public void PreDeletionWarning_StatesDeletionDate_AndLinksToBooking()
+    {
+        var booking = new Booking
+        {
+            BookingType = BookingType.StayRequest,
+            Status = BookingStatus.Completed,
+            ContactName = "Anna",
+            CheckIn = new DateOnly(2026, 6, 1),
+            CheckOut = new DateOnly(2026, 6, 4),
+        };
+        var c = BookingEmailTemplates.PreDeletionWarning(booking, "https://admin.akerogarden.se/admin/bokningar/x", new DateOnly(2028, 6, 4));
+        Assert.Contains("gallring", c.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("2028", c.HtmlBody); // the deletion date
+        Assert.Contains("admin/bokningar/x", c.HtmlBody);
+    }
+
+    [Fact]
+    public void ThankYou_IsSwedish_GreetsGuest_AndInvitesReturn()
+    {
+        var c = BookingEmailTemplates.ThankYou("Anna");
+        Assert.Contains("Hej Anna", c.HtmlBody);
+        Assert.Contains("Tack", c.HtmlBody);
+        Assert.Contains("välkomna tillbaka", c.HtmlBody);
+    }
+
+    [Fact]
+    public void ThankYou_HtmlEncodesGuestName()
+    {
+        var c = BookingEmailTemplates.ThankYou("<b>Anna</b>");
+        Assert.DoesNotContain("<b>Anna</b>", c.HtmlBody);
+        Assert.Contains("&lt;b&gt;Anna&lt;/b&gt;", c.HtmlBody);
+    }
+
+    [Fact]
     public void GuestSuppliedText_IsHtmlEncoded()
     {
         var c = BookingEmailTemplates.Denial("<script>alert(1)</script>", "reason & more");

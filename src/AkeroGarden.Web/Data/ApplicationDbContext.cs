@@ -94,6 +94,8 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.HasIndex(x => x.BookingType);
             // The retention job (Phase 5) scans due records by DeleteAfter (FR-69/91).
             b.HasIndex(x => x.DeleteAfter);
+            // The 14-day reminder job (Phase 5) scans upcoming stays by CheckIn (FR-63).
+            b.HasIndex(x => x.CheckIn);
 
             // Deleting a booking removes its selection children (retention deletion, Phase 5).
             b.HasMany(x => x.FacilitySelections)

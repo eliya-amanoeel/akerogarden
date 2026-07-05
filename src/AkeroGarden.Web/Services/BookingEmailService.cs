@@ -60,6 +60,61 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToGuestAsync(booking, content);
     }
 
+    /// <summary>Standard 14-day reminder to the guest (FR-64). Requires <see cref="Booking.Participants"/>
+    /// to be loaded for the counts.</summary>
+    public Task SendTwoWeekReminderAsync(Booking booking)
+    {
+        var overnight = booking.Participants.Count(p => p.ParticipantType == ParticipantType.Overnight);
+        var dayGuests = booking.Participants.Count(p => p.ParticipantType == ParticipantType.DayGuest);
+        var meals = booking.Participants.Sum(p => p.MealPreferences.Count);
+        var content = BookingEmailTemplates.TwoWeekReminder(
+            booking.ContactName, overnight, dayGuests, meals, booking.CheckIn, booking.CheckOut, _opts.PropertyAddress);
+        return SendToGuestAsync(booking, content);
+    }
+
+    /// <summary>Completion nudge to a guest who has not yet submitted 14 days before check-in (FR-63).
+    /// Requires the (freshly regenerated) <see cref="Booking.CompletionToken"/>/expiry to be set.</summary>
+    public Task SendCompletionNudgeAsync(Booking booking)
+    {
+        if (string.IsNullOrEmpty(booking.CompletionToken) || booking.CompletionTokenExpiry is null)
+            throw new InvalidOperationException("Påminnelse kräver en genererad slutförandelänk och utgångstid.");
+
+        var content = BookingEmailTemplates.CompletionNudge(
+            booking.ContactName, BuildCompletionUrl(booking.CompletionToken), booking.CompletionTokenExpiry.Value);
+        return SendToGuestAsync(booking, content);
+    }
+
+    /// <summary>Admin alert that a guest has not completed 14 days before check-in (FR-63).
+    /// Requires <see cref="Booking.CompletionTokenExpiry"/> (the new link expiry) to be set.</summary>
+    public Task SendAdminGuestNotCompletedAsync(Booking booking)
+    {
+        if (booking.CompletionTokenExpiry is null)
+            throw new InvalidOperationException("Adminvarning kräver en satt utgångstid för slutförandelänken.");
+
+        var content = BookingEmailTemplates.AdminGuestNotCompleted(
+            booking, BuildAdminBookingUrl(booking.Id), booking.CompletionTokenExpiry.Value);
+        return SendToAdminAsync(content);
+    }
+
+    /// <summary>Admin warning 30 days before a record is auto-deleted (FR-66). Requires
+    /// <see cref="Booking.DeleteAfter"/> to be set.</summary>
+    public Task SendPreDeletionWarningAsync(Booking booking)
+    {
+        if (booking.DeleteAfter is null)
+            throw new InvalidOperationException("Gallringsvarning kräver ett satt raderingsdatum (DeleteAfter).");
+
+        var content = BookingEmailTemplates.PreDeletionWarning(
+            booking, BuildAdminBookingUrl(booking.Id), booking.DeleteAfter.Value);
+        return SendToAdminAsync(content);
+    }
+
+    /// <summary>Standard fixed thank-you email when the admin marks the booking Completed (FR-65).</summary>
+    public Task SendThankYouAsync(Booking booking)
+    {
+        var content = BookingEmailTemplates.ThankYou(booking.ContactName);
+        return SendToGuestAsync(booking, content);
+    }
+
     /// <summary>Cancellation email with the deposit clause resolved per initiator and timing (FR-79).</summary>
     public Task SendCancellationAsync(Booking booking)
     {

@@ -213,6 +213,74 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         Assert.False((await svc.ApproveAsync(id)).Succeeded); // Approved -> Approved not allowed
     }
 
+    /// <summary>Forces a booking to a given status directly (bypassing the guest completion form)
+    /// so the admin lifecycle-end transitions can be exercised in isolation.</summary>
+    private static async Task SetStatusAsync(IServiceProvider provider, Guid id, BookingStatus status)
+    {
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var booking = await db.Bookings.SingleAsync(b => b.Id == id);
+        booking.Status = status;
+        await db.SaveChangesAsync();
+    }
+
+    [Fact]
+    public async Task MarkArrived_FromDetailsComplete_SetsActive_NoEmail_KeepsDeleteAfterNull()
+    {
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider);
+        await SetStatusAsync(provider, id, BookingStatus.DetailsComplete);
+
+        using (var scope = provider.CreateScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<BookingService>().MarkArrivedAsync(id)).Succeeded);
+
+        var booking = await ReloadAsync(provider, id);
+        Assert.Equal(BookingStatus.Active, booking.Status);
+        Assert.Null(booking.DeleteAfter); // Active is a live state (FR-91)
+        Assert.Empty(email.Sent); // no guest email on "arrived"
+    }
+
+    [Fact]
+    public async Task MarkCompleted_FromActive_SetsCompleted_SetsRetention_AndSendsThankYou()
+    {
+        var provider = NewProvider(out var email);
+        var checkOut = new DateOnly(2026, 12, 4);
+        var id = await CreatePendingStayAsync(provider, checkIn: checkOut.AddDays(-3));
+        await SetStatusAsync(provider, id, BookingStatus.Active);
+
+        using (var scope = provider.CreateScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<BookingService>().MarkCompletedAsync(id)).Succeeded);
+
+        var booking = await ReloadAsync(provider, id);
+        Assert.Equal(BookingStatus.Completed, booking.Status);
+        Assert.Equal(checkOut.AddYears(2), booking.DeleteAfter); // FR-91: check-out + 2 years
+        Assert.Contains(email.Sent, e => e.Subject.Contains("Tack för ditt besök"));
+    }
+
+    [Fact]
+    public async Task MarkCompleted_FromDetailsComplete_IsBlocked_ByStateMachine()
+    {
+        var provider = NewProvider(out _);
+        var id = await CreatePendingStayAsync(provider);
+        await SetStatusAsync(provider, id, BookingStatus.DetailsComplete);
+
+        using var scope = provider.CreateScope();
+        // §2.5: Completed is only reachable from Active, not directly from DetailsComplete.
+        Assert.False((await scope.ServiceProvider.GetRequiredService<BookingService>().MarkCompletedAsync(id)).Succeeded);
+    }
+
+    [Fact]
+    public async Task MarkArrived_FromApproved_IsBlocked_ByStateMachine()
+    {
+        var provider = NewProvider(out _);
+        var id = await CreatePendingStayAsync(provider);
+        await SetStatusAsync(provider, id, BookingStatus.Approved);
+
+        using var scope = provider.CreateScope();
+        // §2.5: Active is only reachable from DetailsComplete.
+        Assert.False((await scope.ServiceProvider.GetRequiredService<BookingService>().MarkArrivedAsync(id)).Succeeded);
+    }
+
     [Fact]
     public async Task RegenerateLink_ReplacesToken_AndRequiresApproved()
     {

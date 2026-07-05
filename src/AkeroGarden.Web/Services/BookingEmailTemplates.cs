@@ -117,6 +117,17 @@ public static class BookingEmailTemplates
         return new EmailContent("Din bokning är godkänd – slutför dina uppgifter", body.ToString());
     }
 
+    /// <summary>Thank-you email sent when the admin marks the booking <c>Completed</c> (§9, FR-65).
+    /// Fixed text — not customisable per booking.</summary>
+    public static EmailContent ThankYou(string contactName)
+    {
+        var body = new StringBuilder();
+        body.Append(Greeting(contactName));
+        body.Append("<p>Tack för att ni valde Åkerögården! Vi hoppas att ni hade en trevlig vistelse hos oss.</p>");
+        body.Append("<p>Ni är varmt välkomna tillbaka. Hör gärna av er om ni vill boka ett nytt besök.</p>");
+        return new EmailContent("Tack för ditt besök hos Åkerögården", body.ToString());
+    }
+
     /// <summary>Cancellation email — deposit clause conditional on initiator and timing (§9, FR-79).</summary>
     public static EmailContent Cancellation(
         string contactName,

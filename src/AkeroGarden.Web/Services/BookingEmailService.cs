@@ -60,6 +60,13 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToGuestAsync(booking, content);
     }
 
+    /// <summary>Standard fixed thank-you email when the admin marks the booking Completed (FR-65).</summary>
+    public Task SendThankYouAsync(Booking booking)
+    {
+        var content = BookingEmailTemplates.ThankYou(booking.ContactName);
+        return SendToGuestAsync(booking, content);
+    }
+
     /// <summary>Cancellation email with the deposit clause resolved per initiator and timing (FR-79).</summary>
     public Task SendCancellationAsync(Booking booking)
     {

@@ -247,6 +247,16 @@ else
         <button class="btn-ghost" @onclick="Regenerate">Återutfärda och skicka länk på nytt</button>
     }
 
+    @if (_booking.Status == BookingStatus.DetailsComplete)
+    {
+        <button class="btn" @onclick="MarkArrived">Markera anländ</button>
+    }
+
+    @if (_booking.Status == BookingStatus.Active)
+    {
+        <button class="btn" @onclick="MarkCompleted">Markera avslutad</button>
+    }
+
     @if (CanCancel)
     {
         <div class="action-panel">
@@ -442,6 +452,20 @@ else
     {
         var result = await BookingService.RegenerateCompletionLinkAsync(Id);
         _message = result.Succeeded ? "En ny slutförandelänk är skickad till gästen." : result.Error;
+        await Load();
+    }
+
+    private async Task MarkArrived()
+    {
+        var result = await BookingService.MarkArrivedAsync(Id);
+        _message = result.Succeeded ? "Bokningen är markerad som anländ." : result.Error;
+        await Load();
+    }
+
+    private async Task MarkCompleted()
+    {
+        var result = await BookingService.MarkCompletedAsync(Id);
+        _message = result.Succeeded ? "Bokningen är markerad som avslutad och ett tackmejl har skickats till gästen." : result.Error;
         await Load();
     }
 

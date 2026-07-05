@@ -111,6 +111,23 @@ public class BookingEmailTemplatesTests
     }
 
     [Fact]
+    public void ThankYou_IsSwedish_GreetsGuest_AndInvitesReturn()
+    {
+        var c = BookingEmailTemplates.ThankYou("Anna");
+        Assert.Contains("Hej Anna", c.HtmlBody);
+        Assert.Contains("Tack", c.HtmlBody);
+        Assert.Contains("välkomna tillbaka", c.HtmlBody);
+    }
+
+    [Fact]
+    public void ThankYou_HtmlEncodesGuestName()
+    {
+        var c = BookingEmailTemplates.ThankYou("<b>Anna</b>");
+        Assert.DoesNotContain("<b>Anna</b>", c.HtmlBody);
+        Assert.Contains("&lt;b&gt;Anna&lt;/b&gt;", c.HtmlBody);
+    }
+
+    [Fact]
     public void GuestSuppliedText_IsHtmlEncoded()
     {
         var c = BookingEmailTemplates.Denial("<script>alert(1)</script>", "reason & more");

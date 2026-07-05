@@ -1084,6 +1084,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 - Dedicated GDPR contact address (dataskydd@akerogarden.se)
 - Role-based admin permissions (multiple admin accounts are supported in v1 — role differentiation and per-admin access control are deferred)
 - Room-based pricing model
+- **External scheduler for the daily jobs** — evaluate replacing the in-process hosted `BackgroundService` + Always On (v1 mechanism for the reminder/retention jobs) with an external Azure scheduler (Azure Functions timer trigger, or a Logic App calling a protected trigger endpoint). Benefits to assess: survives app idle without Always On, decouples scheduling from the web process, and scales cleanly to multiple instances (the in-process loop assumes a single B1 instance). Costs to weigh: a new Azure resource, its own deploy/secret story, and a callable trigger surface. Not required for v1's volume; captured for a future study.
 
 ---
 

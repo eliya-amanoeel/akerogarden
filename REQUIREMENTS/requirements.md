@@ -891,6 +891,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | `UpdatedAt` | datetime | Auto |
 | `DeleteAfter` | date | Computed per FR-91 — value depends on the booking's terminal/pending state; null for live in-progress states |
 | `DeletionWarningEmailSentAt` | datetime? | Set when the 30-day pre-deletion warning email is sent; prevents the daily background job from sending duplicate warnings |
+| `ReminderEmailSentAt` | datetime? | Set when the automated 14-days-before-check-in reminder (standard reminder, or completion nudge if still `Approved`) is sent; ensures the daily background job fires it exactly once (FR-63) |
 
 ### 8.2 Building
 

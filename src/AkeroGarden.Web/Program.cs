@@ -93,6 +93,7 @@ builder.Services.AddScoped<RoomAvailabilityService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<JobOptions>(builder.Configuration.GetSection("Jobs"));
 builder.Services.AddScoped<IScheduledJob, RetentionJob>();
+builder.Services.AddScoped<IScheduledJob, ReminderJob>();
 builder.Services.AddHostedService<DailyJobRunner>();
 
 // ── Reference data services (Phase 1) ─────────────────────────────────────────

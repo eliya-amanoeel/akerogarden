@@ -437,14 +437,28 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         if (booking.CheckIn is null)
             return SaveResult.Fail("Bokningen saknar incheckningsdatum.");
 
-        var now = DateTime.UtcNow;
-        booking.CompletionToken = CompletionTokenPolicy.GenerateToken();
-        booking.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(now, booking.CheckIn.Value);
-        booking.UpdatedAt = now;
+        RegenerateCompletionToken(booking);
         await db.SaveChangesAsync();
 
         await emails.SendApprovalAsync(booking);
         return SaveResult.Success;
+    }
+
+    /// <summary>
+    /// Generates a fresh completion token + expiry on the booking (§2.6), invalidating any previous
+    /// link, without saving or sending mail — the shared core used both by
+    /// <see cref="RegenerateCompletionLinkAsync"/> (admin resend, approval email) and by the 14-day
+    /// reminder job's still-<c>Approved</c> nudge (FR-63). Caller persists and sends the appropriate mail.
+    /// </summary>
+    public void RegenerateCompletionToken(Booking booking)
+    {
+        if (booking.CheckIn is null)
+            throw new InvalidOperationException("Slutförandelänk kräver ett incheckningsdatum.");
+
+        var now = DateTime.UtcNow;
+        booking.CompletionToken = CompletionTokenPolicy.GenerateToken();
+        booking.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(now, booking.CheckIn.Value);
+        booking.UpdatedAt = now;
     }
 
     /// <summary>Sets a booking's internal admin notes (FR-39).</summary>

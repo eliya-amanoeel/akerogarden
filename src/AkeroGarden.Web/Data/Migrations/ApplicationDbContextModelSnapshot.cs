@@ -238,6 +238,9 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<int?>("OvernightGuestCount")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("ReminderEmailSentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -249,6 +252,8 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BookingType");
+
+                    b.HasIndex("CheckIn");
 
                     b.HasIndex("DeleteAfter");
 

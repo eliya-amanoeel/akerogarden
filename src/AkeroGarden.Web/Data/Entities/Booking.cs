@@ -128,4 +128,8 @@ public class Booking
     /// <summary>Set when the 30-day pre-deletion warning is sent, so the daily job does not
     /// re-send it (FR-66).</summary>
     public DateTime? DeletionWarningEmailSentAt { get; set; }
+
+    /// <summary>Set when the automated 14-days-before-check-in reminder (the standard reminder, or
+    /// the completion nudge if still Approved) is sent, so the daily job fires it exactly once (FR-63).</summary>
+    public DateTime? ReminderEmailSentAt { get; set; }
 }

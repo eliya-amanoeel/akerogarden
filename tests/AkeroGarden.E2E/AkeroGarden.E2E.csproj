@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="coverlet.collector" Version="6.0.4" />
+    <PackageReference Include="GitHubActionsTestLogger" Version="3.0.4" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="Microsoft.Playwright" Version="*" />
+    <PackageReference Include="Deque.AxeCore.Playwright" Version="*" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="*" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <!-- Referenced so the Web app is built with the solution (and so seeding helpers can use its
+       DbContext/services directly in later slices). The app itself is launched out-of-process
+       against a real Kestrel port — see E2EFixture. -->
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\AkeroGarden.Web\AkeroGarden.Web.csproj" />
+  </ItemGroup>
+
+</Project>

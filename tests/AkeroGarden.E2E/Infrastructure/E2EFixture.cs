@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using AkeroGarden.Web.Data;
 using AkeroGarden.Web.Data.Entities;
+using AkeroGarden.Web.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Testcontainers.PostgreSql;
@@ -64,8 +65,12 @@ public sealed class E2EFixture : IAsyncLifetime
         await _db.DisposeAsync();
     }
 
-    // The app boots with an empty DB (only an admin user is seeded). The availability calendar
-    // needs bedroom capacity or every day reads as fully booked — so seed one building with beds.
+    /// <summary>A known, unexpired completion token seeded for the /slutfor E2E test.</summary>
+    public const string CompletionToken = "e2e-completion-token-abc123";
+
+    // The app boots with an empty DB (only an admin user is seeded). Seed the minimum the public
+    // journeys need: bedroom capacity (else every calendar day reads fully booked), a couple of
+    // meal options, and one Approved booking with a valid completion token for /slutfor.
     private async Task SeedReferenceDataAsync()
     {
         var options = new DbContextOptionsBuilder<ApplicationDbContext>()
@@ -78,6 +83,31 @@ public sealed class E2EFixture : IAsyncLifetime
         var building = new Building { Id = Guid.NewGuid(), Name = "Huvudbyggnaden", IsActive = true };
         building.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = building.Id, Name = "Sovsal", BedCount = 40, IsActive = true });
         ctx.Buildings.Add(building);
+
+        ctx.MealOptions.AddRange(
+            new MealOption { Id = Guid.NewGuid(), Name = "Rotfruktssoppa", MealType = MealType.Lunch, IsActive = true },
+            new MealOption { Id = Guid.NewGuid(), Name = "Kycklinggryta", MealType = MealType.Dinner, IsActive = true });
+
+        var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30);
+        ctx.Bookings.Add(new Booking
+        {
+            Id = Guid.NewGuid(),
+            BookingType = BookingType.StayRequest,
+            Status = BookingStatus.Approved,
+            ContactName = "Anna Andersson",
+            ContactEmail = "anna@example.se",
+            CheckIn = checkIn,
+            CheckOut = checkIn.AddDays(2),
+            OvernightGuestCount = 2,
+            MealPlan = MealPlan.FullBoardAll,
+            CompletionToken = CompletionToken,
+            CompletionTokenExpiry = DateTime.UtcNow.AddDays(14),
+            GuestChoosesRooms = false,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),
+        });
+
         await ctx.SaveChangesAsync();
     }
 

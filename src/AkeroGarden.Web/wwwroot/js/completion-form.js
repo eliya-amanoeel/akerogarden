@@ -62,4 +62,22 @@
             });
         });
     });
+
+    // Live progress: how many overnight participants have a name filled in (presentation only;
+    // hidden without JS so it never shows a misleading "0 av N").
+    var progress = document.querySelector("[data-progress]");
+    if (progress) {
+        var names = document.querySelectorAll("input[data-progress-name]");
+        var bar = progress.querySelector("[data-progress-bar]");
+        var text = progress.querySelector("[data-progress-text]");
+        function updateProgress() {
+            var total = names.length, filled = 0;
+            names.forEach(function (n) { if (n.value.trim() !== "") filled++; });
+            if (bar) bar.style.width = (total ? Math.round(filled / total * 100) : 0) + "%";
+            if (text) text.textContent = filled + " av " + total + " ifyllda";
+        }
+        names.forEach(function (n) { n.addEventListener("input", updateProgress); });
+        progress.hidden = false;
+        updateProgress();
+    }
 })();

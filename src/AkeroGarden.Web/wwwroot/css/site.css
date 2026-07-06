@@ -646,6 +646,94 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 .tack p { color: var(--color-text); font-size: 1.0625rem; margin: 0 0 1.6rem; }
 
 /* ============================================================
+   Guest completion form (/slutfor) — Phase 6 slice 5
+   ============================================================ */
+/* Reusable compact input (completion meal selects live outside .form-group) */
+.inp {
+    width: 100%;
+    padding: 0.6rem 0.7rem;
+    border: 1.5px solid #cfc9bd;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    color: var(--color-heading);
+    background: #fff;
+    transition: border-color var(--transition), box-shadow var(--transition);
+}
+.inp:focus { outline: none; border-color: var(--color-primary-ink); box-shadow: 0 0 0 3px rgba(63, 106, 15, 0.18); }
+select.inp {
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%234a4845' stroke-width='1.6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.6rem center;
+    padding-right: 1.9rem;
+}
+
+/* Booking summary strip */
+.booking-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    background: #fff;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    margin: 1.4rem 0 0.5rem;
+}
+.booking-summary > div { padding: 0.9rem 1.25rem; flex: 1; min-width: 9rem; }
+.booking-summary > div + div { border-left: 1px solid var(--color-line); }
+.booking-summary dt { font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); font-weight: 700; margin: 0; }
+.booking-summary dd { margin: 0.25rem 0 0; font-family: var(--font-heading); font-size: 1.15rem; color: var(--color-heading); }
+
+/* Live progress (hidden until JS reveals it) */
+.completion-progress { display: flex; align-items: center; gap: 0.65rem; font-size: 0.85rem; color: var(--color-muted); margin: 1.5rem 0 0.5rem; }
+.completion-progress[hidden] { display: none; }
+.completion-progress .bar { flex: 1; height: 6px; border-radius: 3px; background: var(--color-bg-warm); overflow: hidden; }
+.completion-progress .bar i { display: block; height: 100%; width: 0; background: var(--color-primary); transition: width var(--transition); }
+
+/* Participant / day-guest card */
+.pcard { border: 1px solid var(--color-line); border-radius: var(--radius-card); margin: 0 0 1.15rem; overflow: hidden; background: #fff; }
+.pcard__head { display: flex; align-items: center; gap: 0.75rem; padding: 0.85rem 1.25rem; background: var(--color-bg-warm); border-bottom: 1px solid var(--color-line); }
+.pcard__badge { width: 1.9rem; height: 1.9rem; border-radius: 50%; background: var(--color-primary); color: var(--color-heading); font-family: var(--font-body); font-weight: 700; font-size: 0.85rem; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.pcard__badge--day { background: var(--color-secondary); color: #fff; font-size: 0.72rem; }
+.pcard__title { font-family: var(--font-heading); font-weight: 700; font-size: 1.05rem; color: var(--color-heading); }
+.pcard__body { padding: 1.25rem; }
+.pcard__actions { display: flex; justify-content: flex-end; padding: 0 1.25rem 1rem; }
+
+/* Full-board / organisation toggle row */
+.fbrow { display: flex; align-items: center; gap: 0.65rem; padding: 0.75rem 0.9rem; background: var(--color-bg); border: 1px solid var(--color-line); border-radius: var(--radius-card); margin: 0.25rem 0 1rem; }
+.fbrow input { accent-color: var(--color-primary); width: 1.15rem; height: 1.15rem; flex: none; }
+.fbrow label { font-weight: 700; font-size: 0.92rem; color: var(--color-heading); margin: 0; }
+
+/* Meals block */
+.field-label { display: block; font-weight: 700; font-size: 0.85rem; color: var(--color-heading); margin-bottom: 0.4rem; }
+.meals { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; margin: 0.4rem 0 1rem; }
+.meals__title { font-family: var(--font-heading); font-size: 1rem; font-weight: 700; color: var(--color-heading); margin: 0; padding: 0.8rem 1rem; border-bottom: 1px solid var(--color-line); }
+.meals__same { background: rgba(113, 176, 2, 0.08); border-bottom: 1px solid var(--color-line); padding: 0.9rem 1rem; }
+.meals__same .same-hint { font-size: 0.8rem; color: var(--color-muted); margin: 0 0 0.65rem; }
+.meals__same-grid, .day__meals { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
+@media (min-width: 480px) { .meals__same-grid, .day__meals { grid-template-columns: 1fr 1fr; } }
+.meals__same label, .day__meals label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); margin-bottom: 0.3rem; }
+.day { padding: 0.85rem 1rem; border-bottom: 1px solid var(--color-line); }
+.day:last-child { border-bottom: 0; }
+.day__date { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-primary-ink); margin: 0 0 0.65rem; }
+
+/* Dietary chips (:has drives the checked look — no JS) */
+.diet { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.diet label { display: inline-flex; align-items: center; gap: 0.45rem; border: 1.5px solid var(--color-line); border-radius: 20px; padding: 0.35rem 0.8rem; font-size: 0.85rem; color: var(--color-text); cursor: pointer; }
+.diet label:has(input:checked) { border-color: var(--color-primary); background: rgba(113, 176, 2, 0.08); color: var(--color-heading); }
+.diet input { accent-color: var(--color-primary); }
+
+/* Submit bar (kept in flow at the end — a sticky bar would float over a long form's fields) */
+.completion-submit { border-top: 1px solid var(--color-line); padding: 1.25rem 0 0; margin-top: 1.5rem; display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
+.completion-submit .hint { font-size: 0.8rem; color: var(--color-muted); }
+
+/* Access-state badge (reuses .utility from the trust pages) */
+.utility__badge { width: 3.75rem; height: 3.75rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 1.75rem; margin-bottom: 0.4rem; }
+.utility__badge--ok { background: rgba(113, 176, 2, 0.16); color: #37600d; }
+.utility__badge--warn { background: rgba(214, 158, 46, 0.18); color: #6f4900; }
+
+/* ============================================================
    Admin shell
    ============================================================ */
 .admin-shell {

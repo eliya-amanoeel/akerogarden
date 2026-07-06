@@ -69,9 +69,10 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 
 ## Testing
 
-Write tests **with** each feature, not after (NFR-26–28):
-- Unit tests: business logic (pricing tiers, retention dates, token expiry, meal/participant validation)
-- Integration tests: every API endpoint, against real ephemeral containers in CI (no mocking the database)
+Write tests **with** each feature, not after (NFR-26–28). Three tiers:
+- **Unit tests:** business logic (pricing tiers, retention dates, token expiry, meal/participant validation)
+- **Integration tests:** every API endpoint, against real ephemeral containers in CI (no mocking the database)
+- **End-to-end / UI tests:** Playwright for .NET (`Microsoft.Playwright`), introduced in Phase 6 (`tests/AkeroGarden.E2E`). Cover key browser journeys (esp. the booking funnel), accessibility (axe-core), and responsive reachability at 360/768/1280. **No pixel/visual-regression screenshot diffing** — flaky across macOS↔CI-Linux font rendering; assert behaviour and structure instead.
 
 ## Implementation phases
 

@@ -2,20 +2,45 @@
    Design tokens
    ============================================================ */
 :root {
-    --color-primary:        #71b002;
-    --color-primary-hover:  #5e9600;
-    --color-secondary:      #865628;
-    --color-text:           #4a4845;
-    --color-heading:        #1e1c1a;
-    --color-bg:             #faf8f4;
-    --color-bg-warm:        #f0ebe1;
-    --color-footer-bg:      #1a1714;
+    /* Brand green: bright fill vs. AA-safe text.
+       #71b002 as a *fill* (with dark ink text) passes AA; as *text* on a light
+       background it fails (2.65:1), so links/labels use the deepened --color-primary-ink. */
+    --color-primary:        #71b002;   /* fills, accent rules, marks (with dark text) */
+    --color-primary-hover:  #5e9600;   /* primary fill hover */
+    --color-primary-ink:    #3f6a0f;   /* green as TEXT / links — AA on BOTH light grounds
+                                          (5.6:1 on --color-bg, 5.1:1 on --color-bg-warm) */
+    --color-secondary:      #865628;   /* warm brown */
+    --color-text:           #4a4845;   /* body copy */
+    --color-muted:          #6f6a60;   /* hints, captions — AA (5.0:1) */
+    --color-heading:        #1e1c1a;   /* headings, primary-button text */
+    --color-bg:             #faf8f4;   /* page background (warm off-white) */
+    --color-bg-warm:        #f0ebe1;   /* section tint */
+    --color-footer-bg:      #1a1714;   /* dark footer */
+    --color-line:           rgba(30, 28, 26, 0.12); /* hairline borders */
+
+    /* Semantic (alerts, validation, status) */
+    --color-ok:    #3f6a0f;  --color-ok-bg:   rgba(113, 176, 2, 0.12);
+    --color-warn:  #8a5a00;  --color-warn-bg: rgba(214, 158, 46, 0.16);
+    --color-err:   #b3341a;  --color-err-bg:  rgba(179, 52, 26, 0.09);
+    --color-info:  #6f4a1f;  --color-info-bg: rgba(134, 86, 40, 0.10);
 
     --font-body:    'Roboto', sans-serif;
     --font-heading: 'Playfair Display', Georgia, serif;
 
+    /* Shape & motion */
+    --radius-sm:    2px;   /* buttons, inputs — editorial = sharp */
+    --radius-card:  3px;
+    --radius-modal: 6px;
+    --transition:   160ms ease;
+
     --max-width:  1200px;
     --header-h:   72px;
+}
+
+/* Honour reduced-motion for all transitions/animations below. */
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+    html { scroll-behavior: auto; }
 }
 
 /* ============================================================
@@ -72,8 +97,11 @@ h1, h2, h3, h4, h5, h6 {
     line-height: 1.2;
 }
 
-a { color: var(--color-primary); text-decoration: none; }
-a:hover { color: var(--color-primary-hover); }
+/* Link reset via :where() (zero specificity) so component classes (.btn, .nav, footer,
+   calendar cells) always win their own colour without a specificity fight. Green as *text*
+   uses the AA-safe --color-primary-ink, not the bright fill green. */
+:where(a) { color: var(--color-primary-ink); text-decoration: none; }
+:where(a:hover) { color: var(--color-primary-hover); }
 
 img { max-width: 100%; height: auto; display: block; }
 
@@ -107,84 +135,91 @@ img { max-width: 100%; height: auto; display: block; }
    Buttons
    ============================================================ */
 .btn, .btn-outline, .btn-ghost {
-    display: inline-block;
-    padding: 0.75rem 1.5rem;
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.8rem 1.6rem;
+    border-radius: var(--radius-sm);
     font-family: var(--font-body);
     font-weight: 700;
     font-size: 0.95rem;
     cursor: pointer;
-    transition: background-color 0.15s, color 0.15s, border-color 0.15s;
-    border: 2px solid transparent;
+    transition: background-color var(--transition), color var(--transition), border-color var(--transition);
+    border: 1.5px solid transparent;
     text-align: center;
 }
 
+/* Primary: bright brand-green FILL with dark ink text (6.5:1 — AA). White-on-green fails
+   contrast and must never be used. */
 .btn {
     background-color: var(--color-primary);
-    color: #fff;
+    color: var(--color-heading);
     border-color: var(--color-primary);
 }
 .btn:hover {
     background-color: var(--color-primary-hover);
     border-color: var(--color-primary-hover);
-    color: #fff;
+    color: var(--color-heading);
+}
+.btn:disabled, .btn[aria-disabled="true"] {
+    opacity: 0.4;
+    cursor: not-allowed;
 }
 
 .btn-outline {
     background-color: transparent;
-    color: var(--color-primary);
-    border-color: var(--color-primary);
+    color: var(--color-heading);
+    border-color: var(--color-heading);
 }
 .btn-outline:hover {
-    background-color: var(--color-primary);
+    background-color: var(--color-heading);
     color: #fff;
 }
 
+/* Ghost: plain text button in AA-safe green. (The hero/CTA underline treatment is scoped
+   to those sections so admin/calendar ghost buttons stay plain.) */
 .btn-ghost {
     background-color: transparent;
-    color: var(--color-primary);
+    color: var(--color-primary-ink);
     border-color: transparent;
 }
 .btn-ghost:hover {
     color: var(--color-primary-hover);
 }
 
-/* ============================================================
-   Header — public site
-   Transparent over hero, solid on scroll (JS adds .scrolled)
-   ============================================================ */
-.site-header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: var(--header-h);
-    z-index: 100;
-    background-color: transparent;
-    transition: background-color 0.2s;
+/* Visible keyboard focus on all interactive elements (NFR-21). */
+a:focus-visible, button:focus-visible,
+.btn:focus-visible, .btn-outline:focus-visible, .btn-ghost:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 2px solid var(--color-primary-ink);
+    outline-offset: 3px;
 }
 
-.site-header.scrolled {
+/* ============================================================
+   Header — solid sticky bar (direction A "Editorial lugn")
+   Always solid on the off-white ground; the dark-stroke logo is
+   always shown, so the old transparent/scroll/logo-swap logic is
+   retired. Mobile nav is a CSS-only checkbox toggle (no JS — works
+   under Static SSR).
+   ============================================================ */
+.site-header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
     background-color: var(--color-bg);
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    border-bottom: 1px solid var(--color-line);
 }
 
 .site-header .container {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 100%;
+    height: var(--header-h);
 }
 
 .site-header__logo { display: flex; align-items: center; }
 .site-header__logo .logo { height: 40px; width: auto; }
-
-/* Logo variant switching: dark logo on transparent header, light logo on scrolled */
-.site-header .logo-light { display: none; }
-.site-header.scrolled .logo-dark { display: none; }
-.site-header.scrolled .logo-light { display: inline-flex; }
-
-/* --- Mobile-first nav: CSS-only hamburger (no JS; works under Static SSR) --- */
 
 /* The toggle checkbox is kept off-screen but operable (keyboard-focusable). */
 .site-header__toggle {
@@ -209,17 +244,16 @@ img { max-width: 100%; height: auto; display: block; }
 .site-header__burger span {
     display: block;
     height: 2px;
-    background-color: #fff;
+    background-color: var(--color-heading);
     border-radius: 2px;
 }
 
-/* Burger bars must stay visible over a light header (scrolled or non-hero page). */
-.site-header.scrolled .site-header__burger span,
-body:not(:has(.hero)) .site-header__burger span {
-    background-color: var(--color-heading);
+.site-header__toggle:focus-visible ~ .site-header__burger {
+    outline: 2px solid var(--color-primary-ink);
+    outline-offset: 2px;
 }
 
-/* Collapsed by default; opens as a dropdown panel below the fixed header. */
+/* Collapsed by default; opens as a dropdown panel below the sticky header. */
 .site-header__nav {
     display: none;
     position: absolute;
@@ -228,26 +262,26 @@ body:not(:has(.hero)) .site-header__burger span {
     right: 0;
     flex-direction: column;
     gap: 0;
-    padding: 0.5rem 1rem 1rem;
+    padding: 0.5rem 1.5rem 1.25rem;
     background-color: var(--color-bg);
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+    border-bottom: 1px solid var(--color-line);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.06);
 }
 
 .site-header__toggle:checked ~ .site-header__nav {
     display: flex;
 }
 
-/* Dropdown sits on a light background, so links are always dark on mobile. */
 .site-header__nav a {
     color: var(--color-heading);
     font-weight: 500;
-    padding: 0.6rem 0;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid var(--color-line);
 }
+.site-header__nav a:hover { color: var(--color-primary-ink); }
 
-.site-header__nav .btn {
-    color: #fff;
-    margin-top: 0.5rem;
-    text-align: center;
+.site-header__nav .btn-outline {
+    margin-top: 0.85rem;
 }
 
 /* --- Desktop: inline horizontal nav, no hamburger --- */
@@ -258,82 +292,248 @@ body:not(:has(.hero)) .site-header__burger span {
         display: flex;
         position: static;
         flex-direction: row;
-        gap: 1.5rem;
+        gap: 1.75rem;
         align-items: center;
         padding: 0;
         background-color: transparent;
+        border-bottom: none;
         box-shadow: none;
     }
 
     .site-header__nav a {
-        color: #fff;
         padding: 0;
+        border-bottom: none;
+        font-weight: 400;
     }
 
-    .site-header.scrolled .site-header__nav a {
-        color: var(--color-heading);
-    }
-
-    .site-header__nav .btn {
-        color: #fff;
+    .site-header__nav .btn-outline {
         margin-top: 0;
+        margin-left: 0.5rem;
     }
 }
 
 /* ============================================================
-   Hero
+   Home page (direction A "Editorial lugn")
    ============================================================ */
-.hero {
-    position: relative;
-    min-height: 100vh;
-    display: flex;
-    align-items: center;
-    background-color: var(--color-heading);
-    color: #fff;
-    padding-top: var(--header-h);
-}
 
-.hero .container { position: relative; z-index: 1; }
-
-.hero h1 {
-    font-size: clamp(2rem, 5vw, 3.5rem);
-    color: #fff;
+/* Eyebrow / kicker label — reusable */
+.eyebrow {
+    display: block;
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-primary-ink);
     margin-bottom: 1rem;
 }
 
-.hero p {
-    font-size: 1.2rem;
-    margin-bottom: 2rem;
-    opacity: 0.9;
+/* Photo placeholder caption (real photos swapped at go-live) */
+.photo-tag {
+    position: absolute;
+    bottom: 0.6rem;
+    right: 0.75rem;
+    z-index: 2;
+    font-size: 0.68rem;
+    letter-spacing: 0.03em;
+    padding: 0.2rem 0.6rem;
+    border-radius: 1rem;
+    /* Near-opaque so white text passes AA even where axe composites the chip over the
+       light page background (it can't read the gradient beneath). */
+    background: rgba(26, 23, 20, 0.9);
+    color: #fff;
 }
+
+/* --- Hero: split text + photo --- */
+.hero { background-color: var(--color-bg); }
+
+.hero__grid { display: grid; grid-template-columns: 1fr; }
+
+.hero__photo {
+    position: relative;
+    min-height: 15rem;
+    order: -1; /* photo above text on mobile */
+    background: linear-gradient(180deg, #cdd7d0 0%, #bcc7bd 32%, #9fae95 58%, #7e8f6a 82%, #6d7f5a 100%);
+}
+.hero__photo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 70% at 72% 18%, rgba(255, 255, 255, 0.5), rgba(255, 255, 255, 0) 55%);
+}
+
+.hero__text { padding: 3rem 1rem 2.5rem; }
+
+.hero h1 {
+    font-weight: 400;
+    font-size: clamp(2.25rem, 5vw, 3.5rem);
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+    color: var(--color-heading);
+    margin: 0;
+}
+
+.hero__rule { width: 3.5rem; height: 2px; background: var(--color-primary); margin: 1.5rem 0; }
+
+.hero__sub { font-size: 1.125rem; color: var(--color-text); margin: 0 0 2rem; max-width: 44ch; }
+
+.hero__cta { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; }
+
+@media (min-width: 480px) {
+    .hero__text { padding-left: 1.5rem; padding-right: 1.5rem; }
+}
+@media (min-width: 1024px) {
+    .hero__grid { grid-template-columns: 1fr 1fr; align-items: stretch; }
+    .hero__photo { order: 0; min-height: 34rem; }
+    .hero__text { align-self: center; padding: 5rem 3rem; }
+    .hero__text-inner { max-width: 37rem; margin-left: auto; }
+}
+
+/* Secondary CTA underline treatment — scoped to hero + closing band only */
+.hero__cta .btn-ghost,
+.cta-band__actions .btn-ghost {
+    color: var(--color-heading);
+    border-bottom: 1.5px solid var(--color-heading);
+    border-radius: 0;
+    padding-left: 0.25rem;
+    padding-right: 0.25rem;
+}
+.hero__cta .btn-ghost:hover,
+.cta-band__actions .btn-ghost:hover {
+    color: var(--color-primary-ink);
+    border-color: var(--color-primary-ink);
+}
+
+/* --- Trust strip --- */
+.trust-strip {
+    background: var(--color-bg-warm);
+    border-top: 1px solid var(--color-line);
+    border-bottom: 1px solid var(--color-line);
+}
+.trust-strip__grid { display: grid; grid-template-columns: repeat(2, 1fr); }
+.trust-strip__item { padding: 1.25rem 1rem; }
+.trust-strip__item + .trust-strip__item { border-left: 1px solid var(--color-line); }
+.trust-strip__item:nth-child(3) { border-left: none; }
+.trust-strip__num { font-family: var(--font-heading); font-size: 1.4rem; color: var(--color-heading); line-height: 1; }
+.trust-strip__label { font-size: 0.8rem; color: var(--color-text); margin-top: 0.35rem; }
+@media (min-width: 1024px) {
+    .trust-strip__grid { grid-template-columns: repeat(4, 1fr); }
+    .trust-strip__item { padding: 1.5rem 2rem; }
+    .trust-strip__item:nth-child(3) { border-left: 1px solid var(--color-line); }
+}
+
+/* --- Section heading block --- */
+.section--warm { background: var(--color-bg-warm); }
+.section__head { max-width: 60ch; margin-bottom: 2.5rem; }
+.section__head h2 {
+    font-weight: 400;
+    font-size: clamp(1.75rem, 3.6vw, 2.5rem);
+    line-height: 1.1;
+    letter-spacing: -0.01em;
+    margin: 0;
+}
+.section__head p { font-size: 1.0625rem; color: var(--color-text); margin: 1rem 0 0; }
+
+/* --- "Vad ni kan göra här" cards --- */
+.usecards { display: grid; grid-template-columns: 1fr; gap: 1.75rem; }
+.usecard { border-top: 2px solid var(--color-primary); padding-top: 1.35rem; }
+.usecard h3 { font-weight: 700; font-size: 1.35rem; margin: 0 0 0.6rem; }
+.usecard p { margin: 0; color: var(--color-text); }
+@media (min-width: 768px) { .usecards { grid-template-columns: repeat(3, 1fr); } }
+
+/* --- Facilities teaser (asymmetric) --- */
+.teaser { display: grid; grid-template-columns: 1fr; gap: 1.75rem; align-items: center; }
+.teaser__photo {
+    position: relative;
+    min-height: 15rem;
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    background: linear-gradient(160deg, #d3d9cf 0%, #b3bfa4 45%, #8a9a72 100%);
+}
+.teaser__photo::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(80% 60% at 30% 20%, rgba(255, 255, 255, 0.4), rgba(0, 0, 0, 0) 60%);
+}
+.teaser h2 { font-weight: 400; font-size: clamp(1.75rem, 3.4vw, 2.375rem); line-height: 1.1; margin: 0 0 1rem; }
+.teaser p { font-size: 1.0625rem; color: var(--color-text); margin: 0 0 1.5rem; max-width: 46ch; }
+.link-arrow { color: var(--color-primary-ink); font-weight: 700; border-bottom: 1.5px solid transparent; }
+.link-arrow:hover { border-color: var(--color-primary-ink); }
+@media (min-width: 1024px) {
+    .teaser { grid-template-columns: 0.9fr 1.1fr; gap: 3.5rem; }
+    .teaser__photo { min-height: 24rem; }
+}
+
+/* --- "Så går det till" — genuine 3-step sequence (numbers carry order) --- */
+.steps { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+.step__n { font-family: var(--font-heading); font-size: 0.95rem; font-weight: 700; color: var(--color-primary-ink); letter-spacing: 0.1em; }
+.step h3 { font-weight: 700; font-size: 1.25rem; margin: 0.75rem 0 0.5rem; }
+.step p { margin: 0; color: var(--color-text); }
+@media (min-width: 768px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 2.5rem; } }
+
+/* --- Closing CTA band --- */
+.cta-band {
+    position: relative;
+    overflow: hidden;
+    text-align: center;
+    color: #fff;
+    background: linear-gradient(180deg, #5a6b48, #3f4d31);
+}
+.cta-band::before { content: ""; position: absolute; inset: 0; background: rgba(20, 24, 14, 0.42); }
+.cta-band .container { position: relative; }
+.cta-band h2 { color: #fff; font-weight: 400; font-size: clamp(1.875rem, 3.8vw, 2.625rem); margin: 0 0 1rem; }
+.cta-band p { font-size: 1.125rem; margin: 0 auto 2rem; max-width: 48ch; color: rgba(255, 255, 255, 0.92); }
+.cta-band__actions { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; justify-content: center; }
+.cta-band__actions .btn-ghost { color: #fff; border-color: #fff; }
+.cta-band__actions .btn-ghost:hover { color: #fff; border-color: #fff; opacity: 0.85; }
 
 /* ============================================================
    Footer
    ============================================================ */
 .site-footer {
     background-color: var(--color-footer-bg);
-    color: rgba(255,255,255,0.7);
-    padding: 2rem 0;
+    color: #a8a49c;
+    padding: 4rem 0 2.5rem;
 }
 
-.site-footer .container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-    align-items: center;
-    text-align: center;
+.site-footer__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
 }
-
 @media (min-width: 1024px) {
-    .site-footer .container {
-        flex-direction: row;
-        justify-content: space-between;
-        text-align: left;
-    }
+    .site-footer__grid { grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 2.5rem; }
 }
 
-.site-footer a { color: rgba(255,255,255,0.7); }
+.site-footer__brand { font-family: var(--font-heading); font-size: 1.25rem; color: #fff; margin: 0 0 0.85rem; letter-spacing: 0.03em; }
+.site-footer p { margin: 0 0 0.4rem; font-size: 0.875rem; color: #a8a49c; }
+
+.site-footer h2 { /* column headings */
+    font-family: var(--font-body);
+    font-size: 0.75rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #8f8a80;
+    font-weight: 700;
+    margin: 0 0 0.85rem;
+}
+.site-footer ul { list-style: none; margin: 0; padding: 0; }
+.site-footer ul li { margin: 0.5rem 0; }
+.site-footer a { color: #cbc7bf; font-size: 0.875rem; }
 .site-footer a:hover { color: #fff; }
+
+.site-footer__bar {
+    margin-top: 3rem;
+    padding-top: 1.35rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    font-size: 0.8125rem;
+    color: #8f8a80;
+}
 
 /* ============================================================
    Forms
@@ -441,35 +641,9 @@ body:not(:has(.hero)) .site-header__burger span {
 }
 
 /* ============================================================
-   Non-hero public pages
-   The header is fixed and transparent (designed to sit over the
-   hero). Pages without a hero need it solid and readable from the
-   top, and their content offset below the fixed header.
-   ============================================================ */
-body:not(:has(.hero)) main {
-    padding-top: var(--header-h);
-}
-
-body:not(:has(.hero)) .site-header {
-    background-color: var(--color-bg);
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
-}
-
-body:not(:has(.hero)) .site-header__nav a {
-    color: var(--color-heading);
-}
-
-body:not(:has(.hero)) .site-header .logo-dark {
-    display: none;
-}
-
-body:not(:has(.hero)) .site-header .logo-light {
-    display: inline-flex;
-}
-
-/* ============================================================
    Public content pages — text, lists, tables
-   Functional-first (Phase 2): readable and mobile-first, not polished.
+   (Trust/menu/prices pages get their full direction-A pass in slice 3;
+   until then they render on the new shell + tokens.)
    ============================================================ */
 .section h1 {
     margin-bottom: 1.5rem;

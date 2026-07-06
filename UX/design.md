@@ -67,7 +67,7 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 /* Brand */
 --color-primary:        #71b002   /* bright green — FILLS / accent rules / marks (pair with dark text) */
 --color-primary-hover:  #5e9600   /* primary fill hover */
---color-primary-ink:    #4c7a12   /* green as TEXT / links — AA-safe on light */
+--color-primary-ink:    #3f6a0f   /* green as TEXT / links — AA on both light grounds */
 --color-secondary:      #865628   /* warm brown — secondary accent */
 
 /* Neutrals (warm-biased, not raw grey) */
@@ -86,9 +86,9 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 --color-info: #6f4a1f   --color-info-bg: rgba(134,86,40,.10)
 ```
 
-**The green rule (accessibility-critical).** `#71b002` is a light lime — it **only passes WCAG AA as a fill with dark text** (`#71b002` + `#1e1c1a` = 6.5:1). As white-on-green it fails (2.65:1) and **must not be used that way**. As **text/links** on a light ground, use the deepened `--color-primary-ink` `#4c7a12` (4.8:1). Darkening the fill toward white-text-legibility turns it olive — rejected; keep the bright fill + dark text.
+**The green rule (accessibility-critical).** `#71b002` is a light lime — it **only passes WCAG AA as a fill with dark text** (`#71b002` + `#1e1c1a` = 6.5:1). As white-on-green it fails (2.65:1) and **must not be used that way**. As **text/links**, use the deepened `--color-primary-ink` `#3f6a0f` — it clears AA on **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` section tint (an earlier `#4c7a12` passed on off-white but missed 4.5:1 on the warm tint — caught by the axe E2E test). Darkening the *fill* toward white-text-legibility instead turns it olive — rejected; keep the bright fill + dark text.
 
-Verified contrast (on `#faf8f4` unless noted): body `#4a4845` 11.9:1 · muted `#6f6a60` 5.0:1 · link `#4c7a12` 4.8:1 · error `#b3341a` 5.7:1 · brown-on-white 6.2:1.
+Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · body `#4a4845` 11.9:1 · muted `#6f6a60` 5.0:1 · error `#b3341a` 5.7:1 · brown-on-white 6.2:1.
 
 ### Typography
 

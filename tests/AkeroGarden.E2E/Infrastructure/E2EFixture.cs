@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
+using AkeroGarden.Web.Data;
+using AkeroGarden.Web.Data.Entities;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Testcontainers.PostgreSql;
 
@@ -36,6 +39,7 @@ public sealed class E2EFixture : IAsyncLifetime
         BaseUrl = $"http://127.0.0.1:{GetFreePort()}";
         StartApp(BaseUrl, _db.GetConnectionString());
         await WaitUntilReadyAsync(BaseUrl);
+        await SeedReferenceDataAsync();
 
         // Ensure the Chromium build is present (no-op if CI already installed it with OS deps).
         var exit = Microsoft.Playwright.Program.Main(["install", "chromium"]);
@@ -58,6 +62,23 @@ public sealed class E2EFixture : IAsyncLifetime
         }
 
         await _db.DisposeAsync();
+    }
+
+    // The app boots with an empty DB (only an admin user is seeded). The availability calendar
+    // needs bedroom capacity or every day reads as fully booked — so seed one building with beds.
+    private async Task SeedReferenceDataAsync()
+    {
+        var options = new DbContextOptionsBuilder<ApplicationDbContext>()
+            .UseNpgsql(_db.GetConnectionString())
+            .Options;
+
+        await using var ctx = new ApplicationDbContext(options);
+        if (await ctx.Buildings.AnyAsync()) return;
+
+        var building = new Building { Id = Guid.NewGuid(), Name = "Huvudbyggnaden", IsActive = true };
+        building.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = building.Id, Name = "Sovsal", BedCount = 40, IsActive = true });
+        ctx.Buildings.Add(building);
+        await ctx.SaveChangesAsync();
     }
 
     private void StartApp(string baseUrl, string postgresConnectionString)
@@ -84,6 +105,16 @@ public sealed class E2EFixture : IAsyncLifetime
         psi.Environment["DOTNET_ENVIRONMENT"] = "Development";
         psi.Environment["ASPNETCORE_URLS"] = baseUrl;
         psi.Environment["ConnectionStrings__Postgres"] = postgresConnectionString;
+
+        // No SMTP server in E2E. SmtpEmailService already swallows send failures (NFR-13), so a
+        // submit still succeeds — but make it fail fast (1 attempt, no retry delay) and give it a
+        // valid From address so the MimeMessage builds. Keeps the funnel test quick.
+        psi.Environment["Smtp__Host"] = "127.0.0.1";
+        psi.Environment["Smtp__Port"] = "587";
+        psi.Environment["Smtp__FromAddress"] = "noreply@akerogarden.test";
+        psi.Environment["Smtp__FromName"] = "Åkerögården";
+        psi.Environment["Smtp__MaxSendAttempts"] = "1";
+        psi.Environment["Smtp__RetryDelayMs"] = "0";
 
         _app = new Process { StartInfo = psi, EnableRaisingEvents = true };
         _app.OutputDataReceived += (_, e) => Capture(e.Data);

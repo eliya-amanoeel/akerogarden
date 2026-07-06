@@ -561,46 +561,89 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* ============================================================
    Forms
    ============================================================ */
-.form-row {
-    display: grid;
-    gap: 1rem;
-}
+.form-row { display: grid; gap: 1rem; }
+@media (min-width: 480px) { .form-row { grid-template-columns: 1fr 1fr; } }
 
-@media (min-width: 480px) {
-    .form-row { grid-template-columns: 1fr 1fr; }
-}
+.form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.05rem; }
+.form-group label { font-weight: 700; font-size: 0.9rem; color: var(--color-heading); }
 
-.form-group {
-    display: flex;
-    flex-direction: column;
-    gap: 0.25rem;
-}
-
-.form-group label {
-    font-weight: 500;
-    font-size: 0.9rem;
-    color: var(--color-heading);
-}
-
-.form-group input,
+.form-group input:not([type="checkbox"]):not([type="radio"]),
 .form-group select,
 .form-group textarea {
-    padding: 0.6rem 0.75rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
+    width: 100%;
+    padding: 0.7rem 0.8rem;
+    border: 1.5px solid #cfc9bd;
+    border-radius: var(--radius-sm);
     font-family: var(--font-body);
     font-size: 1rem;
-    color: var(--color-text);
+    color: var(--color-heading);
     background-color: #fff;
-    transition: border-color 0.15s;
+    transition: border-color var(--transition), box-shadow var(--transition);
 }
-
-.form-group input:focus,
+.form-group input:not([type="checkbox"]):not([type="radio"]):focus,
 .form-group select:focus,
 .form-group textarea:focus {
     outline: none;
-    border-color: var(--color-primary);
+    border-color: var(--color-primary-ink);
+    box-shadow: 0 0 0 3px rgba(63, 106, 15, 0.18);
 }
+.form-group textarea { min-height: 5.5rem; resize: vertical; }
+
+/* Branded native checkboxes / radios */
+.form-group input[type="checkbox"], .form-group input[type="radio"], .checkbox-row input {
+    accent-color: var(--color-primary);
+    width: 1.1rem;
+    height: 1.1rem;
+}
+
+/* Checkbox groups (facilities / cleaning) */
+fieldset.form-group { border: 0; padding: 0; }
+fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--color-heading); padding: 0; margin-bottom: 0.5rem; }
+
+/* Single-checkbox rows (privacy, organisation) */
+.form-group--checkbox { flex-direction: row; align-items: flex-start; gap: 0.6rem; }
+.form-group--checkbox label { font-weight: 400; color: var(--color-text); font-size: 0.95rem; display: flex; gap: 0.6rem; align-items: flex-start; }
+
+/* Validation */
+.validation-message, .form-error { color: var(--color-err); font-size: 0.85rem; font-weight: 600; }
+.form-error { margin-bottom: 1rem; }
+
+/* Grouped form sections (inquiry) */
+.form-section { padding: 1.6rem 0; border-top: 1px solid var(--color-line); }
+.form-section:first-of-type { padding-top: 0; border-top: 0; }
+.form-section > h2 { font-family: var(--font-heading); font-weight: 700; font-size: 1.15rem; color: var(--color-heading); margin: 0 0 0.9rem; }
+.form-section .sec-note { font-size: 0.85rem; color: var(--color-muted); margin: -0.4rem 0 0.9rem; }
+.field-opt { color: var(--color-muted); font-weight: 400; }
+.form-hint { font-size: 0.8rem; color: var(--color-muted); margin: 0.35rem 0 0; }
+
+/* "Från kalender" prefill chip */
+.prefill { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: #37600d; background: rgba(113, 176, 2, 0.14); padding: 0.12rem 0.5rem; border-radius: 1rem; margin-left: 0.4rem; vertical-align: middle; }
+
+/* Segmented two-track toggle (CSS-only, SSR-safe) */
+.track-radio { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.segmented { display: inline-flex; border: 1.5px solid var(--color-line); border-radius: 4px; overflow: hidden; background: #fff; margin-bottom: 1.75rem; }
+.segmented__btn { font-weight: 700; font-size: 0.9rem; padding: 0.7rem 1.4rem; color: var(--color-text); cursor: pointer; user-select: none; }
+.segmented__btn + .segmented__btn { border-left: 1.5px solid var(--color-line); }
+#track-stay:checked ~ .segmented .segmented__btn[for="track-stay"],
+#track-general:checked ~ .segmented .segmented__btn[for="track-general"] { background: var(--color-primary); color: var(--color-heading); }
+.track-radio:focus-visible ~ .segmented { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
+.track { display: none; }
+#track-stay:checked ~ .track--stay { display: block; }
+#track-general:checked ~ .track--general { display: block; }
+
+/* Progressive-disclosure panel (organisation fields) */
+.reveal-panel { background: var(--color-bg-warm); border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 1.1rem 1.25rem; margin-top: 0.75rem; }
+.reveal-panel .form-group:last-child { margin-bottom: 0; }
+
+/* Reassurance banner + submit row */
+.reassure { margin-bottom: 1.6rem; }
+.submit-row { margin-top: 1.75rem; display: flex; gap: 1.1rem; align-items: center; flex-wrap: wrap; }
+
+/* Acknowledgement (Tack) */
+.tack { text-align: center; padding: 3.5rem 0; max-width: 40rem; margin: 0 auto; }
+.tack__badge { width: 4rem; height: 4rem; border-radius: 50%; background: rgba(113, 176, 2, 0.16); color: #37600d; display: inline-flex; align-items: center; justify-content: center; font-size: 1.9rem; margin-bottom: 0.5rem; }
+.tack h1 { font-weight: 400; font-size: clamp(1.8rem, 4vw, 2.2rem); margin: 0.75rem 0; }
+.tack p { color: var(--color-text); font-size: 1.0625rem; margin: 0 0 1.6rem; }
 
 /* ============================================================
    Admin shell
@@ -853,9 +896,28 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* ── Phase 3: inquiry form, admin booking mgmt, availability calendar ───────── */
 
 .checkbox-row {
-    display: block;
-    margin: 0.25rem 0;
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.3rem 0;
+    font-size: 0.95rem;
+    color: var(--color-text);
+    cursor: pointer;
 }
+
+/* Alert / message box (reassurance banner, form feedback) */
+.alert {
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.9rem 1rem;
+    border-radius: var(--radius-card);
+    font-size: 0.95rem;
+    border: 1px solid transparent;
+}
+.alert__ic { font-weight: 700; flex: none; }
+.alert b { color: var(--color-heading); }
+.alert--info { background: var(--color-info-bg); border-color: rgba(134, 86, 40, 0.3); color: #5a3d1f; }
+.alert--error { background: var(--color-err-bg); border-color: rgba(179, 52, 26, 0.32); color: #8f2915; }
 
 .form-status {
     color: var(--color-primary-hover);
@@ -878,70 +940,62 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     margin-bottom: 1.5rem;
 }
 
-/* Availability calendar */
-.cal-note {
-    background: var(--color-bg-warm);
-    border-radius: 6px;
-    padding: 0.75rem 1rem;
-}
-
-.cal-legend {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    flex-wrap: wrap;
-    margin: 1rem 0;
-}
-
-.cal-swatch {
-    display: inline-block;
-    width: 1rem;
-    height: 1rem;
-    border-radius: 3px;
-    margin-left: 0.75rem;
-}
+/* Availability calendar (direction A) */
+.cal-legend { display: flex; gap: 1.4rem; flex-wrap: wrap; margin: 0 0 1.4rem; font-size: 0.875rem; color: var(--color-text); }
+.cal-legend > span { display: inline-flex; align-items: center; gap: 0.5rem; }
+.cal-swatch { display: inline-block; width: 1rem; height: 1rem; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.08); }
+.cal-free { background: #dcecc4; }
+.cal-partial { background: #f6e2a8; }
+.cal-full { background: #eccdc7; }
 
 .cal-selection {
     position: sticky;
     top: var(--header-h);
-    background: var(--color-bg);
-    padding: 0.5rem 0;
-    z-index: 1;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+    background: var(--color-bg-warm);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    padding: 0.9rem 1.1rem;
+    margin-bottom: 1.5rem;
 }
+.cal-selection[hidden] { display: none; }
 
-.cal-month {
-    margin: 1.5rem 0;
-}
+.cal-months { display: grid; grid-template-columns: 1fr; gap: 2rem 2.5rem; }
+@media (min-width: 720px) { .cal-months { grid-template-columns: 1fr 1fr; } }
+.cal-month { margin: 0; }
+.cal-month h2 { font-weight: 700; font-size: 1.1rem; margin: 0 0 0.75rem; }
 
-.cal-grid {
-    width: 100%;
-    border-collapse: collapse;
-    table-layout: fixed;
-}
-
+.cal-grid { width: 100%; border-collapse: collapse; table-layout: fixed; }
 .cal-grid th {
     text-align: center;
-    font-size: 0.85rem;
-    padding: 0.25rem;
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-muted);
+    font-weight: 700;
+    padding: 0.35rem 0;
 }
 
-.cal-day,
-.cal-empty {
-    height: 3rem;
+.cal-day, .cal-empty {
+    height: 2.75rem;
     text-align: center;
     vertical-align: middle;
-    border: 1px solid #fff;
+    border: 2px solid var(--color-bg);
+    border-radius: 4px;
+    font-size: 0.9rem;
 }
+.cal-day { color: var(--color-heading); }
+.cal-day.cal-partial { color: #6b5310; }
+.cal-day.cal-full { color: #6b3229; } /* darker than the pink bg for AA contrast */
+.cal-past { background: var(--color-bg-warm); color: #bdb7ac; }
 
-.cal-day a {
-    display: block;
-    line-height: 3rem;
-    text-decoration: none;
-    color: var(--color-heading);
-}
+.cal-day a { display: block; line-height: 2.75rem; margin: -2px; border-radius: 4px; color: inherit; text-decoration: none; }
+.cal-day a:hover { box-shadow: inset 0 0 0 2px var(--color-primary-ink); }
 
-.cal-free { background: #d9f0c2; }         /* green-ish — ledigt */
-.cal-partial { background: #fbe8a6; }      /* amber — delvis bokat */
-.cal-full { background: #f0c2c2; color: #7a5a5a; } /* red-ish — fullbokat */
-.cal-past { background: var(--color-bg-warm); color: #b5b0a8; }
-.cal-selected { outline: 3px solid var(--color-primary); outline-offset: -3px; }
+/* Selected range (JS adds .cal-selected to the day <td>). */
+.cal-day.cal-selected { background: var(--color-primary); }
+.cal-day.cal-selected a { color: var(--color-heading); font-weight: 700; }

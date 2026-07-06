@@ -6,12 +6,19 @@
 
 <section class="section">
     <div class="container">
-        <h1>Ett fel inträffade</h1>
-        <p>Något gick fel vid behandlingen av din förfrågan.</p>
-        @if (ShowRequestId)
-        {
-            <p><strong>Spårnings-ID:</strong> <code>@RequestId</code></p>
-        }
+        <div class="utility">
+            <p class="utility__code">Oj då</p>
+            <h1>Ett fel inträffade</h1>
+            <p>Något gick fel vid behandlingen av din förfrågan. Försök igen om en stund.</p>
+            <div class="utility__actions">
+                <a href="/" class="btn">Till startsidan</a>
+                <a href="/kontakt" class="btn-ghost">Kontakta oss</a>
+            </div>
+            @if (ShowRequestId)
+            {
+                <p class="cta-note" style="margin-top:1.6rem">Spårnings-ID: <code>@RequestId</code></p>
+            }
+        </div>
     </div>
 </section>
 

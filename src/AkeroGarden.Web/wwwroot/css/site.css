@@ -664,9 +664,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 /* ============================================================
-   Public content pages — text, lists, tables
-   (Trust/menu/prices pages get their full direction-A pass in slice 3;
-   until then they render on the new shell + tokens.)
+   Public content pages — generic text defaults
+   (Used by the still-functional funnel/completion pages until their
+   slices; the trust pages below use scoped direction-A components.)
    ============================================================ */
 .section h1 {
     margin-bottom: 1.5rem;
@@ -691,88 +691,164 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     margin-top: 1rem;
 }
 
-/* Facilities (FR-81) */
-.facility-list {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 2rem;
-}
+/* ============================================================
+   Interior trust pages (direction A, Phase 6 slice 3)
+   "chapter opener" header · om-oss · faciliteter · mat & priser
+   · kontakt · utility (not-found / error)
+   ============================================================ */
 
-@media (min-width: 480px) {
-    .facility-list { grid-template-columns: repeat(2, 1fr); }
+/* Chapter-opener page header (interior pages have no hero) */
+.page-head {
+    background: var(--color-bg-warm);
+    border-bottom: 1px solid var(--color-line);
 }
-
-@media (min-width: 1024px) {
-    .facility-list { grid-template-columns: repeat(3, 1fr); }
+.page-head .container { padding-top: 3.5rem; padding-bottom: 3rem; }
+.page-head h1 {
+    font-weight: 400;
+    font-size: clamp(1.9rem, 4.2vw, 2.9rem);
+    line-height: 1.05;
+    letter-spacing: -0.015em;
+    margin: 0;
 }
+.page-head__rule { width: 3.5rem; height: 2px; background: var(--color-primary); margin: 1.25rem 0 0; }
+.page-head__intro { font-size: 1.125rem; color: var(--color-text); margin: 1.25rem 0 0; max-width: 56ch; }
 
-.facility-card__image {
-    width: 100%;
-    aspect-ratio: 4 / 3;
-    object-fit: cover;
-    border-radius: 4px;
-    margin-bottom: 0.75rem;
-}
+/* Readable prose column */
+.prose { max-width: 65ch; }
+.prose p { font-size: 1.0625rem; color: var(--color-text); margin: 0 0 1.2rem; }
+.prose p:last-child { margin-bottom: 0; }
 
-.facility-card h2 {
-    margin-top: 0;
-    font-size: 1.25rem;
-}
+/* Inline links inside running text are underlined so they're distinguishable without relying on
+   colour (WCAG 1.4.1 — axe "link-in-text-block"). Nav/footer/cards/buttons are excluded: they're
+   set apart by layout, not sitting inside a sentence. */
+.prose a, .section p a, .menu-note a { text-decoration: underline; text-underline-offset: 0.15em; }
 
-/* Menu (FR-83) */
-.meal-list {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-}
-
-.meal-list p {
-    margin: 0.25rem 0 0;
-}
-
-.tag {
-    display: inline-block;
-    margin-left: 0.5rem;
-    padding: 0.1rem 0.5rem;
-    font-size: 0.8rem;
-    color: #fff;
-    background-color: var(--color-primary);
-    border-radius: 999px;
-    vertical-align: middle;
-}
-
-/* Prices (FR-82) */
-.price-table {
-    width: 100%;
-    border-collapse: collapse;
-    margin-bottom: 1rem;
-}
-
-.price-table th,
-.price-table td {
-    text-align: left;
-    padding: 0.6rem 0.75rem;
-    border-bottom: 1px solid var(--color-bg-warm);
-    vertical-align: top;
-}
-
-.price-table th {
+/* Section eyebrow + subhead on content pages */
+.subhead {
+    font-family: var(--font-heading);
     color: var(--color-heading);
-    border-bottom-width: 2px;
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin: 0 0 1rem;
 }
 
-.price-table__season {
-    color: var(--color-secondary);
-    font-size: 0.9rem;
-    white-space: nowrap;
+/* Om oss */
+.about-grid { display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: start; }
+.about-photo {
+    min-height: 15rem;
+    border-radius: var(--radius-card);
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(160deg, #d3d9cf, #8a9a72);
+}
+.facts {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1px;
+    background: var(--color-line);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    margin-top: 2rem;
+}
+.facts > div { background: var(--color-bg); padding: 1.1rem 1.25rem; }
+.facts__num { font-family: var(--font-heading); font-size: 1.4rem; color: var(--color-heading); line-height: 1; }
+.facts__label { font-size: 0.8125rem; color: var(--color-muted); margin-top: 0.25rem; }
+@media (min-width: 1024px) {
+    .about-grid { grid-template-columns: 1.1fr 0.9fr; gap: 3rem; }
+    .about-photo { min-height: 21rem; }
 }
 
-.price-table__note {
-    color: var(--color-text);
-    font-size: 0.9rem;
-    margin-top: 0.25rem;
+/* Facilities grid */
+.fac-grid { display: grid; grid-template-columns: 1fr; gap: 1.75rem; }
+.fac-card { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; background: #fff; }
+.fac-card__img {
+    aspect-ratio: 4 / 3;
+    position: relative;
+    background: linear-gradient(160deg, #d3d9cf, #8a9a72);
 }
+.fac-card__img img { width: 100%; height: 100%; object-fit: cover; }
+.fac-card__body { padding: 1.1rem 1.25rem; }
+.fac-card h2 { font-size: 1.2rem; font-weight: 700; margin: 0 0 0.4rem; }
+.fac-card p { margin: 0; font-size: 0.95rem; color: var(--color-text); }
+@media (min-width: 480px) { .fac-grid { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .fac-grid { grid-template-columns: repeat(3, 1fr); } }
+
+/* Menu (part of Mat & priser) */
+.menu-cols { display: grid; grid-template-columns: 1fr; gap: 2.5rem; }
+@media (min-width: 768px) { .menu-cols { grid-template-columns: 1fr 1fr; gap: 3rem; } }
+.menu-col h2 {
+    font-weight: 700;
+    font-size: 1.25rem;
+    margin: 0 0 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--color-primary);
+}
+.dish { padding: 0.9rem 0; border-bottom: 1px solid var(--color-line); }
+.dish:last-child { border-bottom: 0; }
+.dish__top { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.dish h3 { font-family: var(--font-heading); font-weight: 700; font-size: 1rem; margin: 0; }
+.dish p { margin: 0.3rem 0 0; font-size: 0.9rem; color: var(--color-muted); }
+.meal-veg {
+    font-size: 0.66rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-ok);
+    background: var(--color-ok-bg);
+    padding: 0.15rem 0.5rem;
+    border-radius: 1rem;
+}
+.menu-note { font-size: 0.875rem; color: var(--color-muted); font-style: italic; margin: 1.2rem 0 0; }
+
+/* Data table (prices, cleaning zones) */
+.data-table-wrap {
+    overflow-x: auto;
+    background: var(--color-bg);
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+}
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.95rem; }
+.data-table th {
+    text-align: left;
+    font-family: var(--font-body);
+    font-weight: 700;
+    color: var(--color-heading);
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.7rem 0.9rem;
+    border-bottom: 2px solid var(--color-line);
+}
+.data-table th.num, .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.data-table td { padding: 0.8rem 0.9rem; border-bottom: 1px solid var(--color-line); color: var(--color-text); vertical-align: top; }
+.data-table tr:last-child td { border-bottom: 0; }
+.data-table__label { color: var(--color-heading); font-weight: 600; }
+.data-table__sub { display: block; font-size: 0.8125rem; color: var(--color-muted); margin-top: 0.2rem; }
+.data-table__season { color: var(--color-secondary); font-size: 0.85rem; white-space: nowrap; }
+.price-note { font-size: 0.875rem; color: var(--color-muted); margin: 0 0 1.25rem; }
+.price-block + .price-block { margin-top: 2.5rem; }
+
+/* Contact */
+.contact-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; align-items: start; }
+@media (min-width: 768px) { .contact-grid { grid-template-columns: 1fr 1fr; gap: 2.5rem; } }
+.contact-dl { margin: 0; }
+.contact-dl dt { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-muted); font-weight: 700; margin-top: 1.25rem; }
+.contact-dl dt:first-child { margin-top: 0; }
+.contact-dl dd { margin: 0.25rem 0 0; font-size: 1.0625rem; color: var(--color-heading); }
+.cta-card { background: var(--color-bg-warm); border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 1.75rem; }
+.cta-card h2 { font-weight: 400; font-size: 1.5rem; margin: 0 0 0.5rem; }
+.cta-card p { font-size: 0.95rem; color: var(--color-text); margin: 0 0 1.25rem; }
+
+/* Reassurance note next to a CTA */
+.cta-note { font-size: 0.9rem; color: var(--color-muted); }
+
+/* Utility pages (not found / error) */
+.utility { text-align: center; padding: 5rem 0; }
+.utility__code { font-family: var(--font-heading); font-size: clamp(3rem, 8vw, 4rem); color: var(--color-primary); line-height: 1; margin: 0; }
+.utility h1 { font-weight: 400; font-size: clamp(1.6rem, 4vw, 2rem); margin: 0.75rem 0 0.6rem; }
+.utility p { color: var(--color-text); margin: 0 0 1.6rem; }
+.utility__actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; align-items: center; }
 
 /* ── Phase 3: inquiry form, admin booking mgmt, availability calendar ───────── */
 

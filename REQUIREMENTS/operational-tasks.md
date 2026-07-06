@@ -32,4 +32,4 @@ One-off content, migration, and go-live tasks that aren't system requirements �
   - **Key Vault** — alert on access failures (would surface a broken managed-identity/access-policy wiring like the one hit during Phase 0 provisioning).
   - **Optional** — Action Group wiring so all the above notify a real inbox/SMS; consider Application Insights for richer telemetry.
 
-  Not go-live-blocking on its own, but production should not run unmonitored. Revisit in Phase 6 (hardening) at the latest; staging cost alerts are worth doing sooner.
+  Not go-live-blocking on its own, but production should not run unmonitored. Revisit in Phase 7 (hardening) at the latest; staging cost alerts are worth doing sooner.

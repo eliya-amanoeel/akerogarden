@@ -83,7 +83,8 @@ Follow `REQUIREMENTS/implementation-plan.md` in order. Do not start a phase unti
 3. Inquiry & booking lifecycle — state machine, emails, rate limiting, blocks
 4. Completion flow — magic-link guest form, snapshots, room assignment
 5. Notifications, lists & retention — reminders, PDF/Excel downloads, GDPR auto-deletion
-6. Hardening & go-live — security pass, UAT on staging, production deploy
+6. UI/UX — visual + experiential design pass (from scratch, both surfaces), Figma-first then Blazor (scope TBD)
+7. Hardening & go-live — security pass, UAT on staging, production deploy
 
 ## Working style
 

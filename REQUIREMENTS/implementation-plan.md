@@ -19,7 +19,7 @@
 - **Swedish-only UI (NFR-32):** all public and admin text is Swedish from day one. No English strings, no i18n framework.
 - **GDPR:** no personnummer (NFR-23); personal data only in EU regions (NFR-06/24); no personal data in URLs (NFR-05).
 - **Data integrity:** editing/deactivating reference data must never alter saved bookings (NFR-14); snapshots back this (NFR-15/16/33/34).
-- **UI approach — functional first, polish last:** In Phases 1–5, build screens that are functional and readable, not polished. No animations, no pixel-perfect spacing, no mobile optimisation — just enough UI to drive and test the feature. Exception: the Phase 0 design system (tokens, base layout, logo component) is foundational and must be done properly — skipping it means inline styles everywhere and a worse retrofit later. Polish, responsiveness, and visual refinement happen in Phase 6.
+- **UI approach — functional first, polish last:** In Phases 1–5, build screens that are functional and readable, not polished. No animations, no pixel-perfect spacing, no mobile optimisation — just enough UI to drive and test the feature. Exception: the Phase 0 design system (tokens, base layout, logo component) is foundational and must be done properly — skipping it means inline styles everywhere and a worse retrofit later. Polish, responsiveness, and visual refinement happen in Phase 6 (UI/UX).
 
 ---
 
@@ -37,12 +37,12 @@
 - **Local dev environment (§11.1):** Dockerised PostgreSQL, Redis, and Azurite (Blob emulator) plus a local SMTP catcher (e.g. Mailpit) so the Mac mirrors prod services at no cost; `dotnet user-secrets` for local config.
 - **Bicep templates written and checked in (early Phase 0 — no Azure spend yet):** `.bicep` files declare every resource (App Service, PostgreSQL Flexible Server, Blob Storage, Key Vault, managed identity, managed SSL, custom domains) with environment-specific parameter files for production and staging. Templates are committed before any resource is provisioned — if it's not in Bicep, it doesn't exist. *(Redis is deferred to Phase 3, where rate limiting is first built — it is not part of the Phase 0 templates.)*
 - **CI/CD (early Phase 0):** GitHub Actions build + test + deploy pipeline wired up; test projects (unit + integration) created and running against ephemeral containers in CI. The deploy job exists but targets nothing until Azure is provisioned.
-- **Staging Azure infra provisioned (end of Phase 0 — once admin auth works locally):** Run the Bicep templates to create the staging resource group (App Service B1, PostgreSQL Flexible Server VNet-only, Blob Storage, Key Vault at `staging.akerogarden.se`, synthetic data only, test SMTP inbox, powered down when idle). Validate VNet isolation and run the first real deploy through the pipeline. *(Production provisioning is deliberately deferred to Phase 6.)*
+- **Staging Azure infra provisioned (end of Phase 0 — once admin auth works locally):** Run the Bicep templates to create the staging resource group (App Service B1, PostgreSQL Flexible Server VNet-only, Blob Storage, Key Vault at `staging.akerogarden.se`, synthetic data only, test SMTP inbox, powered down when idle). Validate VNet isolation and run the first real deploy through the pipeline. *(Production provisioning is deliberately deferred to Phase 7.)*
 - **Secrets:** SMTP and connection strings as encrypted app settings / Key Vault — never in source.
 
 **Satisfies:** FR-35, FR-70–74 · NFR-01, NFR-02, NFR-06, NFR-11, NFR-12, NFR-24, NFR-25, NFR-28, NFR-30, NFR-32 · §1.5 technology decisions.
 
-**Exit criteria:** admin can log in / reset password / manage admin accounts over HTTPS; CI is green and runs the test suite; the local dev stack runs via Docker; **staging** Azure environment is provisioned and the first deploy runs through the pipeline with the DB unreachable from the public internet; design tokens applied to a base layout. *(Production provisioning is deliberately deferred to Phase 6. Staging runs on the Azure default `*.azurewebsites.net` hostname for now; binding the `staging.akerogarden.se` custom subdomain + managed SSL is also deferred to Phase 6, where DNS for all domains is configured.)*
+**Exit criteria:** admin can log in / reset password / manage admin accounts over HTTPS; CI is green and runs the test suite; the local dev stack runs via Docker; **staging** Azure environment is provisioned and the first deploy runs through the pipeline with the DB unreachable from the public internet; design tokens applied to a base layout. *(Production provisioning is deliberately deferred to Phase 7. Staging runs on the Azure default `*.azurewebsites.net` hostname for now; binding the `staging.akerogarden.se` custom subdomain + managed SSL is also deferred to Phase 7, where DNS for all domains is configured.)*
 
 ---
 
@@ -215,7 +215,7 @@ Like Phases 1 and 3, Phase 4 is built as independently reviewable vertical slice
 
 The daily automation (14-day reminders, 30-day pre-deletion warnings, GDPR deletion) runs from a single in-process hosted **`BackgroundService`** (`DailyJobRunner`) — no new Azure resource. It ticks once per day (computes the delay to the next configured run hour in **Europe/Stockholm**, sleeps, runs), and on each tick it opens a **fresh DI scope per run** (the booking/email services are scoped) and runs each job in turn; a job that throws is logged and never aborts the others (NFR-13 style). Each job is **idempotent** — guarded by a persisted sent-marker (`DeletionWarningEmailSentAt` for the warning, a new `ReminderEmailSentAt` for the reminder) so a restart or double-run cannot double-send or double-delete.
 
-On App Service **B1 the app is unloaded after ~20 min idle**, which would stop the `BackgroundService` and skip runs. Reliable daily execution therefore requires **`alwaysOn: true`** in `main.bicep`'s `siteConfig`. Always On is free and does not change the flat B1 price (the server is billed whether awake or idle). Because this is an infra/config change and the pipeline deploys only app code, **Phase 5 is not an app-only deploy** (like Phase 3's Redis): the Always On setting must be applied to staging by hand (`az webapp config set --always-on true`, or a `main.bicep` redeploy) **before the phase branch merges**, and reconciled into prod at Phase 6. B1 is single-instance, so no distributed-lock/leader-election is needed.
+On App Service **B1 the app is unloaded after ~20 min idle**, which would stop the `BackgroundService` and skip runs. Reliable daily execution therefore requires **`alwaysOn: true`** in `main.bicep`'s `siteConfig`. Always On is free and does not change the flat B1 price (the server is billed whether awake or idle). Because this is an infra/config change and the pipeline deploys only app code, **Phase 5 is not an app-only deploy** (like Phase 3's Redis): the Always On setting must be applied to staging by hand (`az webapp config set --always-on true`, or a `main.bicep` redeploy) **before the phase branch merges**, and reconciled into prod at Phase 7. B1 is single-instance, so no distributed-lock/leader-election is needed.
 
 ### List downloads — libraries & delivery
 
@@ -238,7 +238,45 @@ Like Phases 1, 3, and 4, Phase 5 is built as independently reviewable vertical s
 
 ---
 
-## Phase 6 — Hardening & go-live
+## Phase 6 — UI/UX
+
+**Goal:** turn the functional-but-unstyled app into a considered end-user experience — a public site that builds trust and **converts visitors into inquiries**, and an admin panel that is efficient to operate — grounded in the actual users, the brand feeling, and the guest journey. This is the visual and experiential design deferred from Phases 1–5 under "functional first, polish last".
+
+### Design approach (this phase is run as UX/product design, not page styling)
+
+- **Discovery before pixels.** The first slice defines users, journey, brand feeling, content/voice, and an agreed art direction *before* any component is built. The design system is an **output** of a chosen direction, not the starting point.
+- **Design by user journey & jobs-to-be-done**, not page-groups: *discover → build trust → convert → complete → arrive*. The **booking funnel (home → availability → inquiry) is the primary success metric** — the public site exists to convert, and the build is prioritised around that.
+- **Content/copy and accessibility-in-context are design drivers, not end-of-phase cleanup.** Retreat guests may skew older; a contact person completes a long form for a whole group on a phone on a rural connection — that context dictates type size, tap targets, form simplicity, and trust signals.
+- **Public = persuasion design; admin = productivity design.** Two disciplines: the admin track optimises for data density, scannable lists, and efficient flows (NFR-18/19), not the public persuasion aesthetic.
+- **Define "good" and validate it.** A closing slice runs a heuristic pass against the agreed principles, a lightweight usability walk of the booking funnel, and an accessibility (WCAG AA) spot-check.
+- **Per build-slice workflow:** HTML mockup → user approves the look → implement in Blazor → browser-verify across breakpoints. (HTML-mockup-first, not Figma-first: the target medium *is* HTML/CSS, so mockups translate ~1:1; Figma is optional, only if a shareable artifact is later needed.)
+- **Cross-cutting in every build slice** (drivers, enforced per slice — not deferred): mobile-first responsiveness; accessibility (semantic HTML, colour contrast, keyboard/focus, alt text, labels/aria); Swedish copy quality (NFR-32); **self-hosted fonts only / no external requests** (NFR-35 — a design pass is exactly where a stray Google Font or CDN slips in); and no regression to existing behaviour or the test suite.
+
+**Scope & deliverables:** an agreed art direction + design principles; a documented design system (tokens + components with all states) evolving the Phase-0 tokens (`UX/design.md`); a redesigned, responsive, accessible **public site** across all pages with the booking funnel as the centrepiece; a redesigned, efficiency-focused **admin panel**; and a validated result (usability + accessibility). Imagery strategy (real photography vs. curated placeholders swapped at go-live) and the exact admin visual ambition are **decided in slice 1** (discovery), not pre-judged here.
+
+**Satisfies:** NFR-17, NFR-18, NFR-19, NFR-20–23, NFR-32, NFR-35 (supports NFR-08 public performance, formally verified in Phase 7).
+
+**Exit criteria:** the chosen art direction is implemented consistently across public + admin; the booking funnel is usability-validated; an accessibility AA spot-check passes; every page is responsive across breakpoints; the design system is documented; Swedish copy is reviewed; and no functional behaviour or test regressed.
+
+### Build order — seven slices (Phase 6)
+
+Unlike the feature phases, this phase is **bookended by design discipline**: it opens with a no-code discovery/direction slice (the north star every later slice answers to) and closes with a validation slice. The middle slices follow the **guest's journey in order** — because each step emotionally sets up the next — with the **conversion funnel as the climax the trust pages build toward**, then the post-approval completion task, and finally the admin panel as a distinct productivity-design track. Slice 1 has no code; slices 2–6 each = mockup → approval → Blazor implementation → browser verification; slice 7 is QA/validation.
+
+| Slice | Focus | Delivers |
+|---|---|---|
+| 1 | **Discovery & art direction** *(no code)* | Guest & admin personas + jobs-to-be-done; the guest journey map; brand/emotional positioning + Swedish voice & tone; content audit + home value proposition & primary CTA; 4–6 design **principles**; **2–3 divergent art-direction concepts** (home hero + key components as HTML mockups) → user chooses ONE; **imagery strategy** and **admin visual-ambition** decisions; success criteria + usability/a11y validation plan. Output: agreed direction + principles + journey — the north star. |
+| 2 | **Design system + Home** | The chosen direction expressed as a real, documented system evolving `UX/design.md`: tokens (contrast-checked colour, type scale, spacing, radius, elevation, motion); core components with **all states** (default/hover/focus/active/disabled/loading/empty/error) — buttons, links, inputs/selects/checkboxes, field+validation, cards, tables, alerts, badges, modals; the public **shell** (header, nav, mobile nav, footer); self-hosted fonts wired. Proven end-to-end on the flagship **Home** (`/`). |
+| 3 | **Explore & build trust** (public content) | The pages that answer "is this place right for my group, can I trust it": `/om-oss`, `/faciliteter`, `/meny`, `/priser`, `/kontakt`, `/integritetspolicy`, plus `/not-found` & `/Error`. Trust-builders that feed the inquiry; data-driven presentation for facilities/menu/prices. |
+| 4 | **Convert** (the booking funnel — primary KPI) | The money path designed as one coherent flow, not separate pages: availability calendar (`/kalender`) → inquiry form (`/boka`) → acknowledgement. Trust signals, friction reduction, one clear next step, the three-state calendar's legibility, form UX (progressive disclosure, inline validation, "this is a request, not a confirmed booking" reassurance). Mobile-first. |
+| 5 | **Complete** (guest completion flow) | The magic-link completion form (`/slutfor/{token}`) — a high-effort task done on mobile for a whole group: reassurance, progress, error recovery, per-day meal clarity. **Folds in the parked completion-form polish** (meal-section "same for all days" layout/labelling from the Phase-7 backlog). |
+| 6 | **Admin** (productivity design) | Efficiency-first redesign of the admin surface (its own register, not the public aesthetic): shell + nav, auth pages, dashboard, bookings list + detail + manual create, admin calendar, blocks, the six reference-CRUD screens, accounts. Data density, scannable lists, fast booking workflows, clear status, keyboard-friendly. |
+| 7 | **Validate & polish** | Heuristic review against the slice-1 principles; a lightweight usability walk of the booking funnel (user or proxy guest); accessibility audit (contrast, keyboard, screen-reader basics, WCAG AA spot-check); responsive QA across breakpoints; consistency cleanup. "Done" = principles met + funnel validated + a11y pass. |
+
+*Note: the non-visual items still parked in Phase 7 (phone validation, confirm-email safeguard, approval-time block/capacity warning, admin participant-editing depth) stay there — they are functional/hardening, not design.*
+
+---
+
+## Phase 7 — Hardening & go-live
 
 **Goal:** verify the non-functionals, clear the operational blockers, and launch.
 
@@ -273,7 +311,8 @@ Like Phases 1, 3, and 4, Phase 5 is built as independently reviewable vertical s
 | 3 Inquiry & lifecycle | FR-02–06,08–11,10a,21,36–42,47,50,51–53,75–80,84 | NFR-03,04,05,07,09,13 |
 | 4 Completion | FR-48,49,54–62 | NFR-15,16,18,33,34 |
 | 5 Notifications/lists/retention | FR-44,45,63–69,89–91 | NFR-10 |
-| 6 Hardening & go-live | — | NFR-08,09,10,29,31 + residual |
+| 6 UI/UX | — | NFR-17,18,19,20–23,32,35 (supports 08) |
+| 7 Hardening & go-live | — | NFR-08,09,10,29,31 + residual |
 
 *Testing (NFR-26–28) and Swedish UI (NFR-32) are cross-cutting and apply to every phase.*
 

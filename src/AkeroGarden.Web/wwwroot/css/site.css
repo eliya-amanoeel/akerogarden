@@ -196,6 +196,12 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     outline-offset: 3px;
 }
 
+/* FocusOnNavigate (Routes.razor) moves focus to the page <h1> after each navigation — good for
+   screen-reader/keyboard users. But it makes the heading programmatically focusable (tabindex=-1),
+   which otherwise paints a focus ring (a "box" around the title on load). A keyboard user cannot
+   tab to a tabindex=-1 element, so suppressing its ring is safe and removes the visual artefact. */
+[tabindex="-1"]:focus { outline: none; }
+
 /* ============================================================
    Header — solid sticky bar (direction A "Editorial lugn")
    Always solid on the off-white ground; the dark-stroke logo is
@@ -272,17 +278,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     display: flex;
 }
 
-.site-header__nav a {
+/* Text nav links (the CTA is a .btn and is excluded so it keeps its button styles). */
+.site-header__nav a:not(.site-header__cta) {
     color: var(--color-heading);
     font-weight: 500;
     padding: 0.75rem 0;
     border-bottom: 1px solid var(--color-line);
 }
-.site-header__nav a:hover { color: var(--color-primary-ink); }
+.site-header__nav a:not(.site-header__cta):hover { color: var(--color-primary-ink); }
+.site-header__nav a.active { color: var(--color-primary-ink); }
 
-.site-header__nav .btn-outline {
-    margin-top: 0.85rem;
-}
+.site-header__cta { margin-top: 0.85rem; }
 
 /* --- Desktop: inline horizontal nav, no hamburger --- */
 @media (min-width: 1024px) {
@@ -300,16 +306,25 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
         box-shadow: none;
     }
 
-    .site-header__nav a {
-        padding: 0;
+    .site-header__nav a:not(.site-header__cta) {
+        position: relative;
+        padding: 0.25rem 0;
         border-bottom: none;
         font-weight: 400;
     }
 
-    .site-header__nav .btn-outline {
-        margin-top: 0;
-        margin-left: 0.5rem;
+    /* Current-page indicator: a thin green underline under the active link. */
+    .site-header__nav a.active::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -0.4rem;
+        height: 2px;
+        background: var(--color-primary);
     }
+
+    .site-header__cta { margin-top: 0; margin-left: 1.25rem; }
 }
 
 /* ============================================================
@@ -385,8 +400,16 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 @media (min-width: 1024px) {
     .hero__grid { grid-template-columns: 1fr 1fr; align-items: stretch; }
     .hero__photo { order: 0; min-height: 34rem; }
-    .hero__text { align-self: center; padding: 5rem 3rem; }
-    .hero__text-inner { max-width: 37rem; margin-left: auto; }
+    .hero__text { align-self: center; padding: 5rem 0; }
+    /* Snap hero copy to the site container's left edge: a half-container box flush to the
+       centre, with the container gutter (2rem) as inner padding — so the headline lines up
+       with the header, nav and trust strip instead of poking out full-bleed. */
+    .hero__text-inner {
+        max-width: calc(var(--max-width) / 2);
+        margin-left: auto;
+        padding-left: 2rem;
+        padding-right: 3rem;
+    }
 }
 
 /* Secondary CTA underline treatment — scoped to hero + closing band only */

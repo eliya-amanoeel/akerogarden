@@ -1,3 +1,5 @@
+@inject NavigationManager Nav
+
 <header class="site-header" id="site-header">
     <div class="container">
         <a href="/" class="site-header__logo">
@@ -8,12 +10,31 @@
             <span></span><span></span><span></span>
         </label>
         <nav class="site-header__nav" aria-label="Huvudmeny">
-            <a href="/om-oss">Om oss</a>
-            <a href="/faciliteter">Faciliteter</a>
-            <a href="/meny">Meny</a>
-            <a href="/priser">Priser</a>
-            <a href="/kontakt">Kontakt</a>
-            <a href="/boka" class="btn-outline">Skicka förfrågan</a>
+            @foreach (var (href, label) in NavItems)
+            {
+                var active = IsActive(href);
+                <a href="@href"
+                   class="@(active ? "active" : null)"
+                   aria-current="@(active ? "page" : null)">@label</a>
+            }
+            <a href="/boka" class="btn site-header__cta">Skicka förfrågan</a>
         </nav>
     </div>
 </header>
+
+@code {
+    private static readonly (string Href, string Label)[] NavItems =
+    [
+        ("/om-oss", "Om oss"),
+        ("/faciliteter", "Faciliteter"),
+        ("/meny", "Meny"),
+        ("/priser", "Priser"),
+        ("/kontakt", "Kontakt"),
+    ];
+
+    // Public pages are Static SSR, so the current path is known at render time.
+    private string CurrentPath => new Uri(Nav.Uri).AbsolutePath.TrimEnd('/');
+
+    private bool IsActive(string href) =>
+        CurrentPath.Equals(href.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+}

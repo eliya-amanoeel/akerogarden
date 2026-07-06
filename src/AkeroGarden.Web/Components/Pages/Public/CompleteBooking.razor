@@ -11,7 +11,9 @@
 @* Token-authenticated booking completion page (§6.6, FR-54..62). Static SSR: the token in the URL
    is the sole auth, validated server-side on every request; the submit handler re-validates before
    persisting. Phase 6 restyle keeps every field name / id / data-* attribute so the SSR binding and
-   completion-form.js (full-board→meals, day-guest date→meals, same-for-all-days, live progress) work. *@
+   completion-form.js (full-board→meals, day-guest date→meals, group defaults, live progress) work.
+   Scales to large groups: a group default cascades to everyone (JS), participant rows collapse to
+   name + age, and a meal with one option shows as text (no pointless dropdown). *@
 
 <PageTitle>Slutför din bokning — Åkerögården</PageTitle>
 
@@ -74,35 +76,74 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
 
             <EditForm Model="_form" FormName="completion" OnSubmit="HandleSubmit" method="post">
                 <h2>Deltagare med övernattning</h2>
-                <p class="sec-note">Fyll i namn och måltidsval för var och en. Du kan använda "samma alla dagar" för att gå snabbare.</p>
+                <p class="sec-note">Namn krävs för alla deltagare. Sätt en standard för hela gruppen nedan, skriv namnen, och fäll bara ut dem som avviker.</p>
+
+                @* Group defaults: cascade one choice to every participant (JS). Without JS each row is
+                   filled individually — the panel simply does nothing. *@
+                <div class="group-default">
+                    <h3>Standard för hela gruppen</h3>
+                    <p>Gäller alla deltagare. Du kan ändra per person längre ned.</p>
+                    <div class="fbrow">
+                        <input type="checkbox" id="gd-fullboard" data-groupdefault-fullboard checked="@_defaultFullBoard" />
+                        <label for="gd-fullboard">Helpension för alla (måltider ingår)</label>
+                    </div>
+                    @if (_lunchOptions.Count >= 2 || _dinnerOptions.Count >= 2)
+                    {
+                        <div class="group-default__grid">
+                            @if (_lunchOptions.Count >= 2)
+                            {
+                                <div>
+                                    <label class="field-label" for="gd-lunch">Standard lunch alla dagar</label>
+                                    <select class="inp" id="gd-lunch" data-groupdefault-meal="Lunch">
+                                        <option value="">– välj –</option>
+                                        @foreach (var o in _lunchOptions)
+                                        {
+                                            <option value="@o.Id">@o.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                            @if (_dinnerOptions.Count >= 2)
+                            {
+                                <div>
+                                    <label class="field-label" for="gd-dinner">Standard middag alla dagar</label>
+                                    <select class="inp" id="gd-dinner" data-groupdefault-meal="Dinner">
+                                        <option value="">– välj –</option>
+                                        @foreach (var o in _dinnerOptions)
+                                        {
+                                            <option value="@o.Id">@o.Name</option>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+
+                <p class="completion-rowcount">@_form.Overnight.Count deltagare</p>
 
                 @for (var i = 0; i < _form.Overnight.Count; i++)
                 {
                     var index = i;
                     var entry = _form.Overnight[index];
-                    <div class="pcard" role="group" aria-label="Deltagare @(index + 1)">
-                        <div class="pcard__head">
-                            <span class="pcard__badge">@(index + 1)</span>
-                            <span class="pcard__title">Deltagare @(index + 1)</span>
+                    <div class="prow" role="group" aria-label="Deltagare @(index + 1)">
+                        @* Collapse toggle (CSS-only, SSR-safe). Focusable so keyboard users can expand;
+                           the visual label shows the focus ring. Name + age stay outside the collapse. *@
+                        <input class="prow__toggle-cb" type="checkbox" id="exp-@index"
+                               aria-label="Visa måltider och kostbehov för deltagare @(index + 1)" />
+                        <div class="prow__head">
+                            <span class="prow__badge">@(index + 1)</span>
+                            <input class="inp prow__name" name="Form.Overnight[@index].FullName" value="@entry.FullName"
+                                   maxlength="200" required placeholder="Namn" aria-label="Namn för deltagare @(index + 1)" data-progress-name />
+                            <select class="inp prow__age" name="Form.Overnight[@index].AgeCategory" aria-label="Ålderskategori för deltagare @(index + 1)">
+                                @foreach (var age in AgeCategories)
+                                {
+                                    <option value="@age" selected="@(entry.AgeCategory == age)">@AgeLabel(age)</option>
+                                }
+                            </select>
+                            <label class="prow__toggle" for="exp-@index"><span class="chev" aria-hidden="true">›</span> Måltider &amp; kost</label>
                         </div>
-                        <div class="pcard__body">
-                            <div class="form-row">
-                                <div class="form-group">
-                                    <label for="p@(index)-name">Namn</label>
-                                    <input id="p@(index)-name" name="Form.Overnight[@index].FullName"
-                                           value="@entry.FullName" maxlength="200" data-progress-name />
-                                </div>
-                                <div class="form-group">
-                                    <label for="p@(index)-age">Ålderskategori</label>
-                                    <select id="p@(index)-age" name="Form.Overnight[@index].AgeCategory">
-                                        @foreach (var age in AgeCategories)
-                                        {
-                                            <option value="@age" selected="@(entry.AgeCategory == age)">@AgeLabel(age)</option>
-                                        }
-                                    </select>
-                                </div>
-                            </div>
-
+                        <div class="prow__body">
                             @if (_guestChoosesRooms)
                             {
                                 <div class="form-group">
@@ -134,41 +175,6 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                             {
                                 <span class="field-label">Måltidsval</span>
                                 <div class="meals" data-meals-participant="@index">
-                                    @if (_lunchSlotCount >= 2 || _dinnerSlotCount >= 2)
-                                    {
-                                        <div class="meals__same">
-                                            <p class="same-hint">Snabbval — sätt samma rätt för alla dagar (kan ändras per dag nedan).</p>
-                                            <div class="meals__same-grid">
-                                                @if (_lunchSlotCount >= 2)
-                                                {
-                                                    <div>
-                                                        <label for="p@(index)-sa-lunch">Lunch alla dagar</label>
-                                                        <select class="inp" id="p@(index)-sa-lunch" data-sameall-participant="@index" data-sameall-meal="Lunch">
-                                                            <option value="">– välj –</option>
-                                                            @foreach (var o in _lunchOptions)
-                                                            {
-                                                                <option value="@o.Id">@o.Name</option>
-                                                            }
-                                                        </select>
-                                                    </div>
-                                                }
-                                                @if (_dinnerSlotCount >= 2)
-                                                {
-                                                    <div>
-                                                        <label for="p@(index)-sa-dinner">Middag alla dagar</label>
-                                                        <select class="inp" id="p@(index)-sa-dinner" data-sameall-participant="@index" data-sameall-meal="Dinner">
-                                                            <option value="">– välj –</option>
-                                                            @foreach (var o in _dinnerOptions)
-                                                            {
-                                                                <option value="@o.Id">@o.Name</option>
-                                                            }
-                                                        </select>
-                                                    </div>
-                                                }
-                                            </div>
-                                        </div>
-                                    }
-
                                     @{ var indexedSlots = _slots.Select((s, si) => (Slot: s, SlotIndex: si)).ToList(); }
                                     @foreach (var dateGroup in indexedSlots.GroupBy(x => x.Slot.Date))
                                     {
@@ -181,17 +187,31 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                                     var slot = item.Slot;
                                                     var options = slot.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
                                                     var chosen = entry.MealChoices.ElementAtOrDefault(slotIndex);
-                                                    <div>
-                                                        <label for="p@(index)-m@(slotIndex)">@(slot.MealType == MealType.Lunch ? "Lunch" : "Middag")</label>
-                                                        <select class="inp" id="p@(index)-m@(slotIndex)" name="Form.Overnight[@index].MealChoices[@slotIndex]"
-                                                                data-participant="@index" data-meal="@slot.MealType">
-                                                            <option value="">– välj –</option>
-                                                            @foreach (var o in options)
-                                                            {
-                                                                <option value="@o.Id" selected="@(chosen == o.Id.ToString())">@o.Name</option>
-                                                            }
-                                                        </select>
-                                                    </div>
+                                                    var mealLabel = slot.MealType == MealType.Lunch ? "Lunch" : "Middag";
+                                                    @if (options.Count >= 2)
+                                                    {
+                                                        <div>
+                                                            <label for="p@(index)-m@(slotIndex)">@mealLabel</label>
+                                                            <select class="inp" id="p@(index)-m@(slotIndex)" name="Form.Overnight[@index].MealChoices[@slotIndex]"
+                                                                    data-participant="@index" data-meal="@slot.MealType">
+                                                                <option value="">– välj –</option>
+                                                                @foreach (var o in options)
+                                                                {
+                                                                    <option value="@o.Id" selected="@(chosen == o.Id.ToString())">@o.Name</option>
+                                                                }
+                                                            </select>
+                                                        </div>
+                                                    }
+                                                    else if (options.Count == 1)
+                                                    {
+                                                        @* Single option → not a choice; show it and post it via a hidden field. *@
+                                                        var only = options[0];
+                                                        <div class="meal-fixed">
+                                                            <span class="mf-label">@mealLabel</span>
+                                                            <span class="mf-val">@only.Name <span class="mf-note">(serveras till alla)</span></span>
+                                                            <input type="hidden" name="Form.Overnight[@index].MealChoices[@slotIndex]" value="@only.Id" />
+                                                        </div>
+                                                    }
                                                 }
                                             </div>
                                         </div>
@@ -246,7 +266,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="d@(di)-name">Namn</label>
-                                        <input id="d@(di)-name" name="Form.DayGuests[@di].FullName" value="@dg.FullName" maxlength="200" />
+                                        <input id="d@(di)-name" name="Form.DayGuests[@di].FullName" value="@dg.FullName" maxlength="200" required />
                                     </div>
                                     <div class="form-group">
                                         <label for="d@(di)-age">Ålderskategori</label>
@@ -422,6 +442,7 @@ else
     private int _lunchSlotCount;
     private int _dinnerSlotCount;
     private bool _dayGuestsApplicable;
+    private bool _defaultFullBoard;
     private IReadOnlyList<DateOnly> _stayDates = [];
     private bool _guestChoosesRooms;
     private IReadOnlyList<RoomInfo> _availableRooms = [];
@@ -453,6 +474,7 @@ else
 
             // Day guests apply only for a catered plan (§4.2); the section is hidden otherwise.
             _dayGuestsApplicable = _booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
+            _defaultFullBoard = _booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
             _stayDates = EnumerateDates(_booking.CheckIn.Value, _booking.CheckOut.Value);
 
             // Room picker only when the booking lets the guest choose rooms (FR-56); otherwise the

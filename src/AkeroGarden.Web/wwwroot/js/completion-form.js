@@ -46,19 +46,27 @@
         });
     });
 
-    // "Same for all days" (FR-59): copy one choice into every matching per-day select for that
-    // participant + meal type.
-    document.querySelectorAll("select[data-sameall-participant]").forEach(function (source) {
+    // Group defaults (FR-59, scaled to the whole group): cascade one choice to every participant.
+    // "Helpension för alla" toggles every participant's full-board box and re-syncs their meal
+    // visibility; each standard meal select copies into every matching per-day select for everyone.
+    var gdFullBoard = document.querySelector("[data-groupdefault-fullboard]");
+    if (gdFullBoard) {
+        gdFullBoard.addEventListener("change", function () {
+            document.querySelectorAll("input[data-fullboard-participant]").forEach(function (cb) {
+                cb.checked = gdFullBoard.checked;
+                cb.dispatchEvent(new Event("change", { bubbles: true }));
+            });
+        });
+    }
+
+    document.querySelectorAll("select[data-groupdefault-meal]").forEach(function (source) {
         source.addEventListener("change", function () {
-            var i = source.getAttribute("data-sameall-participant");
-            var meal = source.getAttribute("data-sameall-meal");
-            var value = source.value;
-            if (!value) {
+            var meal = source.getAttribute("data-groupdefault-meal");
+            if (!source.value) {
                 return;
             }
-            var selector = 'select[data-participant="' + i + '"][data-meal="' + meal + '"]';
-            document.querySelectorAll(selector).forEach(function (target) {
-                target.value = value;
+            document.querySelectorAll('select[data-participant][data-meal="' + meal + '"]').forEach(function (target) {
+                target.value = source.value;
             });
         });
     });

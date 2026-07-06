@@ -19,13 +19,28 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
         await Page.GotoAsync(CompletionUrl);
 
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Nästan klart!" })).ToBeVisibleAsync();
-        // One card per overnight guest (the fixture booking has 2).
-        await Assertions.Expect(Page.Locator(".pcard[aria-label='Deltagare 1']")).ToBeVisibleAsync();
-        await Assertions.Expect(Page.Locator(".pcard[aria-label='Deltagare 2']")).ToBeVisibleAsync();
+        // Group-default panel + one collapsible row per overnight guest (the fixture booking has 2).
+        await Assertions.Expect(Page.Locator(".group-default")).ToBeVisibleAsync();
+        await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1']")).ToBeVisibleAsync();
+        await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 2']")).ToBeVisibleAsync();
+        // Names are mandatory.
+        await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name")).ToHaveAttributeAsync("required", "");
 
         var captureDir = Environment.GetEnvironmentVariable("E2E_CAPTURE_DIR");
         if (captureDir is not null)
             await Page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, "completion.png"), FullPage = true });
+    }
+
+    [Fact]
+    public async Task Participant_row_collapses_meals_until_expanded()
+    {
+        await Page.GotoAsync(CompletionUrl);
+        var row = Page.Locator(".prow[aria-label='Deltagare 1']");
+
+        // Meals/dietary are collapsed by default (name + age stay visible).
+        await Assertions.Expect(row.Locator(".prow__body")).Not.ToBeVisibleAsync();
+        await row.Locator(".prow__toggle").ClickAsync();
+        await Assertions.Expect(row.Locator(".prow__body")).ToBeVisibleAsync();
     }
 
     [Fact]

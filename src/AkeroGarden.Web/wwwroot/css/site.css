@@ -733,6 +733,41 @@ select.inp {
 .utility__badge--ok { background: rgba(113, 176, 2, 0.16); color: #37600d; }
 .utility__badge--warn { background: rgba(214, 158, 46, 0.18); color: #6f4900; }
 
+/* ---- Completion at scale: group defaults + collapsible participant rows ---- */
+.required-mark { color: var(--color-err); }
+
+/* "Standard för hela gruppen" panel */
+.group-default { background: rgba(113, 176, 2, 0.09); border: 1.5px solid rgba(113, 176, 2, 0.4); border-radius: var(--radius-card); padding: 1.1rem 1.25rem; margin: 0.5rem 0 1.5rem; }
+.group-default h3 { font-family: var(--font-heading); font-weight: 700; font-size: 1.05rem; margin: 0 0 0.25rem; color: var(--color-heading); }
+.group-default > p { font-size: 0.8rem; color: var(--color-muted); margin: 0 0 0.9rem; }
+.group-default .fbrow { margin: 0 0 0.9rem; }
+.group-default__grid { display: grid; grid-template-columns: 1fr; gap: 0.9rem; }
+@media (min-width: 480px) { .group-default__grid { grid-template-columns: 1fr 1fr; } }
+
+.completion-rowcount { font-size: 0.85rem; color: var(--color-muted); margin: 0 0 0.6rem; }
+
+/* Collapsible participant row */
+.prow { border: 1px solid var(--color-line); border-radius: var(--radius-card); background: #fff; margin-bottom: 0.5rem; overflow: hidden; }
+.prow__toggle-cb { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.prow__head { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.85rem; flex-wrap: wrap; }
+.prow__badge { width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--color-primary); color: var(--color-heading); font-weight: 700; font-size: 0.8rem; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.prow__name { flex: 1 1 11rem; }
+.prow__age { flex: 0 0 8.5rem; }
+.prow__toggle { display: inline-flex; align-items: center; gap: 0.4rem; margin-left: auto; background: transparent; border: 1px solid var(--color-line); border-radius: 20px; padding: 0.4rem 0.8rem; font-family: var(--font-body); font-size: 0.78rem; font-weight: 700; color: var(--color-muted); cursor: pointer; white-space: nowrap; }
+.prow__toggle .chev { transition: transform var(--transition); }
+.prow__body { display: none; border-top: 1px solid var(--color-line); padding: 1rem 0.85rem; background: var(--color-bg); }
+.prow__toggle-cb:checked ~ .prow__body { display: block; }
+.prow__toggle-cb:checked ~ .prow__head .prow__toggle { color: var(--color-primary-ink); border-color: var(--color-primary-ink); }
+.prow__toggle-cb:checked ~ .prow__head .prow__toggle .chev { transform: rotate(90deg); }
+.prow__toggle-cb:focus-visible ~ .prow__head .prow__toggle { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
+@media (max-width: 560px) { .prow__age { flex: 1 1 8rem; } .prow__toggle { margin-left: 0; } }
+
+/* A meal with only one option is shown as text (no pointless dropdown) */
+.meal-fixed .mf-label { display: block; font-size: 0.72rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-bottom: 0.3rem; }
+.meal-fixed .mf-val { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; color: var(--color-heading); }
+.meal-fixed .mf-val::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--color-primary); flex: none; }
+.meal-fixed .mf-note { color: var(--color-muted); font-size: 0.85rem; }
+
 /* ============================================================
    Admin shell
    ============================================================ */

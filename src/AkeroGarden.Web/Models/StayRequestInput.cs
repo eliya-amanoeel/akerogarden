@@ -78,5 +78,14 @@ public class StayRequestInput : IValidatableObject
                 "Du måste godkänna integritetspolicyn för att skicka förfrågan.",
                 [nameof(AcceptPrivacyPolicy)]);
         }
+
+        // OrgName is Conditional in the data model (§8): if the guest declares the booking is for an
+        // organisation, the organisation must be named. OrgNumber and InvoiceAddress stay optional.
+        if (IsOrganisation && string.IsNullOrWhiteSpace(OrgName))
+        {
+            yield return new ValidationResult(
+                "Organisationsnamn krävs när bokningen görs för en organisation.",
+                [nameof(OrgName)]);
+        }
     }
 }

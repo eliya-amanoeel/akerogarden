@@ -76,7 +76,10 @@ else
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="s-email">E-postadress</label>
-                                <InputText id="s-email" type="email" @bind-Value="StayModel!.ContactEmail" />
+                                @* type=text + inputmode=email: keeps the mobile e-mail keyboard but lets our
+                                   server-side [EmailAddress] message be the single source of truth (native
+                                   type=email would block the post and suppress our styled message). *@
+                                <InputText id="s-email" type="text" inputmode="email" @bind-Value="StayModel!.ContactEmail" />
                                 <ValidationMessage For="() => StayModel!.ContactEmail" />
                             </div>
                             <div class="form-group">
@@ -178,6 +181,7 @@ else
                             <div class="form-group">
                                 <label for="s-orgname">Organisationsnamn</label>
                                 <InputText id="s-orgname" @bind-Value="StayModel!.OrgName" />
+                                <ValidationMessage For="() => StayModel!.OrgName" />
                             </div>
                             <div class="form-group">
                                 <label for="s-orgnumber">Organisationsnummer <span class="field-opt">(valfritt)</span></label>
@@ -231,7 +235,7 @@ else
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="g-email">E-postadress</label>
-                                <InputText id="g-email" type="email" @bind-Value="GeneralModel!.ContactEmail" />
+                                <InputText id="g-email" type="text" inputmode="email" @bind-Value="GeneralModel!.ContactEmail" />
                                 <ValidationMessage For="() => GeneralModel!.ContactEmail" />
                             </div>
                             <div class="form-group">

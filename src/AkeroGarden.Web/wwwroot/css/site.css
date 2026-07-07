@@ -1189,10 +1189,27 @@ fieldset.participant legend {
     font-size: 0.95rem;
     border: 1px solid transparent;
 }
-.alert__ic { font-weight: 700; flex: none; }
+/* Round badge so the glyph reads as an info/error indicator, not stray punctuation (a bare bold
+   "i" was mistaken for an upside-down exclamation mark). Italic "i" = the conventional info mark. */
+.alert__ic {
+    flex: none;
+    align-self: start;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.3rem;
+    height: 1.3rem;
+    border-radius: 50%;
+    font-size: 0.82rem;
+    font-weight: 700;
+    font-style: italic;
+    line-height: 1;
+}
 .alert b { color: var(--color-heading); }
 .alert--info { background: var(--color-info-bg); border-color: rgba(134, 86, 40, 0.3); color: #5a3d1f; }
+.alert--info .alert__ic { background: #5a3d1f; color: var(--color-info-bg); }
 .alert--error { background: var(--color-err-bg); border-color: rgba(179, 52, 26, 0.32); color: #8f2915; }
+.alert--error .alert__ic { background: #8f2915; color: var(--color-err-bg); }
 
 .form-status {
     color: var(--color-primary-hover);

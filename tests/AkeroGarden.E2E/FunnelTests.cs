@@ -48,6 +48,51 @@ public class FunnelTests(E2EFixture fixture) : E2ETestBase(fixture)
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
     }
 
+    /// <summary>Fills every required stay-request field with valid values, so a test can invalidate a
+    /// single field and assert its message in isolation. Leaves the optional phone blank.</summary>
+    private async Task FillValidStayFormAsync()
+    {
+        await Page.FillAsync("#s-name", "Anna Andersson");
+        await Page.FillAsync("#s-email", "anna@example.se");
+        await Page.FillAsync("#s-checkin", "2026-08-01");
+        await Page.FillAsync("#s-checkout", "2026-08-03");
+        await Page.FillAsync("#s-guests", "12");
+        await Page.SelectOptionAsync("#mealplan", "FullBoardAll");
+        await Page.Locator(".track--stay label:has-text('integritetspolicyn') input[type=checkbox]").CheckAsync();
+    }
+
+    [Fact]
+    public async Task Invalid_email_shows_the_server_side_message()
+    {
+        // The email input is type=text + inputmode=email, so a malformed address no longer gets
+        // silently blocked by native browser validation — the post goes through and our styled
+        // [EmailAddress] message renders like every other field (slice-7 finding).
+        await Page.GotoAsync("/boka");
+        await FillValidStayFormAsync();
+        await Page.FillAsync("#s-email", "anna-at-example.se");   // no @ → invalid
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
+
+        await Assertions.Expect(Page.GetByText("Ange en giltig e-postadress.")).ToBeVisibleAsync();
+        // …and it must not have reached the acknowledgement.
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).Not.ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Organisation_without_a_name_is_blocked()
+    {
+        // OrgName is Conditional (§8): ticking "for an organisation" makes naming it required.
+        await Page.GotoAsync("/boka");
+        await FillValidStayFormAsync();
+        await Page.Locator("#s-isorg").CheckAsync();            // reveals the org panel (progressive JS)
+        // Leave #s-orgname empty on purpose.
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
+
+        await Assertions.Expect(
+            Page.GetByText("Organisationsnamn krävs när bokningen görs för en organisation."))
+            .ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).Not.ToBeVisibleAsync();
+    }
+
     [Fact]
     public async Task Inquiry_toggle_switches_between_the_two_tracks()
     {

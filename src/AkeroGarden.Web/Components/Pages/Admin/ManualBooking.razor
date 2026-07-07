@@ -12,10 +12,14 @@
 
 <PageTitle>Skapa bokning — Åkerögården Admin</PageTitle>
 
-<p><a class="btn-ghost" href="/admin/bokningar">← Tillbaka till listan</a></p>
-<h1>Skapa bokning</h1>
-<p>Skapas för gästens räkning (FR-47). Inga automatiska e-postmeddelanden skickas.</p>
+<AdminHeader>
+    <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a> / Skapa bokning</span></TitleContent>
+</AdminHeader>
 
+<div class="admin-detail-head"><h1>Skapa bokning</h1></div>
+<p class="section-note">Skapas för gästens räkning (FR-47). Inga automatiska e-postmeddelanden skickas.</p>
+
+<section class="card admin-editcard">
 <div class="form-group">
     <label for="type">Typ</label>
     <select id="type" @bind="_type">
@@ -106,6 +110,7 @@ else
         <button type="submit" class="btn">Skapa förfrågan</button>
     </EditForm>
 }
+</section>
 
 @code {
     private BookingType _type = BookingType.StayRequest;

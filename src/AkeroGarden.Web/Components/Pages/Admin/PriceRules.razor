@@ -7,59 +7,71 @@
 
 <PageTitle>Priser — Åkerögården Admin</PageTitle>
 
-<h1>Priser</h1>
+<AdminHeader Title="Priser" />
 
 @if (!string.IsNullOrEmpty(_message))
 {
-    <p role="status">@_message</p>
+    <p role="status" class="form-status">@_message</p>
 }
 
 @if (_priceRules is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else
 {
     @* No total incl. VAT column — the system stores and computes no monetary totals (C8). *@
-    <table>
-        <thead>
-            <tr>
-                <th>Etikett</th>
-                <th>Belopp exkl. moms</th>
-                <th>Momssats</th>
-                <th>Enhet</th>
-                <th>Säsong</th>
-                <th>Status</th>
-                <th>Åtgärd</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var p in _priceRules)
-            {
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
                 <tr>
-                    <td>@p.Label</td>
-                    <td>@p.AmountExVat.ToString("0.00") kr</td>
-                    <td>@p.VatRate.ToString("0.##%")</td>
-                    <td>@p.Unit</td>
-                    <td>@SeasonText(p)</td>
-                    <td>@(p.IsActive ? "Aktiv" : "Inaktiv")</td>
-                    <td>
-                        <button class="btn-ghost" @onclick="() => Edit(p)">Redigera</button>
-                        @if (p.IsActive)
-                        {
-                            <button class="btn-ghost" @onclick="() => SetActive(p, false)">Inaktivera</button>
-                        }
-                        else
-                        {
-                            <button class="btn-ghost" @onclick="() => SetActive(p, true)">Aktivera</button>
-                        }
-                        <button class="btn-ghost" @onclick="() => Delete(p)">Ta bort</button>
-                    </td>
+                    <th>Etikett</th>
+                    <th class="num">Belopp exkl. moms</th>
+                    <th class="num">Momssats</th>
+                    <th>Enhet</th>
+                    <th>Säsong</th>
+                    <th>Status</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var p in _priceRules)
+                {
+                    <tr>
+                        <td><span class="rowlink">@p.Label</span></td>
+                        <td class="num mono">@p.AmountExVat.ToString("0.00") kr</td>
+                        <td class="num mono">@p.VatRate.ToString("0.##%")</td>
+                        <td>@p.Unit</td>
+                        <td>@SeasonText(p)</td>
+                        <td>
+                            @if (p.IsActive)
+                            {
+                                <span class="badge badge--approved">Aktiv</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--neutral">Inaktiv</span>
+                            }
+                        </td>
+                        <td class="rowactions">
+                            <button class="btn-ghost" @onclick="() => Edit(p)">Redigera</button>
+                            @if (p.IsActive)
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(p, false)">Inaktivera</button>
+                            }
+                            else
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(p, true)">Aktivera</button>
+                            }
+                            <button class="btn-ghost" @onclick="() => Delete(p)">Ta bort</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
+    <section class="card admin-editcard">
     <h2>@(_editingId is null ? "Lägg till pris" : "Redigera pris")</h2>
 
     <EditForm Model="_form" OnValidSubmit="Save" FormName="priceRule">
@@ -115,6 +127,7 @@ else
             <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
         }
     </EditForm>
+    </section>
 }
 
 @code {

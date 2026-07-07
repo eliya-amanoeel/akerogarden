@@ -1,9 +1,194 @@
 @page "/admin"
 @layout AdminLayout
 @rendermode InteractiveServer
+@using System.Globalization
+@using AkeroGarden.Web.Data.Entities
+@using AkeroGarden.Web.Services
+@inject BookingService BookingService
 @attribute [Authorize]
 
 <PageTitle>Översikt — Åkerögården Admin</PageTitle>
 
-<h1>Välkommen</h1>
-<p>Adminpanelen för Åkerögården.</p>
+<AdminHeader Title="Översikt">
+    <span class="crumb">@DateTime.Now.ToString("dddd d MMMM yyyy", Sv)</span>
+</AdminHeader>
+
+@if (_loading)
+{
+    <p class="admin-empty">Laddar…</p>
+}
+else
+{
+    <div class="grid2" style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem">
+        @* ── Väntar på svar ─────────────────────────────────────── *@
+        <section class="card">
+            <div class="card__head">
+                <h2>Väntar på svar</h2>
+                @if (_pending.Count > 0)
+                {
+                    <span class="n">@_pending.Count</span>
+                }
+                <a class="link" href="/admin/bokningar">Alla bokningar →</a>
+            </div>
+            @if (_pending.Count == 0)
+            {
+                <p class="admin-empty">Inga förfrågningar väntar. 👍</p>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <tbody>
+                            @foreach (var b in _pending.Take(6))
+                            {
+                                <tr>
+                                    <td>
+                                        <a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a>
+                                        <span class="sub">@BookingDisplay.TypeLabel(b.BookingType)@GuestSuffix(b)</span>
+                                    </td>
+                                    <td class="num mono">@DateRange(b)</td>
+                                    <td style="text-align:right">@Badge(b.Status)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+
+        @* ── Väntar på slutförande ──────────────────────────────── *@
+        <section class="card">
+            <div class="card__head">
+                <h2>Väntar på slutförande</h2>
+                <a class="link" href="/admin/bokningar">Alla →</a>
+            </div>
+            @if (_awaitingCompletion.Count == 0)
+            {
+                <p class="admin-empty">Inga godkända bokningar väntar på gästens uppgifter.</p>
+            }
+            else
+            {
+                <div class="admin-table-wrap">
+                    <table class="admin-table">
+                        <tbody>
+                            @foreach (var b in _awaitingCompletion.Take(6))
+                            {
+                                <tr>
+                                    <td>
+                                        <a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a>
+                                        <span class="sub">Godkänd@(GuestSuffix(b))</span>
+                                    </td>
+                                    <td style="text-align:right">@ExpiryBadge(b)</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            }
+        </section>
+    </div>
+
+    @* ── Kommande ankomster ─────────────────────────────────────── *@
+    <section class="card">
+        <div class="card__head">
+            <h2>Kommande ankomster</h2>
+            <a class="link" href="/admin/kalender">Kalendervy →</a>
+        </div>
+        @if (_upcoming.Count == 0)
+        {
+            <p class="admin-empty">Inga kommande ankomster.</p>
+        }
+        else
+        {
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
+                        <tr>
+                            <th>Datum</th>
+                            <th>Sällskap</th>
+                            <th class="num">Gäster</th>
+                            <th>Måltider</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var b in _upcoming.Take(12))
+                        {
+                            <tr>
+                                <td class="mono">@b.CheckIn?.ToString("d MMM", Sv)</td>
+                                <td><a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a></td>
+                                <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
+                                <td>@BookingDisplay.MealPlanLabel(b.MealPlan)</td>
+                                <td>@Badge(b.Status)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>
+}
+
+@code {
+    private static readonly CultureInfo Sv = CultureInfo.GetCultureInfo("sv-SE");
+
+    private bool _loading = true;
+    private List<Booking> _pending = [];
+    private List<Booking> _awaitingCompletion = [];
+    private List<Booking> _upcoming = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Now);
+
+        _pending = await BookingService.GetBookingsAsync(status: BookingStatus.Pending);
+
+        _awaitingCompletion = await BookingService.GetBookingsAsync(status: BookingStatus.Approved);
+
+        // Upcoming = confirmed/complete stays whose check-in is today or later, nearest first.
+        var approved = _awaitingCompletion;
+        var complete = await BookingService.GetBookingsAsync(status: BookingStatus.DetailsComplete);
+        _upcoming = approved.Concat(complete)
+            .Where(b => b.CheckIn is not null && b.CheckIn >= today)
+            .OrderBy(b => b.CheckIn)
+            .ToList();
+
+        _loading = false;
+    }
+
+    private static string GuestSuffix(Booking b) =>
+        b.OvernightGuestCount is int n ? $" · {n} gäster" : "";
+
+    private static string DateRange(Booking b) =>
+        b.CheckIn is not null && b.CheckOut is not null
+            ? $"{b.CheckIn.Value.ToString("d MMM", Sv)}–{b.CheckOut.Value.ToString("d MMM", Sv)}"
+            : "—";
+
+    private static RenderFragment Badge(BookingStatus s) => builder =>
+    {
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", BookingDisplay.StatusBadgeClass(s));
+        builder.AddContent(2, BookingDisplay.StatusLabel(s));
+        builder.CloseElement();
+    };
+
+    private RenderFragment ExpiryBadge(Booking b) => builder =>
+    {
+        string text;
+        if (b.CompletionTokenExpiry is null)
+        {
+            text = "Godkänd";
+        }
+        else
+        {
+            var days = (int)Math.Ceiling((b.CompletionTokenExpiry.Value - DateTime.UtcNow).TotalDays);
+            text = days <= 0 ? "Länken har gått ut"
+                : days == 1 ? "Går ut inom 1 dygn"
+                : $"{days} dygn kvar";
+        }
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", "badge badge--approved");
+        builder.AddContent(2, text);
+        builder.CloseElement();
+    };
+}

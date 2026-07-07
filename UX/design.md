@@ -129,7 +129,7 @@ Each component supports the relevant states: **default / hover / focus / active 
 - **Cards** — image card (photo + title + body) and flat card (green top-rule, no image). Border `--color-line`, `--radius-card`.
 - **Tables** — uppercase header labels, hairline row borders, right-aligned numeric columns with `font-variant-numeric: tabular-nums`; horizontal scroll wrapper on narrow screens.
 - **Alerts** — `.alert` in `ok / warn / err / info`, tinted background + matching border, bold lead line.
-- **Status pills (badges)** — booking states (§2.5): Väntande (warn) · Godkänd (ok) · Pågående (blue) · Avslutad (neutral) · Avbokad (err) · Stängd (muted). **Shared by public and admin.**
+- **Status pills (badges)** — `.badge` + a state modifier, a coloured dot + label mapped from `BookingDisplay.StatusBadgeClass` (all combinations AA on white): Väntar (`--pending`/warn) · Godkänd (`--approved`/ok) · Uppgifter klara (`--complete`/info) · På plats (`--active`/green) · Avslutad & Besvarad (`--done`/neutral) · Avslagen & Avbokad (`--denied`/`--cancelled`/err). **Primarily admin**, but the token set is shared.
 - **Modal** — dark scrim, `--radius-modal`, footer with primary + cancel; destructive confirmations use `--color-err` as the fill (white text, 6.3:1). Used sparingly, mostly in admin.
 
 ---
@@ -159,3 +159,11 @@ SVG assets live in `wwwroot/logo/`. `Logo.razor` takes a `Variant` parameter (`O
 ## Admin (productivity design)
 
 The admin surface (redesigned in slice 6) **reuses these tokens** for coherence but is deliberately utilitarian: dense tables, tight forms, clear status pills, keyboard-friendly — **no hero treatment, no persuasion aesthetic**. "Shared skin, different discipline."
+
+- **Shell** (`AdminLayout`) — a fixed 236px **dark sidebar** (`--admin-nav-bg` #26221d) with the `OnDark` logo lockup, **grouped nav** (main · Referensdata · System) with per-page **active state** (green inset bar + tint, `aria-current="page"`), a live **count badge** on *Bokningar* (pending inquiries), and the signed-in email + logout pinned to the bottom. The main column has a **sticky topbar** (page title / breadcrumb + a right-aligned primary action) fed per-page via a Blazor `SectionOutlet`; pages inject it through the `<AdminHeader>` component. Under 860px the sidebar reflows to a horizontal top bar (group labels hidden) and the booking-detail collapses to one column.
+- **Dashboard** (`/admin`) — an **operational** landing, not a welcome: three flat cards — *Väntar på svar* (pending queue) · *Väntar på slutförande* (approved-not-completed, with link-expiry urgency) · *Kommande ankomster* (nearest arrivals). Every row links straight into the booking.
+- **Admin data table** (`.admin-table` in `.admin-table-wrap`) — denser than the public `.data-table`: uppercase hairline header, hover row tint, `.rowlink` name + `.sub` contact line, right-aligned tabular numbers, status **badge** column, right-aligned `.rowactions`.
+- **Booking detail** — two columns: main content (contact / stay / participants / message) + a **sticky action rail** (`.detail-rail`) of `.card`s holding status actions (`.action-panel` for deny/cancel reason inputs), list downloads, payment checkboxes (`.paycheck`), and internal notes. `.kv` definition grid for read-only facts.
+- **Reference-CRUD pattern** — list in an `.admin-table` (active/inactive as a badge) above an **add/edit panel** wrapped in `.card.admin-editcard`. Consistent across Byggnader/rum, Matalternativ, Faciliteter, Priser, Städzoner, Konton, Blockeringar.
+- **Auth pages** — centred `.login-card` on the `--color-bg-warm` tint with the `OnLight` logo; used by login / glömt-lösenord / återställ-lösenord.
+- **Sidebar DB access caveat** — the layout loads its badge count through a **dedicated DI scope** (its own `DbContext`), because the layout and the page both resolve the circuit-scoped `BookingService`; overlapping their `OnInitializedAsync` DB calls on one `DbContext` otherwise throws "a second operation was started…".

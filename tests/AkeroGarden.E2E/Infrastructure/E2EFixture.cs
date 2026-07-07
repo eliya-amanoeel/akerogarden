@@ -71,6 +71,11 @@ public sealed class E2EFixture : IAsyncLifetime
     public const string CompletionToken = "e2e-completion-token-abc123";
     public const string CompletionSubmitToken = "e2e-completion-submit-token-xyz789";
 
+    /// <summary>Credentials for the admin user AdminSeeder creates on boot (Seed:AdminEmail/Password
+    /// passed via env below). The admin E2E tests log in with these before hitting /admin.</summary>
+    public const string AdminEmail = "e2e-admin@akerogarden.test";
+    public const string AdminPassword = "E2e-Admin-Pass1!";
+
     // The app boots with an empty DB (only an admin user is seeded). Seed the minimum the public
     // journeys need: bedroom capacity (else every calendar day reads fully booked), a couple of
     // meal options, and one Approved booking with a valid completion token for /slutfor.
@@ -117,6 +122,24 @@ public sealed class E2EFixture : IAsyncLifetime
         ctx.Bookings.Add(CompletionBooking(CompletionToken));
         ctx.Bookings.Add(CompletionBooking(CompletionSubmitToken));
 
+        // One Pending stay request so the admin dashboard's "Väntar på svar" queue and the nav
+        // count badge have something to render (the completion bookings above are Approved).
+        ctx.Bookings.Add(new Booking
+        {
+            Id = Guid.NewGuid(),
+            BookingType = BookingType.StayRequest,
+            Status = BookingStatus.Pending,
+            ContactName = "Familjen Pendlar",
+            ContactEmail = "pendlar@example.se",
+            CheckIn = checkIn.AddDays(5),
+            CheckOut = checkIn.AddDays(7),
+            OvernightGuestCount = 12,
+            MealPlan = MealPlan.FullBoardAll,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),
+        });
+
         await ctx.SaveChangesAsync();
     }
 
@@ -144,6 +167,10 @@ public sealed class E2EFixture : IAsyncLifetime
         psi.Environment["DOTNET_ENVIRONMENT"] = "Development";
         psi.Environment["ASPNETCORE_URLS"] = baseUrl;
         psi.Environment["ConnectionStrings__Postgres"] = postgresConnectionString;
+
+        // Seed the first admin so the admin E2E tests can log in (AdminSeeder is a no-op without these).
+        psi.Environment["Seed__AdminEmail"] = AdminEmail;
+        psi.Environment["Seed__AdminPassword"] = AdminPassword;
 
         // No SMTP server in E2E. SmtpEmailService already swallows send failures (NFR-13), so a
         // submit still succeeds — but make it fail fast (1 attempt, no retry delay) and give it a

@@ -9,12 +9,9 @@
 
 <PageTitle>Bokningar — Åkerögården Admin</PageTitle>
 
-<h1>Bokningar</h1>
-
-<div class="admin-toolbar">
-    <a class="btn" href="/admin/bokningar/ny">Skapa bokning</a>
-    <a class="btn-ghost" href="/admin/kalender">Kalendervy</a>
-</div>
+<AdminHeader Title="Bokningar">
+    <a class="btn" href="/admin/bokningar/ny">+ Skapa bokning</a>
+</AdminHeader>
 
 <div class="admin-filters">
     <div class="form-group">
@@ -49,50 +46,55 @@
 
 @if (_bookings is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else if (_bookings.Count == 0)
 {
-    <p>Inga bokningar matchar filtret.</p>
+    <p class="admin-empty">Inga bokningar matchar filtret.</p>
 }
 else
 {
-    <table>
-        <thead>
-            <tr>
-                <th>Inkommen</th>
-                <th>Typ</th>
-                <th>Namn</th>
-                <th>Datum</th>
-                <th>Gäster</th>
-                <th>Status</th>
-                <th>Åtgärd</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var b in _bookings)
-            {
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
                 <tr>
-                    <td>@b.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
-                    <td>@BookingDisplay.TypeLabel(b.BookingType)</td>
-                    <td>@b.ContactName</td>
-                    <td>
-                        @if (b.CheckIn is not null && b.CheckOut is not null)
-                        {
-                            @($"{b.CheckIn:yyyy-MM-dd} – {b.CheckOut:yyyy-MM-dd}")
-                        }
-                        else
-                        {
-                            <span>—</span>
-                        }
-                    </td>
-                    <td>@(b.OvernightGuestCount?.ToString() ?? "—")</td>
-                    <td>@BookingDisplay.StatusLabel(b.Status)</td>
-                    <td><a class="btn-ghost" href="/admin/bokningar/@b.Id">Öppna</a></td>
+                    <th>Inkommen</th>
+                    <th>Sällskap</th>
+                    <th>Typ</th>
+                    <th>Datum</th>
+                    <th class="num">Gäster</th>
+                    <th>Status</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var b in _bookings)
+                {
+                    <tr>
+                        <td class="mono">@b.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                        <td>
+                            <a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a>
+                            <span class="sub">@b.ContactEmail</span>
+                        </td>
+                        <td>@BookingDisplay.TypeLabel(b.BookingType)</td>
+                        <td class="mono">
+                            @if (b.CheckIn is not null && b.CheckOut is not null)
+                            {
+                                @($"{b.CheckIn:yyyy-MM-dd} – {b.CheckOut:yyyy-MM-dd}")
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
+                        <td><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></td>
+                        <td class="rowactions"><a class="btn-ghost" href="/admin/bokningar/@b.Id">Öppna →</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
 @code {

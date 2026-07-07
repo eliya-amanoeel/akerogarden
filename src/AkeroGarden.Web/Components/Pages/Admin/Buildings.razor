@@ -8,55 +8,67 @@
 
 <PageTitle>Byggnader &amp; rum — Åkerögården Admin</PageTitle>
 
-<h1>Byggnader &amp; rum</h1>
+<AdminHeader Title="Byggnader &amp; rum" />
 
 @if (!string.IsNullOrEmpty(_message))
 {
-    <p role="status">@_message</p>
+    <p role="status" class="form-status">@_message</p>
 }
 
 @if (_buildings is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else
 {
-    <table>
-        <thead>
-            <tr>
-                <th>Ordning</th>
-                <th>Namn</th>
-                <th>Tillgänglig</th>
-                <th>Status</th>
-                <th>Åtgärd</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var b in _buildings)
-            {
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
                 <tr>
-                    <td>@b.DisplayOrder</td>
-                    <td>@b.Name</td>
-                    <td>@(b.IsAccessible ? "Ja" : "Nej")</td>
-                    <td>@(b.IsActive ? "Aktiv" : "Inaktiv")</td>
-                    <td>
-                        <button class="btn-ghost" @onclick="() => EditBuilding(b)">Redigera</button>
-                        <button class="btn-ghost" @onclick="() => SelectBuilding(b)">Rum</button>
-                        @if (b.IsActive)
-                        {
-                            <button class="btn-ghost" @onclick="() => SetBuildingActive(b, false)">Inaktivera</button>
-                        }
-                        else
-                        {
-                            <button class="btn-ghost" @onclick="() => SetBuildingActive(b, true)">Aktivera</button>
-                        }
-                        <button class="btn-ghost" @onclick="() => DeleteBuilding(b)">Ta bort</button>
-                    </td>
+                    <th class="num">Ordning</th>
+                    <th>Namn</th>
+                    <th>Tillgänglig</th>
+                    <th>Status</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var b in _buildings)
+                {
+                    <tr>
+                        <td class="num mono">@b.DisplayOrder</td>
+                        <td><span class="rowlink">@b.Name</span></td>
+                        <td>@(b.IsAccessible ? "Ja" : "Nej")</td>
+                        <td>
+                            @if (b.IsActive)
+                            {
+                                <span class="badge badge--approved">Aktiv</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--neutral">Inaktiv</span>
+                            }
+                        </td>
+                        <td class="rowactions">
+                            <button class="btn-ghost" @onclick="() => EditBuilding(b)">Redigera</button>
+                            <button class="btn-ghost" @onclick="() => SelectBuilding(b)">Rum</button>
+                            @if (b.IsActive)
+                            {
+                                <button class="btn-ghost" @onclick="() => SetBuildingActive(b, false)">Inaktivera</button>
+                            }
+                            else
+                            {
+                                <button class="btn-ghost" @onclick="() => SetBuildingActive(b, true)">Aktivera</button>
+                            }
+                            <button class="btn-ghost" @onclick="() => DeleteBuilding(b)">Ta bort</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
+    <section class="card admin-editcard">
     <h2>@(_editingBuildingId is null ? "Lägg till byggnad" : "Redigera byggnad")</h2>
 
     <EditForm Model="_buildingForm" OnValidSubmit="SaveBuilding" FormName="building">
@@ -99,52 +111,64 @@ else
             <button type="button" class="btn-ghost" @onclick="NewBuilding">Avbryt</button>
         }
     </EditForm>
+    </section>
 
     @if (_selectedBuilding is not null)
     {
-        <hr />
-        <h2>Rum i @_selectedBuilding.Name</h2>
+        <h2 class="admin-subsection">Rum i @_selectedBuilding.Name</h2>
 
         @if (_rooms is not null)
         {
-            <table>
-                <thead>
-                    <tr>
-                        <th>Ordning</th>
-                        <th>Namn</th>
-                        <th>Bäddar</th>
-                        <th>Konfiguration</th>
-                        <th>Status</th>
-                        <th>Åtgärd</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @foreach (var r in _rooms)
-                    {
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <thead>
                         <tr>
-                            <td>@r.DisplayOrder</td>
-                            <td>@r.Name</td>
-                            <td>@r.BedCount</td>
-                            <td>@r.BedConfiguration</td>
-                            <td>@(r.IsActive ? "Aktiv" : "Inaktiv")</td>
-                            <td>
-                                <button class="btn-ghost" @onclick="() => EditRoom(r)">Redigera</button>
-                                @if (r.IsActive)
-                                {
-                                    <button class="btn-ghost" @onclick="() => SetRoomActive(r, false)">Inaktivera</button>
-                                }
-                                else
-                                {
-                                    <button class="btn-ghost" @onclick="() => SetRoomActive(r, true)">Aktivera</button>
-                                }
-                                <button class="btn-ghost" @onclick="() => DeleteRoom(r)">Ta bort</button>
-                            </td>
+                            <th class="num">Ordning</th>
+                            <th>Namn</th>
+                            <th class="num">Bäddar</th>
+                            <th>Konfiguration</th>
+                            <th>Status</th>
+                            <th></th>
                         </tr>
-                    }
-                </tbody>
-            </table>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in _rooms)
+                        {
+                            <tr>
+                                <td class="num mono">@r.DisplayOrder</td>
+                                <td><span class="rowlink">@r.Name</span></td>
+                                <td class="num mono">@r.BedCount</td>
+                                <td>@r.BedConfiguration</td>
+                                <td>
+                                    @if (r.IsActive)
+                                    {
+                                        <span class="badge badge--approved">Aktiv</span>
+                                    }
+                                    else
+                                    {
+                                        <span class="badge badge--neutral">Inaktiv</span>
+                                    }
+                                </td>
+                                <td class="rowactions">
+                                    <button class="btn-ghost" @onclick="() => EditRoom(r)">Redigera</button>
+                                    @if (r.IsActive)
+                                    {
+                                        <button class="btn-ghost" @onclick="() => SetRoomActive(r, false)">Inaktivera</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn-ghost" @onclick="() => SetRoomActive(r, true)">Aktivera</button>
+                                    }
+                                    <button class="btn-ghost" @onclick="() => DeleteRoom(r)">Ta bort</button>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
         }
 
+        <section class="card admin-editcard">
         <h3>@(_editingRoomId is null ? "Lägg till rum" : "Redigera rum")</h3>
 
         <EditForm Model="_roomForm" OnValidSubmit="SaveRoom" FormName="room">
@@ -180,6 +204,7 @@ else
                 <button type="button" class="btn-ghost" @onclick="NewRoom">Avbryt</button>
             }
         </EditForm>
+        </section>
     }
 }
 

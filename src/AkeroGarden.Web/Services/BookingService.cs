@@ -277,6 +277,11 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         return await query.OrderByDescending(b => b.CreatedAt).ToListAsync();
     }
 
+    /// <summary>Count of bookings still awaiting a first admin response (both stay requests and
+    /// general inquiries) — drives the admin nav badge and the "Väntar på svar" dashboard queue.</summary>
+    public async Task<int> GetPendingCountAsync() =>
+        await db.Bookings.CountAsync(b => b.Status == BookingStatus.Pending);
+
     // ── Status transitions (§2.5 — enforced via BookingStateMachine) ───────────────
 
     /// <summary>

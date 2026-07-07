@@ -82,16 +82,59 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         await CaptureAsync("admin-booking-detail");
     }
 
+    // Slice 7: axe now sweeps every authenticated admin page — the operational dashboard, the
+    // bookings list + manual-booking form, the calendar and blocks, and all six reference-data
+    // CRUD screens plus accounts. (Booking detail needs a real {id} and is covered separately.)
     [Theory]
     [InlineData("/admin")]
     [InlineData("/admin/bokningar")]
+    [InlineData("/admin/bokningar/ny")]
+    [InlineData("/admin/kalender")]
+    [InlineData("/admin/blockeringar")]
+    [InlineData("/admin/byggnader")]
     [InlineData("/admin/matalternativ")]
+    [InlineData("/admin/priser")]
+    [InlineData("/admin/stadszoner")]
+    [InlineData("/admin/faciliteter")]
+    [InlineData("/admin/konton")]
     public async Task Admin_pages_have_no_serious_accessibility_violations(string path)
     {
         await LoginAsync();
         await Page.GotoAsync(path);
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
+        await AssertNoSeriousAxeViolationsAsync(path);
+    }
+
+    /// <summary>Booking detail is axe-checked via a real navigation (list → row) so it renders
+    /// against the seeded Pending booking's {id} rather than a synthetic route.</summary>
+    [Fact]
+    public async Task Booking_detail_has_no_serious_accessibility_violations()
+    {
+        await LoginAsync();
+        await Page.GotoAsync("/admin/bokningar");
+        await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await AssertNoSeriousAxeViolationsAsync("booking detail");
+    }
+
+    // The three login-layout pages are public (no auth). /aterstall-losenord renders its
+    // invalid-link state when navigated without a ?code, which is what we axe-check here.
+    [Theory]
+    [InlineData("/login")]
+    [InlineData("/glomt-losenord")]
+    [InlineData("/aterstall-losenord")]
+    public async Task Auth_pages_have_no_serious_accessibility_violations(string path)
+    {
+        await Page.GotoAsync(path);
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await AssertNoSeriousAxeViolationsAsync(path);
+    }
+
+    private async Task AssertNoSeriousAxeViolationsAsync(string path)
+    {
         var results = await Page.RunAxe();
         var serious = results.Violations.Where(v => v.Impact is "serious" or "critical").ToList();
 
@@ -99,6 +142,32 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
             serious.Count == 0,
             $"axe found serious/critical a11y violations on {path}:\n" +
             string.Join("\n", serious.SelectMany(v => v.Nodes.Select(n => $"  [{v.Id}] {n.Html}"))));
+    }
+
+    // Slice 7: responsive reachability sweep. Representative admin surfaces (dashboard, list, a CRUD
+    // screen) must keep their topbar title and the sidebar nav reachable at every breakpoint — the
+    // sidebar reflows to a top bar on mobile but its links never disappear.
+    [Theory]
+    [InlineData("/admin", "Översikt")]
+    [InlineData("/admin/bokningar", "Bokningar")]
+    [InlineData("/admin/matalternativ", "Matalternativ")]
+    public async Task Admin_pages_stay_reachable_across_breakpoints(string path, string title)
+    {
+        await LoginAsync();
+
+        foreach (var viewport in new[] { Mobile, Tablet, Desktop })
+        {
+            await Page.SetViewportSizeAsync(viewport.Width, viewport.Height);
+            await Page.GotoAsync(path);
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            // The topbar title anchors the page…
+            await Assertions.Expect(Page.Locator(".admin-topbar").GetByRole(AriaRole.Heading, new() { Name = title }))
+                .ToBeVisibleAsync();
+            // …and the primary nav stays reachable at every width.
+            await Assertions.Expect(Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" }))
+                .ToBeVisibleAsync();
+        }
     }
 
     [Fact]

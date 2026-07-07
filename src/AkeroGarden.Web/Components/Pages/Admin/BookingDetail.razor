@@ -343,7 +343,7 @@ else
             @* ── Internal notes (FR-39) ────────────────────────────── *@
             <section class="card">
                 <div class="card__head"><h2>Interna anteckningar</h2></div>
-                <InputTextArea @bind-Value="_notes" rows="4" />
+                <InputTextArea @bind-Value="_notes" rows="4" aria-label="Interna anteckningar" />
                 <button class="btn btn-sm" style="margin-top:0.6rem" @onclick="SaveNotes">Spara anteckningar</button>
             </section>
         </aside>

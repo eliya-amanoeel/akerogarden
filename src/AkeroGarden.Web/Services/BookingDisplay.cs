@@ -18,6 +18,21 @@ public static class BookingDisplay
         _ => status.ToString()
     };
 
+    /// <summary>CSS class for the coloured status badge (Phase 6 admin). Pairs with
+    /// <see cref="StatusLabel"/>. All colour combinations are WCAG-AA on white.</summary>
+    public static string StatusBadgeClass(BookingStatus status) => status switch
+    {
+        BookingStatus.Pending => "badge badge--pending",
+        BookingStatus.Approved => "badge badge--approved",
+        BookingStatus.DetailsComplete => "badge badge--complete",
+        BookingStatus.Active => "badge badge--active",
+        BookingStatus.Completed => "badge badge--done",
+        BookingStatus.Closed => "badge badge--done",
+        BookingStatus.Denied => "badge badge--denied",
+        BookingStatus.Cancelled => "badge badge--cancelled",
+        _ => "badge badge--neutral"
+    };
+
     public static string TypeLabel(BookingType type) => type switch
     {
         BookingType.StayRequest => "Bokningsförfrågan",

@@ -7,59 +7,71 @@
 
 <PageTitle>Städzoner — Åkerögården Admin</PageTitle>
 
-<h1>Städzoner</h1>
+<AdminHeader Title="Städzoner" />
 
 @if (!string.IsNullOrEmpty(_message))
 {
-    <p role="status">@_message</p>
+    <p role="status" class="form-status">@_message</p>
 }
 
 @if (_zones is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else
 {
     @* No total incl. VAT column — the system stores and computes no monetary totals (C8). *@
-    <table>
-        <thead>
-            <tr>
-                <th>Ordning</th>
-                <th>Namn</th>
-                <th>Belopp exkl. moms</th>
-                <th>Momssats</th>
-                <th>Typ</th>
-                <th>Status</th>
-                <th>Åtgärd</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var z in _zones)
-            {
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
                 <tr>
-                    <td>@z.DisplayOrder</td>
-                    <td>@z.Name</td>
-                    <td>@z.AmountExVat.ToString("0.00") kr</td>
-                    <td>@z.VatRate.ToString("0.##%")</td>
-                    <td>@BundleText(z)</td>
-                    <td>@(z.IsActive ? "Aktiv" : "Inaktiv")</td>
-                    <td>
-                        <button class="btn-ghost" @onclick="() => Edit(z)">Redigera</button>
-                        @if (z.IsActive)
-                        {
-                            <button class="btn-ghost" @onclick="() => SetActive(z, false)">Inaktivera</button>
-                        }
-                        else
-                        {
-                            <button class="btn-ghost" @onclick="() => SetActive(z, true)">Aktivera</button>
-                        }
-                        <button class="btn-ghost" @onclick="() => Delete(z)">Ta bort</button>
-                    </td>
+                    <th class="num">Ordning</th>
+                    <th>Namn</th>
+                    <th class="num">Belopp exkl. moms</th>
+                    <th class="num">Momssats</th>
+                    <th>Typ</th>
+                    <th>Status</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var z in _zones)
+                {
+                    <tr>
+                        <td class="num mono">@z.DisplayOrder</td>
+                        <td><span class="rowlink">@z.Name</span></td>
+                        <td class="num mono">@z.AmountExVat.ToString("0.00") kr</td>
+                        <td class="num mono">@z.VatRate.ToString("0.##%")</td>
+                        <td>@BundleText(z)</td>
+                        <td>
+                            @if (z.IsActive)
+                            {
+                                <span class="badge badge--approved">Aktiv</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--neutral">Inaktiv</span>
+                            }
+                        </td>
+                        <td class="rowactions">
+                            <button class="btn-ghost" @onclick="() => Edit(z)">Redigera</button>
+                            @if (z.IsActive)
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(z, false)">Inaktivera</button>
+                            }
+                            else
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(z, true)">Aktivera</button>
+                            }
+                            <button class="btn-ghost" @onclick="() => Delete(z)">Ta bort</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
+    <section class="card admin-editcard">
     <h2>@(_editingId is null ? "Lägg till städzon" : "Redigera städzon")</h2>
 
     <EditForm Model="_form" OnValidSubmit="Save" FormName="cleaningZone">
@@ -123,6 +135,7 @@ else
             <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
         }
     </EditForm>
+    </section>
 }
 
 @code {

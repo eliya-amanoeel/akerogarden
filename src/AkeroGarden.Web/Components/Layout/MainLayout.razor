@@ -14,10 +14,39 @@
 
     <footer class="site-footer">
         <div class="container">
-            <p>&copy; @DateTime.Now.Year Åkerögården</p>
-            <nav>
-                <a href="/integritetspolicy">Integritetspolicy</a>
-            </nav>
+            <div class="site-footer__grid">
+                <div>
+                    <p class="site-footer__brand">Åkerögården</p>
+                    <p>Retreatcenter på landsbygden i Norrtälje kommun, Sverige.</p>
+                    <p><a href="mailto:info@akerogarden.se">info@akerogarden.se</a></p>
+                </div>
+                <nav aria-label="Utforska">
+                    <h2>Utforska</h2>
+                    <ul>
+                        <li><a href="/om-oss">Om oss</a></li>
+                        <li><a href="/faciliteter">Faciliteter</a></li>
+                        <li><a href="/mat-och-priser">Mat &amp; priser</a></li>
+                    </ul>
+                </nav>
+                <nav aria-label="Boka">
+                    <h2>Boka</h2>
+                    <ul>
+                        <li><a href="/kalender">Tillgänglighet</a></li>
+                        <li><a href="/boka">Skicka förfrågan</a></li>
+                        <li><a href="/kontakt">Kontakt</a></li>
+                    </ul>
+                </nav>
+                <nav aria-label="Om sidan">
+                    <h2>Om sidan</h2>
+                    <ul>
+                        <li><a href="/integritetspolicy">Integritetspolicy</a></li>
+                    </ul>
+                </nav>
+            </div>
+            <div class="site-footer__bar">
+                <span>&copy; @DateTime.Now.Year Åkerögården</span>
+                <span>Retreat &amp; konferens sedan 1978</span>
+            </div>
         </div>
     </footer>
 </div>

@@ -6,19 +6,24 @@
 
 <PageTitle>Tillgänglighet — Åkerögården</PageTitle>
 
+<section class="page-head">
+    <div class="container">
+        <span class="eyebrow">Tillgänglighet</span>
+        <h1>När är gården ledig?</h1>
+        <div class="page-head__rule"></div>
+        <p class="page-head__intro">
+            Kalendern visar de kommande 12 månaderna. Delvis bokade datum är preliminära — en
+            förfrågan garanterar inte tillgänglighet, utan bekräftas av oss.
+        </p>
+    </div>
+</section>
+
 <section class="section">
     <div class="container">
-        <h1>Tillgänglighet</h1>
-
-        <p class="cal-note">
-            Kalendern visar tillgänglighet för de kommande 12 månaderna. Delvis lediga datum är
-            preliminära — en förfrågan garanterar inte tillgänglighet, utan bekräftas av oss.
-        </p>
-
         <div class="cal-legend">
-            <span class="cal-swatch cal-free"></span> Ledigt
-            <span class="cal-swatch cal-partial"></span> Delvis bokat
-            <span class="cal-swatch cal-full"></span> Fullbokat
+            <span><span class="cal-swatch cal-free"></span> Ledigt</span>
+            <span><span class="cal-swatch cal-partial"></span> Delvis bokat</span>
+            <span><span class="cal-swatch cal-full"></span> Fullbokat</span>
         </div>
 
         <p id="cal-selection" class="cal-selection" hidden>
@@ -27,6 +32,7 @@
             <button type="button" id="cal-clear" class="btn-ghost">Rensa</button>
         </p>
 
+        <div class="cal-months">
         @foreach (var month in _months)
         {
             <div class="cal-month">
@@ -70,6 +76,7 @@
                 </table>
             </div>
         }
+        </div>
     </div>
 </section>
 

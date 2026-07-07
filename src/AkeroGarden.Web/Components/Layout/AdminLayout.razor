@@ -1,36 +1,111 @@
 @inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Sections
+@using Microsoft.Extensions.DependencyInjection
+@using AkeroGarden.Web.Services
+@inject NavigationManager Nav
+@inject IServiceScopeFactory ScopeFactory
+@implements IDisposable
 @attribute [Authorize]
 
 <div class="admin-shell">
     <nav class="admin-nav">
-        <div class="admin-nav__logo">
+        <div class="admin-nav__brand">
             <Logo Variant="LogoVariant.OnDark" />
         </div>
+
         <ul>
-            <li><a href="/admin">Översikt</a></li>
-            <li><a href="/admin/bokningar">Bokningar</a></li>
-            <li><a href="/admin/kalender">Kalendervy</a></li>
-            <li><a href="/admin/blockeringar">Blockeringar</a></li>
-            <li><a href="/admin/byggnader">Byggnader &amp; rum</a></li>
-            <li><a href="/admin/matalternativ">Matalternativ</a></li>
-            <li><a href="/admin/faciliteter">Faciliteter</a></li>
-            <li><a href="/admin/priser">Priser</a></li>
-            <li><a href="/admin/stadszoner">Städzoner</a></li>
-            <li><a href="/admin/konton">Administratörskonton</a></li>
+            <li>@NavLink("/admin", "Översikt", exact: true)</li>
+            <li>@NavLink("/admin/bokningar", "Bokningar", count: _pendingCount)</li>
+            <li>@NavLink("/admin/kalender", "Kalendervy")</li>
+            <li>@NavLink("/admin/blockeringar", "Blockeringar")</li>
         </ul>
-        <div class="admin-nav__footer">
+
+        <div class="admin-nav__group">Referensdata</div>
+        <ul>
+            <li>@NavLink("/admin/byggnader", "Byggnader & rum")</li>
+            <li>@NavLink("/admin/matalternativ", "Matalternativ")</li>
+            <li>@NavLink("/admin/faciliteter", "Faciliteter")</li>
+            <li>@NavLink("/admin/priser", "Priser")</li>
+            <li>@NavLink("/admin/stadszoner", "Städzoner")</li>
+        </ul>
+
+        <div class="admin-nav__group">System</div>
+        <ul>
+            <li>@NavLink("/admin/konton", "Administratörskonton")</li>
+        </ul>
+
+        <div class="admin-nav__foot">
+            <div class="admin-nav__user">@_userName</div>
             @* Real form POST to the /logout endpoint — signing out from the interactive
                circuit cannot clear the auth cookie (response already sent). *@
             <form action="/logout" method="post">
                 <AntiforgeryToken />
-                <button class="btn-ghost" type="submit">Logga ut</button>
+                <button type="submit">Logga ut</button>
             </form>
         </div>
     </nav>
 
-    <div class="admin-content">
-        <main>
+    <div class="admin-main">
+        <header class="admin-topbar">
+            <SectionOutlet SectionName="AdminTopbar" />
+        </header>
+        <div class="admin-body">
             @Body
-        </main>
+        </div>
     </div>
 </div>
+
+@code {
+    private int _pendingCount;
+    private string? _userName;
+
+    [CascadingParameter]
+    private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? AuthState { get; set; }
+
+    private string CurrentPath => new Uri(Nav.Uri).AbsolutePath.TrimEnd('/');
+
+    protected override async Task OnInitializedAsync()
+    {
+        Nav.LocationChanged += OnLocationChanged;
+        if (AuthState is not null)
+        {
+            var state = await AuthState;
+            _userName = state.User.Identity?.Name;
+        }
+
+        // Use a dedicated scope (own DbContext) for the badge count: the layout and the page both
+        // resolve the scoped BookingService from the same circuit scope, so their OnInitializedAsync
+        // DB calls would otherwise race on one DbContext ("a second operation was started…").
+        await using var scope = ScopeFactory.CreateAsyncScope();
+        var bookingService = scope.ServiceProvider.GetRequiredService<BookingService>();
+        _pendingCount = await bookingService.GetPendingCountAsync();
+    }
+
+    private void OnLocationChanged(object? sender, LocationChangedEventArgs e) => InvokeAsync(StateHasChanged);
+
+    private bool IsActive(string href, bool exact) =>
+        exact
+            ? CurrentPath.Equals(href.TrimEnd('/'), StringComparison.OrdinalIgnoreCase)
+            : CurrentPath.StartsWith(href.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+
+    private RenderFragment NavLink(string href, string label, bool exact = false, int count = 0) => builder =>
+    {
+        var active = IsActive(href, exact);
+        builder.OpenElement(0, "a");
+        builder.AddAttribute(1, "href", href);
+        builder.AddAttribute(2, "class", active ? "active" : null);
+        builder.AddAttribute(3, "aria-current", active ? "page" : null);
+        builder.AddContent(4, label);
+        if (count > 0)
+        {
+            builder.OpenElement(5, "span");
+            builder.AddAttribute(6, "class", "count");
+            builder.AddAttribute(7, "aria-label", $"{count} väntar på svar");
+            builder.AddContent(8, count);
+            builder.CloseElement();
+        }
+        builder.CloseElement();
+    };
+
+    public void Dispose() => Nav.LocationChanged -= OnLocationChanged;
+}

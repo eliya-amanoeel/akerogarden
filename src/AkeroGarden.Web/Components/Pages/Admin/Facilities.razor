@@ -8,54 +8,66 @@
 
 <PageTitle>Faciliteter — Åkerögården Admin</PageTitle>
 
-<h1>Faciliteter</h1>
+<AdminHeader Title="Faciliteter" />
 
 @if (!string.IsNullOrEmpty(_message))
 {
-    <p role="status">@_message</p>
+    <p role="status" class="form-status">@_message</p>
 }
 
 @if (_facilities is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else
 {
-    <table>
-        <thead>
-            <tr>
-                <th>Ordning</th>
-                <th>Namn</th>
-                <th>Bild</th>
-                <th>Status</th>
-                <th>Åtgärd</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var f in _facilities)
-            {
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
                 <tr>
-                    <td>@f.DisplayOrder</td>
-                    <td>@f.Name</td>
-                    <td>@(string.IsNullOrEmpty(f.ImageUrl) ? "—" : "Ja")</td>
-                    <td>@(f.IsActive ? "Aktiv" : "Inaktiv")</td>
-                    <td>
-                        <button class="btn-ghost" @onclick="() => Edit(f)">Redigera</button>
-                        @if (f.IsActive)
-                        {
-                            <button class="btn-ghost" @onclick="() => SetActive(f, false)">Inaktivera</button>
-                        }
-                        else
-                        {
-                            <button class="btn-ghost" @onclick="() => SetActive(f, true)">Aktivera</button>
-                        }
-                        <button class="btn-ghost" @onclick="() => Delete(f)">Ta bort</button>
-                    </td>
+                    <th class="num">Ordning</th>
+                    <th>Namn</th>
+                    <th>Bild</th>
+                    <th>Status</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var f in _facilities)
+                {
+                    <tr>
+                        <td class="num mono">@f.DisplayOrder</td>
+                        <td><span class="rowlink">@f.Name</span></td>
+                        <td>@(string.IsNullOrEmpty(f.ImageUrl) ? "—" : "Ja")</td>
+                        <td>
+                            @if (f.IsActive)
+                            {
+                                <span class="badge badge--approved">Aktiv</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--neutral">Inaktiv</span>
+                            }
+                        </td>
+                        <td class="rowactions">
+                            <button class="btn-ghost" @onclick="() => Edit(f)">Redigera</button>
+                            @if (f.IsActive)
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(f, false)">Inaktivera</button>
+                            }
+                            else
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(f, true)">Aktivera</button>
+                            }
+                            <button class="btn-ghost" @onclick="() => Delete(f)">Ta bort</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
+    <section class="card admin-editcard">
     <h2>@(_editingId is null ? "Lägg till facilitet" : "Redigera facilitet")</h2>
 
     <EditForm Model="_form" OnValidSubmit="Save" FormName="facility">
@@ -111,6 +123,7 @@ else
             <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
         }
     </EditForm>
+    </section>
 }
 
 @code {

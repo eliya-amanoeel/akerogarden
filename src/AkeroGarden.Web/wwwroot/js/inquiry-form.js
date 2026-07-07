@@ -33,4 +33,17 @@
         cb.addEventListener('change', function () { applyBundle(cb); });
         applyBundle(cb);
     });
+
+    // Organisation fields appear only when "for an organisation" is ticked (progressive
+    // disclosure). Without JS the panel stays visible, so the fields remain reachable.
+    var isOrg = document.getElementById('s-isorg');
+    var orgFields = document.getElementById('org-fields');
+    function toggleOrg() {
+        if (!isOrg || !orgFields) return;
+        orgFields.style.display = isOrg.checked ? '' : 'none';
+    }
+    if (isOrg) {
+        isOrg.addEventListener('change', toggleOrg);
+        toggleOrg();
+    }
 })();

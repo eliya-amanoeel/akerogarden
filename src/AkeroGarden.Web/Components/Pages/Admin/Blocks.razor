@@ -10,8 +10,8 @@
 
 <PageTitle>Blockeringar — Åkerögården Admin</PageTitle>
 
-<h1>Blockeringar</h1>
-<p>Blockera tillgänglighet för hela anläggningen, en byggnad eller ett rum (t.ex. vid renovering).</p>
+<AdminHeader Title="Blockeringar" />
+<p class="section-note">Blockera tillgänglighet för hela anläggningen, en byggnad eller ett rum (t.ex. vid renovering).</p>
 
 @if (!string.IsNullOrEmpty(_message))
 {
@@ -20,37 +20,40 @@
 
 @if (_blocks is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else if (_blocks.Count == 0)
 {
-    <p>Inga blockeringar.</p>
+    <p class="admin-empty">Inga blockeringar.</p>
 }
 else
 {
-    <table>
-        <thead>
-            <tr><th>Från</th><th>Till</th><th>Omfattning</th><th>Mål</th><th>Orsak</th><th>Åtgärd</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var p in _blocks)
-            {
-                <tr>
-                    <td>@p.StartDate.ToString("yyyy-MM-dd")</td>
-                    <td>@p.EndDate.ToString("yyyy-MM-dd")</td>
-                    <td>@BookingDisplay.ScopeLabel(p.Scope)</td>
-                    <td>@TargetLabel(p)</td>
-                    <td>@(p.Reason ?? "—")</td>
-                    <td>
-                        <button class="btn-ghost" @onclick="() => Edit(p)">Redigera</button>
-                        <button class="btn-ghost" @onclick="() => Delete(p)">Ta bort</button>
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr><th>Från</th><th>Till</th><th>Omfattning</th><th>Mål</th><th>Orsak</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var p in _blocks)
+                {
+                    <tr>
+                        <td class="mono">@p.StartDate.ToString("yyyy-MM-dd")</td>
+                        <td class="mono">@p.EndDate.ToString("yyyy-MM-dd")</td>
+                        <td>@BookingDisplay.ScopeLabel(p.Scope)</td>
+                        <td>@TargetLabel(p)</td>
+                        <td>@(p.Reason ?? "—")</td>
+                        <td class="rowactions">
+                            <button class="btn-ghost" @onclick="() => Edit(p)">Redigera</button>
+                            <button class="btn-ghost" @onclick="() => Delete(p)">Ta bort</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
+<section class="card admin-editcard">
 <h2>@(_editingId is null ? "Lägg till blockering" : "Redigera blockering")</h2>
 
 <EditForm Model="_form" OnValidSubmit="Save" FormName="block">
@@ -116,6 +119,7 @@ else
         <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
     }
 </EditForm>
+</section>
 
 @code {
     private List<BlockedPeriod>? _blocks;

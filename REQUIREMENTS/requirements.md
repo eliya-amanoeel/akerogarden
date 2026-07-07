@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.36 — Working Draft  
-**Date:** June 2026  
+**Version:** 0.37 — Working Draft  
+**Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.36:**
+
+- Public **Menu and Prices pages merged into a single "Mat & priser" page** (`/mat-och-priser`), decided during the Phase 6 (UI/UX) redesign — a group organiser weighs food and cost together, so they read as one page. **FR-82 and FR-83 keep their numbers** but now describe content served on the combined page; FR-01 and the §1.2 in-scope page list updated (menu, prices → "mat & priser"); the §4 and §5 public-display notes updated. No data-model or admin change — meal options and price rules/cleaning zones are still separately admin-managed. `implementation-plan.md` slice 3 updated.
 
 **Changes from v0.35:**
 
@@ -213,7 +217,7 @@ It serves as the single source of truth for all design, development, and testing
 ### 1.3 Scope
 
 **In scope:**
-- A public-facing web application (.NET 10 Blazor, Static SSR) with pages for home, about, facilities, menu, prices, contact, availability calendar, and booking inquiry
+- A public-facing web application (.NET 10 Blazor, Static SSR) with pages for home, about, facilities, mat & priser (combined menu + prices), contact, availability calendar, and booking inquiry
 - A public availability calendar showing only whether dates are booked or free — no personal data, no detail beyond availability status
 - A full admin panel for booking management, review, approval, and all reference data management (buildings, rooms, meals, facilities, prices)
 - Admin ability to create bookings manually on behalf of guests
@@ -447,7 +451,7 @@ The admin can block availability for a defined date range at one of three scopes
 
 ## 4. Meals and Food Preferences
 
-> **All meal options are admin-managed.** The admin can add, edit, and deactivate meal options at any time. The options below reflect the current menu and will be entered on first setup. Active meal options are displayed publicly on the menu page (FR-83).
+> **All meal options are admin-managed.** The admin can add, edit, and deactivate meal options at any time. The options below reflect the current menu and will be entered on first setup. Active meal options are displayed publicly on the combined Mat & priser page (FR-83).
 
 ### 4.1 Meal Structure
 
@@ -520,7 +524,7 @@ Fixed system values — not admin-managed. Adding a new dietary type requires a 
 
 ## 5. Pricing
 
-> **All prices are admin-managed** and can be changed at any time through the admin panel. Active price rules are displayed publicly on the prices page (FR-82).  
+> **All prices are admin-managed** and can be changed at any time through the admin panel. Active price rules are displayed publicly on the combined Mat & priser page (FR-82).  
 > Invoicing is performed manually outside the system. All prices are **exclusive of VAT**. VAT is stored per item via the `VatRate` field (on each price rule and cleaning zone), because rates differ by category — e.g. 12% for lodging and food, potentially 25% for facility/conference hire. The exact rate per category is admin-entered configuration to be confirmed with the client's accountant. Currency is SEK.
 
 ### 5.1 Accommodation With Meals (Full Board)
@@ -612,7 +616,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 
 | ID | Requirement |
 |---|---|
-| FR-01 | The system shall provide a public-facing website with pages for: home, about, facilities, menu, prices, contact, availability calendar, and booking inquiry |
+| FR-01 | The system shall provide a public-facing website with pages for: home, about, facilities, mat & priser (combined menu + prices), contact, availability calendar, and booking inquiry |
 | FR-02 | The booking inquiry page shall present two tracks: stay request and general inquiry |
 | FR-03 | The stay request track shall collect: contact name, email, phone (optional), check-in date, check-out date, number of overnight guests, meal plan (FullBoardAll / SelfCateringAll / Mixed — required), number of day guests (optional — hidden when SelfCateringAll is selected), requested bookable facilities (multi-select from active facility list — e.g. Kapellet, Spelrum), cleaning service selection (multi-select checklist drawn from the active `CleaningZone` list; the full active list is shown — there is no per-booking filtering, since no buildings or rooms are chosen at inquiry time; selecting a bundle package such as Hela lägret disables the individual zones it covers; cleaning zones are distinct from both bookable facilities and accommodation buildings), organisation details (optional), and a free-text message |
 | FR-04 | The general inquiry track shall collect: contact name, email, phone (optional), and a required free-text message |
@@ -620,8 +624,8 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | FR-06 | The system shall send an admin notification email immediately upon submission with all details and a direct link to the booking record |
 | FR-07 | The public website shall display the privacy policy and link to it from the booking form and the site footer |
 | FR-81 | The public facilities page shall display active facility records in their configured display order, drawn dynamically from the admin-managed facility list (name, description, image) |
-| FR-82 | The public website shall include a prices page displaying current active price rules and active cleaning zones, drawn dynamically from the admin-managed price and cleaning-zone lists |
-| FR-83 | The public website shall include a menu page displaying current active meal options (lunch and dinner), drawn dynamically from the admin-managed meal list |
+| FR-82 | The public website shall display current active price rules and active cleaning zones, drawn dynamically from the admin-managed price and cleaning-zone lists, on a combined **Mat & priser** page (shown together with the menu, FR-83) |
+| FR-83 | The public website shall display current active meal options (lunch and dinner), drawn dynamically from the admin-managed meal list, on the combined **Mat & priser** page (shown together with prices, FR-82) |
 
 ### 6.2 Public Availability Calendar
 
@@ -1130,5 +1134,5 @@ All known open questions have been resolved. This section will be updated if new
 
 ---
 
-*End of document — Version 0.36 Working Draft*  
+*End of document — Version 0.37 Working Draft*  
 *Åkerögården Booking System — Software Requirements Specification*

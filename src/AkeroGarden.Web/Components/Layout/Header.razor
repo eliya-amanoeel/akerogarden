@@ -1,21 +1,40 @@
+@inject NavigationManager Nav
+
 <header class="site-header" id="site-header">
     <div class="container">
         <a href="/" class="site-header__logo">
-            <span class="logo-dark"><Logo Variant="LogoVariant.OnDark" /></span>
-            <span class="logo-light"><Logo Variant="LogoVariant.OnLight" /></span>
+            <Logo Variant="LogoVariant.OnLight" />
         </a>
         <input type="checkbox" id="nav-toggle" class="site-header__toggle" aria-label="Öppna meny" />
         <label for="nav-toggle" class="site-header__burger" aria-hidden="true">
             <span></span><span></span><span></span>
         </label>
-        <nav class="site-header__nav">
-            <a href="/om-oss">Om oss</a>
-            <a href="/faciliteter">Faciliteter</a>
-            <a href="/meny">Meny</a>
-            <a href="/priser">Priser</a>
-            <a href="/kalender">Kalender</a>
-            <a href="/kontakt">Kontakt</a>
-            <a href="/boka" class="btn">Förfrågan</a>
+        <nav class="site-header__nav" aria-label="Huvudmeny">
+            @foreach (var (href, label) in NavItems)
+            {
+                var active = IsActive(href);
+                <a href="@href"
+                   class="@(active ? "active" : null)"
+                   aria-current="@(active ? "page" : null)">@label</a>
+            }
+            <a href="/boka" class="btn site-header__cta">Skicka förfrågan</a>
         </nav>
     </div>
 </header>
+
+@code {
+    private static readonly (string Href, string Label)[] NavItems =
+    [
+        ("/om-oss", "Om oss"),
+        ("/faciliteter", "Faciliteter"),
+        ("/mat-och-priser", "Mat & priser"),
+        ("/kontakt", "Kontakt"),
+        ("/kalender", "Tillgänglighet"),
+    ];
+
+    // Public pages are Static SSR, so the current path is known at render time.
+    private string CurrentPath => new Uri(Nav.Uri).AbsolutePath.TrimEnd('/');
+
+    private bool IsActive(string href) =>
+        CurrentPath.Equals(href.TrimEnd('/'), StringComparison.OrdinalIgnoreCase);
+}

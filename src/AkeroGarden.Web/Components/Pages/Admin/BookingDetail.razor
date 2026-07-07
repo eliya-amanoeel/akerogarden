@@ -13,296 +13,341 @@
 
 @if (_booking is null)
 {
-    <p>@(_loaded ? "Bokningen kunde inte hittas." : "Laddar...")</p>
+    <AdminHeader>
+        <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a></span></TitleContent>
+    </AdminHeader>
+    <p class="admin-empty">@(_loaded ? "Bokningen kunde inte hittas." : "Laddar…")</p>
 }
 else
 {
-    <p><a class="btn-ghost" href="/admin/bokningar">← Tillbaka till listan</a></p>
+    <AdminHeader>
+        <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a> / @_booking.ContactName</span></TitleContent>
+    </AdminHeader>
 
-    <h1>@BookingDisplay.TypeLabel(_booking.BookingType) — @_booking.ContactName</h1>
-    <p><strong>Status:</strong> @BookingDisplay.StatusLabel(_booking.Status)</p>
+    <div class="admin-detail-head">
+        <h1>@_booking.ContactName</h1>
+        <span class="@BookingDisplay.StatusBadgeClass(_booking.Status)">@BookingDisplay.StatusLabel(_booking.Status)</span>
+        <span class="chip">@BookingDisplay.TypeLabel(_booking.BookingType)</span>
+    </div>
 
     @if (!string.IsNullOrEmpty(_message))
     {
         <p role="status" class="form-status">@_message</p>
     }
 
-    <h2>Kontaktuppgifter</h2>
-    <ul>
-        <li><strong>Namn:</strong> @_booking.ContactName</li>
-        <li><strong>E-post:</strong> @_booking.ContactEmail</li>
-        <li><strong>Telefon:</strong> @(_booking.ContactPhone ?? "—")</li>
-        @if (_booking.IsOrganisation)
-        {
-            <li><strong>Organisation:</strong> @_booking.OrgName (@_booking.OrgNumber)</li>
-            <li><strong>Fakturaadress:</strong> @_booking.InvoiceAddress</li>
-        }
-    </ul>
-
-    @if (_booking.BookingType == BookingType.StayRequest)
-    {
-        <h2>Vistelse</h2>
-        <ul>
-            <li><strong>Incheckning:</strong> @(_booking.CheckIn?.ToString("yyyy-MM-dd") ?? "—")</li>
-            <li><strong>Utcheckning:</strong> @(_booking.CheckOut?.ToString("yyyy-MM-dd") ?? "—")</li>
-            <li><strong>Antal gäster (övernattning):</strong> @(_booking.OvernightGuestCount?.ToString() ?? "—")</li>
-            <li><strong>Antal dagsgäster:</strong> @(_booking.DayGuestCount?.ToString() ?? "—")</li>
-            <li><strong>Måltidsplan:</strong> @BookingDisplay.MealPlanLabel(_booking.MealPlan)</li>
-        </ul>
-
-        @if (_booking.FacilitySelections.Count > 0)
-        {
-            <h3>Faciliteter</h3>
-            <ul>
-                @foreach (var f in _booking.FacilitySelections)
-                {
-                    <li>@f.FacilityNameSnapshot — @f.AmountExVatSnapshot.ToString("0.##") kr (exkl. moms)</li>
-                }
-            </ul>
-        }
-
-        @if (_booking.CleaningSelections.Count > 0)
-        {
-            <h3>Städning</h3>
-            <ul>
-                @foreach (var c in _booking.CleaningSelections)
-                {
-                    <li>@c.ZoneNameSnapshot — @c.AmountExVatSnapshot.ToString("0.##") kr (exkl. moms)</li>
-                }
-            </ul>
-        }
-    }
-
-    @if (_booking.BookingType == BookingType.StayRequest)
-    {
-        @* Room-choice mode (FR-56) — set by the admin before the guest completes. *@
-        <h2>Rumsval</h2>
-        <div class="form-group">
-            <label>
-                <input type="checkbox" @bind="_guestChoosesRooms" />
-                Gästen väljer rum själv på slutförandeformuläret
-            </label>
-        </div>
-        <p class="cal-note">Av: administratören tilldelar rummen här nedan.</p>
-        <button class="btn" @onclick="SaveGuestChoosesRooms">Spara rumsval-inställning</button>
-    }
-
-    @* ── Participants (after guest submission — FR-48) ─────────────────────────── *@
-    @if (_edits.Count > 0)
-    {
-        <h2>Deltagare</h2>
-
-        @if (_conflicts.Count > 0)
-        {
-            <div class="form-error" role="alert">
-                <p>Rumskonflikter (fler tilldelade än bäddar):</p>
-                <ul>
-                    @foreach (var c in _conflicts)
+    <div class="detail-grid">
+        <div>
+            @* ── Contact ─────────────────────────────────────────────── *@
+            <section class="detail-sec">
+                <h2>Kontaktuppgifter</h2>
+                <dl class="kv">
+                    <dt>Namn</dt><dd>@_booking.ContactName</dd>
+                    <dt>E-post</dt><dd>@_booking.ContactEmail</dd>
+                    <dt>Telefon</dt><dd>@(_booking.ContactPhone ?? "—")</dd>
+                    @if (_booking.IsOrganisation)
                     {
-                        <li>@c.RoomName (@c.BuildingName): @c.AssignedBeds tilldelade av @c.BedCount bäddar</li>
+                        <dt>Organisation</dt><dd>@_booking.OrgName (@_booking.OrgNumber)</dd>
+                        <dt>Fakturaadress</dt><dd>@_booking.InvoiceAddress</dd>
                     }
-                </ul>
-            </div>
-        }
+                </dl>
+            </section>
 
-        @foreach (var edit in _edits)
-        {
-            var participant = _participants.First(p => p.Id == edit.Id);
-            var isOvernight = participant.ParticipantType == ParticipantType.Overnight;
-            <fieldset class="participant">
-                <legend>@(isOvernight ? "Övernattande gäst" : $"Dagsgäst ({participant.AttendanceDate:yyyy-MM-dd})")</legend>
+            @if (_booking.BookingType == BookingType.StayRequest)
+            {
+                @* ── Stay ────────────────────────────────────────────── *@
+                <section class="detail-sec">
+                    <h2>Vistelse</h2>
+                    <dl class="kv">
+                        <dt>Incheckning</dt><dd>@(_booking.CheckIn?.ToString("yyyy-MM-dd") ?? "—")</dd>
+                        <dt>Utcheckning</dt><dd>@(_booking.CheckOut?.ToString("yyyy-MM-dd") ?? "—")</dd>
+                        <dt>Övernattande</dt><dd>@(_booking.OvernightGuestCount?.ToString() ?? "—")</dd>
+                        <dt>Dagsgäster</dt><dd>@(_booking.DayGuestCount?.ToString() ?? "—")</dd>
+                        <dt>Måltidsplan</dt><dd>@BookingDisplay.MealPlanLabel(_booking.MealPlan)</dd>
+                    </dl>
 
-                <div class="form-group">
-                    <label>Namn</label>
-                    <input @bind="edit.FullName" maxlength="200" />
-                </div>
-
-                <div class="form-group">
-                    <label>Ålderskategori</label>
-                    <select @bind="edit.AgeCategory">
-                        @foreach (var age in AgeCategories)
-                        {
-                            <option value="@age">@AgeLabel(age)</option>
-                        }
-                    </select>
-                </div>
-
-                @if (isOvernight)
-                {
-                    <div class="form-group">
-                        <label>Rum</label>
-                        <select @bind="edit.RoomId">
-                            <option value="">– ej tilldelat –</option>
-                            @foreach (var group in _rooms.GroupBy(r => r.BuildingName))
+                    @if (_booking.FacilitySelections.Count > 0)
+                    {
+                        <h3>Faciliteter</h3>
+                        <dl class="kv">
+                            @foreach (var f in _booking.FacilitySelections)
                             {
-                                <optgroup label="@group.Key">
-                                    @foreach (var room in group)
-                                    {
-                                        <option value="@room.Id">@room.Name (@room.BedCount bäddar)</option>
-                                    }
-                                </optgroup>
+                                <dt>@f.FacilityNameSnapshot</dt><dd>@f.AmountExVatSnapshot.ToString("0.##") kr <span class="sub">exkl. moms</span></dd>
                             }
-                        </select>
-                    </div>
-                }
-                else
-                {
-                    <div class="form-group">
-                        <label><input type="checkbox" @bind="edit.AttendsBreakfast" /> Deltar på frukost</label>
-                    </div>
-                }
+                        </dl>
+                    }
 
-                @if (edit.Meals.Count > 0)
-                {
-                    <div class="form-group">
-                        <span class="label">Måltider</span>
-                        @foreach (var mealEdit in edit.Meals)
-                        {
-                            var meal = participant.MealPreferences.First(m => m.Id == mealEdit.Id);
-                            var options = meal.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
-                            <div class="form-row">
-                                <label>@meal.Date.ToString("yyyy-MM-dd") @(meal.MealType == MealType.Lunch ? "lunch" : "middag")</label>
-                                <select @bind="mealEdit.MealOptionId">
-                                    @foreach (var o in options)
+                    @if (_booking.CleaningSelections.Count > 0)
+                    {
+                        <h3>Städning</h3>
+                        <dl class="kv">
+                            @foreach (var c in _booking.CleaningSelections)
+                            {
+                                <dt>@c.ZoneNameSnapshot</dt><dd>@c.AmountExVatSnapshot.ToString("0.##") kr <span class="sub">exkl. moms</span></dd>
+                            }
+                        </dl>
+                    }
+                </section>
+
+                @* Room-choice mode (FR-56) — set by the admin before the guest completes. *@
+                <section class="detail-sec">
+                    <h2>Rumsval</h2>
+                    <label class="paycheck">
+                        <input type="checkbox" @bind="_guestChoosesRooms" />
+                        Gästen väljer rum själv på slutförandeformuläret
+                    </label>
+                    <p class="action-note">Av: administratören tilldelar rummen nedan.</p>
+                    <button class="btn btn-sm" style="margin-top:0.6rem" @onclick="SaveGuestChoosesRooms">Spara rumsval-inställning</button>
+                </section>
+            }
+
+            @* ── Participants (after guest submission — FR-48) ────────── *@
+            @if (_edits.Count > 0)
+            {
+                <section class="detail-sec">
+                    <h2>Deltagare</h2>
+
+                    @if (_conflicts.Count > 0)
+                    {
+                        <div class="form-error" role="alert">
+                            <p>Rumskonflikter (fler tilldelade än bäddar):</p>
+                            <ul>
+                                @foreach (var c in _conflicts)
+                                {
+                                    <li>@c.RoomName (@c.BuildingName): @c.AssignedBeds tilldelade av @c.BedCount bäddar</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+
+                    @foreach (var edit in _edits)
+                    {
+                        var participant = _participants.First(p => p.Id == edit.Id);
+                        var isOvernight = participant.ParticipantType == ParticipantType.Overnight;
+                        <fieldset class="participant">
+                            <legend>@(isOvernight ? "Övernattande gäst" : $"Dagsgäst ({participant.AttendanceDate:yyyy-MM-dd})")</legend>
+
+                            <div class="form-group">
+                                <label>Namn</label>
+                                <input @bind="edit.FullName" maxlength="200" />
+                            </div>
+
+                            <div class="form-group">
+                                <label>Ålderskategori</label>
+                                <select @bind="edit.AgeCategory">
+                                    @foreach (var age in AgeCategories)
                                     {
-                                        <option value="@o.Id">@o.Name</option>
+                                        <option value="@age">@AgeLabel(age)</option>
                                     }
                                 </select>
                             </div>
+
+                            @if (isOvernight)
+                            {
+                                <div class="form-group">
+                                    <label>Rum</label>
+                                    <select @bind="edit.RoomId">
+                                        <option value="">– ej tilldelat –</option>
+                                        @foreach (var group in _rooms.GroupBy(r => r.BuildingName))
+                                        {
+                                            <optgroup label="@group.Key">
+                                                @foreach (var room in group)
+                                                {
+                                                    <option value="@room.Id">@room.Name (@room.BedCount bäddar)</option>
+                                                }
+                                            </optgroup>
+                                        }
+                                    </select>
+                                </div>
+                            }
+                            else
+                            {
+                                <div class="form-group">
+                                    <label><input type="checkbox" @bind="edit.AttendsBreakfast" /> Deltar på frukost</label>
+                                </div>
+                            }
+
+                            @if (edit.Meals.Count > 0)
+                            {
+                                <div class="form-group">
+                                    <span class="label">Måltider</span>
+                                    @foreach (var mealEdit in edit.Meals)
+                                    {
+                                        var meal = participant.MealPreferences.First(m => m.Id == mealEdit.Id);
+                                        var options = meal.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
+                                        <div class="form-row">
+                                            <label>@meal.Date.ToString("yyyy-MM-dd") @(meal.MealType == MealType.Lunch ? "lunch" : "middag")</label>
+                                            <select @bind="mealEdit.MealOptionId">
+                                                @foreach (var o in options)
+                                                {
+                                                    <option value="@o.Id">@o.Name</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    }
+                                </div>
+                            }
+
+                            <div class="form-group">
+                                <span class="label">Kostbehov</span>
+                                @foreach (var diet in DietaryOptions)
+                                {
+                                    <label class="form-check">
+                                        <input type="checkbox" checked="@edit.Dietary.Contains(diet)"
+                                               @onchange="e => ToggleDietary(edit, diet, (bool)(e.Value ?? false))" />
+                                        @DietaryLabel(diet)
+                                    </label>
+                                }
+                            </div>
+
+                            <div class="form-group">
+                                <label>Kostanteckning</label>
+                                <input @bind="edit.DietaryNotes" maxlength="200" />
+                            </div>
+                        </fieldset>
+                    }
+
+                    <button class="btn" @onclick="SaveParticipants">Spara deltagaruppgifter</button>
+                </section>
+            }
+
+            @* ── Guest message / denial / cancellation ────────────────── *@
+            @if (!string.IsNullOrWhiteSpace(_booking.Message))
+            {
+                <section class="detail-sec">
+                    <h2>Meddelande</h2>
+                    <p style="white-space:pre-wrap">@_booking.Message</p>
+                </section>
+            }
+
+            @if (_booking.Status == BookingStatus.Denied && !string.IsNullOrWhiteSpace(_booking.DenialReason))
+            {
+                <section class="detail-sec">
+                    <h2>Avslagsmotivering</h2>
+                    <p style="white-space:pre-wrap">@_booking.DenialReason</p>
+                </section>
+            }
+
+            @if (_booking.Status == BookingStatus.Cancelled)
+            {
+                <section class="detail-sec">
+                    <h2>Avbokning</h2>
+                    <dl class="kv">
+                        <dt>Initiativtagare</dt><dd>@(_booking.CancellationInitiator == CancellationInitiator.GuestInitiated ? "Gäst" : "Anläggning")</dd>
+                        @if (!string.IsNullOrWhiteSpace(_booking.CancellationReason))
+                        {
+                            <dt>Orsak</dt><dd>@_booking.CancellationReason</dd>
                         }
+                    </dl>
+                </section>
+            }
+        </div>
+
+        @* ── Action rail ─────────────────────────────────────────────── *@
+        <aside class="detail-rail">
+            <section class="card">
+                <div class="card__head"><h2>Åtgärder</h2></div>
+
+                @if (_booking.Status == BookingStatus.Pending && _booking.BookingType == BookingType.StayRequest)
+                {
+                    @if (IsCheckInWithin14Days)
+                    {
+                        <p class="form-status" role="alert">Incheckning är @DaysToCheckIn dagar bort — slutförandelänken förkortas till 48 timmar. Överväg att kontakta gästen direkt.</p>
+                    }
+                    <div class="rail-actions">
+                        <button class="btn" @onclick="Approve">Godkänn</button>
+                    </div>
+                    <div class="action-panel">
+                        <label for="deny-reason">Avslagsmotivering (skickas till gästen)</label>
+                        <InputTextArea id="deny-reason" @bind-Value="_denyReason" />
+                        <button class="btn-outline btn-danger" @onclick="Deny">Avslå</button>
+                    </div>
+                }
+                else if (_booking.Status == BookingStatus.Pending && _booking.BookingType == BookingType.GeneralInquiry)
+                {
+                    <div class="rail-actions">
+                        <button class="btn" @onclick="Close">Markera som besvarad</button>
                     </div>
                 }
 
-                <div class="form-group">
-                    <span class="label">Kostbehov</span>
-                    @foreach (var diet in DietaryOptions)
-                    {
-                        <label class="form-check">
-                            <input type="checkbox" checked="@edit.Dietary.Contains(diet)"
-                                   @onchange="e => ToggleDietary(edit, diet, (bool)(e.Value ?? false))" />
-                            @DietaryLabel(diet)
-                        </label>
-                    }
-                </div>
+                @if (_booking.Status == BookingStatus.Approved)
+                {
+                    <p class="action-note"><strong>Slutförandelänk giltig till:</strong><br />@(_booking.CompletionTokenExpiry?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</p>
+                    <div class="rail-actions" style="margin-top:0.6rem">
+                        <button class="btn-outline" @onclick="Regenerate">Återutfärda och skicka länk på nytt</button>
+                    </div>
+                }
 
-                <div class="form-group">
-                    <label>Kostanteckning</label>
-                    <input @bind="edit.DietaryNotes" maxlength="200" />
-                </div>
-            </fieldset>
-        }
+                @if (_booking.Status == BookingStatus.DetailsComplete)
+                {
+                    <div class="rail-actions">
+                        <button class="btn" @onclick="MarkArrived">Markera anländ</button>
+                    </div>
+                }
 
-        <button class="btn" @onclick="SaveParticipants">Spara deltagaruppgifter</button>
-    }
+                @if (_booking.Status == BookingStatus.Active)
+                {
+                    <div class="rail-actions">
+                        <button class="btn" @onclick="MarkCompleted">Markera avslutad</button>
+                    </div>
+                }
 
-    @* ── List downloads (FR-44/45) ─────────────────────────────────────────── *@
-    @if (ListShaper.IsAvailableFor(_booking.Status))
-    {
-        <h2>Listor</h2>
-        <p>
-            <strong>Deltagarlista:</strong>
-            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/deltagarlista.pdf">PDF</a>
-            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/deltagarlista.xlsx">Excel</a>
-        </p>
-        <p>
-            <strong>Matlista:</strong>
-            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/matlista.pdf">PDF</a>
-            <a class="btn-ghost" href="/admin/bokningar/@_booking.Id/matlista.xlsx">Excel</a>
-        </p>
-    }
+                @if (CanCancel)
+                {
+                    <div class="action-panel">
+                        <h3>Avboka</h3>
+                        <label for="cancel-initiator">Vem avbokar?</label>
+                        <select id="cancel-initiator" @bind="_cancelInitiator">
+                            <option value="@CancellationInitiator.GuestInitiated">Gästen</option>
+                            <option value="@CancellationInitiator.PropertyInitiated">Anläggningen</option>
+                        </select>
+                        <label for="cancel-reason">Orsak (intern, valfritt)</label>
+                        <InputTextArea id="cancel-reason" @bind-Value="_cancelReason" />
+                        <button class="btn-outline btn-danger" @onclick="Cancel">Avboka</button>
+                    </div>
+                }
+            </section>
 
-    @if (!string.IsNullOrWhiteSpace(_booking.Message))
-    {
-        <h2>Meddelande</h2>
-        <p style="white-space:pre-wrap">@_booking.Message</p>
-    }
-
-    @if (_booking.Status == BookingStatus.Denied && !string.IsNullOrWhiteSpace(_booking.DenialReason))
-    {
-        <h2>Avslagsmotivering</h2>
-        <p style="white-space:pre-wrap">@_booking.DenialReason</p>
-    }
-
-    @if (_booking.Status == BookingStatus.Cancelled)
-    {
-        <h2>Avbokning</h2>
-        <ul>
-            <li><strong>Initiativtagare:</strong> @(_booking.CancellationInitiator == CancellationInitiator.GuestInitiated ? "Gäst" : "Anläggning")</li>
-            @if (!string.IsNullOrWhiteSpace(_booking.CancellationReason))
+            @* ── List downloads (FR-44/45) ─────────────────────────── *@
+            @if (ListShaper.IsAvailableFor(_booking.Status))
             {
-                <li><strong>Orsak:</strong> @_booking.CancellationReason</li>
+                <section class="card">
+                    <div class="card__head"><h2>Listor</h2></div>
+                    <dl class="kv">
+                        <dt>Deltagarlista</dt>
+                        <dd>
+                            <a href="/admin/bokningar/@_booking.Id/deltagarlista.pdf">PDF</a> ·
+                            <a href="/admin/bokningar/@_booking.Id/deltagarlista.xlsx">Excel</a>
+                        </dd>
+                        <dt>Matlista</dt>
+                        <dd>
+                            <a href="/admin/bokningar/@_booking.Id/matlista.pdf">PDF</a> ·
+                            <a href="/admin/bokningar/@_booking.Id/matlista.xlsx">Excel</a>
+                        </dd>
+                    </dl>
+                </section>
             }
-        </ul>
-    }
 
-    @* ── Status actions (§2.5) ─────────────────────────────────────────────── *@
-    <h2>Åtgärder</h2>
+            @* ── Payment tracking (FR-42) ─────────────────────────── *@
+            @if (_booking.BookingType == BookingType.StayRequest)
+            {
+                <section class="card">
+                    <div class="card__head"><h2>Betalningsstatus</h2></div>
+                    <label class="paycheck"><input type="checkbox" @bind="_depositInvoiced" /> Handpenning fakturerad</label>
+                    <label class="paycheck"><input type="checkbox" @bind="_depositPaid" /> Handpenning betald</label>
+                    <label class="paycheck"><input type="checkbox" @bind="_finalInvoiced" /> Slutbetalning fakturerad</label>
+                    <label class="paycheck"><input type="checkbox" @bind="_finalPaid" /> Slutbetalning betald</label>
+                    <button class="btn btn-sm" style="margin-top:0.7rem" @onclick="SavePayment">Spara betalningsstatus</button>
+                </section>
+            }
 
-    @if (_booking.Status == BookingStatus.Pending && _booking.BookingType == BookingType.StayRequest)
-    {
-        @if (IsCheckInWithin14Days)
-        {
-            <p class="form-status" role="alert">Incheckning är @DaysToCheckIn dagar bort — slutförandelänken förkortas till 48 timmar. Överväg att kontakta gästen direkt.</p>
-        }
-        <button class="btn" @onclick="Approve">Godkänn</button>
-
-        <div class="action-panel">
-            <label for="deny-reason">Avslagsmotivering (skickas till gästen)</label>
-            <InputTextArea id="deny-reason" @bind-Value="_denyReason" />
-            <button class="btn-outline" @onclick="Deny">Avslå</button>
-        </div>
-    }
-    else if (_booking.Status == BookingStatus.Pending && _booking.BookingType == BookingType.GeneralInquiry)
-    {
-        <button class="btn" @onclick="Close">Markera som besvarad</button>
-    }
-
-    @if (_booking.Status == BookingStatus.Approved)
-    {
-        <p><strong>Slutförandelänk giltig till:</strong> @(_booking.CompletionTokenExpiry?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</p>
-        <button class="btn-ghost" @onclick="Regenerate">Återutfärda och skicka länk på nytt</button>
-    }
-
-    @if (_booking.Status == BookingStatus.DetailsComplete)
-    {
-        <button class="btn" @onclick="MarkArrived">Markera anländ</button>
-    }
-
-    @if (_booking.Status == BookingStatus.Active)
-    {
-        <button class="btn" @onclick="MarkCompleted">Markera avslutad</button>
-    }
-
-    @if (CanCancel)
-    {
-        <div class="action-panel">
-            <h3>Avboka</h3>
-            <label for="cancel-initiator">Vem avbokar?</label>
-            <select id="cancel-initiator" @bind="_cancelInitiator">
-                <option value="@CancellationInitiator.GuestInitiated">Gästen</option>
-                <option value="@CancellationInitiator.PropertyInitiated">Anläggningen</option>
-            </select>
-            <label for="cancel-reason">Orsak (intern, valfritt)</label>
-            <InputTextArea id="cancel-reason" @bind-Value="_cancelReason" />
-            <button class="btn-outline" @onclick="Cancel">Avboka</button>
-        </div>
-    }
-
-    @* ── Internal notes (FR-39) ───────────────────────────────────────────── *@
-    <h2>Interna anteckningar</h2>
-    <InputTextArea @bind-Value="_notes" rows="4" />
-    <button class="btn" @onclick="SaveNotes">Spara anteckningar</button>
-
-    @* ── Payment tracking (FR-42) ─────────────────────────────────────────── *@
-    @if (_booking.BookingType == BookingType.StayRequest)
-    {
-        <h2>Betalningsstatus</h2>
-        <div class="form-group"><label><input type="checkbox" @bind="_depositInvoiced" /> Handpenning fakturerad</label></div>
-        <div class="form-group"><label><input type="checkbox" @bind="_depositPaid" /> Handpenning betald</label></div>
-        <div class="form-group"><label><input type="checkbox" @bind="_finalInvoiced" /> Slutbetalning fakturerad</label></div>
-        <div class="form-group"><label><input type="checkbox" @bind="_finalPaid" /> Slutbetalning betald</label></div>
-        <button class="btn" @onclick="SavePayment">Spara betalningsstatus</button>
-    }
+            @* ── Internal notes (FR-39) ────────────────────────────── *@
+            <section class="card">
+                <div class="card__head"><h2>Interna anteckningar</h2></div>
+                <InputTextArea @bind-Value="_notes" rows="4" aria-label="Interna anteckningar" />
+                <button class="btn btn-sm" style="margin-top:0.6rem" @onclick="SaveNotes">Spara anteckningar</button>
+            </section>
+        </aside>
+    </div>
 }
 
 @code {

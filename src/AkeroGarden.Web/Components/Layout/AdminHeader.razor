@@ -1,0 +1,27 @@
+@* Injects a page's title (or breadcrumb) + optional right-side actions into the sticky admin
+   topbar rendered by AdminLayout. Keeps the topbar consistent across every /admin page. *@
+@using Microsoft.AspNetCore.Components.Sections
+
+<SectionContent SectionName="AdminTopbar">
+    @if (TitleContent is not null)
+    {
+        @TitleContent
+    }
+    else
+    {
+        <h1>@Title</h1>
+    }
+    <div class="spacer"></div>
+    @ChildContent
+</SectionContent>
+
+@code {
+    /// <summary>Plain page title rendered as the topbar &lt;h1&gt;.</summary>
+    [Parameter] public string? Title { get; set; }
+
+    /// <summary>Overrides <see cref="Title"/> when the topbar needs custom markup (e.g. a breadcrumb).</summary>
+    [Parameter] public RenderFragment? TitleContent { get; set; }
+
+    /// <summary>Right-aligned actions (primary buttons, links).</summary>
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+}

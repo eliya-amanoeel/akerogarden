@@ -7,56 +7,68 @@
 
 <PageTitle>Matalternativ — Åkerögården Admin</PageTitle>
 
-<h1>Matalternativ</h1>
+<AdminHeader Title="Matalternativ" />
 
 @if (!string.IsNullOrEmpty(_message))
 {
-    <p role="status">@_message</p>
+    <p role="status" class="form-status">@_message</p>
 }
 
 @if (_mealOptions is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else
 {
-    <table>
-        <thead>
-            <tr>
-                <th>Ordning</th>
-                <th>Namn</th>
-                <th>Måltid</th>
-                <th>Vegetariskt</th>
-                <th>Status</th>
-                <th>Åtgärd</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var m in _mealOptions)
-            {
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
                 <tr>
-                    <td>@m.DisplayOrder</td>
-                    <td>@m.Name</td>
-                    <td>@MealTypeLabel(m.MealType)</td>
-                    <td>@(m.IsVegetarian ? "Ja" : "Nej")</td>
-                    <td>@(m.IsActive ? "Aktiv" : "Inaktiv")</td>
-                    <td>
-                        <button class="btn-ghost" @onclick="() => Edit(m)">Redigera</button>
-                        @if (m.IsActive)
-                        {
-                            <button class="btn-ghost" @onclick="() => SetActive(m, false)">Inaktivera</button>
-                        }
-                        else
-                        {
-                            <button class="btn-ghost" @onclick="() => SetActive(m, true)">Aktivera</button>
-                        }
-                        <button class="btn-ghost" @onclick="() => Delete(m)">Ta bort</button>
-                    </td>
+                    <th class="num">Ordning</th>
+                    <th>Namn</th>
+                    <th>Måltid</th>
+                    <th>Vegetariskt</th>
+                    <th>Status</th>
+                    <th></th>
                 </tr>
-            }
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                @foreach (var m in _mealOptions)
+                {
+                    <tr>
+                        <td class="num mono">@m.DisplayOrder</td>
+                        <td><span class="rowlink">@m.Name</span></td>
+                        <td>@MealTypeLabel(m.MealType)</td>
+                        <td>@(m.IsVegetarian ? "Ja" : "Nej")</td>
+                        <td>
+                            @if (m.IsActive)
+                            {
+                                <span class="badge badge--approved">Aktiv</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--neutral">Inaktiv</span>
+                            }
+                        </td>
+                        <td class="rowactions">
+                            <button class="btn-ghost" @onclick="() => Edit(m)">Redigera</button>
+                            @if (m.IsActive)
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(m, false)">Inaktivera</button>
+                            }
+                            else
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(m, true)">Aktivera</button>
+                            }
+                            <button class="btn-ghost" @onclick="() => Delete(m)">Ta bort</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
+    <section class="card admin-editcard">
     <h2>@(_editingId is null ? "Lägg till matalternativ" : "Redigera matalternativ")</h2>
 
     <EditForm Model="_form" OnValidSubmit="Save" FormName="mealOption">
@@ -102,6 +114,7 @@ else
             <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
         }
     </EditForm>
+    </section>
 }
 
 @code {

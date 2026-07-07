@@ -65,3 +65,14 @@ jobs:
           ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=akerogarden_test;Username=akerogarden;Password=akerogarden_ci"
           Redis__ConnectionString: "localhost:6379"
         run: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "console;verbosity=normal" --logger GitHubActions
+
+      # End-to-end / UI tests (Playwright). The E2E suite boots its own ephemeral Postgres
+      # (Testcontainers) and launches the app on a real Kestrel port, so it needs the browser
+      # + OS deps installed first. pwsh is preinstalled on ubuntu-latest.
+      - name: Install Playwright browsers
+        run: pwsh tests/AkeroGarden.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+
+      - name: E2E tests
+        env:
+          E2E_WEB_CONFIG: Release
+        run: dotnet test tests/AkeroGarden.E2E --no-build --configuration Release --logger "console;verbosity=normal" --logger GitHubActions

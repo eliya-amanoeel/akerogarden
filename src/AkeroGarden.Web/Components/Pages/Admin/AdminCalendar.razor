@@ -8,67 +8,71 @@
 
 <PageTitle>Kalendervy — Åkerögården Admin</PageTitle>
 
-<h1>Kalendervy</h1>
-<p>Kommande bokningar och blockeringar. (Listvy — grafisk kalender är en Phase 6-förbättring.)</p>
+<AdminHeader Title="Kalendervy" />
+<p class="section-note">Kommande bokningar och blockeringar. (Listvy — grafisk kalender är en framtida förbättring.)</p>
 
-<h2>Bokningar</h2>
+<h2 class="admin-subsection">Bokningar</h2>
 @if (_bookings is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else if (_bookings.Count == 0)
 {
-    <p>Inga kommande bokningar.</p>
+    <p class="admin-empty">Inga kommande bokningar.</p>
 }
 else
 {
-    <table>
-        <thead>
-            <tr><th>Incheckning</th><th>Utcheckning</th><th>Namn</th><th>Gäster</th><th>Status</th><th></th></tr>
-        </thead>
-        <tbody>
-            @foreach (var b in _bookings)
-            {
-                <tr>
-                    <td>@b.CheckIn?.ToString("yyyy-MM-dd")</td>
-                    <td>@b.CheckOut?.ToString("yyyy-MM-dd")</td>
-                    <td>@b.ContactName</td>
-                    <td>@(b.OvernightGuestCount?.ToString() ?? "—")</td>
-                    <td>@BookingDisplay.StatusLabel(b.Status)</td>
-                    <td><a class="btn-ghost" href="/admin/bokningar/@b.Id">Öppna</a></td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr><th>Incheckning</th><th>Utcheckning</th><th>Sällskap</th><th class="num">Gäster</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var b in _bookings)
+                {
+                    <tr>
+                        <td class="mono">@b.CheckIn?.ToString("yyyy-MM-dd")</td>
+                        <td class="mono">@b.CheckOut?.ToString("yyyy-MM-dd")</td>
+                        <td><a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a></td>
+                        <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
+                        <td><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></td>
+                        <td class="rowactions"><a class="btn-ghost" href="/admin/bokningar/@b.Id">Öppna →</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
-<h2>Blockeringar</h2>
+<h2 class="admin-subsection">Blockeringar</h2>
 @if (_blocks is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else if (_blocks.Count == 0)
 {
-    <p>Inga blockeringar.</p>
+    <p class="admin-empty">Inga blockeringar.</p>
 }
 else
 {
-    <table>
-        <thead>
-            <tr><th>Från</th><th>Till</th><th>Omfattning</th><th>Orsak</th></tr>
-        </thead>
-        <tbody>
-            @foreach (var p in _blocks)
-            {
-                <tr>
-                    <td>@p.StartDate.ToString("yyyy-MM-dd")</td>
-                    <td>@p.EndDate.ToString("yyyy-MM-dd")</td>
-                    <td>@BookingDisplay.ScopeLabel(p.Scope)</td>
-                    <td>@(p.Reason ?? "—")</td>
-                </tr>
-            }
-        </tbody>
-    </table>
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr><th>Från</th><th>Till</th><th>Omfattning</th><th>Orsak</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var p in _blocks)
+                {
+                    <tr>
+                        <td class="mono">@p.StartDate.ToString("yyyy-MM-dd")</td>
+                        <td class="mono">@p.EndDate.ToString("yyyy-MM-dd")</td>
+                        <td>@BookingDisplay.ScopeLabel(p.Scope)</td>
+                        <td>@(p.Reason ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 }
 
 @code {

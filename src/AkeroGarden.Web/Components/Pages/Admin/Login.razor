@@ -9,10 +9,11 @@
 
 <div class="login-card">
     <div class="login-card__logo">
-        <Logo Variant="LogoVariant.OnDark" />
+        <Logo Variant="LogoVariant.OnLight" />
     </div>
 
     <h1>Logga in</h1>
+    <p class="login-sub">Åkerögården Admin</p>
 
     @if (!string.IsNullOrEmpty(_error))
     {
@@ -42,9 +43,9 @@
         </div>
 
         <button type="submit" class="btn">Logga in</button>
-
-        <a href="/glomt-losenord" class="btn-ghost">Glömt lösenordet?</a>
     </EditForm>
+
+    <p class="login-alt"><a href="/glomt-losenord">Glömt lösenordet?</a></p>
 </div>
 
 @code {

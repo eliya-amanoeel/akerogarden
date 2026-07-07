@@ -69,9 +69,19 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 
 ## Testing
 
-Write tests **with** each feature, not after (NFR-26–28):
-- Unit tests: business logic (pricing tiers, retention dates, token expiry, meal/participant validation)
-- Integration tests: every API endpoint, against real ephemeral containers in CI (no mocking the database)
+Write tests **with** each feature, not after (NFR-26–28). Three tiers:
+- **Unit tests:** business logic (pricing tiers, retention dates, token expiry, meal/participant validation)
+- **Integration tests:** every API endpoint, against real ephemeral containers in CI (no mocking the database)
+- **End-to-end / UI tests:** Playwright for .NET (`Microsoft.Playwright`), introduced in Phase 6 (`tests/AkeroGarden.E2E`). Cover key browser journeys (esp. the booking funnel), accessibility (axe-core), and responsive reachability at 360/768/1280. **No pixel/visual-regression screenshot diffing** — flaky across macOS↔CI-Linux font rendering; assert behaviour and structure instead.
+
+### Test integrity — non-negotiable
+
+A test must honestly verify the real behaviour it claims to. Never shape a test just to make it go green. Concretely:
+
+- **Never route a test around a known bug.** Do not fill/avoid a field or step so the suite passes despite a defect. Either **fix the bug**, or write a test that **asserts the current (wrong) behaviour** so it is captured and visible — never hidden.
+- **Assert the whole claim, not a weaker proxy.** If a flow is described as "submits", the test drives it to success (e.g. reaches the acknowledgement) — not merely "renders". If a feature "cascades" / "toggles" / "filters", a test exercises that behaviour, not just the presence of the control.
+- **Don't call something "verified" that no test exercises.** If you only eyeballed a screenshot, say that — don't report it as tested.
+- **If honest verification is hard, spend the time** to make it testable (seed the right data, expose a hook) or fix the underlying issue. Going back, rethinking, and fixing is always preferred over a test that misrepresents coverage. Report coverage gaps plainly instead of papering over them.
 
 ## Implementation phases
 
@@ -83,7 +93,8 @@ Follow `REQUIREMENTS/implementation-plan.md` in order. Do not start a phase unti
 3. Inquiry & booking lifecycle — state machine, emails, rate limiting, blocks
 4. Completion flow — magic-link guest form, snapshots, room assignment
 5. Notifications, lists & retention — reminders, PDF/Excel downloads, GDPR auto-deletion
-6. Hardening & go-live — security pass, UAT on staging, production deploy
+6. UI/UX — visual + experiential design pass (from scratch, both surfaces), Figma-first then Blazor (scope TBD)
+7. Hardening & go-live — security pass, UAT on staging, production deploy
 
 ## Working style
 

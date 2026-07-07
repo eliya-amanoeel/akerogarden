@@ -11,50 +11,67 @@
 
 <PageTitle>Administratörskonton — Åkerögården Admin</PageTitle>
 
-<h1>Administratörskonton</h1>
+<AdminHeader Title="Administratörskonton" />
 
 @if (_users is null)
 {
-    <p>Laddar...</p>
+    <p class="admin-empty">Laddar…</p>
 }
 else
 {
-    <table>
-        <thead>
-            <tr>
-                <th>E-postadress</th>
-                <th>Status</th>
-                <th>Åtgärd</th>
-            </tr>
-        </thead>
-        <tbody>
-            @foreach (var user in _users)
-            {
+    @if (!string.IsNullOrEmpty(_message))
+    {
+        <p role="status" class="form-status">@_message</p>
+    }
+
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
                 <tr>
-                    <td>@user.Email</td>
-                    <td>@(user.IsActive ? "Aktiv" : "Inaktiv")</td>
-                    <td>
-                        @if (user.Id != _currentUserId)
-                        {
+                    <th>E-postadress</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var user in _users)
+                {
+                    <tr>
+                        <td><span class="rowlink">@user.Email</span>@if (user.Id == _currentUserId) {<span class="chip" style="margin-left:0.5rem">Du</span>}</td>
+                        <td>
                             @if (user.IsActive)
                             {
-                                <button class="btn-ghost" @onclick="() => Deactivate(user)">Inaktivera</button>
+                                <span class="badge badge--approved">Aktiv</span>
                             }
                             else
                             {
-                                <button class="btn-ghost" @onclick="() => Activate(user)">Aktivera</button>
+                                <span class="badge badge--neutral">Inaktiv</span>
                             }
-                        }
-                        else
-                        {
-                            <span>—</span>
-                        }
-                    </td>
-                </tr>
-            }
-        </tbody>
-    </table>
+                        </td>
+                        <td class="rowactions">
+                            @if (user.Id != _currentUserId)
+                            {
+                                @if (user.IsActive)
+                                {
+                                    <button class="btn-ghost" @onclick="() => Deactivate(user)">Inaktivera</button>
+                                }
+                                else
+                                {
+                                    <button class="btn-ghost" @onclick="() => Activate(user)">Aktivera</button>
+                                }
+                            }
+                            else
+                            {
+                                <span class="admin-empty">—</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
 
+    <section class="card admin-editcard">
     <h2>Bjud in ny administratör</h2>
 
     <EditForm Model="_invite" OnValidSubmit="SendInvite" FormName="invite">
@@ -68,11 +85,7 @@ else
 
         <button type="submit" class="btn">Skicka inbjudan</button>
     </EditForm>
-
-    @if (!string.IsNullOrEmpty(_message))
-    {
-        <p>@_message</p>
-    }
+    </section>
 }
 
 @code {

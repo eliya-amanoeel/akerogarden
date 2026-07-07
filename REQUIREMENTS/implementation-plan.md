@@ -238,7 +238,7 @@ Like Phases 1, 3, and 4, Phase 5 is built as independently reviewable vertical s
 
 ---
 
-## Phase 6 — UI/UX
+## Phase 6 — UI/UX ✅ COMPLETE (merged to main 2026-07-07)
 
 **Goal:** turn the functional-but-unstyled app into a considered end-user experience — a public site that builds trust and **converts visitors into inquiries**, and an admin panel that is efficient to operate — grounded in the actual users, the brand feeling, and the guest journey. This is the visual and experiential design deferred from Phases 1–5 under "functional first, polish last".
 

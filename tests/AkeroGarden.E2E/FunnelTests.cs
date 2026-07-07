@@ -37,6 +37,7 @@ public class FunnelTests(E2EFixture fixture) : E2ETestBase(fixture)
 
         await Page.FillAsync("#s-name", "Anna Andersson");
         await Page.FillAsync("#s-email", "anna@example.se");
+        await Page.FillAsync("#s-email-confirm", "anna@example.se");
         // Leave the optional phone blank on purpose — that is the real, common path, and it must
         // submit successfully (regression guard for the OptionalPhone fix).
         await Page.FillAsync("#s-guests", "24");
@@ -50,31 +51,63 @@ public class FunnelTests(E2EFixture fixture) : E2ETestBase(fixture)
 
     /// <summary>Fills every required stay-request field with valid values, so a test can invalidate a
     /// single field and assert its message in isolation. Leaves the optional phone blank.</summary>
-    private async Task FillValidStayFormAsync()
+    private static async Task FillValidStayFormAsync(IPage page)
     {
-        await Page.FillAsync("#s-name", "Anna Andersson");
-        await Page.FillAsync("#s-email", "anna@example.se");
-        await Page.FillAsync("#s-checkin", "2026-08-01");
-        await Page.FillAsync("#s-checkout", "2026-08-03");
-        await Page.FillAsync("#s-guests", "12");
-        await Page.SelectOptionAsync("#mealplan", "FullBoardAll");
-        await Page.Locator(".track--stay label:has-text('integritetspolicyn') input[type=checkbox]").CheckAsync();
+        await page.FillAsync("#s-name", "Anna Andersson");
+        await page.FillAsync("#s-email", "anna@example.se");
+        await page.FillAsync("#s-email-confirm", "anna@example.se");
+        await page.FillAsync("#s-checkin", "2026-08-01");
+        await page.FillAsync("#s-checkout", "2026-08-03");
+        await page.FillAsync("#s-guests", "12");
+        await page.SelectOptionAsync("#mealplan", "FullBoardAll");
+        await page.Locator(".track--stay label:has-text('integritetspolicyn') input[type=checkbox]").CheckAsync();
     }
 
     [Fact]
-    public async Task Invalid_email_shows_the_server_side_message()
+    public async Task Client_side_validation_blocks_the_postback_on_invalid_input()
     {
-        // The email input is type=text + inputmode=email, so a malformed address no longer gets
-        // silently blocked by native browser validation — the post goes through and our styled
-        // [EmailAddress] message renders like every other field (slice-7 finding).
+        // A2d core claim: an invalid submit is caught in the browser and never posts — no wasted
+        // round-trip that re-renders just to show an error and scrolls the guest away from it.
+        // We assert the inline message appears AND that no POST to /boka was made.
         await Page.GotoAsync("/boka");
-        await FillValidStayFormAsync();
-        await Page.FillAsync("#s-email", "anna-at-example.se");   // no @ → invalid
+        await FillValidStayFormAsync(Page);
+        await Page.FillAsync("#s-email-confirm", "typo@example.se");   // mismatch — client-detectable
+
+        var postsToBoka = new List<string>();
+        void OnRequest(object? _, IRequest r)
+        {
+            if (r.Method == "POST" && r.Url.Contains("/boka")) postsToBoka.Add(r.Url);
+        }
+        Page.Request += OnRequest;
         await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
 
-        await Assertions.Expect(Page.GetByText("Ange en giltig e-postadress.")).ToBeVisibleAsync();
-        // …and it must not have reached the acknowledgement.
-        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).Not.ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByText("E-postadresserna stämmer inte överens.")).ToBeVisibleAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/boka$"));
+        Page.Request -= OnRequest;
+
+        Assert.Empty(postsToBoka); // blocked client-side — nothing posted
+    }
+
+    [Fact]
+    public async Task With_javascript_disabled_the_server_still_blocks_an_invalid_email()
+    {
+        // Graceful degradation (A2d): with the client-side script inert, the invalid email must
+        // still be caught — the post goes through and our styled server [EmailAddress] message
+        // renders. The server is always authoritative (belt-and-suspenders).
+        await using var context = await Fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+        {
+            BaseURL = Fixture.BaseUrl,
+            JavaScriptEnabled = false,
+        });
+        var page = await context.NewPageAsync();
+
+        await page.GotoAsync("/boka");
+        await FillValidStayFormAsync(page);
+        await page.FillAsync("#s-email", "anna-at-example.se");   // no @ → invalid
+        await page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
+
+        await Assertions.Expect(page.GetByText("Ange en giltig e-postadress.")).ToBeVisibleAsync();
+        await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).Not.ToBeVisibleAsync();
     }
 
     [Fact]
@@ -82,7 +115,7 @@ public class FunnelTests(E2EFixture fixture) : E2ETestBase(fixture)
     {
         // OrgName is Conditional (§8): ticking "for an organisation" makes naming it required.
         await Page.GotoAsync("/boka");
-        await FillValidStayFormAsync();
+        await FillValidStayFormAsync(Page);
         await Page.Locator("#s-isorg").CheckAsync();            // reveals the org panel (progressive JS)
         // Leave #s-orgname empty on purpose.
         await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();

@@ -2,11 +2,29 @@ using AkeroGarden.Web.Components;
 using AkeroGarden.Web.Data;
 using AkeroGarden.Web.Services;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ── Forwarded headers (NFR-04 — real client IP behind the App Service load balancer) ──────────
+// App Service terminates TLS and reverse-proxies to the app, so RemoteIpAddress is the platform
+// front end, not the guest. The inquiry rate limiter keys on the client IP, so without this it
+// would throttle the whole site as one client. UseForwardedHeaders (registered first in the
+// pipeline) rewrites RemoteIpAddress/scheme from X-Forwarded-For/-Proto. On App Service the single
+// front end is the only reachable proxy and it appends the real client IP as the rightmost entry,
+// so ForwardLimit = 1 + cleared known proxies takes that entry and is not spoofable by a client-set
+// header. Clearing KnownNetworks/KnownProxies is the documented App Service pattern (the platform,
+// not an in-VNet address range, is the trusted proxy).
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.ForwardLimit = 1;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 // ── Database ─────────────────────────────────────────────────────────────────
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
@@ -27,6 +45,15 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 // Password reset links expire in 1 hour (FR-73 — UI text says "1 timme")
 builder.Services.Configure<DataProtectionTokenProviderOptions>(opts =>
     opts.TokenLifespan = TimeSpan.FromHours(1));
+
+// ── Data Protection key persistence (NFR-30 — keys survive restarts / shared across instances) ─
+// Without durable keys, an App Service recycle/redeploy/scale-out regenerates the key ring and
+// invalidates every antiforgery token and auth cookie (a guest mid-`/boka` then hits "A valid
+// antiforgery token was not provided" on submit). Config-gated: local dev (no blob conn) keeps the
+// default filesystem key ring; staging/prod persist to Blob and wrap the master key with Key Vault.
+var dataProtectionOptions = new DataProtectionOptions();
+builder.Configuration.GetSection("DataProtection").Bind(dataProtectionOptions);
+builder.Services.AddAkeroDataProtection(dataProtectionOptions);
 
 // ── Antiforgery ───────────────────────────────────────────────────────────────
 builder.Services.AddAntiforgery(options =>
@@ -120,6 +147,10 @@ builder.Services.AddCascadingAuthenticationState();
 var app = builder.Build();
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────
+// Forwarded headers first, so RemoteIpAddress/scheme reflect the real client before any
+// downstream middleware (HTTPS redirect, rate limiter) reads them (NFR-04).
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);

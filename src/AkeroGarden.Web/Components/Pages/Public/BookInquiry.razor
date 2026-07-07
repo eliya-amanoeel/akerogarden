@@ -83,10 +83,18 @@ else
                                 <ValidationMessage For="() => StayModel!.ContactEmail" />
                             </div>
                             <div class="form-group">
-                                <label for="s-phone">Telefon <span class="field-opt">(valfritt)</span></label>
-                                <InputText id="s-phone" @bind-Value="StayModel!.ContactPhone" />
-                                <ValidationMessage For="() => StayModel!.ContactPhone" />
+                                @* Confirm-email safeguard (Phase 7): guards a mistyped-but-well-formed address
+                                   that would otherwise bounce silently. Paste is not blocked — the server
+                                   re-checks the match regardless. *@
+                                <label for="s-email-confirm">Bekräfta e-postadress</label>
+                                <InputText id="s-email-confirm" type="text" inputmode="email" @bind-Value="StayModel!.ConfirmEmail" />
+                                <ValidationMessage For="() => StayModel!.ConfirmEmail" />
                             </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="s-phone">Telefon <span class="field-opt">(valfritt)</span></label>
+                            <InputText id="s-phone" @bind-Value="StayModel!.ContactPhone" />
+                            <ValidationMessage For="() => StayModel!.ContactPhone" />
                         </div>
                     </div>
 
@@ -107,7 +115,7 @@ else
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="s-guests">Antal gäster (övernattning)</label>
-                                <InputNumber id="s-guests" @bind-Value="StayModel!.OvernightGuestCount" />
+                                <InputNumber id="s-guests" min="1" @bind-Value="StayModel!.OvernightGuestCount" />
                                 <ValidationMessage For="() => StayModel!.OvernightGuestCount" />
                             </div>
                             <div class="form-group">
@@ -124,7 +132,7 @@ else
                         @* Day guests don't apply to self-catering (§4.2); hidden by JS, dropped server-side. *@
                         <div class="form-group" id="dayguests-group">
                             <label for="s-dayguests">Antal dagsgäster <span class="field-opt">(valfritt)</span></label>
-                            <InputNumber id="s-dayguests" @bind-Value="StayModel!.DayGuestCount" />
+                            <InputNumber id="s-dayguests" min="0" @bind-Value="StayModel!.DayGuestCount" />
                             <ValidationMessage For="() => StayModel!.DayGuestCount" />
                             <p class="form-hint">Dagsgäster gäller bara vid helpension eller blandad måltidsplan.</p>
                         </div>
@@ -239,10 +247,16 @@ else
                                 <ValidationMessage For="() => GeneralModel!.ContactEmail" />
                             </div>
                             <div class="form-group">
-                                <label for="g-phone">Telefon <span class="field-opt">(valfritt)</span></label>
-                                <InputText id="g-phone" @bind-Value="GeneralModel!.ContactPhone" />
-                                <ValidationMessage For="() => GeneralModel!.ContactPhone" />
+                                @* Confirm-email safeguard (Phase 7) — see the stay-request form above. *@
+                                <label for="g-email-confirm">Bekräfta e-postadress</label>
+                                <InputText id="g-email-confirm" type="text" inputmode="email" @bind-Value="GeneralModel!.ConfirmEmail" />
+                                <ValidationMessage For="() => GeneralModel!.ConfirmEmail" />
                             </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="g-phone">Telefon <span class="field-opt">(valfritt)</span></label>
+                            <InputText id="g-phone" @bind-Value="GeneralModel!.ContactPhone" />
+                            <ValidationMessage For="() => GeneralModel!.ContactPhone" />
                         </div>
                         <div class="form-group">
                             <label for="g-message">Meddelande</label>

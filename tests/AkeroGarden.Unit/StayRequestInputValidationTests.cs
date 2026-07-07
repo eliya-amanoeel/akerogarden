@@ -17,6 +17,7 @@ public class StayRequestInputValidationTests
     {
         ContactName = "Anna Andersson",
         ContactEmail = "anna@example.se",
+        ConfirmEmail = "anna@example.se",
         CheckIn = new DateOnly(2026, 8, 1),
         CheckOut = new DateOnly(2026, 8, 3),
         OvernightGuestCount = 4,
@@ -65,6 +66,35 @@ public class StayRequestInputValidationTests
         model.IsOrganisation = true;
         model.OrgName = "Norrtälje Scoutkår";
         // OrgNumber and InvoiceAddress stay optional even for an organisation.
+        Assert.Empty(Validate(model));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void Missing_email_confirmation_is_rejected(string? confirm)
+    {
+        var model = Valid();
+        model.ConfirmEmail = confirm!;
+        Assert.Contains(Validate(model), r => r.MemberNames.Contains(nameof(StayRequestInput.ConfirmEmail)));
+    }
+
+    [Fact]
+    public void Mismatched_email_confirmation_is_rejected()
+    {
+        var model = Valid();
+        model.ConfirmEmail = "typo@example.se";
+        Assert.Contains(Validate(model), r => r.MemberNames.Contains(nameof(StayRequestInput.ConfirmEmail)));
+    }
+
+    [Theory]
+    [InlineData("ANNA@EXAMPLE.SE")]   // case-insensitive
+    [InlineData("  anna@example.se ")] // surrounding whitespace ignored
+    public void Email_confirmation_matches_ignoring_case_and_whitespace(string confirm)
+    {
+        var model = Valid();
+        model.ConfirmEmail = confirm;
         Assert.Empty(Validate(model));
     }
 }

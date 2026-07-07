@@ -1,5 +1,7 @@
 using AkeroGarden.E2E.Infrastructure;
+using AkeroGarden.Web.Data.Entities;
 using Deque.AxeCore.Playwright;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
 namespace AkeroGarden.E2E;
@@ -76,6 +78,47 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         // ConfirmEmail (mirrored from ContactEmail), i.e. the Phase 7 change didn't break admin.
         await Assertions.Expect(Page).ToHaveURLAsync(
             new System.Text.RegularExpressions.Regex(@"/admin/bokningar/[0-9a-fA-F-]{36}$"));
+    }
+
+    [Fact]
+    public async Task Approval_warning_surfaces_when_dates_overlap_a_block()
+    {
+        // The seeded Pending "Familjen Pendlar" booking (12 guests, one 40-bed room, no block) shows
+        // no approval warning. Seed a whole-property block over its dates (directly, as test setup)
+        // and confirm the non-blocking warning renders on its detail page — the behaviour under test
+        // is the UI rendering, verified through the browser; the block is removed afterwards so the
+        // shared E2E app is left as we found it.
+        var blockId = Guid.NewGuid();
+        var start = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(33);
+        var end = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(39);
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.BlockedPeriods.Add(new BlockedPeriod
+            {
+                Id = blockId,
+                Scope = BlockScope.WholeProperty,
+                StartDate = start,
+                EndDate = end,
+                Reason = "E2E approval-guard",
+                CreatedAt = DateTime.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/admin/bokningar");
+            await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+            await Assertions.Expect(
+                Page.GetByText("Datumen överlappar en eller flera blockeringar")).ToBeVisibleAsync();
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.BlockedPeriods.Where(b => b.Id == blockId).ExecuteDeleteAsync();
+        }
     }
 
     [Fact]

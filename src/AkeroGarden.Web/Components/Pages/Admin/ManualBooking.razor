@@ -34,7 +34,10 @@
         <DataAnnotationsValidator />
 
         <div class="form-group"><label for="mb-name">Namn</label><InputText id="mb-name" @bind-Value="_stay.ContactName" /><ValidationMessage For="() => _stay.ContactName" /></div>
-        <div class="form-group"><label for="mb-email">E-post</label><InputText id="mb-email" @bind-Value="_stay.ContactEmail" /><ValidationMessage For="() => _stay.ContactEmail" /></div>
+        @* Admin transcribes on the guest's behalf, so there is no double-entry confirm field here
+           (that safeguard is guest-facing). Mirror ContactEmail → ConfirmEmail so the shared model's
+           confirm-match rule is satisfied without burdening the admin. *@
+        <div class="form-group"><label for="mb-email">E-post</label><InputText id="mb-email" @bind-Value="_stay.ContactEmail" @bind-Value:after="() => _stay.ConfirmEmail = _stay.ContactEmail" /><ValidationMessage For="() => _stay.ContactEmail" /></div>
         <div class="form-group"><label for="mb-phone">Telefon</label><InputText id="mb-phone" @bind-Value="_stay.ContactPhone" /></div>
 
         <div class="form-row">
@@ -42,7 +45,7 @@
             <div class="form-group"><label for="mb-checkout">Utcheckning</label><InputDate id="mb-checkout" @bind-Value="_stay.CheckOut" /><ValidationMessage For="() => _stay.CheckOut" /></div>
         </div>
 
-        <div class="form-group"><label for="mb-guests">Antal gäster (övernattning)</label><InputNumber id="mb-guests" @bind-Value="_stay.OvernightGuestCount" /><ValidationMessage For="() => _stay.OvernightGuestCount" /></div>
+        <div class="form-group"><label for="mb-guests">Antal gäster (övernattning)</label><InputNumber id="mb-guests" min="1" @bind-Value="_stay.OvernightGuestCount" /><ValidationMessage For="() => _stay.OvernightGuestCount" /></div>
 
         <div class="form-group">
             <label for="mb-mealplan">Måltidsplan</label>
@@ -57,7 +60,7 @@
 
         @if (_stay.MealPlan != MealPlan.SelfCateringAll)
         {
-            <div class="form-group"><label for="mb-dayguests">Antal dagsgäster</label><InputNumber id="mb-dayguests" @bind-Value="_stay.DayGuestCount" /></div>
+            <div class="form-group"><label for="mb-dayguests">Antal dagsgäster</label><InputNumber id="mb-dayguests" min="0" @bind-Value="_stay.DayGuestCount" /></div>
         }
 
         @if (_facilities.Count > 0)
@@ -104,7 +107,7 @@ else
     <EditForm Model="_general" OnValidSubmit="CreateGeneral">
         <DataAnnotationsValidator />
         <div class="form-group"><label for="mg-name">Namn</label><InputText id="mg-name" @bind-Value="_general.ContactName" /><ValidationMessage For="() => _general.ContactName" /></div>
-        <div class="form-group"><label for="mg-email">E-post</label><InputText id="mg-email" @bind-Value="_general.ContactEmail" /><ValidationMessage For="() => _general.ContactEmail" /></div>
+        <div class="form-group"><label for="mg-email">E-post</label><InputText id="mg-email" @bind-Value="_general.ContactEmail" @bind-Value:after="() => _general.ConfirmEmail = _general.ContactEmail" /><ValidationMessage For="() => _general.ContactEmail" /></div>
         <div class="form-group"><label for="mg-phone">Telefon</label><InputText id="mg-phone" @bind-Value="_general.ContactPhone" /></div>
         <div class="form-group"><label for="mg-message">Meddelande</label><InputTextArea id="mg-message" @bind-Value="_general.Message" /><ValidationMessage For="() => _general.Message" /></div>
         <button type="submit" class="btn">Skapa förfrågan</button>

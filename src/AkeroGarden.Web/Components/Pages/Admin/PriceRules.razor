@@ -85,13 +85,13 @@ else
 
         <div class="form-group">
             <label for="p-amount">Belopp exkl. moms (kr)</label>
-            <InputNumber id="p-amount" @bind-Value="_form.AmountExVat" />
+            <InputNumber id="p-amount" min="0" @bind-Value="_form.AmountExVat" />
             <ValidationMessage For="() => _form.AmountExVat" />
         </div>
 
         <div class="form-group">
             <label for="p-vat">Momssats (andel, t.ex. 0.12 för 12 %)</label>
-            <InputNumber id="p-vat" @bind-Value="_form.VatRate" step="0.01" />
+            <InputNumber id="p-vat" min="0" @bind-Value="_form.VatRate" step="0.01" />
             <ValidationMessage For="() => _form.VatRate" />
         </div>
 

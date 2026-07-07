@@ -52,6 +52,33 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Admin_can_create_a_manual_stay_booking()
+    {
+        // Regression guard (Phase 7): the shared StayRequestInput now requires a matching
+        // ConfirmEmail (the guest-facing confirm-email safeguard). The admin form has no confirm
+        // field — it mirrors ContactEmail → ConfirmEmail — so a manual booking must still submit
+        // and land on the newly created booking's detail page.
+        await LoginAsync();
+        await Page.GotoAsync("/admin/bokningar/ny");
+        // Admin is Interactive Server: wait for the SignalR circuit to connect before filling, else
+        // the @bind onchange events fire before the circuit is live and never reach the server model.
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await Page.FillAsync("#mb-name", "Testgrupp Norrtälje");
+        await Page.FillAsync("#mb-email", "grupp@example.se");
+        await Page.FillAsync("#mb-checkin", "2026-09-01");
+        await Page.FillAsync("#mb-checkout", "2026-09-03");
+        await Page.FillAsync("#mb-guests", "8");
+        await Page.SelectOptionAsync("#mb-mealplan", "FullBoardAll");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skapa bokning" }).ClickAsync();
+
+        // Lands on the new booking's detail page — proving the form submitted despite the required
+        // ConfirmEmail (mirrored from ContactEmail), i.e. the Phase 7 change didn't break admin.
+        await Assertions.Expect(Page).ToHaveURLAsync(
+            new System.Text.RegularExpressions.Regex(@"/admin/bokningar/[0-9a-fA-F-]{36}$"));
+    }
+
+    [Fact]
     public async Task Bookings_list_shows_status_badges()
     {
         await LoginAsync();

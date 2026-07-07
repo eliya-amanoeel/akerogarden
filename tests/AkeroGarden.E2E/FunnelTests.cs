@@ -102,9 +102,13 @@ public class FunnelTests(E2EFixture fixture) : E2ETestBase(fixture)
         var page = await context.NewPageAsync();
 
         await page.GotoAsync("/boka");
-        await FillValidStayFormAsync(page);
+        // Submitting a malformed email must be caught by the server even with no client script — the
+        // post goes through and the styled [EmailAddress] message renders. (Only the email is filled;
+        // the point is that the server, not the browser, rejects it. The CSS-only track toggle keeps
+        // the stay form reachable without JS.) Submit with Enter — a native form submission a JS-off
+        // user can do without scrolling to the button.
         await page.FillAsync("#s-email", "anna-at-example.se");   // no @ → invalid
-        await page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
+        await page.Locator("#s-email").PressAsync("Enter");
 
         await Assertions.Expect(page.GetByText("Ange en giltig e-postadress.")).ToBeVisibleAsync();
         await Assertions.Expect(page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).Not.ToBeVisibleAsync();

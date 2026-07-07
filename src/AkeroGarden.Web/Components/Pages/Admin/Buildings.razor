@@ -101,7 +101,7 @@ else
 
         <div class="form-group">
             <label for="b-order">Visningsordning</label>
-            <InputNumber id="b-order" @bind-Value="_buildingForm.DisplayOrder" />
+            <InputNumber id="b-order" min="0" @bind-Value="_buildingForm.DisplayOrder" />
             <ValidationMessage For="() => _buildingForm.DisplayOrder" />
         </div>
 
@@ -182,7 +182,7 @@ else
 
             <div class="form-group">
                 <label for="r-beds">Antal bäddar</label>
-                <InputNumber id="r-beds" @bind-Value="_roomForm.BedCount" />
+                <InputNumber id="r-beds" min="1" @bind-Value="_roomForm.BedCount" />
                 <ValidationMessage For="() => _roomForm.BedCount" />
             </div>
 
@@ -194,7 +194,7 @@ else
 
             <div class="form-group">
                 <label for="r-order">Visningsordning</label>
-                <InputNumber id="r-order" @bind-Value="_roomForm.DisplayOrder" />
+                <InputNumber id="r-order" min="0" @bind-Value="_roomForm.DisplayOrder" />
                 <ValidationMessage For="() => _roomForm.DisplayOrder" />
             </div>
 

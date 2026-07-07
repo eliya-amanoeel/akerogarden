@@ -104,7 +104,7 @@ else
 
         <div class="form-group">
             <label for="m-order">Visningsordning</label>
-            <InputNumber id="m-order" @bind-Value="_form.DisplayOrder" />
+            <InputNumber id="m-order" min="0" @bind-Value="_form.DisplayOrder" />
             <ValidationMessage For="() => _form.DisplayOrder" />
         </div>
 

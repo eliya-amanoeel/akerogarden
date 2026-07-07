@@ -195,7 +195,7 @@ Like Phases 1 and 3, Phase 4 is built as independently reviewable vertical slice
 
 ---
 
-## Phase 5 — Notifications, lists & retention
+## Phase 5 — Notifications, lists & retention ✅ COMPLETE (merged to main 2026-07-05)
 
 **Goal:** the automated lifecycle — reminders, downloadable lists, and GDPR auto-deletion.
 

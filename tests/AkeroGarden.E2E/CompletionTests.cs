@@ -23,8 +23,6 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
         await Assertions.Expect(Page.Locator(".group-default")).ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1']")).ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 2']")).ToBeVisibleAsync();
-        // Names are mandatory (surfaced client-side; enforced server-side).
-        await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name")).ToHaveAttributeAsync("required", "");
 
         var captureDir = Environment.GetEnvironmentVariable("E2E_CAPTURE_DIR");
         if (captureDir is not null)
@@ -83,6 +81,24 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
         await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka in uppgifter" }).ClickAsync();
 
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Empty_participant_name_is_blocked_with_a_styled_message()
+    {
+        // Deltagare 1's name is left empty. Without a native `required` attribute the post goes
+        // through, so the server-side normalizer's styled error banner surfaces our message
+        // ("Deltagare 1: namn krävs.") rather than a native browser bubble. A failed submit does
+        // not consume the token, so this can safely share the read-only CompletionToken.
+        await Page.GotoAsync(CompletionUrl);
+        await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__name").FillAsync("Bengt Berg");
+        await Page.Locator("#gd-lunch").SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka in uppgifter" }).ClickAsync();
+
+        await Assertions.Expect(Page.Locator(".alert--error")).ToBeVisibleAsync();
+        await Assertions.Expect(Page.Locator(".alert--error").GetByText("Deltagare 1: namn krävs.")).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).Not.ToBeVisibleAsync();
     }
 
     [Fact]

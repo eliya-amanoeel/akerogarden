@@ -133,8 +133,11 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                aria-label="Visa måltider och kostbehov för deltagare @(index + 1)" />
                         <div class="prow__head">
                             <span class="prow__badge">@(index + 1)</span>
+                            @* No native `required`: let the server-side CompletionNormalizer + the styled
+                               error banner be the single source of truth (consistent with the inquiry
+                               form), rather than a native browser bubble that suppresses our message. *@
                             <input class="inp prow__name" name="Form.Overnight[@index].FullName" value="@entry.FullName"
-                                   maxlength="200" required placeholder="Namn" aria-label="Namn för deltagare @(index + 1)" data-progress-name />
+                                   maxlength="200" placeholder="Namn" aria-label="Namn för deltagare @(index + 1)" data-progress-name />
                             <select class="inp prow__age" name="Form.Overnight[@index].AgeCategory" aria-label="Ålderskategori för deltagare @(index + 1)">
                                 @foreach (var age in AgeCategories)
                                 {
@@ -266,7 +269,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                 <div class="form-row">
                                     <div class="form-group">
                                         <label for="d@(di)-name">Namn</label>
-                                        <input id="d@(di)-name" name="Form.DayGuests[@di].FullName" value="@dg.FullName" maxlength="200" required />
+                                        <input id="d@(di)-name" name="Form.DayGuests[@di].FullName" value="@dg.FullName" maxlength="200" />
                                     </div>
                                     <div class="form-group">
                                         <label for="d@(di)-age">Ålderskategori</label>

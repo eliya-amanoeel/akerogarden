@@ -20,7 +20,7 @@ public class StayRequestInput : IValidatableObject
     [StringLength(320, ErrorMessage = "E-postadressen får vara högst 320 tecken.")]
     public string ContactEmail { get; set; } = string.Empty;
 
-    [Phone(ErrorMessage = "Ange ett giltigt telefonnummer.")]
+    [OptionalPhone(ErrorMessage = "Ange ett giltigt telefonnummer.")]
     [StringLength(50, ErrorMessage = "Telefonnumret får vara högst 50 tecken.")]
     public string? ContactPhone { get; set; }
 

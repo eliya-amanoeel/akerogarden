@@ -37,9 +37,8 @@ public class FunnelTests(E2EFixture fixture) : E2ETestBase(fixture)
 
         await Page.FillAsync("#s-name", "Anna Andersson");
         await Page.FillAsync("#s-email", "anna@example.se");
-        // Phone is optional, but [Phone] currently rejects an empty string (a known Phase-7
-        // "phone validation" backlog item), so a realistic user fills it.
-        await Page.FillAsync("#s-phone", "0701234567");
+        // Leave the optional phone blank on purpose — that is the real, common path, and it must
+        // submit successfully (regression guard for the OptionalPhone fix).
         await Page.FillAsync("#s-guests", "24");
         await Page.SelectOptionAsync("#mealplan", "FullBoardAll");
         await Page.Locator(".track--stay label:has-text('integritetspolicyn') input[type=checkbox]").CheckAsync();

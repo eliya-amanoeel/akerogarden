@@ -5,25 +5,25 @@ using Microsoft.Playwright;
 namespace AkeroGarden.E2E;
 
 /// <summary>
-/// The token-gated guest completion form (/slutfor/{token}). Uses the Approved booking + valid
-/// token seeded by the fixture. Verifies the redesigned form renders (participant cards, meals)
-/// and is accessible; the submit/validation path is covered by the integration suite.
+/// The token-gated guest completion form (/slutfor/{token}), against Approved bookings + valid
+/// tokens seeded by the fixture. Drives the real behaviours: collapse, the group-default cascade,
+/// the single-option fixed meal, and a full submit to the acknowledgement.
 /// </summary>
 public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
 {
-    private string CompletionUrl => $"/slutfor/{E2EFixture.CompletionToken}";
+    private static string Url(string token) => $"/slutfor/{token}";
+    private string CompletionUrl => Url(E2EFixture.CompletionToken);
 
     [Fact]
-    public async Task Valid_token_renders_the_participant_cards()
+    public async Task Valid_token_renders_the_group_default_and_participant_rows()
     {
         await Page.GotoAsync(CompletionUrl);
 
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Nästan klart!" })).ToBeVisibleAsync();
-        // Group-default panel + one collapsible row per overnight guest (the fixture booking has 2).
         await Assertions.Expect(Page.Locator(".group-default")).ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1']")).ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 2']")).ToBeVisibleAsync();
-        // Names are mandatory.
+        // Names are mandatory (surfaced client-side; enforced server-side).
         await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name")).ToHaveAttributeAsync("required", "");
 
         var captureDir = Environment.GetEnvironmentVariable("E2E_CAPTURE_DIR");
@@ -37,10 +37,52 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
         await Page.GotoAsync(CompletionUrl);
         var row = Page.Locator(".prow[aria-label='Deltagare 1']");
 
-        // Meals/dietary are collapsed by default (name + age stay visible).
         await Assertions.Expect(row.Locator(".prow__body")).Not.ToBeVisibleAsync();
         await row.Locator(".prow__toggle").ClickAsync();
         await Assertions.Expect(row.Locator(".prow__body")).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Single_option_meal_renders_as_fixed_text_not_a_dropdown()
+    {
+        await Page.GotoAsync(CompletionUrl);
+        var row = Page.Locator(".prow[aria-label='Deltagare 1']");
+        await row.Locator(".prow__toggle").ClickAsync();
+
+        // Lunch has 2 options → a select; dinner has 1 → fixed text (both dinner slots) + a hidden field.
+        await Assertions.Expect(row.Locator("select[data-meal='Lunch']")).ToHaveCountAsync(1);
+        await Assertions.Expect(row.Locator("select[data-meal='Dinner']")).ToHaveCountAsync(0);
+        await Assertions.Expect(row.Locator(".meal-fixed")).ToHaveCountAsync(2);
+    }
+
+    [Fact]
+    public async Task Group_default_lunch_cascades_to_every_participant()
+    {
+        await Page.GotoAsync(CompletionUrl);
+
+        await Page.Locator("#gd-lunch").SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
+        var chosen = await Page.Locator("#gd-lunch").InputValueAsync();
+
+        // A participant whose own select was never touched now carries the group choice.
+        await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__toggle").ClickAsync();
+        await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 2'] select[data-meal='Lunch']"))
+            .ToHaveValueAsync(chosen);
+    }
+
+    [Fact]
+    public async Task Completion_submits_successfully_to_the_acknowledgement()
+    {
+        await Page.GotoAsync(Url(E2EFixture.CompletionSubmitToken));
+
+        await Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name").FillAsync("Anna Andersson");
+        await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__name").FillAsync("Bengt Berg");
+        // Standard lunch cascades to every participant's lunch select; dinner is single-option and
+        // auto-filled — so every full-board meal slot is satisfied.
+        await Page.Locator("#gd-lunch").SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka in uppgifter" }).ClickAsync();
+
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
     }
 
     [Fact]

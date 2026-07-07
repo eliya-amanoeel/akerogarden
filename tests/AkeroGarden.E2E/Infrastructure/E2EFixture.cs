@@ -65,8 +65,11 @@ public sealed class E2EFixture : IAsyncLifetime
         await _db.DisposeAsync();
     }
 
-    /// <summary>A known, unexpired completion token seeded for the /slutfor E2E test.</summary>
+    /// <summary>Known, unexpired completion tokens seeded for the /slutfor E2E tests. The submit
+    /// test uses its own booking because submitting consumes it (Approved → DetailsComplete),
+    /// which would otherwise break the read-only tests sharing a token.</summary>
     public const string CompletionToken = "e2e-completion-token-abc123";
+    public const string CompletionSubmitToken = "e2e-completion-submit-token-xyz789";
 
     // The app boots with an empty DB (only an admin user is seeded). Seed the minimum the public
     // journeys need: bedroom capacity (else every calendar day reads fully booked), a couple of
@@ -84,12 +87,16 @@ public sealed class E2EFixture : IAsyncLifetime
         building.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = building.Id, Name = "Sovsal", BedCount = 40, IsActive = true });
         ctx.Buildings.Add(building);
 
+        // Two lunch options (a real choice → per-day selects + a group-default lunch select) and a
+        // single dinner option (no choice → rendered as fixed text + a hidden field). Lets the E2E
+        // exercise both the group-default cascade and the single-option path honestly.
         ctx.MealOptions.AddRange(
             new MealOption { Id = Guid.NewGuid(), Name = "Rotfruktssoppa", MealType = MealType.Lunch, IsActive = true },
+            new MealOption { Id = Guid.NewGuid(), Name = "Ugnsbakad lax", MealType = MealType.Lunch, IsActive = true },
             new MealOption { Id = Guid.NewGuid(), Name = "Kycklinggryta", MealType = MealType.Dinner, IsActive = true });
 
         var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30);
-        ctx.Bookings.Add(new Booking
+        Booking CompletionBooking(string token) => new()
         {
             Id = Guid.NewGuid(),
             BookingType = BookingType.StayRequest,
@@ -100,13 +107,15 @@ public sealed class E2EFixture : IAsyncLifetime
             CheckOut = checkIn.AddDays(2),
             OvernightGuestCount = 2,
             MealPlan = MealPlan.FullBoardAll,
-            CompletionToken = CompletionToken,
+            CompletionToken = token,
             CompletionTokenExpiry = DateTime.UtcNow.AddDays(14),
             GuestChoosesRooms = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),
-        });
+        };
+        ctx.Bookings.Add(CompletionBooking(CompletionToken));
+        ctx.Bookings.Add(CompletionBooking(CompletionSubmitToken));
 
         await ctx.SaveChangesAsync();
     }

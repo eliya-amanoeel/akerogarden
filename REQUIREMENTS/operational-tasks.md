@@ -25,6 +25,7 @@ One-off content, migration, and go-live tasks that aren't system requirements �
   - Confirmation that personnummer is not collected
 
   **This blocks go-live** — NFR-20–24 in requirements.md require the policy to exist and cover these points, but there is currently no actual document satisfying them.
+- [ ] **VAT rates per category — confirm with the client's accountant.** Prices are stored ex-VAT with a per-item `VatRate` (on each `PriceRule` and `CleaningZone`) because rates differ by category — e.g. 12% for lodging and food, potentially 25% for facility/conference hire (requirements.md §5). The exact rate per category is admin-entered configuration and must be **confirmed with the client's accountant** before the reference data is finalised, then entered via the admin CRUD screens. Named as a Phase-7 blocker in the implementation plan; previously only a prose aside in requirements.md §5 with no tracked home — logged here so it isn't lost. *(Not code — an external/data-entry input.)*
 - [ ] **Azure cost + health alerts (staging and production).** No alerting exists yet. Set up, ideally codified in Bicep (Azure Monitor / `Microsoft.CostManagement` budgets + `Microsoft.Insights` metric alerts) rather than clicked in the portal:
   - **Cost / budget alerts** — a monthly budget per resource group (`akerogarden-staging`, `akerogarden-prod`) with email alerts at e.g. 50% / 80% / 100% of threshold. Staging especially, since it's meant to be powered down when idle — an alert catches a box left running.
   - **App Service health** — alerts on HTTP 5xx rate, response time, and app restarts/availability (so a crash-looping deploy is noticed without watching the portal).
@@ -32,4 +33,4 @@ One-off content, migration, and go-live tasks that aren't system requirements �
   - **Key Vault** — alert on access failures (would surface a broken managed-identity/access-policy wiring like the one hit during Phase 0 provisioning).
   - **Optional** — Action Group wiring so all the above notify a real inbox/SMS; consider Application Insights for richer telemetry.
 
-  Not go-live-blocking on its own, but production should not run unmonitored. Revisit in Phase 7 (hardening) at the latest; staging cost alerts are worth doing sooner.
+  Not go-live-blocking on its own, but production should not run unmonitored. Staging cost/health alerts belong in Phase 7 (hardening) and are worth doing sooner; production monitoring is wired up with the production environment at Phase 9 (go-live).

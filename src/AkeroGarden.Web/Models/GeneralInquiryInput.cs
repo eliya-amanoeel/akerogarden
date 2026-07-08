@@ -17,6 +17,14 @@ public class GeneralInquiryInput : IValidatableObject
     [StringLength(320, ErrorMessage = "E-postadressen får vara högst 320 tecken.")]
     public string ContactEmail { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Confirm-email safeguard (Phase 7) — see <see cref="StayRequestInput.ConfirmEmail"/>. Must
+    /// match <see cref="ContactEmail"/> (checked in <see cref="Validate"/>, case-insensitive/trimmed).
+    /// </summary>
+    [Required(ErrorMessage = "Bekräfta din e-postadress.")]
+    [StringLength(320, ErrorMessage = "E-postadressen får vara högst 320 tecken.")]
+    public string ConfirmEmail { get; set; } = string.Empty;
+
     [OptionalPhone(ErrorMessage = "Ange ett giltigt telefonnummer.")]
     [StringLength(50, ErrorMessage = "Telefonnumret får vara högst 50 tecken.")]
     public string? ContactPhone { get; set; }
@@ -35,6 +43,14 @@ public class GeneralInquiryInput : IValidatableObject
             yield return new ValidationResult(
                 "Du måste godkänna integritetspolicyn för att skicka förfrågan.",
                 [nameof(AcceptPrivacyPolicy)]);
+        }
+
+        // Only when a confirmation was actually entered — a blank one is reported by [Required].
+        if (!string.IsNullOrWhiteSpace(ConfirmEmail) && !EmailConfirmation.Matches(ContactEmail, ConfirmEmail))
+        {
+            yield return new ValidationResult(
+                EmailConfirmation.MismatchMessage,
+                [nameof(ConfirmEmail)]);
         }
     }
 }

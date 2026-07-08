@@ -87,19 +87,19 @@ else
 
         <div class="form-group">
             <label for="f-amount">Pris (exkl. moms, kr)</label>
-            <InputNumber id="f-amount" @bind-Value="_form.AmountExVat" />
+            <InputNumber id="f-amount" min="0" @bind-Value="_form.AmountExVat" />
             <ValidationMessage For="() => _form.AmountExVat" />
         </div>
 
         <div class="form-group">
             <label for="f-vat">Momssats (andel, t.ex. 0,25 för 25 %)</label>
-            <InputNumber id="f-vat" @bind-Value="_form.VatRate" step="0.0001" />
+            <InputNumber id="f-vat" min="0" @bind-Value="_form.VatRate" step="0.0001" />
             <ValidationMessage For="() => _form.VatRate" />
         </div>
 
         <div class="form-group">
             <label for="f-order">Visningsordning</label>
-            <InputNumber id="f-order" @bind-Value="_form.DisplayOrder" />
+            <InputNumber id="f-order" min="0" @bind-Value="_form.DisplayOrder" />
             <ValidationMessage For="() => _form.DisplayOrder" />
         </div>
 

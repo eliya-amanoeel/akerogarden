@@ -33,6 +33,11 @@ public sealed class E2EFixture : IAsyncLifetime
     public IPlaywright Playwright { get; private set; } = null!;
     public IBrowser Browser { get; private set; } = null!;
 
+    /// <summary>A DbContext bound to the shared test database — for tests that need to seed/clean up
+    /// data directly (setup/teardown) rather than through the UI.</summary>
+    public ApplicationDbContext NewDbContext() =>
+        new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_db.GetConnectionString()).Options);
+
     public async Task InitializeAsync()
     {
         await _db.StartAsync();

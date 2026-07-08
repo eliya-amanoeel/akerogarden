@@ -84,7 +84,11 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                     <h3>Standard för hela gruppen</h3>
                     <p>Gäller alla deltagare. Du kan ändra per person längre ned.</p>
                     <div class="fbrow">
-                        <input type="checkbox" id="gd-fullboard" data-groupdefault-fullboard checked="@_defaultFullBoard" />
+                        @* Bound to the model (name + hidden companion) so its ticked state survives an
+                           add/remove-day-guest postback; still cascades to every participant via JS. *@
+                        <input type="checkbox" id="gd-fullboard" name="Form.GroupDefaultFullBoard" value="true"
+                               data-groupdefault-fullboard checked="@_form.GroupDefaultFullBoard" />
+                        <input type="hidden" name="Form.GroupDefaultFullBoard" value="false" />
                         <label for="gd-fullboard">Helpension för alla (måltider ingår)</label>
                     </div>
                     @if (_lunchOptions.Count >= 2 || _dinnerOptions.Count >= 2)
@@ -94,11 +98,11 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                             {
                                 <div>
                                     <label class="field-label" for="gd-lunch">Standard lunch alla dagar</label>
-                                    <select class="inp" id="gd-lunch" data-groupdefault-meal="Lunch">
+                                    <select class="inp" id="gd-lunch" name="Form.GroupDefaultLunch" data-groupdefault-meal="Lunch">
                                         <option value="">– välj –</option>
                                         @foreach (var o in _lunchOptions)
                                         {
-                                            <option value="@o.Id">@o.Name</option>
+                                            <option value="@o.Id" selected="@(_form.GroupDefaultLunch == o.Id.ToString())">@o.Name</option>
                                         }
                                     </select>
                                 </div>
@@ -107,11 +111,11 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                             {
                                 <div>
                                     <label class="field-label" for="gd-dinner">Standard middag alla dagar</label>
-                                    <select class="inp" id="gd-dinner" data-groupdefault-meal="Dinner">
+                                    <select class="inp" id="gd-dinner" name="Form.GroupDefaultDinner" data-groupdefault-meal="Dinner">
                                         <option value="">– välj –</option>
                                         @foreach (var o in _dinnerOptions)
                                         {
-                                            <option value="@o.Id">@o.Name</option>
+                                            <option value="@o.Id" selected="@(_form.GroupDefaultDinner == o.Id.ToString())">@o.Name</option>
                                         }
                                     </select>
                                 </div>
@@ -445,7 +449,6 @@ else
     private int _lunchSlotCount;
     private int _dinnerSlotCount;
     private bool _dayGuestsApplicable;
-    private bool _defaultFullBoard;
     private IReadOnlyList<DateOnly> _stayDates = [];
     private bool _guestChoosesRooms;
     private IReadOnlyList<RoomInfo> _availableRooms = [];
@@ -477,7 +480,6 @@ else
 
             // Day guests apply only for a catered plan (§4.2); the section is hidden otherwise.
             _dayGuestsApplicable = _booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
-            _defaultFullBoard = _booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
             _stayDates = EnumerateDates(_booking.CheckIn.Value, _booking.CheckOut.Value);
 
             // Room picker only when the booking lets the guest choose rooms (FR-56); otherwise the
@@ -559,6 +561,7 @@ else
 
         var form = new CompletionFormModel
         {
+            GroupDefaultFullBoard = defaultFullBoard,
             IsOrganisation = booking.IsOrganisation,
             OrgName = booking.OrgName,
             OrgNumber = booking.OrgNumber,

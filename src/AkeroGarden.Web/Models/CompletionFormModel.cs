@@ -24,6 +24,21 @@ public class CompletionFormModel
     /// dropped server-side for <c>SelfCateringAll</c>.</summary>
     public List<DayGuestEntry> DayGuests { get; set; } = [];
 
+    // ── Group defaults (presentation only) ───────────────────────────────────────
+    // The "Standard för hela gruppen" convenience controls cascade one choice to every participant
+    // via completion-form.js; they are NOT participant data and are ignored by CompletionNormalizer.
+    // They are bound to the model purely so their displayed value survives an add/remove-day-guest
+    // server round-trip (which re-renders the whole form) instead of blanking out.
+
+    /// <summary>Whether the group-default "Helpension för alla" box is ticked (presentation only).</summary>
+    public bool GroupDefaultFullBoard { get; set; }
+
+    /// <summary>Group-default lunch option id as a string (presentation only; empty = unset).</summary>
+    public string? GroupDefaultLunch { get; set; }
+
+    /// <summary>Group-default dinner option id as a string (presentation only; empty = unset).</summary>
+    public string? GroupDefaultDinner { get; set; }
+
     // ── Org / invoice (FR-60) ────────────────────────────────────────────────────
     public bool IsOrganisation { get; set; }
 

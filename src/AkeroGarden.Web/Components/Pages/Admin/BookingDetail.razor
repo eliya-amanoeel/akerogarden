@@ -251,7 +251,30 @@ else
                 {
                     @if (IsCheckInWithin14Days)
                     {
-                        <p class="form-status" role="alert">Incheckning är @DaysToCheckIn dagar bort — slutförandelänken förkortas till 48 timmar. Överväg att kontakta gästen direkt.</p>
+                        <div class="alert alert--info" role="status">
+                            <span class="alert__ic" aria-hidden="true">i</span>
+                            <div>Incheckning är @DaysToCheckIn dagar bort — slutförandelänken förkortas till 48 timmar. Överväg att kontakta gästen direkt.</div>
+                        </div>
+                    }
+                    @if (_approvalWarning.Any)
+                    {
+                        <div class="alert alert--warn" role="alert">
+                            <span class="alert__ic" aria-hidden="true">!</span>
+                            <div>
+                                <b>Kontrollera innan du godkänner</b>
+                                <ul class="alert__list">
+                                    @if (_approvalWarning.OverlapsBlock)
+                                    {
+                                        <li>Datumen överlappar en eller flera blockeringar: @string.Join("; ", _approvalWarning.BlockDescriptions). Rumsväljaren kan bli tom för gästen.</li>
+                                    }
+                                    @if (_approvalWarning.CapacityExceeded)
+                                    {
+                                        <li>Antal övernattande gäster (@_approvalWarning.RequestedGuests) överstiger tillgängliga bäddar (@_approvalWarning.AvailableBeds) för perioden.</li>
+                                    }
+                                </ul>
+                                <p class="form-hint">Du kan ändå godkänna — detta är endast en varning.</p>
+                            </div>
+                        </div>
                     }
                     <div class="rail-actions">
                         <button class="btn" @onclick="Approve">Godkänn</button>
@@ -356,6 +379,7 @@ else
     private Booking? _booking;
     private bool _loaded;
     private string? _message;
+    private ApprovalWarning _approvalWarning = ApprovalWarning.None;
 
     private string? _notes;
     private bool _depositInvoiced, _depositPaid, _finalInvoiced, _finalPaid;
@@ -401,6 +425,11 @@ else
         _finalInvoiced = _booking.FinalInvoiced;
         _finalPaid = _booking.FinalPaid;
         _guestChoosesRooms = _booking.GuestChoosesRooms;
+
+        // Non-blocking pre-approval warnings (block overlap / capacity) shown before "Godkänn".
+        _approvalWarning = _booking is { Status: BookingStatus.Pending, BookingType: BookingType.StayRequest }
+            ? await BookingService.GetApprovalWarningsAsync(Id)
+            : ApprovalWarning.None;
 
         // Participants exist only after the guest submits (DetailsComplete+). Load them plus the
         // rooms/options/conflicts the admin editor needs.

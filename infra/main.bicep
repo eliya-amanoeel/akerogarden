@@ -83,6 +83,18 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
   }
 }
 
+// Key wrapping the Data Protection master key (Phase 7 — NFR-30). The app wraps/unwraps via its
+// managed identity (see the keys permissions in kvAccessPolicy). RSA 2048, wrap/unwrap only.
+resource dataProtectionKey 'Microsoft.KeyVault/vaults/keys@2023-07-01' = {
+  parent: keyVault
+  name: 'dataprotection-key'
+  properties: {
+    kty: 'RSA'
+    keySize: 2048
+    keyOps: ['wrapKey', 'unwrapKey']
+  }
+}
+
 resource smtpUsernameSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'smtp-username'
@@ -174,6 +186,24 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
           value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=core.windows.net'
         }
         {
+          // Data Protection key ring persisted to Blob (Phase 7 — NFR-30). Same storage account as
+          // images, separate private container. Its presence is what switches on persistence — absent
+          // in local dev, so dev keeps the default filesystem key ring.
+          name: 'DataProtection__KeysBlobConnectionString'
+          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=core.windows.net'
+        }
+        {
+          // Key Vault key wrapping the Data Protection master key (NFR-30)
+          name: 'DataProtection__KeyVaultKeyId'
+          value: dataProtectionKey.properties.keyUri
+        }
+        {
+          // The app runs under a user-assigned identity, so DefaultAzureCredential must be told which
+          // one to use when authenticating to Key Vault for key wrap/unwrap.
+          name: 'DataProtection__ManagedIdentityClientId'
+          value: appIdentity.properties.clientId
+        }
+        {
           // Bootstraps the first admin on startup if no users exist (AdminSeeder)
           name: 'Seed__AdminEmail'
           value: seedAdminEmail
@@ -220,6 +250,9 @@ resource kvAccessPolicy 'Microsoft.KeyVault/vaults/accessPolicies@2023-07-01' = 
         objectId: appIdentity.properties.principalId
         permissions: {
           secrets: ['get', 'list']
+          // wrap/unwrap the Data Protection master key (Phase 7 — NFR-30); get lets the DP
+          // provider read the key's metadata/version.
+          keys: ['get', 'wrapKey', 'unwrapKey']
         }
       }
     ]
@@ -372,6 +405,17 @@ resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices
   name: 'facility-images'
   properties: {
     publicAccess: 'Blob' // anonymous read of individual blobs; no container listing
+  }
+}
+
+// Holds the Data Protection key ring (Phase 7 — NFR-30). PRIVATE (no public access): these are
+// secret keys, unlike the anonymously-read facility images. The master key is additionally wrapped
+// by the Key Vault key below.
+resource dataProtectionKeysContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+  parent: blobService
+  name: 'dataprotection-keys'
+  properties: {
+    publicAccess: 'None'
   }
 }
 

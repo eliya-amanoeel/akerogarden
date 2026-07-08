@@ -316,6 +316,63 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         return new ApproveResult(true, null, booking.CompletionTokenExpiry, shortExpiry);
     }
 
+    /// <summary>
+    /// Non-blocking pre-approval checks (Phase 7): does the requested stay overlap a block, or does
+    /// the overnight guest count exceed the beds actually available for those dates? The admin keeps
+    /// override authority — this only warns, it never blocks approval — but it stops a booking being
+    /// approved onto fully-blocked dates that would leave the guest with an empty room picker.
+    /// </summary>
+    public async Task<ApprovalWarning> GetApprovalWarningsAsync(Guid id)
+    {
+        var booking = await db.Bookings.FindAsync(id);
+        if (booking is null || booking.BookingType != BookingType.StayRequest
+            || booking.CheckIn is not { } checkIn || booking.CheckOut is not { } checkOut)
+            return ApprovalWarning.None;
+
+        var guests = booking.OvernightGuestCount ?? 0;
+        // Beds actually available for the dates — blocks and other bookings' occupancy already excluded.
+        var availableBeds = (await rooms.GetAvailableRoomsAsync(id)).Sum(r => r.BedCount);
+
+        // The same overlap predicate RoomAvailabilityService uses, so the block warning matches what
+        // actually reduces the room picker (checkout day is a departure, hence StartDate < checkOut).
+        var blocks = await db.BlockedPeriods
+            .Where(p => p.StartDate < checkOut && p.EndDate >= checkIn)
+            .OrderBy(p => p.StartDate)
+            .ToListAsync();
+
+        return new ApprovalWarning(
+            CapacityExceeded: guests > availableBeds,
+            RequestedGuests: guests,
+            AvailableBeds: availableBeds,
+            BlockDescriptions: await DescribeBlocksAsync(blocks));
+    }
+
+    /// <summary>Swedish, human-readable descriptions of the overlapping blocks (scope + name + dates).</summary>
+    private async Task<IReadOnlyList<string>> DescribeBlocksAsync(List<BlockedPeriod> blocks)
+    {
+        if (blocks.Count == 0) return [];
+
+        var buildingIds = blocks.Where(b => b.BuildingId is not null).Select(b => b.BuildingId!.Value).Distinct().ToList();
+        var roomIds = blocks.Where(b => b.RoomId is not null).Select(b => b.RoomId!.Value).Distinct().ToList();
+        var buildingNames = await db.Buildings.Where(b => buildingIds.Contains(b.Id)).ToDictionaryAsync(b => b.Id, b => b.Name);
+        var roomNames = await db.Rooms.Where(r => roomIds.Contains(r.Id)).ToDictionaryAsync(r => r.Id, r => r.Name);
+
+        static string NameOr(IReadOnlyDictionary<Guid, string> names, Guid? id, string fallback)
+            => id is { } g && names.TryGetValue(g, out var n) ? n : fallback;
+
+        return blocks.Select(b =>
+        {
+            var period = $"{b.StartDate:yyyy-MM-dd}–{b.EndDate:yyyy-MM-dd}";
+            return b.Scope switch
+            {
+                BlockScope.WholeProperty => $"Hela anläggningen ({period})",
+                BlockScope.Building => $"Byggnaden {NameOr(buildingNames, b.BuildingId, "okänd")} ({period})",
+                BlockScope.Room => $"Rummet {NameOr(roomNames, b.RoomId, "okänt")} ({period})",
+                _ => $"Blockering ({period})",
+            };
+        }).ToList();
+    }
+
     /// <summary>Denies a Pending stay request with a required reason (FR-50); sends the denial email.</summary>
     public async Task<SaveResult> DenyAsync(Guid id, string reason)
     {
@@ -578,3 +635,13 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
 /// <summary>Outcome of an approval: success plus, per FR-75, whether the completion link was
 /// shortened because check-in is 14 days away or sooner (so the admin can follow up directly).</summary>
 public record ApproveResult(bool Succeeded, string? Error, DateTime? TokenExpiry, bool ShortExpiryWarning);
+
+/// <summary>Non-blocking pre-approval warnings (Phase 7) shown on the admin booking detail: the stay
+/// overlaps one or more blocks, and/or the overnight count exceeds the beds available for the dates.</summary>
+public record ApprovalWarning(
+    bool CapacityExceeded, int RequestedGuests, int AvailableBeds, IReadOnlyList<string> BlockDescriptions)
+{
+    public static readonly ApprovalWarning None = new(false, 0, 0, []);
+    public bool OverlapsBlock => BlockDescriptions.Count > 0;
+    public bool Any => CapacityExceeded || OverlapsBlock;
+}

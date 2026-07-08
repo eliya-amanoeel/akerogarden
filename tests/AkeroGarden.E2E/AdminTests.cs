@@ -81,6 +81,31 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Manual_booking_invalid_phone_shows_a_styled_message_and_blocks_submit()
+    {
+        // Finding (Phase 7 smoke test): the manual-booking phone field was missing a
+        // <ValidationMessage>, so an invalid phone silently blocked OnValidSubmit with no feedback —
+        // unlike the public form. With the message wired, [OptionalPhone] surfaces the same Swedish
+        // error and the form does NOT navigate to a new booking's detail page.
+        await LoginAsync();
+        await Page.GotoAsync("/admin/bokningar/ny");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await Page.FillAsync("#mb-name", "Testgrupp Telefon");
+        await Page.FillAsync("#mb-email", "telefon@example.se");
+        await Page.FillAsync("#mb-checkin", "2026-09-10");
+        await Page.FillAsync("#mb-checkout", "2026-09-12");
+        await Page.FillAsync("#mb-guests", "4");
+        await Page.SelectOptionAsync("#mb-mealplan", "FullBoardAll");
+        await Page.FillAsync("#mb-phone", "abc123");        // letters → rejected by [OptionalPhone]
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skapa bokning" }).ClickAsync();
+
+        await Assertions.Expect(Page.GetByText("Ange ett giltigt telefonnummer.")).ToBeVisibleAsync();
+        // Did not create a booking: still on the manual-booking form, not a detail page.
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/admin/bokningar/ny$"));
+    }
+
+    [Fact]
     public async Task Approval_warning_surfaces_when_dates_overlap_a_block()
     {
         // The seeded Pending "Familjen Pendlar" booking (12 guests, one 40-bed room, no block) shows

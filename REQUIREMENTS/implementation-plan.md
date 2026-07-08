@@ -276,7 +276,7 @@ Unlike the feature phases, this phase is **bookended by design discipline**: it 
 
 ---
 
-## Phase 7 — Hardening & pre-demo readiness
+## Phase 7 — Hardening & pre-demo readiness ✅ COMPLETE (merged to main 2026-07-08)
 
 **Goal:** verify the non-functionals, clear the operational/content blockers, and land the parked functional polish — so the app is solid and complete enough to **demo to the client on staging**. *(The client demo and the changes it generates are **Phase 8**; provisioning production, the one.com/WordPress transition, and the actual launch are **Phase 9**. This phase deliberately excludes anything go-live- or transition-related.)*
 

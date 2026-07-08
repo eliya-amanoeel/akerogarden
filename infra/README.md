@@ -102,7 +102,7 @@ az webapp stop --resource-group akerogarden-staging --name akerogarden-staging-a
 az postgres flexible-server stop --resource-group akerogarden-staging --name akerogarden-staging-pg
 ```
 
-> **Redis cannot be stopped.** Azure Managed Redis has no start/stop — Balanced B0 (~$45/mo)
+> **Redis cannot be stopped.** Azure Managed Redis has no start/stop — Balanced B0 (~$13/mo)
 > keeps billing even while the App Service and Postgres are stopped. To fully zero staging
 > cost when idle, delete the cache (`az redisenterprise delete -g akerogarden-staging -n akerogarden-staging-redis`)
 > and let the next `main.bicep` deploy recreate it (~15 min); otherwise leave it running.

@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.37 — Working Draft  
+**Version:** 0.38 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.37:**
+
+- **§11 hosting cost table corrected against live Azure retail prices (North Europe, July 2026).** The Azure Managed Redis (Balanced B0) line was overstated at **~$45/month**; the actual retail price is **$0.018/hour ≈ ~$13/month** (single consumption meter, verified via the Azure Retail Prices API — the ~$45 figure in the v0.35 changelog below was an unvalidated estimate made during the Azure Cache → Managed Redis migration). The Postgres row now shows its 32 GB storage (~$4/month) separately from compute (~$13/month). Corrected **production total: ~$72–73 → ~$45/month.** §11.1 staging estimate and `infra/README.md` updated to match. No infrastructure or SKU change — figures only.
 
 **Changes from v0.36:**
 
@@ -1100,14 +1104,14 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 | Service | Azure tier | Est. monthly (USD) | Purpose |
 |---|---|---|---|
 | Azure App Service | Basic B1 (Linux) | ~$13 | Hosts the Blazor Server application |
-| Azure Database for PostgreSQL Flexible Server | Burstable B1ms | ~$13 | Primary database; automated daily backups |
+| Azure Database for PostgreSQL Flexible Server | Burstable B1ms | ~$17 | Primary database — compute ~$13 + 32 GB storage ~$4; daily backups within the free allotment |
 | Azure Blob Storage | Hot tier, LRS | ~$1–2 | List downloads; facility images; uploaded media |
-| Azure Managed Redis | Balanced B0 | ~$45 | Distributed rate-limit counters (NFR-04); successor to the retired Azure Cache for Redis |
+| Azure Managed Redis | Balanced B0 | ~$13 | Distributed rate-limit counters (NFR-04); successor to the retired Azure Cache for Redis |
 | Azure-managed SSL | Included | $0 | HTTPS certificate management |
 | Custom domains | Included on Basic+ | $0 | akerogarden.se (public site) + admin.akerogarden.se (admin panel) — both point to the same App Service |
-| **Total** | | **~$72–73/month** | |
+| **Total** | | **~$45/month** | |
 
-> Prices are USD pay-as-you-go list prices as of June 2026, North Europe or Sweden Central region. Verify at [azure.microsoft.com/pricing/calculator](https://azure.microsoft.com/pricing/calculator) before client sign-off.
+> Prices are USD pay-as-you-go list prices verified against the Azure Retail Prices API for North Europe, July 2026. Traffic-driven costs (bandwidth egress, blob transactions, Redis ops) are negligible at this site's volume — the first 100 GB/month of egress is free. Re-verify at [azure.microsoft.com/pricing/calculator](https://azure.microsoft.com/pricing/calculator) before client sign-off.
 
 ### 11.1 Environments
 
@@ -1123,7 +1127,7 @@ The system uses four environments. Production is the table above; the others:
 **Staging notes:**
 - **No real personal data in staging** — seed with synthetic/anonymised data only (GDPR; NFR-23/24 still apply).
 - Staging uses its own SMTP configuration pointing to a **test inbox**, never real guest addresses.
-- Estimated staging cost ~$25–40/month while running; lower if stopped between uses.
+- Estimated staging cost ~$45/month while fully running (same shape as production); ~$17/month with App Service + Postgres stopped but Redis kept (Redis has no stop); ~$0 if Redis is also deleted between sessions and recreated via Bicep.
 - Staging is a **separate resource group**, not a deployment slot, because production runs on App Service B1 Basic, which does not support slots (slots require Standard tier or higher).
 
 ---

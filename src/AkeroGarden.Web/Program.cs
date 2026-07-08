@@ -46,7 +46,7 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
 builder.Services.Configure<DataProtectionTokenProviderOptions>(opts =>
     opts.TokenLifespan = TimeSpan.FromHours(1));
 
-// ── Data Protection key persistence (NFR-30 — keys survive restarts / shared across instances) ─
+// ── Data Protection key persistence (Phase-7 hardening — keys survive restarts / shared across instances) ─
 // Without durable keys, an App Service recycle/redeploy/scale-out regenerates the key ring and
 // invalidates every antiforgery token and auth cookie (a guest mid-`/boka` then hits "A valid
 // antiforgery token was not provided" on submit). Config-gated: local dev (no blob conn) keeps the

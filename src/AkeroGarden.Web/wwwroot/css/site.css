@@ -40,7 +40,9 @@
 /* Honour reduced-motion for all transitions/animations below. */
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
-    html { scroll-behavior: auto; }
+    /* !important so this wins over the later base `html { scroll-behavior: smooth }` (equal
+       specificity, defined afterwards) — otherwise reduced-motion users still get smooth scroll. */
+    html { scroll-behavior: auto !important; }
 }
 
 /* ============================================================

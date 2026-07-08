@@ -68,6 +68,25 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Group_default_value_survives_an_add_day_guest_postback()
+    {
+        // Regression for the "shortcut resets on postback" bug: the group-default controls are
+        // JS-cascade helpers, but their displayed value must round-trip the add/remove-day-guest
+        // server postback (which re-renders the whole form) instead of blanking out. Adding a day
+        // guest does not consume the token, so this can share the read-only CompletionToken.
+        await Page.GotoAsync(CompletionUrl);
+
+        await Page.Locator("#gd-lunch").SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
+        var chosen = await Page.Locator("#gd-lunch").InputValueAsync();
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Lägg till dagsgäst" }).ClickAsync();
+
+        // A new day-guest row proves the postback happened; the group-default select kept its value.
+        await Assertions.Expect(Page.Locator(".pcard[aria-label='Dagsgäst 1']")).ToBeVisibleAsync();
+        await Assertions.Expect(Page.Locator("#gd-lunch")).ToHaveValueAsync(chosen);
+    }
+
+    [Fact]
     public async Task Completion_submits_successfully_to_the_acknowledgement()
     {
         await Page.GotoAsync(Url(E2EFixture.CompletionSubmitToken));

@@ -72,7 +72,12 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
         ? CookieSecurePolicy.SameAsRequest
         : CookieSecurePolicy.Always;
-    options.Cookie.SameSite = SameSiteMode.Strict;
+    // Lax (not Strict): a Strict auth cookie is not sent on a top-level navigation that originates
+    // from another site, so an admin clicking a link in a notification email (e.g. "Öppna förfrågan
+    // i adminpanelen") lands on the login page even while signed in. Lax sends the cookie on
+    // top-level GET navigations (the email-link case) while still withholding it on cross-site POSTs;
+    // admin actions remain antiforgery-protected, so this does not weaken CSRF protection.
+    options.Cookie.SameSite = SameSiteMode.Lax;
     options.ExpireTimeSpan = TimeSpan.FromDays(30);
     options.SlidingExpiration = true;
 });

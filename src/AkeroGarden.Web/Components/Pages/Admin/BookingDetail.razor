@@ -251,21 +251,29 @@ else
                 {
                     @if (IsCheckInWithin14Days)
                     {
-                        <p class="form-status" role="alert">Incheckning är @DaysToCheckIn dagar bort — slutförandelänken förkortas till 48 timmar. Överväg att kontakta gästen direkt.</p>
+                        <div class="alert alert--info" role="status">
+                            <span class="alert__ic" aria-hidden="true">i</span>
+                            <div>Incheckning är @DaysToCheckIn dagar bort — slutförandelänken förkortas till 48 timmar. Överväg att kontakta gästen direkt.</div>
+                        </div>
                     }
                     @if (_approvalWarning.Any)
                     {
-                        <div class="form-status" role="alert">
-                            <strong>Kontrollera innan du godkänner:</strong>
-                            @if (_approvalWarning.OverlapsBlock)
-                            {
-                                <p>Datumen överlappar en eller flera blockeringar: @string.Join("; ", _approvalWarning.BlockDescriptions). Rumsväljaren kan bli tom för gästen.</p>
-                            }
-                            @if (_approvalWarning.CapacityExceeded)
-                            {
-                                <p>Antal övernattande gäster (@_approvalWarning.RequestedGuests) överstiger tillgängliga bäddar (@_approvalWarning.AvailableBeds) för perioden.</p>
-                            }
-                            <p class="form-hint">Du kan ändå godkänna — detta är endast en varning.</p>
+                        <div class="alert alert--warn" role="alert">
+                            <span class="alert__ic" aria-hidden="true">!</span>
+                            <div>
+                                <b>Kontrollera innan du godkänner</b>
+                                <ul class="alert__list">
+                                    @if (_approvalWarning.OverlapsBlock)
+                                    {
+                                        <li>Datumen överlappar en eller flera blockeringar: @string.Join("; ", _approvalWarning.BlockDescriptions). Rumsväljaren kan bli tom för gästen.</li>
+                                    }
+                                    @if (_approvalWarning.CapacityExceeded)
+                                    {
+                                        <li>Antal övernattande gäster (@_approvalWarning.RequestedGuests) överstiger tillgängliga bäddar (@_approvalWarning.AvailableBeds) för perioden.</li>
+                                    }
+                                </ul>
+                                <p class="form-hint">Du kan ändå godkänna — detta är endast en varning.</p>
+                            </div>
                         </div>
                     }
                     <div class="rail-actions">

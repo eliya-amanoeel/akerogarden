@@ -1212,6 +1212,12 @@ fieldset.participant legend {
 .alert--info .alert__ic { background: #5a3d1f; color: var(--color-info-bg); }
 .alert--error { background: var(--color-err-bg); border-color: rgba(179, 52, 26, 0.32); color: #8f2915; }
 .alert--error .alert__ic { background: #8f2915; color: var(--color-err-bg); }
+.alert--warn { background: var(--color-warn-bg); border-color: rgba(214, 158, 46, 0.4); color: #7a4c00; }
+.alert--warn .alert__ic { background: #8a5a00; color: #fff; font-style: normal; }
+/* Bulleted items inside an alert (e.g. multiple approval warnings) */
+.alert__list { margin: 0.35rem 0 0; padding-left: 1.1rem; }
+.alert__list li { margin-bottom: 0.25rem; }
+.alert__list li:last-child { margin-bottom: 0; }
 
 .form-status {
     color: var(--color-primary-hover);

@@ -142,6 +142,8 @@ builder.Services.AddScoped<IImageStorage, BlobImageStorage>();
 
 // ── Seeding ───────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<AdminSeeder>();
+// Demo/UAT tooling — only wipes + reseeds when DemoSeed:Reset=true (never set in prod).
+builder.Services.AddScoped<DemoDataSeeder>();
 
 // ── Blazor ───────────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()
@@ -225,6 +227,11 @@ using (var scope = app.Services.CreateScope())
 {
     await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
     await scope.ServiceProvider.GetRequiredService<AdminSeeder>().SeedAsync();
+
+    // Phase 8 demo/UAT: wipe all app data (admin preserved) and reseed synthetic demo data.
+    // Gated by DemoSeed:Reset — never set in production; applied by hand to staging then removed.
+    if (app.Configuration.GetValue<bool>("DemoSeed:Reset"))
+        await scope.ServiceProvider.GetRequiredService<DemoDataSeeder>().ResetAndSeedAsync();
 }
 
 app.Run();

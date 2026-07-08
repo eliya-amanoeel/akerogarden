@@ -315,7 +315,11 @@ Unlike the feature phases, this phase is **bookended by design discipline**: it 
 - **Raise the booking reference-number gap** (proposal, for client sign-off). Bookings today carry only an opaque `Guid Id`, and guests receive no human-friendly reference in their emails — so when a guest phones or emails "about my booking", neither side has a speakable shared identifier. Proposal: add a short reference such as **`ÅG-2026-0042`** (prefix + year + zero-padded sequence), shown in the guest confirmation email and the admin list/detail. It is **not PII** (safe in URLs — NFR-05) and **not a security key** (the magic-link completion token stays the secure lookup), so guessability is irrelevant. If the client wants it, it becomes a **new FR** (entity field + migration + email templates + admin search) implemented in this phase and mirrored into `requirements.md`/`erd.md`.
 - **Re-verify** (tests + staging smoke) that the changes did not regress the suite or existing behaviour.
 
-**Satisfies:** NFR-18, NFR-19 (usability, validated with the real admin) · any FR/NFR touched by the feedback.
+**Feedback changes implemented so far:**
+
+- **Admin panel mobile usability (NFR-17 extended, requirements v0.39).** The client will often operate the admin from a phone. Added a **CSS-only hamburger** for the admin primary navigation ≤860px (the layout is static SSR, so a checkbox toggle is used — no circuit needed; the links are `data-enhance-nav="false"` so the menu closes on navigate) and made the **Översikt dashboard** reflow to a single column on mobile (`.dash-grid`). Dense admin tables stay horizontally scrollable — an accepted boundary. Covered by new Playwright E2E (hamburger reveal/close + dashboard stack + no page overflow at 360px). Scope was deliberately held to these two surfaces.
+
+**Satisfies:** NFR-17 (admin mobile nav + dashboard) · NFR-18, NFR-19 (usability, validated with the real admin) · any FR/NFR touched by the feedback.
 
 **Exit criteria:** the client has demoed the app and signed off; every agreed change is implemented, tested and deployed to staging; no open blocker remains from the demo.
 
@@ -353,7 +357,7 @@ Unlike the feature phases, this phase is **bookended by design discipline**: it 
 | 5 Notifications/lists/retention | FR-44,45,63–69,89–91 | NFR-10 |
 | 6 UI/UX | — | NFR-17,18,19,20–23,32,35 (supports 08) |
 | 7 Hardening & pre-demo readiness | — | NFR-08,09,10 + residual security (01–07,25,30),13,32 |
-| 8 Client feedback | feedback-driven | NFR-18,19 + feedback-driven |
+| 8 Client feedback | feedback-driven | NFR-17 (admin mobile),18,19 + feedback-driven |
 | 9 Transition & go-live | — | NFR-12,29,31 + residual go-live |
 
 *Testing (NFR-26–28) and Swedish UI (NFR-32) are cross-cutting and apply to every phase.*

@@ -788,13 +788,38 @@ select.inp {
     flex-direction: column;
     padding: 1.1rem 0.75rem 1rem;
 }
-.admin-nav__brand {
-    display: flex; align-items: center; gap: 0.55rem;
+/* Top bar of the sidebar: brand + (mobile-only) hamburger. Carries the divider under the logo. */
+.admin-nav__bar {
+    display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
     padding: 0.25rem 0.5rem 1.1rem;
     border-bottom: 1px solid rgba(255, 255, 255, 0.09);
     margin-bottom: 0.6rem;
 }
+.admin-nav__brand { display: flex; align-items: center; gap: 0.55rem; padding: 0; }
 .admin-nav__brand .logo { height: 30px; width: auto; }
+
+/* CSS-only hamburger (the layout is static SSR — no circuit for an @onclick). The checkbox is kept
+   off-screen but keyboard-operable; the label is the visible control. */
+.admin-nav__checkbox { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+/* Hamburger toggle (a <label>) — hidden on desktop (the links are the always-on sidebar); shown ≤860px. */
+.admin-nav__toggle {
+    display: none; align-items: center; gap: 0.5rem;
+    background: none; border: 1px solid rgba(255, 255, 255, 0.2); color: #fff;
+    border-radius: var(--radius-sm); padding: 0.45rem 0.7rem;
+    font-size: 0.85rem; cursor: pointer;
+}
+.admin-nav__toggle:hover { background: rgba(255, 255, 255, 0.08); }
+.admin-nav__checkbox:focus-visible ~ .admin-nav__bar .admin-nav__toggle { outline: 2px solid #fff; outline-offset: 2px; }
+.admin-nav__toggle-icon { position: relative; display: inline-block; width: 18px; height: 2px; background: currentColor; }
+.admin-nav__toggle-icon::before,
+.admin-nav__toggle-icon::after {
+    content: ""; position: absolute; left: 0; width: 18px; height: 2px; background: currentColor;
+}
+.admin-nav__toggle-icon::before { top: -6px; }
+.admin-nav__toggle-icon::after { top: 6px; }
+
+/* Link groups + foot. Desktop: fills the sidebar so the logout foot sits at the bottom. */
+.admin-nav__links { display: flex; flex-direction: column; flex: 1; }
 .admin-nav__group {
     font-size: 0.64rem; letter-spacing: 0.13em; text-transform: uppercase;
     color: rgba(255, 255, 255, 0.55); /* AA on the dark sidebar (~5.8:1) */
@@ -887,6 +912,10 @@ select.inp {
 .card__head .n { background: var(--color-warn-bg); color: var(--color-warn); font-size: 0.75rem; font-weight: 700; border-radius: 999px; padding: 0 0.5rem; }
 .card__head .link { margin-left: auto; font-size: 0.8rem; font-weight: 600; }
 
+/* Dashboard (Översikt) top row: one column on mobile, two side-by-side from 720px up. */
+.dash-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-bottom: 1rem; }
+@media (min-width: 720px) { .dash-grid { grid-template-columns: 1fr 1fr; } }
+
 /* ── Admin data table (dense, scannable, status-forward) ─── */
 .admin-table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); }
 .card .admin-table-wrap { border: 0; background: none; }
@@ -970,14 +999,14 @@ fieldset.participant legend {
 /* ── Responsive: collapse the sidebar to a top bar under 860px ─ */
 @media (max-width: 860px) {
     .admin-shell { grid-template-columns: 1fr; }
-    .admin-nav { flex-direction: row; flex-wrap: wrap; align-items: center; padding: 0.6rem 1rem; gap: 0.25rem 0.5rem; }
-    .admin-nav__brand { border: 0; margin: 0 auto 0 0; padding: 0; }
-    .admin-nav__group { display: none; }
-    .admin-nav ul { flex-direction: row; flex-wrap: wrap; gap: 0.15rem 0.35rem; }
-    .admin-nav a { padding: 0.35rem 0.55rem; font-size: 0.82rem; }
-    .admin-nav a.active { box-shadow: inset 0 -2px 0 var(--color-primary); }
-    .admin-nav__foot { margin: 0 0 0 auto; padding: 0; border: 0; display: flex; align-items: center; gap: 0.5rem; }
-    .admin-nav__user { display: none; }
+    .admin-nav { padding: 0.55rem 0.9rem; }
+    .admin-nav__bar { border: 0; margin: 0; padding: 0; }
+    .admin-nav__toggle { display: inline-flex; }
+    /* Collapsible menu: hidden until the hamburger checkbox is checked; then drops down as full-width rows. */
+    .admin-nav__links { display: none; flex: initial; padding-top: 0.6rem; }
+    .admin-nav__checkbox:checked ~ .admin-nav__links { display: flex; }
+    .admin-nav a { padding: 0.7rem 0.6rem; }
+    .admin-nav__foot { margin-top: 0.6rem; }
     .admin-topbar, .admin-body { padding-left: 1rem; padding-right: 1rem; }
     .detail-grid { grid-template-columns: 1fr; }
     .detail-rail { position: static; }

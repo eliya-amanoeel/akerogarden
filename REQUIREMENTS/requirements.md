@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.38 — Working Draft  
+**Version:** 0.39 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.38:**
+
+- **NFR-17 extended to the admin panel's mobile usability (Phase 8 client feedback).** The client indicated the admin panel will often be operated from a mobile phone. NFR-17 previously scoped full mobile responsiveness to the public website only; it now also requires the admin panel's **primary navigation** (a collapsible hamburger menu ≤860px) and the **Översikt dashboard** (reflows to a single column) to be usable on a phone. Dense admin data tables may remain horizontally scrollable on small screens (an explicit, accepted boundary — the target is "every day-to-day task is completable on a phone", not pixel-identical to desktop). Implemented in Phase 8 (admin hamburger + dashboard reflow); no data-model impact.
 
 **Changes from v0.37:**
 
@@ -829,7 +833,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 
 | ID | Requirement |
 |---|---|
-| NFR-17 | The public website shall be fully responsive on mobile devices |
+| NFR-17 | The public website shall be fully responsive on mobile devices. The admin panel's primary navigation (a collapsible hamburger menu at ≤860px) and the Översikt dashboard (single-column reflow) shall also be usable on a mobile phone; the admin's dense data tables may remain horizontally scrollable on small screens |
 | NFR-18 | The booking completion flow shall be completable by a non-technical user with no instructions beyond the approval email |
 | NFR-19 | The admin panel shall be usable by a single non-technical admin for all day-to-day operations |
 | NFR-32 | All UI text — public website and admin panel alike — shall be in Swedish. English is not a target language; this is not a deferred/future item, it is the v1 default |

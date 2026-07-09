@@ -48,7 +48,7 @@
 
     // Group defaults (FR-59, scaled to the whole group): cascade one choice to every participant.
     // "Helpension för alla" toggles every participant's full-board box and re-syncs their meal
-    // visibility; each standard meal select copies into every matching per-day select for everyone.
+    // visibility; each per-day standard select copies into that same slot (day + meal) for everyone.
     var gdFullBoard = document.querySelector("[data-groupdefault-fullboard]");
     if (gdFullBoard) {
         gdFullBoard.addEventListener("change", function () {
@@ -59,13 +59,13 @@
         });
     }
 
-    document.querySelectorAll("select[data-groupdefault-meal]").forEach(function (source) {
+    document.querySelectorAll("select[data-groupdefault-slot]").forEach(function (source) {
         source.addEventListener("change", function () {
-            var meal = source.getAttribute("data-groupdefault-meal");
+            var slot = source.getAttribute("data-groupdefault-slot");
             if (!source.value) {
                 return;
             }
-            document.querySelectorAll('select[data-participant][data-meal="' + meal + '"]').forEach(function (target) {
+            document.querySelectorAll('select[data-participant][data-slot="' + slot + '"]').forEach(function (target) {
                 target.value = source.value;
             });
         });

@@ -1,10 +1,18 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.39 — Working Draft  
+**Version:** 0.41 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.40:**
+
+- **FR-45 (Matlista) redesigned from a per-person table into a kitchen prep summary (Phase 8 client UAT).** Superseding the v0.40 per-day matrix: testing a real 80-guest/5-day export showed that *any* per-person layout (one row per guest) is the wrong shape — ~80 near-identical rows over ~12 pages. A caterer needs "how many of each dish per meal per day", and names only matter for special handling. The Matlista now has two parts: a **tillagningsöversikt** (per-day/per-meal dish counts + breakfast headcount, no names) and a **kostbehov & allergier** list (only participants with a dietary requirement/note, named, with their meals). The full named roster stays in the participant list (FR-44), so no data is lost and PII is not duplicated. No data-model impact.
+
+**Changes from v0.39:**
+
+- **FR-59 refined from an "apply to all days" shortcut to a per-day group default (Phase 8 client UAT).** Testing a real 80-guest, 5-day full-board booking showed that applying one meal choice to *every* day of the stay is unrealistic — real groups vary meals by day. The "Standard för hela gruppen" panel now offers a lunch/dinner dropdown **per serving day**, each cascading to that day's slot for every participant (per-participant override retained). Presentation-only; no data-model impact. FR-45 (food-preference list) was first re-laid-out as a per-day matrix (later superseded — see v0.41). Admin save/action feedback (NFR-17/18) now renders as a fixed in-viewport toast rather than a top-of-page line the admin had to scroll up to see.
 
 **Changes from v0.38:**
 
@@ -733,7 +741,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | FR-42 | The admin shall be able to track deposit and final payment status per booking |
 | FR-43 | *(Merged into FR-49 in v0.23 — token regeneration and resend are a single requirement.)* |
 | FR-44 | When booking details are complete, a participant list download button shall be available (PDF and Excel) |
-| FR-45 | When booking details are complete, a food preference list download button shall be available (PDF and Excel) |
+| FR-45 | When booking details are complete, a food preference list ("Matlista") download shall be available (PDF and Excel), structured as a **kitchen prep summary**: (1) a **tillagningsöversikt** listing, per serving day and meal (frukost/lunch/middag), the count of each chosen dish (e.g. "Tis · Middag · Halloumibiff · 78") plus a per-day breakfast headcount — **no participant names**; and (2) a **kostbehov & allergier** section naming **only** the participants who have a dietary requirement or note, with their per-day meals so the kitchen can prepare adapted plates. The full named roster lives in the participant list (FR-44), so the food list carries no per-person bulk. *(Redesigned after Phase 8 client UAT: a per-person row-per-guest table is unusable for large groups — a caterer needs "how many of each dish", and names only matter for special handling.)* |
 | FR-47 | The admin shall be able to create a booking manually on behalf of a guest, bypassing the public inquiry form. All fields available in the inquiry form must be editable by the admin when creating a booking this way |
 | FR-48 | The admin shall be able to edit the participant data on a booking directly in the admin panel after guest submission |
 | FR-49 | The admin shall be able to (re)generate and resend the completion magic link from the booking detail page while the booking is still awaiting completion (status `Approved`), whether or not the previous link has expired. Generating a new link immediately invalidates any previous link (Section 2.6). Once the booking is `DetailsComplete`, the link is not re-issued — corrections after submission are made by the admin directly in the panel (FR-48), with no status change |
@@ -757,7 +765,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | FR-56 | If `GuestChoosesRooms` is true, the completion form shall present room options drawn from the current active admin-managed room list, excluding any rooms or buildings blocked for the booking's dates and any rooms already fully occupied by other bookings on those dates (determined via the live `RoomId` link, Section 8.5), so the booking's contact person can assign a room per overnight participant. If `GuestChoosesRooms` is false, no room field is shown — the admin assigns rooms separately in the panel. The system shall flag room-assignment conflicts (a room assigned beyond its bed count for overlapping dates) in the admin panel |
 | FR-57 | The completion form shall collect per overnight participant, entered by the booking's contact person on everyone's behalf (not by each participant individually): full name (required for fire-safety/headcount purposes), age category (`Adult` / `Child` / `Infant`), meal plan (`IsFullBoard` — pre-populated from the booking's `MealPlan` setting but overridable per participant by the contact person), meal selection per applicable day — lunch and dinner, shown only when `IsFullBoard` is true and only for meals that occur that day (§4.1 meals-by-day rule: arrival day dinner only, departure day none) — dietary requirements, and — only if `GuestChoosesRooms` is true — a room assignment |
 | FR-58 | The completion form shall collect per day guest: full name, age category (`Adult` / `Child` / `Infant`), attendance date (the single day they attend), whether they attend breakfast (`AttendsBreakfast` — checkbox, no meal selection required), meal selection for lunch and/or dinner if attending (drawn from active meal options), dietary requirements. Day guests have no room assignment |
-| FR-59 | The completion form shall provide a "same for all days" shortcut for meal selection so a participant can apply one choice across all days without repeating each day individually |
+| FR-59 | The completion form shall provide a group-level meal default ("Standard för hela gruppen") that lets the contact person set the meal choice **per day** once and cascade it to that day's meal slot for every participant, so large groups need not have each participant's every day filled by hand; each participant's meals remain individually overridable. *(Refined from an "apply one choice to all days" shortcut after Phase 8 client UAT: applying the same meal to every day of a multi-day stay is unrealistic — real groups vary meals by day.)* |
 | FR-60 | The completion form shall collect org/invoice details if applicable |
 | FR-61 | On submission the admin receives a notification email |
 | FR-62 | On submission the token is invalidated and booking status updated to `DetailsComplete` |

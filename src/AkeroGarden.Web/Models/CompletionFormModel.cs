@@ -33,11 +33,12 @@ public class CompletionFormModel
     /// <summary>Whether the group-default "Helpension för alla" box is ticked (presentation only).</summary>
     public bool GroupDefaultFullBoard { get; set; }
 
-    /// <summary>Group-default lunch option id as a string (presentation only; empty = unset).</summary>
-    public string? GroupDefaultLunch { get; set; }
-
-    /// <summary>Group-default dinner option id as a string (presentation only; empty = unset).</summary>
-    public string? GroupDefaultDinner { get; set; }
+    /// <summary>Group-default meal choice <b>per serving slot</b> (presentation only), aligned by index
+    /// to the same server-derived slot list as <see cref="OvernightParticipantEntry.MealChoices"/>. Each
+    /// per-day dropdown in the "Standard för hela gruppen" panel cascades its value to that same slot for
+    /// every participant via completion-form.js. Kept as <see cref="string"/> for the same SSR-binding
+    /// reason as <see cref="OvernightParticipantEntry.MealChoices"/>; ignored by CompletionNormalizer.</summary>
+    public List<string?> GroupDefaultMeals { get; set; } = [];
 
     // ── Org / invoice (FR-60) ────────────────────────────────────────────────────
     public bool IsOrganisation { get; set; }

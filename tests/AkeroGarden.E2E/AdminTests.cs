@@ -188,6 +188,36 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         await CaptureAsync("admin-booking-detail");
     }
 
+    [Fact]
+    public async Task Save_feedback_shows_as_a_toast_within_the_viewport_when_saving_far_down()
+    {
+        // Client feedback (Phase 8): saving payment status near the bottom of the detail page used to
+        // render the confirmation at the very top, so the admin had to scroll up to see it worked.
+        // It is now a fixed toast — assert it both appears and sits within the viewport after a save
+        // performed at the bottom of the page.
+        await LoginAsync();
+        await Page.GotoAsync("/admin/bokningar");
+        await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+        // Interactive Server: let the circuit connect before toggling @bind checkboxes / clicking.
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        var saveBtn = Page.GetByRole(AriaRole.Button, new() { Name = "Spara betalningsstatus" });
+        await saveBtn.ScrollIntoViewIfNeededAsync();
+        await Page.GetByLabel("Handpenning fakturerad").CheckAsync();
+        await saveBtn.ClickAsync();
+
+        var toast = Page.Locator(".form-status");
+        await Assertions.Expect(toast).ToBeVisibleAsync();
+        await Assertions.Expect(toast).ToContainTextAsync("Betalningsstatus är sparad.");
+
+        // Honest check of the actual claim: the toast is within the viewport without scrolling back up.
+        var box = await toast.BoundingBoxAsync();
+        var viewport = Page.ViewportSize!;
+        Assert.NotNull(box);
+        Assert.True(box!.Y >= 0 && box.Y + box.Height <= viewport.Height + 1,
+            $"Toast should sit within the viewport (y={box.Y}, h={box.Height}, viewportHeight={viewport.Height}).");
+    }
+
     // Slice 7: axe now sweeps every authenticated admin page — the operational dashboard, the
     // bookings list + manual-booking form, the calendar and blocks, and all six reference-data
     // CRUD screens plus accounts. (Booking detail needs a real {id} and is covered separately.)

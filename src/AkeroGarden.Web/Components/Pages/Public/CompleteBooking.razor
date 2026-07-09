@@ -91,36 +91,54 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                         <input type="hidden" name="Form.GroupDefaultFullBoard" value="false" />
                         <label for="gd-fullboard">Helpension för alla (måltider ingår)</label>
                     </div>
-                    @if (_lunchOptions.Count >= 2 || _dinnerOptions.Count >= 2)
+                    @{
+                        // A group-default select per serving slot, aligned by slot index to the
+                        // participant rows so a value cascades to that same day/meal for everyone.
+                        var gdSlots = _slots.Select((s, si) => (Slot: s, SlotIndex: si)).ToList();
+                        bool HasChoice(MealSlot s) =>
+                            (s.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions).Count >= 2;
+                    }
+                    @if (gdSlots.Any(x => HasChoice(x.Slot)))
                     {
-                        <div class="group-default__grid">
-                            @if (_lunchOptions.Count >= 2)
+                        <p class="group-default__hint">Välj måltider per dag – de kopieras till alla deltagare. Justera per person längre ned vid behov.</p>
+                        <div class="meals group-default__days">
+                            @foreach (var dateGroup in gdSlots.GroupBy(x => x.Slot.Date))
                             {
-                                <div>
-                                    <label class="field-label" for="gd-lunch">Standard lunch alla dagar</label>
-                                    <select class="inp" id="gd-lunch" name="Form.GroupDefaultLunch" data-groupdefault-meal="Lunch">
-                                        <option value="">– välj –</option>
-                                        @foreach (var o in _lunchOptions)
-                                        {
-                                            <option value="@o.Id" selected="@(_form.GroupDefaultLunch == o.Id.ToString())">@o.Name</option>
-                                        }
-                                    </select>
-                                </div>
-                            }
-                            @if (_dinnerOptions.Count >= 2)
-                            {
-                                <div>
-                                    <label class="field-label" for="gd-dinner">Standard middag alla dagar</label>
-                                    <select class="inp" id="gd-dinner" name="Form.GroupDefaultDinner" data-groupdefault-meal="Dinner">
-                                        <option value="">– välj –</option>
-                                        @foreach (var o in _dinnerOptions)
-                                        {
-                                            <option value="@o.Id" selected="@(_form.GroupDefaultDinner == o.Id.ToString())">@o.Name</option>
-                                        }
-                                    </select>
-                                </div>
+                                @if (dateGroup.Any(x => HasChoice(x.Slot)))
+                                {
+                                    <div class="day">
+                                        <p class="day__date">@Capitalize(dateGroup.Key.ToString("dddd d MMMM", Sv))</p>
+                                        <div class="day__meals">
+                                            @foreach (var item in dateGroup.Where(x => HasChoice(x.Slot)))
+                                            {
+                                                var slotIndex = item.SlotIndex;
+                                                var options = item.Slot.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
+                                                var mealLabel = item.Slot.MealType == MealType.Lunch ? "Lunch" : "Middag";
+                                                var gdChosen = _form.GroupDefaultMeals.ElementAtOrDefault(slotIndex);
+                                                <div>
+                                                    <label for="gd-m@(slotIndex)">@mealLabel</label>
+                                                    <select class="inp" id="gd-m@(slotIndex)" name="Form.GroupDefaultMeals[@slotIndex]"
+                                                            data-groupdefault-slot="@slotIndex" data-meal="@item.Slot.MealType">
+                                                        <option value="">– välj –</option>
+                                                        @foreach (var o in options)
+                                                        {
+                                                            <option value="@o.Id" selected="@(gdChosen == o.Id.ToString())">@o.Name</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
                             }
                         </div>
+                        @* Hidden placeholders for the non-choice slots keep Form.GroupDefaultMeals a
+                           contiguous 0..N-1 collection, so the SSR binder round-trips the chosen values
+                           across an add/remove-day-guest postback (a gap at index 0 would drop them). *@
+                        @foreach (var item in gdSlots.Where(x => !HasChoice(x.Slot)))
+                        {
+                            <input type="hidden" name="Form.GroupDefaultMeals[@item.SlotIndex]" value="" />
+                        }
                     }
                 </div>
 
@@ -200,7 +218,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                                         <div>
                                                             <label for="p@(index)-m@(slotIndex)">@mealLabel</label>
                                                             <select class="inp" id="p@(index)-m@(slotIndex)" name="Form.Overnight[@index].MealChoices[@slotIndex]"
-                                                                    data-participant="@index" data-meal="@slot.MealType">
+                                                                    data-participant="@index" data-meal="@slot.MealType" data-slot="@slotIndex">
                                                                 <option value="">– välj –</option>
                                                                 @foreach (var o in options)
                                                                 {
@@ -503,6 +521,12 @@ else
             _form.DayGuests ??= [];
             foreach (var dg in _form.DayGuests)
                 dg.Dietary ??= [];
+
+            // The per-slot group defaults (presentation only) may bind back null or short on a POST;
+            // pad to the slot count so ElementAtOrDefault aligns by index on the re-render.
+            _form.GroupDefaultMeals ??= [];
+            while (_form.GroupDefaultMeals.Count < _slots.Count)
+                _form.GroupDefaultMeals.Add(null);
         }
 
         _loaded = true;
@@ -562,6 +586,7 @@ else
         var form = new CompletionFormModel
         {
             GroupDefaultFullBoard = defaultFullBoard,
+            GroupDefaultMeals = Enumerable.Repeat<string?>(null, slotCount).ToList(),
             IsOrganisation = booking.IsOrganisation,
             OrgName = booking.OrgName,
             OrgNumber = booking.OrgNumber,

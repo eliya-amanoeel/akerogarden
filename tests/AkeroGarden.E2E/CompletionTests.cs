@@ -58,12 +58,15 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
     {
         await Page.GotoAsync(CompletionUrl);
 
-        await Page.Locator("#gd-lunch").SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
-        var chosen = await Page.Locator("#gd-lunch").InputValueAsync();
+        // Group defaults are now per day: a day's lunch cascades to THAT day's slot for everyone.
+        var gdLunch = Page.Locator("select[data-groupdefault-slot][data-meal='Lunch']").First;
+        var slot = await gdLunch.GetAttributeAsync("data-groupdefault-slot");
+        await gdLunch.SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
+        var chosen = await gdLunch.InputValueAsync();
 
-        // A participant whose own select was never touched now carries the group choice.
+        // A participant whose own select was never touched now carries the group choice for that day.
         await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__toggle").ClickAsync();
-        await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 2'] select[data-meal='Lunch']"))
+        await Assertions.Expect(Page.Locator($".prow[aria-label='Deltagare 2'] select[data-slot='{slot}']"))
             .ToHaveValueAsync(chosen);
     }
 
@@ -76,14 +79,16 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
         // guest does not consume the token, so this can share the read-only CompletionToken.
         await Page.GotoAsync(CompletionUrl);
 
-        await Page.Locator("#gd-lunch").SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
-        var chosen = await Page.Locator("#gd-lunch").InputValueAsync();
+        var gdLunch = Page.Locator("select[data-groupdefault-slot][data-meal='Lunch']").First;
+        await gdLunch.SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
+        var chosen = await gdLunch.InputValueAsync();
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "Lägg till dagsgäst" }).ClickAsync();
 
         // A new day-guest row proves the postback happened; the group-default select kept its value.
         await Assertions.Expect(Page.Locator(".pcard[aria-label='Dagsgäst 1']")).ToBeVisibleAsync();
-        await Assertions.Expect(Page.Locator("#gd-lunch")).ToHaveValueAsync(chosen);
+        await Assertions.Expect(Page.Locator("select[data-groupdefault-slot][data-meal='Lunch']").First)
+            .ToHaveValueAsync(chosen);
     }
 
     [Fact]
@@ -93,13 +98,23 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
 
         await Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name").FillAsync("Anna Andersson");
         await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__name").FillAsync("Bengt Berg");
-        // Standard lunch cascades to every participant's lunch select; dinner is single-option and
-        // auto-filled — so every full-board meal slot is satisfied.
-        await Page.Locator("#gd-lunch").SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
+        // Each day's group-default lunch cascades to that day's slot for every participant; dinner is
+        // single-option and auto-filled — so every full-board meal slot is satisfied.
+        await SelectEveryGroupDefaultLunchAsync("Ugnsbakad lax");
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka in uppgifter" }).ClickAsync();
 
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
+    }
+
+    /// <summary>Selects the given option on every per-day group-default lunch dropdown, cascading it
+    /// to that day's slot for all participants (the per-day successor to the old single "all days").</summary>
+    private async Task SelectEveryGroupDefaultLunchAsync(string label)
+    {
+        var selects = Page.Locator("select[data-groupdefault-slot][data-meal='Lunch']");
+        var count = await selects.CountAsync();
+        for (var i = 0; i < count; i++)
+            await selects.Nth(i).SelectOptionAsync(new SelectOptionValue { Label = label });
     }
 
     [Fact]
@@ -111,7 +126,7 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
         // not consume the token, so this can safely share the read-only CompletionToken.
         await Page.GotoAsync(CompletionUrl);
         await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__name").FillAsync("Bengt Berg");
-        await Page.Locator("#gd-lunch").SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
+        await SelectEveryGroupDefaultLunchAsync("Ugnsbakad lax");
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka in uppgifter" }).ClickAsync();
 

@@ -21,6 +21,16 @@ public class Booking
 {
     public Guid Id { get; set; }
 
+    /// <summary>Database-generated identity — a global monotonic sequence (never reused, no
+    /// per-year reset). Powers <see cref="BookingReference"/> (FR-92).</summary>
+    public int SequenceNumber { get; set; }
+
+    /// <summary>Human-readable reference shown to guest and admin alike, format
+    /// <c>AG-YYYY-NNNN</c> (e.g. <c>AG-2026-0042</c>). <c>YYYY</c> is the creation year;
+    /// <c>NNNN</c> is <see cref="SequenceNumber"/> zero-padded to 4 digits. Frozen at creation,
+    /// never regenerated — not PII and not a security credential (FR-92).</summary>
+    public string BookingReference { get; set; } = string.Empty;
+
     public BookingType BookingType { get; set; }
 
     public BookingStatus Status { get; set; } = BookingStatus.Pending;

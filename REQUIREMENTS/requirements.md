@@ -1,10 +1,18 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.41 — Working Draft  
+**Version:** 0.43 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.42:**
+
+- **FR-92 refined after local manual smoke testing.** Two fixes to the booking-reference feature, no data-model impact: (1) the reference is now appended to every email **subject line** (e.g. "Bokningsuppgifter inskickade (AG-2026-0007)"), not just the body, so it's visible in an inbox list without opening the email; (2) the Swedish label shown in emails and the admin search box changed from **"Bokningsreferens"** ("booking reference") to the type-neutral **"Referensnummer"** ("reference number") — a general inquiry isn't a booking, so the booking-specific label read wrong on that email. The underlying field, format (`AG-YYYY-NNNN`), and generation logic are unchanged.
+
+**Changes from v0.41:**
+
+- **New FR-92: human-readable booking reference number (Phase 8, discussion item raised in `implementation-plan.md`).** Bookings previously carried only an opaque `Guid Id`, leaving guests and admin with no shared, speakable identifier for phone/email support. Every booking (stay request or general inquiry) is now assigned a `BookingReference` (format `AG-YYYY-NNNN`, e.g. `AG-2026-0042`) at creation, generated from a database-identity `SequenceNumber` — a global monotonic sequence, not a per-year-reset counter, so no locking is needed and no race condition is possible at this booking volume. `YYYY` reflects the booking's creation year; the sequence itself does not restart at 1 each January. Not PII (safe in URLs, NFR-05) and not a security credential (the magic-link completion token remains the authenticated lookup). Shown in every guest and admin email, the admin booking list (searchable) and detail page. Data-model addition — see §8.1.
 
 **Changes from v0.40:**
 
@@ -732,7 +740,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | ID | Requirement |
 |---|---|
 | FR-35 | The admin panel shall be accessible only to authenticated admin users; all authenticated admins have equal access to all features |
-| FR-36 | The admin panel shall display a list of all bookings, filterable by status, date range, and booking type |
+| FR-36 | The admin panel shall display a list of all bookings, filterable by status, date range, and booking type, and searchable by booking reference (FR-92) |
 | FR-37 | The admin panel shall display a calendar view of bookings and blocked periods |
 | FR-38 | The admin shall be able to approve or deny an inquiry |
 | FR-39 | The admin shall be able to add internal notes to any booking |
@@ -752,6 +760,7 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | FR-78 | The admin may optionally enter a free-text cancellation reason, stored as an internal note on the booking |
 | FR-79 | On cancellation, the system shall automatically send a cancellation email to the guest. If Guest-initiated: the email states whether the deposit is refunded (full refund if cancelled more than 2 months before check-in) or forfeited (cancelled 2 months or less before check-in). If Property-initiated: the email states a full refund will be issued regardless of timing |
 | FR-80 | General inquiries shall not have an approve or deny action. The only admin status action available for a general inquiry is to mark it as `Closed`. Promote-to-stay-request is not supported — if a guest wishes to book after a general inquiry, they submit a new stay request |
+| FR-92 | Every booking (stay request or general inquiry) shall be assigned a human-readable `BookingReference` (format `AG-YYYY-NNNN`) at creation, derived from a database-generated monotonic `SequenceNumber` — see §8.1. It shall be shown on the admin booking list and detail page, in the subject line and body of every automated guest and admin email (§9), and shall be usable as an admin search term on the booking list (extends FR-36's filtering). The Swedish label shown to guest and admin is the type-neutral **"Referensnummer"**, not "Bokningsreferens" — a general inquiry isn't a booking, so a booking-specific label reads wrong on that email |
 
 ### 6.6 Booking Completion (Guest-Facing)
 
@@ -877,6 +886,8 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 | Field | Type | Notes |
 |---|---|---|
 | `Id` | GUID | Primary key |
+| `SequenceNumber` | int | Database-generated identity column; global monotonic sequence, never reused, no per-year reset (FR-92) |
+| `BookingReference` | string | Human-readable reference, format `AG-YYYY-NNNN` (e.g. `AG-2026-0042`); `YYYY` is the booking's creation year, `NNNN` is `SequenceNumber` zero-padded to 4 digits; frozen at creation, never regenerated (FR-92). Not PII, not a security credential — the completion token remains the authenticated lookup |
 | `BookingType` | Enum | `StayRequest` \| `GeneralInquiry` |
 | `Status` | Enum | See Section 2.4 |
 | `ContactName` | string | Required |
@@ -1066,22 +1077,22 @@ If cleaning is not purchased for a given zone, guests are responsible for cleani
 
 ## 9. Email Templates
 
-All emails sent in Swedish. All include Åkerögården name, contact email, and privacy policy link in footer.
+All emails sent in Swedish. All include Åkerögården name, contact email, and privacy policy link in footer. Every email below (guest- or admin-facing) also states the booking's `BookingReference` (FR-92), so either side can quote it on a support call.
 
 | Email | Trigger | Recipient | Key content |
 |---|---|---|---|
-| Inquiry acknowledgement — stay request | Stay request submitted | Guest | Booking receipt confirmation; expected response time |
-| Inquiry acknowledgement — general inquiry | General inquiry submitted | Guest | Message receipt; "we will be in touch" |
-| Admin — new inquiry | Inquiry submitted | Admin | All details; link to booking in panel |
-| Denial | Admin sets Denied | Guest | Polite denial; **admin-entered reason stated in plain text**; fixed closing line: *"Kontakta oss för att diskutera alternativa datum"* |
-| Cancellation | Admin sets Cancelled | Guest | Cancellation confirmed; **deposit clause conditional on initiator and timing** — Guest-initiated + >2 months: full refund; Guest-initiated + ≤2 months: deposit forfeited; Property-initiated: full refund regardless of timing |
-| Approval + magic link | Admin sets Approved | Guest | Approval; magic link; **exact expiry date stated in plain text**; **deposit/cancellation policy (20% deposit, full refund >2 months before arrival, forfeited 2 months or less before)**; what to prepare |
-| Admin — details complete | Guest submits completion | Admin | Data ready; link to booking; reminder to download lists |
-| Two-week reminder | Automated — 14 days before check-in (booking `DetailsComplete` or later) | Guest | Participant count; day guest count; meal summary; check-in 14:00; check-out 12:00; address |
-| Completion nudge | Automated — 14 days before check-in, booking still `Approved` (FR-63) | Guest | "You have not yet completed your booking details"; **freshly regenerated completion link (valid ≥48 h)**; instructions to complete |
-| Admin — guest not completed | Automated — 14 days before check-in, booking still `Approved` (FR-63) | Admin | "Guest has not completed their booking — consider following up directly"; link to booking; the new completion-link expiry |
-| Thank-you | Admin marks Completed | Guest | Standard fixed message; invitation to return — not customisable per booking |
-| Pre-deletion warning | Automated — 30 days before `DeleteAfter` | Admin | Record due for deletion; booking reference |
+| Inquiry acknowledgement — stay request | Stay request submitted | Guest | Booking receipt confirmation; **booking reference**; expected response time |
+| Inquiry acknowledgement — general inquiry | General inquiry submitted | Guest | Message receipt; **booking reference**; "we will be in touch" |
+| Admin — new inquiry | Inquiry submitted | Admin | All details; **booking reference**; link to booking in panel |
+| Denial | Admin sets Denied | Guest | Polite denial; **admin-entered reason stated in plain text**; **booking reference**; fixed closing line: *"Kontakta oss för att diskutera alternativa datum"* |
+| Cancellation | Admin sets Cancelled | Guest | Cancellation confirmed; **booking reference**; **deposit clause conditional on initiator and timing** — Guest-initiated + >2 months: full refund; Guest-initiated + ≤2 months: deposit forfeited; Property-initiated: full refund regardless of timing |
+| Approval + magic link | Admin sets Approved | Guest | Approval; **booking reference**; magic link; **exact expiry date stated in plain text**; **deposit/cancellation policy (20% deposit, full refund >2 months before arrival, forfeited 2 months or less before)**; what to prepare |
+| Admin — details complete | Guest submits completion | Admin | Data ready; **booking reference**; link to booking; reminder to download lists |
+| Two-week reminder | Automated — 14 days before check-in (booking `DetailsComplete` or later) | Guest | **Booking reference**; participant count; day guest count; meal summary; check-in 14:00; check-out 12:00; address |
+| Completion nudge | Automated — 14 days before check-in, booking still `Approved` (FR-63) | Guest | "You have not yet completed your booking details"; **booking reference**; **freshly regenerated completion link (valid ≥48 h)**; instructions to complete |
+| Admin — guest not completed | Automated — 14 days before check-in, booking still `Approved` (FR-63) | Admin | "Guest has not completed their booking — consider following up directly"; **booking reference**; link to booking; the new completion-link expiry |
+| Thank-you | Admin marks Completed | Guest | Standard fixed message; **booking reference**; invitation to return — not customisable per booking |
+| Pre-deletion warning | Automated — 30 days before `DeleteAfter` | Admin | Record due for deletion; **booking reference**; link to booking |
 
 ---
 

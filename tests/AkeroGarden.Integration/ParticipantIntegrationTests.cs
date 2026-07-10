@@ -38,9 +38,14 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
             db);
     }
 
+    // BookingReference (FR-92) carries a unique index; the class shares one database across every
+    // [Fact], so each booking needs a distinct reference even though these tests don't exercise
+    // the reference itself. A Guid-suffixed placeholder is enough (unlike BookingService, this
+    // doesn't need to wait for the DB-assigned SequenceNumber to produce the real AG-YYYY-NNNN form).
     private static Booking NewStayBooking() => new()
     {
         Id = Guid.NewGuid(),
+        BookingReference = $"AG-TEST-{Guid.NewGuid():N}"[..20],
         BookingType = BookingType.StayRequest,
         Status = BookingStatus.Approved,
         ContactName = "Anna Andersson",

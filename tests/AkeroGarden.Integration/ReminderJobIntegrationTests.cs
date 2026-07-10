@@ -77,6 +77,8 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
             });
         db.Bookings.Add(booking);
         await db.SaveChangesAsync();
+        booking.BookingReference = BookingReferencePolicy.Format(booking.SequenceNumber, booking.CreatedAt.Year);
+        await db.SaveChangesAsync();
         return booking.Id;
     }
 

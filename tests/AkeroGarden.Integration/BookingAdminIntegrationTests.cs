@@ -299,4 +299,27 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         Assert.NotEqual(first, second);
     }
+
+    [Fact]
+    public async Task GetBookingsAsync_FiltersByReference_FR36_92()
+    {
+        var provider = NewProvider(out _);
+        var wantedId = await CreatePendingStayAsync(provider);
+        await CreatePendingStayAsync(provider); // a second, unrelated booking in the same list
+
+        using var scope = provider.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+        var wanted = await ReloadAsync(provider, wantedId);
+
+        var exact = await svc.GetBookingsAsync(reference: wanted.BookingReference);
+        Assert.Single(exact);
+        Assert.Equal(wantedId, exact[0].Id);
+
+        // Partial match (what an admin would actually type) also finds it.
+        var partial = await svc.GetBookingsAsync(reference: wanted.BookingReference[..^2]);
+        Assert.Contains(partial, b => b.Id == wantedId);
+
+        var none = await svc.GetBookingsAsync(reference: "AG-9999-9999");
+        Assert.Empty(none);
+    }
 }

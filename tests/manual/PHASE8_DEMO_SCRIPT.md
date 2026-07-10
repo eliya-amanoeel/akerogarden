@@ -226,7 +226,7 @@ gh workflow run deploy-staging.yml --ref phase_8
 ⚠️ The Actions "Run workflow" dropdown **defaults to `main`** — always pick/pass **`phase_8`**, or you'll
 ship a build with no seeder.
 
-### Re-seed / reset — exact steps
+### Re-seed - Staging / reset — exact steps
 
 Resource group `akerogarden-staging`, app `akerogarden-staging-app` (az CLI logged in; mgmt-plane).
 
@@ -243,6 +243,28 @@ curl -s https://akerogarden-staging-app.azurewebsites.net/faciliteter | grep -o 
 az webapp config appsettings delete -g akerogarden-staging -n akerogarden-staging-app \
   --setting-names DemoSeed__Reset
 ```
+
+### Re-seed - Dev
+1. Wipe the Postgres volume completely (stops containers and deletes the named volume, so it's a truly fresh DB, not just an empty schema):
+
+
+docker compose down -v
+docker compose up -d
+2. Turn on demo seeding for the next run:
+
+
+cd src/AkeroGarden.Web
+dotnet user-secrets set "DemoSeed:Reset" "true"
+3. Run the app — this runs EF migrations against the now-empty DB, seeds the admin account, then wipes+reseeds the demo dataset (8 bookings across every lifecycle state, per PHASE8_DEMO_SCRIPT.md):
+
+
+dotnet run
+Watch the startup log for the "Demo data seeded: ..." warning line — that confirms it worked.
+
+4. Turn seeding back off so a later restart during your smoke testing doesn't silently re-wipe your in-progress manual test data:
+
+
+dotnet user-secrets remove "DemoSeed:Reset"
 
 **Timing gotcha:** immediately after step 1, the app can still return `200` from the *previous*
 container (serving the old, un-seeded data) while the new container boots and seeds. Don't trust a bare

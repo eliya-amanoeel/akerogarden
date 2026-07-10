@@ -34,6 +34,12 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
 
         await db.SaveChangesAsync();
 
+        // BookingReference (FR-92) needs the DB-assigned SequenceNumber, so it's a second small
+        // write after the identity values exist — same two-phase pattern as BookingService.
+        foreach (var booking in db.ChangeTracker.Entries<Booking>().Select(e => e.Entity))
+            booking.BookingReference = BookingReferencePolicy.Format(booking.SequenceNumber, booking.CreatedAt.Year);
+        await db.SaveChangesAsync();
+
         logger.LogWarning(
             "Demo data seeded: {Buildings} buildings, {Rooms} rooms, {Bookings} bookings, {Blocks} blocks. " +
             "Remove the DemoSeed:Reset app setting so the next restart does not wipe again.",
@@ -366,6 +372,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         var closed = new Booking
         {
             Id = Guid.NewGuid(),
+            BookingReference = $"AG-SEED-{Guid.NewGuid():N}"[..20],
             BookingType = BookingType.GeneralInquiry,
             Status = BookingStatus.Closed,
             ContactName = "Ingrid Persson",
@@ -418,6 +425,10 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             int overnight, int dayGuests, MealPlan plan, DateTime createdAt) => new()
         {
             Id = Guid.NewGuid(),
+            // Placeholder — all 8 demo bookings insert in one batch below, so each needs a distinct
+            // value up front to satisfy the unique index; overwritten with the real AG-YYYY-NNNN
+            // form (from the DB-assigned SequenceNumber) after that first save.
+            BookingReference = $"AG-SEED-{Guid.NewGuid():N}"[..20],
             BookingType = BookingType.StayRequest,
             ContactName = name,
             ContactEmail = email,

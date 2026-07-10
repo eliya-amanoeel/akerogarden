@@ -114,6 +114,9 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
             Assert.Equal(BookingStatus.Pending, reloaded.Status);
             Assert.Equal(BookingType.StayRequest, reloaded.BookingType);
             Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(12), reloaded.DeleteAfter);
+            // FR-92: reference is assigned at creation, format AG-YYYY-NNNN from the real DB sequence.
+            Assert.Matches(@"^AG-\d{4}-\d{4}$", reloaded.BookingReference);
+            Assert.True(reloaded.SequenceNumber > 0);
 
             var fs = Assert.Single(reloaded.FacilitySelections);
             Assert.Equal(facility.Name, fs.FacilityNameSnapshot);
@@ -202,6 +205,39 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
 
         Assert.Contains(email.Sent, e => e.ToAddress == "david@test.se");
         Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se");
+        // FR-92: general inquiries get a reference too, not just stay requests.
+        Assert.Matches(@"^AG-\d{4}-\d{4}$", booking.BookingReference);
+    }
+
+    [Fact]
+    public async Task BookingReference_IsUniquePerBooking_AcrossStayRequestsAndGeneralInquiries()
+    {
+        // FR-92: the global sequence is shared across both booking types and never repeats — no
+        // per-year reset, so this only asserts uniqueness and monotonic growth, not a reset to 1.
+        var provider = NewProvider(out _);
+        using var scope = provider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+
+        var first = await service.CreateGeneralInquiryAsync(new GeneralInquiryInput
+        {
+            ContactName = "Filip",
+            ContactEmail = "filip@test.se",
+            Message = "Fråga ett",
+            AcceptPrivacyPolicy = true
+        });
+        var second = await service.CreateStayRequestAsync(new StayRequestInput
+        {
+            ContactName = "Greta",
+            ContactEmail = "greta@test.se",
+            CheckIn = new DateOnly(2026, 12, 1),
+            CheckOut = new DateOnly(2026, 12, 3),
+            OvernightGuestCount = 2,
+            MealPlan = MealPlan.FullBoardAll,
+            AcceptPrivacyPolicy = true
+        });
+
+        Assert.NotEqual(first.BookingReference, second.BookingReference);
+        Assert.True(second.SequenceNumber > first.SequenceNumber);
     }
 
     [Fact]

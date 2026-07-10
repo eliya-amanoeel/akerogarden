@@ -89,6 +89,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.Property(x => x.MealPlan).HasConversion<string>().HasMaxLength(30);
             b.Property(x => x.CancellationInitiator).HasConversion<string>().HasMaxLength(30);
 
+            // Global monotonic sequence backing BookingReference (FR-92) — DB-generated so it is
+            // race-free under concurrent inserts; the Guid Id stays the primary key.
+            b.Property(x => x.SequenceNumber).ValueGeneratedOnAdd().UseIdentityAlwaysColumn();
+            b.Property(x => x.BookingReference).HasMaxLength(20);
+            b.HasIndex(x => x.BookingReference).IsUnique();
+
             // Filter the booking list by status and type without scanning (FR-36).
             b.HasIndex(x => x.Status);
             b.HasIndex(x => x.BookingType);

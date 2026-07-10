@@ -21,11 +21,12 @@
 else
 {
     <AdminHeader>
-        <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a> / @_booking.ContactName</span></TitleContent>
+        <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a> / @_booking.BookingReference</span></TitleContent>
     </AdminHeader>
 
     <div class="admin-detail-head">
         <h1>@_booking.ContactName</h1>
+        <span class="chip mono">@_booking.BookingReference</span>
         <span class="@BookingDisplay.StatusBadgeClass(_booking.Status)">@BookingDisplay.StatusLabel(_booking.Status)</span>
         <span class="chip">@BookingDisplay.TypeLabel(_booking.BookingType)</span>
     </div>

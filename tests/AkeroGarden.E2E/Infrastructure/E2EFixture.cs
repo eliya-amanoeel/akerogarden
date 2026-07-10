@@ -106,9 +106,13 @@ public sealed class E2EFixture : IAsyncLifetime
             new MealOption { Id = Guid.NewGuid(), Name = "Kycklinggryta", MealType = MealType.Dinner, IsActive = true });
 
         var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30);
+        // BookingReference (FR-92) carries a unique index — these 3 rows insert in one batch, so
+        // each needs a distinct placeholder up front (unlike BookingService's two-phase real-format
+        // write, which isn't needed here since no test asserts the AG-YYYY-NNNN form).
         Booking CompletionBooking(string token) => new()
         {
             Id = Guid.NewGuid(),
+            BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
             BookingType = BookingType.StayRequest,
             Status = BookingStatus.Approved,
             ContactName = "Anna Andersson",
@@ -132,6 +136,7 @@ public sealed class E2EFixture : IAsyncLifetime
         ctx.Bookings.Add(new Booking
         {
             Id = Guid.NewGuid(),
+            BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
             BookingType = BookingType.StayRequest,
             Status = BookingStatus.Pending,
             ContactName = "Familjen Pendlar",

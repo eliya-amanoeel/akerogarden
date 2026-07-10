@@ -30,6 +30,8 @@ erDiagram
 
     BOOKING {
         guid Id PK
+        int SequenceNumber "DB identity, monotonic, no per-year reset"
+        string BookingReference "AG-YYYY-NNNN, frozen at creation (FR-92)"
         enum BookingType "StayRequest | GeneralInquiry"
         enum Status "see §2.4"
         string ContactName

@@ -93,6 +93,7 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
 
         db.Bookings.Add(booking);
         await db.SaveChangesAsync();
+        await AssignBookingReferenceAsync(booking);
 
         if (!createdByAdmin)
         {
@@ -128,6 +129,7 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
 
         db.Bookings.Add(booking);
         await db.SaveChangesAsync();
+        await AssignBookingReferenceAsync(booking);
 
         if (!createdByAdmin)
         {
@@ -136,6 +138,18 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         }
 
         return booking;
+    }
+
+    /// <summary>
+    /// Sets <see cref="Booking.BookingReference"/> from the DB-assigned <see cref="Booking.SequenceNumber"/>
+    /// (FR-92) — must run after the initial insert, since the identity value is only known once the row
+    /// exists. A second, small write; format is <c>AG-YYYY-NNNN</c> with the creation year and the
+    /// sequence zero-padded to 4 digits.
+    /// </summary>
+    private async Task AssignBookingReferenceAsync(Booking booking)
+    {
+        booking.BookingReference = BookingReferencePolicy.Format(booking.SequenceNumber, booking.CreatedAt.Year);
+        await db.SaveChangesAsync();
     }
 
     // ── Queries (admin) ───────────────────────────────────────────────────────────
@@ -257,15 +271,16 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
     }
 
     /// <summary>
-    /// The admin booking list, filterable by status, type, and check-in date range (FR-36).
-    /// Newest first. The date range matches a stay's check-in; general inquiries (no dates)
-    /// are excluded when a date range is supplied.
+    /// The admin booking list, filterable by status, type, check-in date range, and searchable by
+    /// booking reference (FR-36/FR-92). Newest first. The date range matches a stay's check-in;
+    /// general inquiries (no dates) are excluded when a date range is supplied.
     /// </summary>
     public async Task<List<Booking>> GetBookingsAsync(
         BookingStatus? status = null,
         BookingType? type = null,
         DateOnly? from = null,
-        DateOnly? to = null)
+        DateOnly? to = null,
+        string? reference = null)
     {
         var query = db.Bookings.AsQueryable();
 
@@ -273,6 +288,8 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         if (type is not null) query = query.Where(b => b.BookingType == type);
         if (from is not null) query = query.Where(b => b.CheckIn != null && b.CheckIn >= from);
         if (to is not null) query = query.Where(b => b.CheckIn != null && b.CheckIn <= to);
+        if (!string.IsNullOrWhiteSpace(reference))
+            query = query.Where(b => b.BookingReference.Contains(reference.Trim()));
 
         return await query.OrderByDescending(b => b.CreatedAt).ToListAsync();
     }

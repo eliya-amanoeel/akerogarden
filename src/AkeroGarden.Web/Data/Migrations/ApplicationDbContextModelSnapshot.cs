@@ -136,6 +136,11 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<string>("AdminNotes")
                         .HasColumnType("text");
 
+                    b.Property<string>("BookingReference")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("BookingType")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -241,6 +246,12 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<DateTime?>("ReminderEmailSentAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<int>("SequenceNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<int>("SequenceNumber"));
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -250,6 +261,9 @@ namespace AkeroGarden.Web.Data.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BookingReference")
+                        .IsUnique();
 
                     b.HasIndex("BookingType");
 

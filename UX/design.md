@@ -30,7 +30,7 @@ Warm, plain Swedish addressing the reader as **du**. Confident but never salesy 
 
 ### Imagery strategy
 
-Real photography is the biggest trust lever, so the design is **built for real photos** but ships with **tasteful placeholders** (soft landscape gradients, labelled *"Platshållare — foto vid lansering"*), swapped for real Åkerögården photography at go-live (tracked in `operational-tasks.md`). Never stock-photo gloss.
+Real photography is the biggest trust lever, so the design is **built for real photos** but ships with **tasteful placeholders** (soft landscape gradients, labelled *"Platshållare — foto vid lansering"*), swapped for real Åkerögården photography at go-live — the client's responsibility, not tracked as an engineering task. Never stock-photo gloss.
 
 ---
 

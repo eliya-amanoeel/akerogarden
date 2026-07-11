@@ -2,11 +2,8 @@
 @layout AdminLayout
 @rendermode InteractiveServer
 @using Microsoft.AspNetCore.Identity
-@using Microsoft.AspNetCore.DataProtection
 @inject UserManager<ApplicationUser> UserManager
-@inject IEmailService EmailService
-@inject NavigationManager Nav
-@inject IDataProtectionProvider DataProtectionProvider
+@inject AdminInviteService InviteService
 @attribute [Authorize]
 
 <PageTitle>Administratörskonton — Åkerögården Admin</PageTitle>
@@ -39,7 +36,11 @@ else
                     <tr>
                         <td><span class="rowlink">@user.Email</span>@if (user.Id == _currentUserId) {<span class="chip" style="margin-left:0.5rem">Du</span>}</td>
                         <td>
-                            @if (user.IsActive)
+                            @if (user.SetupCompletedAt is null)
+                            {
+                                <span class="badge badge--pending">Väntar på aktivering</span>
+                            }
+                            else if (user.IsActive)
                             {
                                 <span class="badge badge--approved">Aktiv</span>
                             }
@@ -49,7 +50,12 @@ else
                             }
                         </td>
                         <td class="rowactions">
-                            @if (user.Id != _currentUserId)
+                            @if (user.SetupCompletedAt is null)
+                            {
+                                <button class="btn-ghost" @onclick="() => ResendInvite(user)">Skicka ny inbjudan</button>
+                                <button class="btn-ghost" @onclick="() => RemoveInvite(user)">Ta bort</button>
+                            }
+                            else if (user.Id != _currentUserId)
                             {
                                 @if (user.IsActive)
                                 {
@@ -120,45 +126,40 @@ else
 
     private async Task SendInvite()
     {
-        var existing = await UserManager.FindByEmailAsync(_invite.Email);
-        if (existing is not null)
-        {
-            _message = "Det finns redan ett konto med den e-postadressen.";
-            return;
-        }
+        var result = await InviteService.InviteAsync(_invite.Email);
 
-        var newUser = new ApplicationUser
+        _message = result.Outcome switch
         {
-            UserName = _invite.Email,
-            Email = _invite.Email,
-            IsActive = true
+            InviteOutcome.BlockedActivated => "Det finns redan ett konto med den e-postadressen.",
+            InviteOutcome.CreateFailed => result.Error,
+            _ => $"Inbjudan skickad till {_invite.Email}."
         };
 
-        var tempPassword = Guid.NewGuid().ToString("N")[..16] + "Aa1!";
-        var createResult = await UserManager.CreateAsync(newUser, tempPassword);
-
-        if (!createResult.Succeeded)
+        if (result.Outcome != InviteOutcome.CreateFailed)
         {
-            _message = string.Join(" ", createResult.Errors.Select(e => e.Description));
-            return;
+            _invite = new();
+            _users = UserManager.Users.OrderBy(u => u.Email).ToList();
         }
+    }
 
-        var token = await UserManager.GeneratePasswordResetTokenAsync(newUser);
-        var protector = DataProtectionProvider.CreateProtector("PasswordReset");
-        var code = Uri.EscapeDataString(protector.Protect($"{newUser.Email}|{token}"));
-        var setupUrl = Nav.ToAbsoluteUri($"/aterstall-losenord?code={code}");
+    private async Task ResendInvite(ApplicationUser user)
+    {
+        await InviteService.ResendInviteAsync(user);
+        _message = $"Ny inbjudan skickad till {user.Email}.";
+    }
 
-        await EmailService.SendAsync(
-            newUser.Email!,
-            newUser.Email!,
-            "Du har bjudits in som administratör — Åkerögården",
-            $"<p>Du har bjudits in att administrera Åkerögårdens bokningssystem.</p>" +
-            $"<p>Klicka på länken nedan för att välja ditt lösenord och aktivera ditt konto. Länken gäller i 1 timme.</p>" +
-            $"<p><a href=\"{setupUrl}\">{setupUrl}</a></p>");
+    private async Task RemoveInvite(ApplicationUser user)
+    {
+        var result = await InviteService.RemoveInviteAsync(user.Id);
 
-        _invite = new();
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Inbjudan för {user.Email} har tagits bort.",
+            HardDeleteResult.Blocked => "Inbjudan kunde inte tas bort — kontot har redan aktiverats.",
+            _ => "Inbjudan kunde inte tas bort — kontot hittades inte."
+        };
+
         _users = UserManager.Users.OrderBy(u => u.Email).ToList();
-        _message = $"Inbjudan skickad till {newUser.Email}.";
     }
 
     private sealed class InviteModel

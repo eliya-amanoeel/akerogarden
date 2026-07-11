@@ -255,6 +255,33 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         await AssertNoSeriousAxeViolationsAsync("booking detail");
     }
 
+    /// <summary>Admin invite lifecycle (Phase 9, FR-74): a fresh invite shows the pending badge
+    /// with resend/remove actions; resend keeps it pending; remove deletes the row. No SMTP
+    /// server in E2E (see E2EFixture), so this only asserts the UI state, not email delivery.</summary>
+    [Fact]
+    public async Task Admin_can_resend_and_remove_a_pending_invite()
+    {
+        var email = $"{Guid.NewGuid()}@akerogarden.se";
+
+        await LoginAsync();
+        await Page.GotoAsync("/admin/konton");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await Page.FillAsync("#invite-email", email);
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka inbjudan" }).ClickAsync();
+
+        var row = Page.Locator("tr", new() { HasText = email });
+        await Assertions.Expect(row.Locator(".badge")).ToHaveTextAsync("Väntar på aktivering");
+
+        await row.GetByRole(AriaRole.Button, new() { Name = "Skicka ny inbjudan" }).ClickAsync();
+        await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("Ny inbjudan skickad");
+        await Assertions.Expect(row.Locator(".badge")).ToHaveTextAsync("Väntar på aktivering");
+
+        await row.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+        await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har tagits bort");
+        await Assertions.Expect(Page.Locator("tr", new() { HasText = email })).Not.ToBeVisibleAsync();
+    }
+
     // The three login-layout pages are public (no auth). /aterstall-losenord renders its
     // invalid-link state when navigated without a ?code, which is what we axe-check here.
     [Theory]

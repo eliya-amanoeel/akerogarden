@@ -139,6 +139,9 @@ builder.Services.AddScoped<FacilityService>();
 // ── Reference data services (Phase 8: cleaning rework, §8.14) ────────────────
 builder.Services.AddScoped<PhysicalBuildingService>();
 
+// ── Admin invite lifecycle (Phase 9, FR-74) ───────────────────────────────────
+builder.Services.AddScoped<AdminInviteService>();
+
 // ── Blob storage (facility images, FR-27) ─────────────────────────────────────
 builder.Services.Configure<BlobOptions>(builder.Configuration.GetSection("Blob"));
 builder.Services.AddScoped<IImageStorage, BlobImageStorage>();

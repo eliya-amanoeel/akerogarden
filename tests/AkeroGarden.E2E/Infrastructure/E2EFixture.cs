@@ -76,6 +76,10 @@ public sealed class E2EFixture : IAsyncLifetime
     public const string CompletionToken = "e2e-completion-token-abc123";
     public const string CompletionSubmitToken = "e2e-completion-submit-token-xyz789";
 
+    /// <summary>A SelfCateringAll booking — read-only, for the group-default meal-gating regression
+    /// test (Phase 8 bug: the per-day pickers rendered regardless of "Helpension för alla").</summary>
+    public const string SelfCateringCompletionToken = "e2e-completion-selfcatering-token-jkl012";
+
     /// <summary>A booking with the Konferensrum facility selected at inquiry — read-only, for the
     /// "conference toggle only shows when applicable" test (Phase 8 cleaning rework, §5.5).</summary>
     public const string ConferenceCompletionToken = "e2e-completion-conference-token-def456";
@@ -138,6 +142,10 @@ public sealed class E2EFixture : IAsyncLifetime
         };
         ctx.Bookings.Add(CompletionBooking(CompletionToken));
         ctx.Bookings.Add(CompletionBooking(CompletionSubmitToken));
+
+        var selfCateringBooking = CompletionBooking(SelfCateringCompletionToken);
+        selfCateringBooking.MealPlan = MealPlan.SelfCateringAll;
+        ctx.Bookings.Add(selfCateringBooking);
 
         // Cleaning rework (Phase 8, §5.5): a Konferensbyggnad physical building + Konferensrum
         // facility + Conference-kind cleaning zone, and two bookings that requested that facility

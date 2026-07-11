@@ -1345,7 +1345,7 @@ fieldset.participant legend {
 .cal-day { color: var(--color-heading); }
 .cal-day.cal-partial { color: #6b5310; }
 .cal-day.cal-full { color: #6b3229; } /* darker than the pink bg for AA contrast */
-.cal-past { background: var(--color-bg-warm); color: #bdb7ac; }
+.cal-past { background: var(--color-bg-warm); color: #6b665c; } /* darkened from #bdb7ac (1.7:1) to ~4.8:1 for AA */
 
 .cal-day a { display: block; line-height: 2.75rem; margin: -2px; border-radius: 4px; color: inherit; text-decoration: none; }
 .cal-day a:hover { box-shadow: inset 0 0 0 2px var(--color-primary-ink); }

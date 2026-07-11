@@ -101,8 +101,8 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                     }
                     @if (gdSlots.Any(x => HasChoice(x.Slot)))
                     {
-                        <p class="group-default__hint">Välj måltider per dag – de kopieras till alla deltagare. Justera per person längre ned vid behov.</p>
-                        <div class="meals group-default__days">
+                        <p class="group-default__hint" data-groupdefault-days>Välj måltider per dag – de kopieras till alla deltagare. Justera per person längre ned vid behov.</p>
+                        <div class="meals group-default__days" data-groupdefault-days>
                             @foreach (var dateGroup in gdSlots.GroupBy(x => x.Slot.Date))
                             {
                                 @if (dateGroup.Any(x => HasChoice(x.Slot)))

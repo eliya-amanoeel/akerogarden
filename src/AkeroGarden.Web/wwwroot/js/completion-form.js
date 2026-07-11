@@ -49,9 +49,20 @@
     // Group defaults (FR-59, scaled to the whole group): cascade one choice to every participant.
     // "Helpension för alla" toggles every participant's full-board box and re-syncs their meal
     // visibility; each per-day standard select copies into that same slot (day + meal) for everyone.
+    // Show the per-day group-default meal pickers only when "Helpension för alla" is checked —
+    // mirrors syncMeals's per-participant gating so a self-catering/half-board group isn't shown
+    // meal dropdowns it can't use.
+    function syncGroupDefaultMeals(checkbox) {
+        document.querySelectorAll("[data-groupdefault-days]").forEach(function (el) {
+            el.style.display = checkbox.checked ? "" : "none";
+        });
+    }
+
     var gdFullBoard = document.querySelector("[data-groupdefault-fullboard]");
     if (gdFullBoard) {
+        syncGroupDefaultMeals(gdFullBoard);
         gdFullBoard.addEventListener("change", function () {
+            syncGroupDefaultMeals(gdFullBoard);
             document.querySelectorAll("input[data-fullboard-participant]").forEach(function (cb) {
                 cb.checked = gdFullBoard.checked;
                 cb.dispatchEvent(new Event("change", { bubbles: true }));

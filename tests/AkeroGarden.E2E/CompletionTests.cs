@@ -71,6 +71,21 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Group_default_meal_pickers_are_hidden_when_group_default_full_board_is_unchecked()
+    {
+        // Regression for the Phase-8 smoke-test bug: on a SelfCateringAll booking the "Helpension
+        // för alla" checkbox correctly renders unticked, but the per-day meal pickers rendered
+        // regardless — there was no gate mirroring the per-participant syncMeals behaviour.
+        await Page.GotoAsync(Url(E2EFixture.SelfCateringCompletionToken));
+
+        await Assertions.Expect(Page.Locator("[data-groupdefault-fullboard]")).Not.ToBeCheckedAsync();
+        await Assertions.Expect(Page.Locator("[data-groupdefault-days]").First).Not.ToBeVisibleAsync();
+
+        await Page.Locator("[data-groupdefault-fullboard]").CheckAsync();
+        await Assertions.Expect(Page.Locator("[data-groupdefault-days]").First).ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task Group_default_value_survives_an_add_day_guest_postback()
     {
         // Regression for the "shortcut resets on postback" bug: the group-default controls are

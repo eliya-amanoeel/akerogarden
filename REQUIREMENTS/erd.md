@@ -13,6 +13,9 @@ This is the diagram Section 8 of the SRS calls for. Attribute lists below show t
 
 ```mermaid
 erDiagram
+    PHYSICALBUILDING ||--o{ BUILDING : "contains lodging units"
+    PHYSICALBUILDING |o--o{ FACILITY : "houses (nullable)"
+    PHYSICALBUILDING |o--o| CLEANINGZONE : "priced by (nullable)"
     BUILDING ||--o{ ROOM : "contains"
     BUILDING |o--o{ BLOCKEDPERIOD : "scoped to (nullable)"
     ROOM     |o--o{ BLOCKEDPERIOD : "scoped to (nullable)"
@@ -30,6 +33,8 @@ erDiagram
 
     BOOKING {
         guid Id PK
+        int SequenceNumber "DB identity, monotonic, no per-year reset"
+        string BookingReference "AG-YYYY-NNNN, frozen at creation (FR-92)"
         enum BookingType "StayRequest | GeneralInquiry"
         enum Status "see §2.4"
         string ContactName
@@ -40,14 +45,25 @@ erDiagram
         int DayGuestCount "inquiry-stage estimate"
         enum MealPlan "FullBoardAll | SelfCateringAll | Mixed"
         bool GuestChoosesRooms
+        bool MainBuildingCleaningPurchased "completion choice, FR-93"
+        bool SleepingCleaningPurchased "completion choice; rows resolved at room assignment"
+        bool ConferenceCleaningPurchased "completion choice, only if Konferensrum booked"
         bool DepositPaid
         bool FinalPaid
         date DeleteAfter "computed, FR-91"
     }
 
+    PHYSICALBUILDING {
+        guid Id PK
+        string Name "Lilla bostadslängan, Huvudbyggnad, …"
+        bool IsActive
+        int DisplayOrder
+    }
+
     BUILDING {
         guid Id PK
-        string Name
+        guid PhysicalBuildingId FK "the physical building it sits in"
+        string Name "lodging unit: Blidö, Tjockö, Smedjan, …"
         bool IsAccessible
         bool IsActive
         int DisplayOrder
@@ -95,6 +111,7 @@ erDiagram
 
     FACILITY {
         guid Id PK
+        guid PhysicalBuildingId FK "nullable; Konferensrum → Konferensbyggnad"
         string Name
         string ImageUrl
         decimal AmountExVat
@@ -105,10 +122,12 @@ erDiagram
 
     CLEANINGZONE {
         guid Id PK
+        guid PhysicalBuildingId FK "nullable; null for Everything bundle"
         string Name
         decimal AmountExVat
         decimal VatRate
-        array IncludesZoneIds "self-ref; bundles e.g. Hela lägret"
+        enum Kind "MainBuilding | SleepingBuilding | Conference | Everything"
+        array IncludesZoneIds "Everything bundle; rate-card ref only"
         bool IsActive
         int DisplayOrder
     }
@@ -160,12 +179,15 @@ erDiagram
 
 | From | To | Cardinality | Via | Notes |
 |---|---|---|---|---|
+| PhysicalBuilding | Building | 1 → many | `Building.PhysicalBuildingId` | A physical building holds several lodging units (Lilla bostadslängan → Blidö/Ljusterö/Singö/Tjockö); standalone cabins are their own physical building |
+| PhysicalBuilding | Facility | 0..1 → many | `Facility.PhysicalBuildingId` | Nullable — set only where a facility sits in a cleaning-relevant building (Konferensrum → Konferensbyggnad) |
+| PhysicalBuilding | CleaningZone | 0..1 → 0..1 | `CleaningZone.PhysicalBuildingId` | The building a zone cleans; null for the `Everything` bundle |
 | Building | Room | 1 → many | `Room.BuildingId` | A building contains its rooms |
 | Booking | Participant | 1 → many | `Participant.BookingId` | General inquiries have zero participants |
 | Room | Participant | 0..1 → many | `Participant.RoomId` | Nullable — set only for assigned overnight guests (I14) |
 | Participant | MealPreference | 1 → many | `MealPreference.ParticipantId` | One row per day × meal type |
 | MealOption | MealPreference | 1 → many | `MealPreference.MealOptionId` | Live ref; name also snapshotted |
-| Booking | BookingCleaningSelection | 1 → many | `BookingCleaningSelection.BookingId` | One row per selected cleaning zone |
+| Booking | BookingCleaningSelection | 1 → many | `BookingCleaningSelection.BookingId` | One row per purchased cleaning zone; populated at completion (FR-93) |
 | CleaningZone | BookingCleaningSelection | 1 → many | `BookingCleaningSelection.CleaningZoneId` | Live ref; name + amount snapshotted (NFR-33) |
 | Booking | BookingFacilitySelection | 1 → many | `BookingFacilitySelection.BookingId` | One row per selected facility |
 | Facility | BookingFacilitySelection | 1 → many | `BookingFacilitySelection.FacilityId` | Live ref; name + amount snapshotted (NFR-34) |
@@ -177,10 +199,12 @@ erDiagram
 
 ## Modelling notes
 
-1. **Snapshot pattern.** `MealPreference`, `BookingCleaningSelection`, and `Participant.RoomAssignmentSnapshot` each keep a *live FK* **and** a *text/amount snapshot* taken at submission time. The FK powers queries and conflict detection; the snapshot preserves what was agreed if the reference data is later edited (NFR-15/16/33). Hard-delete of referenced reference data is blocked (FR-16/20/26/30/88).
+1. **Snapshot pattern.** `MealPreference`, `BookingCleaningSelection`, and `Participant.RoomAssignmentSnapshot` each keep a *live FK* **and** a *text/amount snapshot* taken at submission time. The FK powers queries and conflict detection; the snapshot preserves what was agreed if the reference data is later edited (NFR-15/16/33). Hard-delete of referenced reference data is blocked (FR-16/20/26/30/88). *Cleaning (FR-93) is chosen at completion, not inquiry: `MainBuilding`/`Conference` rows snapshot at submission, while the combined `SleepingBuilding` choice is stored as intent (`Booking.SleepingCleaningPurchased`) and its rows are resolved from room assignment and snapshotted when that assignment is set/changed.*
 
 2. **No monetary totals.** Per C8, no booking total / deposit / balance is stored. `AmountExVat` on `CleaningZone`/`PriceRule` is reference data only; deposit/final tracking on `Booking` is boolean status.
 
-3. **Array columns.** `CleaningZone.IncludesZoneIds` is a PostgreSQL `uuid[]` column (supported by EF Core), used for the Hela lägret bundle self-reference. Facility and cleaning *selections* are full child entities (with snapshots), not arrays.
+3. **Array columns.** `CleaningZone.IncludesZoneIds` is a PostgreSQL `uuid[]` column (supported by EF Core), used only for the Hela lägret bundle self-reference. Facility and cleaning *selections* are full child entities (with snapshots), not arrays.
 
 4. **Facility & cleaning selections are symmetric.** Both `BookingFacilitySelection` and `BookingCleaningSelection` are child entities with a live FK plus name/amount snapshots, so an agreed facility or cleaning price survives later edits to the reference record (NFR-33/34, resolved consistently with C6). This was previously an asymmetry (facilities were a bare ID array) — aligned in v0.32.
+
+5. **PhysicalBuilding is the cleaning/blocking level.** Cleaning is priced per physical building, so `CleaningZone` links to `PhysicalBuilding` by **FK** (not a `uuid[]` of building/facility IDs) — sleeping-cleaning resolves by the structural join room → `Building.PhysicalBuildingId` → `CleaningZone.PhysicalBuildingId` with referential integrity, and `Facility.PhysicalBuildingId` drives conference cleaning. The lodging `Building` (Blidö, …) is a *unit inside* a physical building; the level was promoted to a first-class entity (rather than a `CleaningZone`↔`Building` join table) because a concrete future use exists — blocking a whole physical building (e.g. all of Stora bostadslängan) in one action, a `BlockedPeriod.PhysicalBuilding` scope planned as a later slice.

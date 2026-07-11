@@ -6,8 +6,9 @@ namespace AkeroGarden.Web.Models;
 /// <summary>
 /// The public stay-request inquiry form (FR-03). Bound by the <c>/boka</c> page and passed to
 /// <see cref="Services.BookingService"/>. Cross-field rules (dates, org details, privacy
-/// acknowledgement) are validated here; the day-guest and cleaning-bundle rules are re-applied
-/// server-side by <see cref="Services.InquiryNormalizer"/> regardless of client input.
+/// acknowledgement) are validated here; the day-guest rule is re-applied server-side by
+/// <see cref="Services.InquiryNormalizer"/> regardless of client input. Cleaning is not
+/// selected here — it is chosen on the completion form (FR-93, §5.5).
 /// </summary>
 public class StayRequestInput : IValidatableObject
 {
@@ -52,8 +53,6 @@ public class StayRequestInput : IValidatableObject
     // Nullable: an unchecked checkbox group binds to null on form post — treated as empty by
     // InquiryNormalizer and the page markup.
     public List<Guid>? SelectedFacilityIds { get; set; } = [];
-
-    public List<Guid>? SelectedCleaningZoneIds { get; set; } = [];
 
     public bool IsOrganisation { get; set; }
 

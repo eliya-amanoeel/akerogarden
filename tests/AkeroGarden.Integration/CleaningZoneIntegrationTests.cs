@@ -10,6 +10,9 @@ namespace AkeroGarden.Integration;
 /// (FR-85–88, NFR-14): create, the uuid[] bundle round-trip, bundle validation against
 /// persisted zones, soft-deactivate, and hard-delete (no referents until Phase 3).
 /// Tests use unique names because the fixture's database is shared across the class.
+/// Zones use <see cref="CleaningZoneKind.Everything"/> throughout — the only Kind that needs no
+/// PhysicalBuildingId (§8.11) — since these tests exercise CRUD/bundle mechanics, not
+/// Kind/PhysicalBuilding applicability (covered separately).
 /// </summary>
 public class CleaningZoneIntegrationTests : IClassFixture<DbFixture>
 {
@@ -30,7 +33,7 @@ public class CleaningZoneIntegrationTests : IClassFixture<DbFixture>
         var service = NewService(out var scope);
         using var _s = scope;
 
-        var zone = new CleaningZone { Name = $"Huvudbyggnad-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m };
+        var zone = new CleaningZone { Name = $"Huvudbyggnad-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m, Kind = CleaningZoneKind.Everything };
         var result = await service.TryCreateAsync(zone);
         Assert.True(result.Succeeded);
 
@@ -47,8 +50,8 @@ public class CleaningZoneIntegrationTests : IClassFixture<DbFixture>
         var service = NewService(out var scope);
         using var _s = scope;
 
-        var a = new CleaningZone { Name = $"Lilla-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m };
-        var b = new CleaningZone { Name = $"Stora-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m };
+        var a = new CleaningZone { Name = $"Lilla-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m, Kind = CleaningZoneKind.Everything };
+        var b = new CleaningZone { Name = $"Stora-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m, Kind = CleaningZoneKind.Everything };
         Assert.True((await service.TryCreateAsync(a)).Succeeded);
         Assert.True((await service.TryCreateAsync(b)).Succeeded);
 
@@ -57,6 +60,7 @@ public class CleaningZoneIntegrationTests : IClassFixture<DbFixture>
             Name = $"Hela lägret-{Guid.NewGuid():N}",
             AmountExVat = 8000m,
             VatRate = 0.12m,
+            Kind = CleaningZoneKind.Everything,
             IncludesZoneIds = [a.Id, b.Id]
         };
         Assert.True((await service.TryCreateAsync(bundle)).Succeeded);
@@ -74,14 +78,14 @@ public class CleaningZoneIntegrationTests : IClassFixture<DbFixture>
         var service = NewService(out var scope);
         using var _s = scope;
 
-        var leaf = new CleaningZone { Name = $"Konferens-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m };
+        var leaf = new CleaningZone { Name = $"Konferens-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m, Kind = CleaningZoneKind.Everything };
         Assert.True((await service.TryCreateAsync(leaf)).Succeeded);
 
-        var bundle = new CleaningZone { Name = $"Bunt-{Guid.NewGuid():N}", AmountExVat = 4000m, VatRate = 0.12m, IncludesZoneIds = [leaf.Id] };
+        var bundle = new CleaningZone { Name = $"Bunt-{Guid.NewGuid():N}", AmountExVat = 4000m, VatRate = 0.12m, Kind = CleaningZoneKind.Everything, IncludesZoneIds = [leaf.Id] };
         Assert.True((await service.TryCreateAsync(bundle)).Succeeded);
 
         // A bundle that tries to include the existing bundle must be rejected.
-        var nested = new CleaningZone { Name = $"Nästlad-{Guid.NewGuid():N}", AmountExVat = 9000m, VatRate = 0.12m, IncludesZoneIds = [bundle.Id] };
+        var nested = new CleaningZone { Name = $"Nästlad-{Guid.NewGuid():N}", AmountExVat = 9000m, VatRate = 0.12m, Kind = CleaningZoneKind.Everything, IncludesZoneIds = [bundle.Id] };
         var result = await service.TryCreateAsync(nested);
 
         Assert.False(result.Succeeded);
@@ -95,7 +99,7 @@ public class CleaningZoneIntegrationTests : IClassFixture<DbFixture>
         var service = NewService(out var scope);
         using var _s = scope;
 
-        var zone = new CleaningZone { Name = $"Zon-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m };
+        var zone = new CleaningZone { Name = $"Zon-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m, Kind = CleaningZoneKind.Everything };
         Assert.True((await service.TryCreateAsync(zone)).Succeeded);
 
         await service.SetActiveAsync(zone.Id, false);
@@ -111,7 +115,7 @@ public class CleaningZoneIntegrationTests : IClassFixture<DbFixture>
         var service = NewService(out var scope);
         using var _s = scope;
 
-        var zone = new CleaningZone { Name = $"Tillfällig-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m };
+        var zone = new CleaningZone { Name = $"Tillfällig-{Guid.NewGuid():N}", AmountExVat = 2000m, VatRate = 0.12m, Kind = CleaningZoneKind.Everything };
         Assert.True((await service.TryCreateAsync(zone)).Succeeded);
 
         var result = await service.TryHardDeleteAsync(zone.Id);

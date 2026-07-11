@@ -38,9 +38,14 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
             db);
     }
 
+    // BookingReference (FR-92) carries a unique index; the class shares one database across every
+    // [Fact], so each booking needs a distinct reference even though these tests don't exercise
+    // the reference itself. A Guid-suffixed placeholder is enough (unlike BookingService, this
+    // doesn't need to wait for the DB-assigned SequenceNumber to produce the real AG-YYYY-NNNN form).
     private static Booking NewStayBooking() => new()
     {
         Id = Guid.NewGuid(),
+        BookingReference = $"AG-TEST-{Guid.NewGuid():N}"[..20],
         BookingType = BookingType.StayRequest,
         Status = BookingStatus.Approved,
         ContactName = "Anna Andersson",
@@ -208,8 +213,12 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
         var (buildings, rooms, _, db) = NewScope(out var scope);
         using var _s = scope;
 
-        var building = new Building { Name = $"Blidö-{Guid.NewGuid():N}", DisplayOrder = 1 };
-        await buildings.CreateAsync(building);
+        var pb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"Lilla-{Guid.NewGuid():N}" };
+        db.PhysicalBuildings.Add(pb);
+        await db.SaveChangesAsync();
+
+        var building = new Building { Name = $"Blidö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id, DisplayOrder = 1 };
+        await buildings.TryCreateAsync(building);
         var room = new Room { Name = "Rum 1", BedCount = 4, BuildingId = building.Id, DisplayOrder = 1 };
         await rooms.CreateAsync(room);
 
@@ -237,8 +246,12 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
         var (buildings, rooms, _, db) = NewScope(out var scope);
         using var _s = scope;
 
-        var building = new Building { Name = $"Ljusterö-{Guid.NewGuid():N}", DisplayOrder = 1 };
-        await buildings.CreateAsync(building);
+        var pb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"Lilla-{Guid.NewGuid():N}" };
+        db.PhysicalBuildings.Add(pb);
+        await db.SaveChangesAsync();
+
+        var building = new Building { Name = $"Ljusterö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id, DisplayOrder = 1 };
+        await buildings.TryCreateAsync(building);
         var room = new Room { Name = "Rum 1", BedCount = 3, BuildingId = building.Id, DisplayOrder = 1 };
         await rooms.CreateAsync(room);
 

@@ -6,7 +6,6 @@
 @using AkeroGarden.Web.Services
 @inject BookingService BookingService
 @inject FacilityService FacilityService
-@inject CleaningZoneService CleaningZoneService
 @inject NavigationManager Nav
 @attribute [Authorize]
 
@@ -78,21 +77,6 @@
             </fieldset>
         }
 
-        @if (_cleaningZones.Count > 0)
-        {
-            <fieldset class="form-group">
-                <legend>Städning</legend>
-                @foreach (var z in _cleaningZones)
-                {
-                    <label class="checkbox-row">
-                        <input type="checkbox" checked="@_selectedZones.Contains(z.Id)"
-                               @onchange="e => Toggle(_selectedZones, z.Id, e)" />
-                        @z.Name
-                    </label>
-                }
-            </fieldset>
-        }
-
         <div class="form-group"><label><InputCheckbox @bind-Value="_stay.IsOrganisation" /> Organisation</label></div>
         <div class="form-group"><label for="mb-orgname">Organisationsnamn</label><InputText id="mb-orgname" @bind-Value="_stay.OrgName" /></div>
         <div class="form-group"><label for="mb-orgnumber">Organisationsnummer</label><InputText id="mb-orgnumber" @bind-Value="_stay.OrgNumber" /></div>
@@ -123,14 +107,11 @@ else
     private StayRequestInput _stay = new() { AcceptPrivacyPolicy = true };
     private GeneralInquiryInput _general = new() { AcceptPrivacyPolicy = true };
     private readonly HashSet<Guid> _selectedFacilities = [];
-    private readonly HashSet<Guid> _selectedZones = [];
     private List<Facility> _facilities = [];
-    private List<CleaningZone> _cleaningZones = [];
 
     protected override async Task OnInitializedAsync()
     {
         _facilities = await FacilityService.GetActiveAsync();
-        _cleaningZones = await CleaningZoneService.GetActiveAsync();
     }
 
     private static void Toggle(HashSet<Guid> set, Guid id, ChangeEventArgs e)
@@ -141,7 +122,6 @@ else
     private async Task CreateStay()
     {
         _stay.SelectedFacilityIds = _selectedFacilities.ToList();
-        _stay.SelectedCleaningZoneIds = _selectedZones.ToList();
         var booking = await BookingService.CreateStayRequestAsync(_stay, createdByAdmin: true);
         Nav.NavigateTo($"/admin/bokningar/{booking.Id}");
     }

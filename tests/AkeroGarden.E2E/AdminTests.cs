@@ -15,6 +15,17 @@ namespace AkeroGarden.E2E;
 /// </summary>
 public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
 {
+    /// <summary>
+    /// Opens the collapsed (≤860px) admin menu via the hamburger. It's a CSS-only checkbox toggle
+    /// (the layout is static SSR — no circuit), so a single click on the label reliably reveals the
+    /// links; assert they're visible so a regression surfaces here.
+    /// </summary>
+    private async Task OpenMobileNavAsync()
+    {
+        await Page.Locator(".admin-nav__toggle").ClickAsync();
+        await Assertions.Expect(Page.Locator("#admin-nav-links")).ToBeVisibleAsync();
+    }
+
     /// <summary>Logs in through the real /login form and lands on /admin.</summary>
     private async Task LoginAsync()
     {
@@ -177,6 +188,36 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         await CaptureAsync("admin-booking-detail");
     }
 
+    [Fact]
+    public async Task Save_feedback_shows_as_a_toast_within_the_viewport_when_saving_far_down()
+    {
+        // Client feedback (Phase 8): saving payment status near the bottom of the detail page used to
+        // render the confirmation at the very top, so the admin had to scroll up to see it worked.
+        // It is now a fixed toast — assert it both appears and sits within the viewport after a save
+        // performed at the bottom of the page.
+        await LoginAsync();
+        await Page.GotoAsync("/admin/bokningar");
+        await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+        // Interactive Server: let the circuit connect before toggling @bind checkboxes / clicking.
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        var saveBtn = Page.GetByRole(AriaRole.Button, new() { Name = "Spara betalningsstatus" });
+        await saveBtn.ScrollIntoViewIfNeededAsync();
+        await Page.GetByLabel("Handpenning fakturerad").CheckAsync();
+        await saveBtn.ClickAsync();
+
+        var toast = Page.Locator(".form-status");
+        await Assertions.Expect(toast).ToBeVisibleAsync();
+        await Assertions.Expect(toast).ToContainTextAsync("Betalningsstatus är sparad.");
+
+        // Honest check of the actual claim: the toast is within the viewport without scrolling back up.
+        var box = await toast.BoundingBoxAsync();
+        var viewport = Page.ViewportSize!;
+        Assert.NotNull(box);
+        Assert.True(box!.Y >= 0 && box.Y + box.Height <= viewport.Height + 1,
+            $"Toast should sit within the viewport (y={box.Y}, h={box.Height}, viewportHeight={viewport.Height}).");
+    }
+
     // Slice 7: axe now sweeps every authenticated admin page — the operational dashboard, the
     // bookings list + manual-booking form, the calendar and blocks, and all six reference-data
     // CRUD screens plus accounts. (Booking detail needs a real {id} and is covered separately.)
@@ -239,9 +280,9 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
             string.Join("\n", serious.SelectMany(v => v.Nodes.Select(n => $"  [{v.Id}] {n.Html}"))));
     }
 
-    // Slice 7: responsive reachability sweep. Representative admin surfaces (dashboard, list, a CRUD
-    // screen) must keep their topbar title and the sidebar nav reachable at every breakpoint — the
-    // sidebar reflows to a top bar on mobile but its links never disappear.
+    // Slice 7 (updated Phase 8): responsive reachability sweep. Representative admin surfaces must keep
+    // their topbar title and the primary nav reachable at every breakpoint. ≤860px the sidebar collapses
+    // behind a hamburger, so on mobile/tablet the links are reached by opening the toggle first.
     [Theory]
     [InlineData("/admin", "Översikt")]
     [InlineData("/admin/bokningar", "Bokningar")]
@@ -259,26 +300,69 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
             // The topbar title anchors the page…
             await Assertions.Expect(Page.Locator(".admin-topbar").GetByRole(AriaRole.Heading, new() { Name = title }))
                 .ToBeVisibleAsync();
-            // …and the primary nav stays reachable at every width.
+
+            // …and the primary nav stays reachable at every width — on the collapsed (≤860px) layout by
+            // opening the hamburger, on desktop it's the always-on sidebar.
+            if (await Page.Locator(".admin-nav__toggle").IsVisibleAsync())
+                await OpenMobileNavAsync();
             await Assertions.Expect(Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" }))
                 .ToBeVisibleAsync();
         }
     }
 
     [Fact]
-    public async Task Sidebar_collapses_on_mobile()
+    public async Task Mobile_nav_collapses_behind_a_hamburger_toggle()
     {
         await LoginAsync();
 
-        // Desktop: full vertical sidebar with the group headings.
+        // Desktop: full vertical sidebar — links + group headings shown, no hamburger.
         await Page.SetViewportSizeAsync(Desktop.Width, Desktop.Height);
         await Page.GotoAsync("/admin");
         await Assertions.Expect(Page.Locator(".admin-nav__group").First).ToBeVisibleAsync();
+        await Assertions.Expect(Page.Locator(".admin-nav__toggle")).Not.ToBeVisibleAsync();
+        await Assertions.Expect(Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" }))
+            .ToBeVisibleAsync();
 
-        // Mobile: the sidebar reflows to a top bar (group headings hidden) but nav stays reachable.
+        // Mobile: links hidden by default, hamburger shown.
         await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
         await Page.GotoAsync("/admin");
-        await Assertions.Expect(Page.Locator(".admin-nav__group").First).Not.ToBeVisibleAsync();
-        await Assertions.Expect(Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" })).ToBeVisibleAsync();
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        var bokningar = Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" });
+        await Assertions.Expect(Page.Locator(".admin-nav__toggle")).ToBeVisibleAsync();
+        await Assertions.Expect(bokningar).Not.ToBeVisibleAsync();
+
+        // Tapping the hamburger reveals the links…
+        await OpenMobileNavAsync();
+        await Assertions.Expect(bokningar).ToBeVisibleAsync();
+
+        // …and navigating via a link closes the menu again.
+        await bokningar.ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/admin/bokningar$"));
+        await Assertions.Expect(Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" }))
+            .Not.ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Dashboard_cards_stack_and_avoid_horizontal_overflow_on_mobile()
+    {
+        await LoginAsync();
+        await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
+        await Page.GotoAsync("/admin");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        // The two top cards stack vertically on a phone rather than being squeezed side by side.
+        var cards = Page.Locator(".dash-grid > .card");
+        await Assertions.Expect(cards).ToHaveCountAsync(2);
+        var first = await cards.Nth(0).BoundingBoxAsync();
+        var second = await cards.Nth(1).BoundingBoxAsync();
+        Assert.NotNull(first);
+        Assert.NotNull(second);
+        Assert.True(second!.Y >= first!.Y + first.Height - 1,
+            $"Dashboard cards not stacked on mobile: first(y={first.Y}, h={first.Height}) second(y={second.Y}).");
+
+        // No page-level horizontal scroll at 360px (wide tables scroll inside their own box, not the page).
+        var docScrollWidth = await Page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
+        Assert.True(docScrollWidth <= Mobile.Width + 1,
+            $"Page overflows horizontally at {Mobile.Width}px: scrollWidth={docScrollWidth}.");
     }
 }

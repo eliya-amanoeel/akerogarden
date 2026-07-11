@@ -25,6 +25,7 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<BookingEmailService>();
             s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
+            s.AddScoped<CleaningZoneService>();
             s.AddScoped<BuildingService>();
             s.AddScoped<RoomService>();
             s.Configure<BookingEmailOptions>(o =>
@@ -45,12 +46,17 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
         IServiceProvider provider, DateOnly checkIn, DateOnly checkOut, int overnightGuests, params int[] bedCounts)
     {
         using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var buildings = scope.ServiceProvider.GetRequiredService<BuildingService>();
         var rooms = scope.ServiceProvider.GetRequiredService<RoomService>();
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
 
-        var building = new Building { Name = $"Blidö-{Guid.NewGuid():N}", DisplayOrder = 1 };
-        await buildings.CreateAsync(building);
+        var physicalBuilding = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"Lilla-{Guid.NewGuid():N}" };
+        db.PhysicalBuildings.Add(physicalBuilding);
+        await db.SaveChangesAsync();
+
+        var building = new Building { Name = $"Blidö-{Guid.NewGuid():N}", PhysicalBuildingId = physicalBuilding.Id, DisplayOrder = 1 };
+        await buildings.TryCreateAsync(building);
         for (var i = 0; i < bedCounts.Length; i++)
             await rooms.CreateAsync(new Room { Name = $"Rum {i + 1}", BedCount = bedCounts[i], BuildingId = building.Id, DisplayOrder = i + 1 });
 

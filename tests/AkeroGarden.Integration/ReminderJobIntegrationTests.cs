@@ -30,6 +30,7 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<BookingEmailService>();
             s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
+            s.AddScoped<CleaningZoneService>();
             s.AddScoped<ReminderJob>();
             s.Configure<BookingEmailOptions>(o =>
             {
@@ -76,6 +77,8 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
                 AgeCategory = AgeCategory.Adult,
             });
         db.Bookings.Add(booking);
+        await db.SaveChangesAsync();
+        booking.BookingReference = BookingReferencePolicy.Format(booking.SequenceNumber, booking.CreatedAt.Year);
         await db.SaveChangesAsync();
         return booking.Id;
     }

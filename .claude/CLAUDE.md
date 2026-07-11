@@ -30,18 +30,15 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 | File | Purpose |
 |---|---|
 | `REQUIREMENTS/requirements.md` | Main SRS — v0.33, single source of truth |
-| `REQUIREMENTS/erd.md` | Mermaid entity-relationship diagram (12 app entities) |
+| `REQUIREMENTS/erd.md` | Mermaid entity-relationship diagram (13 app entities) |
 | `REQUIREMENTS/implementation-plan.md` | 9-phase dependency-ordered build plan (0–7 done; 8 client feedback, 9 go-live) |
 | `UX/design.md` | Visual design tokens, CSS classes, logo usage |
-| `REQUIREMENTS/operational-tasks.md` | Pre-go-live blockers (privacy policy, images, VAT rates) |
-| `REQUIREMENTS/architect-review.md` | Round 1 + Round 2 review findings — all resolved |
-| `REQUIREMENTS/security-review.md` | Phase 7 security pass (NFR-01–07/25/30) — no vulns; 3 items deferred to live Azure verification (Phase 9) |
 
 ## Data model (EF Core entities)
 
 Defined in `REQUIREMENTS/requirements.md §8` and visualised in `REQUIREMENTS/erd.md`.
 
-Entities: `Booking`, `Building`, `Room`, `Participant`, `MealPreference`, `MealOption`, `Facility`, `PriceRule`, `BlockedPeriod`, `CleaningZone`, `BookingCleaningSelection`, `BookingFacilitySelection`.
+Entities: `Booking`, `PhysicalBuilding`, `Building`, `Room`, `Participant`, `MealPreference`, `MealOption`, `Facility`, `PriceRule`, `BlockedPeriod`, `CleaningZone`, `BookingCleaningSelection`, `BookingFacilitySelection`. (`PhysicalBuilding` = the physical building a lodging `Building` sits in; the level cleaning is priced at and a whole building is blocked at — see §8.14.)
 
 ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — excluded from the application data model.
 

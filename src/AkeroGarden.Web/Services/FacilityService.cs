@@ -48,6 +48,7 @@ public class FacilityService(ApplicationDbContext db)
         if (existing is null) return;
 
         existing.Name = input.Name;
+        existing.PhysicalBuildingId = input.PhysicalBuildingId;
         existing.Description = input.Description;
         existing.ImageUrl = input.ImageUrl;
         existing.AmountExVat = input.AmountExVat;

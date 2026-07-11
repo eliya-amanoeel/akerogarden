@@ -101,9 +101,9 @@ public class PublicReadQueriesIntegrationTests : IClassFixture<DbFixture>
         using var _s = scope;
         var prefix = $"Zone-{Guid.NewGuid():N}-";
 
-        await service.TryCreateAsync(new CleaningZone { Name = $"{prefix}B", AmountExVat = 500, VatRate = 0.25m, DisplayOrder = 2 });
-        await service.TryCreateAsync(new CleaningZone { Name = $"{prefix}A", AmountExVat = 400, VatRate = 0.25m, DisplayOrder = 1 });
-        var inactive = new CleaningZone { Name = $"{prefix}Z", AmountExVat = 600, VatRate = 0.25m, DisplayOrder = 3 };
+        await service.TryCreateAsync(new CleaningZone { Name = $"{prefix}B", AmountExVat = 500, VatRate = 0.25m, DisplayOrder = 2, Kind = CleaningZoneKind.Everything });
+        await service.TryCreateAsync(new CleaningZone { Name = $"{prefix}A", AmountExVat = 400, VatRate = 0.25m, DisplayOrder = 1, Kind = CleaningZoneKind.Everything });
+        var inactive = new CleaningZone { Name = $"{prefix}Z", AmountExVat = 600, VatRate = 0.25m, DisplayOrder = 3, Kind = CleaningZoneKind.Everything };
         await service.TryCreateAsync(inactive);
         await service.SetActiveAsync(inactive.Id, false);
 

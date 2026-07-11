@@ -21,6 +21,16 @@ public class Booking
 {
     public Guid Id { get; set; }
 
+    /// <summary>Database-generated identity — a global monotonic sequence (never reused, no
+    /// per-year reset). Powers <see cref="BookingReference"/> (FR-92).</summary>
+    public int SequenceNumber { get; set; }
+
+    /// <summary>Human-readable reference shown to guest and admin alike, format
+    /// <c>AG-YYYY-NNNN</c> (e.g. <c>AG-2026-0042</c>). <c>YYYY</c> is the creation year;
+    /// <c>NNNN</c> is <see cref="SequenceNumber"/> zero-padded to 4 digits. Frozen at creation,
+    /// never regenerated — not PII and not a security credential (FR-92).</summary>
+    public string BookingReference { get; set; } = string.Empty;
+
     public BookingType BookingType { get; set; }
 
     public BookingStatus Status { get; set; } = BookingStatus.Pending;
@@ -71,6 +81,21 @@ public class Booking
     public List<BookingFacilitySelection> FacilitySelections { get; set; } = [];
 
     public List<BookingCleaningSelection> CleaningSelections { get; set; } = [];
+
+    // ── Completion-form cleaning choice (FR-93, §5.5) ────────────────────────────
+    /// <summary>Huvudbyggnad self-clean/buy toggle. Snapshot row written to
+    /// <see cref="CleaningSelections"/> at completion submission. Null until completion / for
+    /// general inquiries.</summary>
+    public bool? MainBuildingCleaningPurchased { get; set; }
+
+    /// <summary>The combined sleeping-building(s) toggle — intent flag. Priced selection rows for
+    /// the occupied <see cref="CleaningZoneKind.SleepingBuilding"/> zone(s) are resolved from room
+    /// assignment (§8.5/8.11) and snapshotted when assignment is set/changed.</summary>
+    public bool? SleepingCleaningPurchased { get; set; }
+
+    /// <summary>Konferensbyggnad toggle — shown/settable only when the Konferensrum facility is
+    /// booked. Snapshot row written at completion submission.</summary>
+    public bool? ConferenceCleaningPurchased { get; set; }
 
     /// <summary>Participants captured on the completion form (Phase 4, §8.5) — overnight guests
     /// and day guests. Empty until the guest submits the completion form.</summary>

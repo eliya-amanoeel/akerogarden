@@ -4,6 +4,7 @@
 @using AkeroGarden.Web.Data.Entities
 @inject FacilityService FacilityService
 @inject IImageStorage ImageStorage
+@inject PhysicalBuildingService PhysicalBuildingService
 @attribute [Authorize]
 
 <PageTitle>Faciliteter — Åkerögården Admin</PageTitle>
@@ -27,6 +28,7 @@ else
                 <tr>
                     <th class="num">Ordning</th>
                     <th>Namn</th>
+                    <th>Fysisk byggnad</th>
                     <th>Bild</th>
                     <th>Status</th>
                     <th></th>
@@ -38,6 +40,7 @@ else
                     <tr>
                         <td class="num mono">@f.DisplayOrder</td>
                         <td><span class="rowlink">@f.Name</span></td>
+                        <td>@(f.PhysicalBuildingId is null ? "—" : PhysicalBuildingName(f.PhysicalBuildingId.Value))</td>
                         <td>@(string.IsNullOrEmpty(f.ImageUrl) ? "—" : "Ja")</td>
                         <td>
                             @if (f.IsActive)
@@ -104,6 +107,18 @@ else
         </div>
 
         <div class="form-group">
+            <label for="f-physical">Fysisk byggnad (valfritt)</label>
+            <InputSelect id="f-physical" @bind-Value="_form.PhysicalBuildingId">
+                <option value="">Ingen — påverkar ingen städzon</option>
+                @foreach (var pb in _physicalBuildings.Where(p => p.IsActive))
+                {
+                    <option value="@pb.Id">@pb.Name</option>
+                }
+            </InputSelect>
+            <p class="form-hint">Sätts bara om att boka faciliteten gör en fysisk byggnads städning aktuell (t.ex. Konferensrum → Konferensbyggnad).</p>
+        </div>
+
+        <div class="form-group">
             <label for="f-image">Bild (JPEG, PNG eller WebP, max 5 MB)</label>
             <InputFile id="f-image" OnChange="OnImageSelected" accept="image/jpeg,image/png,image/webp" />
             @if (_imageError is not null)
@@ -128,15 +143,23 @@ else
 
 @code {
     private List<Facility>? _facilities;
+    private List<PhysicalBuilding> _physicalBuildings = [];
     private Facility _form = new();
     private Guid? _editingId;
     private string? _message;
     private string? _imageError;
     private bool _uploading;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        _physicalBuildings = await PhysicalBuildingService.GetAllAsync();
+        await Load();
+    }
 
     private async Task Load() => _facilities = await FacilityService.GetAllAsync();
+
+    private string PhysicalBuildingName(Guid physicalBuildingId) =>
+        _physicalBuildings.FirstOrDefault(p => p.Id == physicalBuildingId)?.Name ?? "—";
 
     private async Task OnImageSelected(InputFileChangeEventArgs e)
     {
@@ -186,6 +209,7 @@ else
         {
             Id = f.Id,
             Name = f.Name,
+            PhysicalBuildingId = f.PhysicalBuildingId,
             Description = f.Description,
             ImageUrl = f.ImageUrl,
             AmountExVat = f.AmountExVat,

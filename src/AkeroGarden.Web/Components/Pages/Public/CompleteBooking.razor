@@ -7,6 +7,7 @@
 @inject BookingService BookingService
 @inject MealOptionService MealOptionService
 @inject RoomAvailabilityService RoomAvailability
+@inject CleaningZoneService CleaningZoneService
 
 @* Token-authenticated booking completion page (§6.6, FR-54..62). Static SSR: the token in the URL
    is the sole auth, validated server-side on every request; the submit handler re-validates before
@@ -91,36 +92,54 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                         <input type="hidden" name="Form.GroupDefaultFullBoard" value="false" />
                         <label for="gd-fullboard">Helpension för alla (måltider ingår)</label>
                     </div>
-                    @if (_lunchOptions.Count >= 2 || _dinnerOptions.Count >= 2)
+                    @{
+                        // A group-default select per serving slot, aligned by slot index to the
+                        // participant rows so a value cascades to that same day/meal for everyone.
+                        var gdSlots = _slots.Select((s, si) => (Slot: s, SlotIndex: si)).ToList();
+                        bool HasChoice(MealSlot s) =>
+                            (s.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions).Count >= 2;
+                    }
+                    @if (gdSlots.Any(x => HasChoice(x.Slot)))
                     {
-                        <div class="group-default__grid">
-                            @if (_lunchOptions.Count >= 2)
+                        <p class="group-default__hint" data-groupdefault-days>Välj måltider per dag – de kopieras till alla deltagare. Justera per person längre ned vid behov.</p>
+                        <div class="meals group-default__days" data-groupdefault-days>
+                            @foreach (var dateGroup in gdSlots.GroupBy(x => x.Slot.Date))
                             {
-                                <div>
-                                    <label class="field-label" for="gd-lunch">Standard lunch alla dagar</label>
-                                    <select class="inp" id="gd-lunch" name="Form.GroupDefaultLunch" data-groupdefault-meal="Lunch">
-                                        <option value="">– välj –</option>
-                                        @foreach (var o in _lunchOptions)
-                                        {
-                                            <option value="@o.Id" selected="@(_form.GroupDefaultLunch == o.Id.ToString())">@o.Name</option>
-                                        }
-                                    </select>
-                                </div>
-                            }
-                            @if (_dinnerOptions.Count >= 2)
-                            {
-                                <div>
-                                    <label class="field-label" for="gd-dinner">Standard middag alla dagar</label>
-                                    <select class="inp" id="gd-dinner" name="Form.GroupDefaultDinner" data-groupdefault-meal="Dinner">
-                                        <option value="">– välj –</option>
-                                        @foreach (var o in _dinnerOptions)
-                                        {
-                                            <option value="@o.Id" selected="@(_form.GroupDefaultDinner == o.Id.ToString())">@o.Name</option>
-                                        }
-                                    </select>
-                                </div>
+                                @if (dateGroup.Any(x => HasChoice(x.Slot)))
+                                {
+                                    <div class="day">
+                                        <p class="day__date">@Capitalize(dateGroup.Key.ToString("dddd d MMMM", Sv))</p>
+                                        <div class="day__meals">
+                                            @foreach (var item in dateGroup.Where(x => HasChoice(x.Slot)))
+                                            {
+                                                var slotIndex = item.SlotIndex;
+                                                var options = item.Slot.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
+                                                var mealLabel = item.Slot.MealType == MealType.Lunch ? "Lunch" : "Middag";
+                                                var gdChosen = _form.GroupDefaultMeals.ElementAtOrDefault(slotIndex);
+                                                <div>
+                                                    <label for="gd-m@(slotIndex)">@mealLabel</label>
+                                                    <select class="inp" id="gd-m@(slotIndex)" name="Form.GroupDefaultMeals[@slotIndex]"
+                                                            data-groupdefault-slot="@slotIndex" data-meal="@item.Slot.MealType">
+                                                        <option value="">– välj –</option>
+                                                        @foreach (var o in options)
+                                                        {
+                                                            <option value="@o.Id" selected="@(gdChosen == o.Id.ToString())">@o.Name</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                            }
+                                        </div>
+                                    </div>
+                                }
                             }
                         </div>
+                        @* Hidden placeholders for the non-choice slots keep Form.GroupDefaultMeals a
+                           contiguous 0..N-1 collection, so the SSR binder round-trips the chosen values
+                           across an add/remove-day-guest postback (a gap at index 0 would drop them). *@
+                        @foreach (var item in gdSlots.Where(x => !HasChoice(x.Slot)))
+                        {
+                            <input type="hidden" name="Form.GroupDefaultMeals[@item.SlotIndex]" value="" />
+                        }
                     }
                 </div>
 
@@ -200,7 +219,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                                         <div>
                                                             <label for="p@(index)-m@(slotIndex)">@mealLabel</label>
                                                             <select class="inp" id="p@(index)-m@(slotIndex)" name="Form.Overnight[@index].MealChoices[@slotIndex]"
-                                                                    data-participant="@index" data-meal="@slot.MealType">
+                                                                    data-participant="@index" data-meal="@slot.MealType" data-slot="@slotIndex">
                                                                 <option value="">– välj –</option>
                                                                 @foreach (var o in options)
                                                                 {
@@ -360,6 +379,30 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                             formaction="@($"/slutfor/{Token}#dagsgaster")" class="btn-outline" formnovalidate>+ Lägg till dagsgäst</button>
                 }
 
+                <h2>Städning</h2>
+                <p class="sec-note">Standard är att ni städar själva. Kryssa i om ni i stället vill köpa städning — vi fakturerar det separat.</p>
+
+                <div class="fbrow">
+                    <input type="checkbox" id="clean-main" name="Form.MainBuildingCleaning" value="true" checked="@_form.MainBuildingCleaning" />
+                    <input type="hidden" name="Form.MainBuildingCleaning" value="false" />
+                    <label for="clean-main">Huvudbyggnad (matsal &amp; gemensamma ytor)</label>
+                </div>
+
+                <div class="fbrow">
+                    <input type="checkbox" id="clean-sleeping" name="Form.SleepingCleaning" value="true" checked="@_form.SleepingCleaning" />
+                    <input type="hidden" name="Form.SleepingCleaning" value="false" />
+                    <label for="clean-sleeping">Sovbyggnad(er) ni bor i</label>
+                </div>
+
+                @if (_conferenceCleaningApplicable)
+                {
+                    <div class="fbrow">
+                        <input type="checkbox" id="clean-conference" name="Form.ConferenceCleaning" value="true" checked="@_form.ConferenceCleaning" />
+                        <input type="hidden" name="Form.ConferenceCleaning" value="false" />
+                        <label for="clean-conference">Konferensbyggnad</label>
+                    </div>
+                }
+
                 <h2>Faktureringsuppgifter</h2>
                 <div class="fbrow">
                     <input type="checkbox" id="is-org" name="Form.IsOrganisation" value="true" checked="@_form.IsOrganisation" />
@@ -453,6 +496,7 @@ else
     private bool _guestChoosesRooms;
     private IReadOnlyList<RoomInfo> _availableRooms = [];
     private IReadOnlyList<string> _errors = [];
+    private bool _conferenceCleaningApplicable;
 
     private static readonly AgeCategory[] AgeCategories = [AgeCategory.Adult, AgeCategory.Child, AgeCategory.Infant];
     private static readonly DietaryRequirement[] DietaryOptions =
@@ -488,6 +532,11 @@ else
             if (_guestChoosesRooms)
                 _availableRooms = await RoomAvailability.GetAvailableRoomsAsync(_booking.Id);
 
+            // Konferensbyggnad toggle (§5.5, FR-93) only shown when the Konferensrum facility was
+            // actually requested — Huvudbyggnad/Sovbyggnader always apply since a stay request
+            // always has overnight lodging.
+            _conferenceCleaningApplicable = await CleaningZoneService.IsConferenceCleaningApplicableAsync(_booking.Id);
+
             // On POST the framework binds Form; on GET (or a post that bound no participant rows)
             // seed a blank form (one row per overnight guest). Guarding Overnight — not just Form —
             // is essential: the SSR binder can hand back a non-null Form with a null Overnight.
@@ -503,6 +552,12 @@ else
             _form.DayGuests ??= [];
             foreach (var dg in _form.DayGuests)
                 dg.Dietary ??= [];
+
+            // The per-slot group defaults (presentation only) may bind back null or short on a POST;
+            // pad to the slot count so ElementAtOrDefault aligns by index on the re-render.
+            _form.GroupDefaultMeals ??= [];
+            while (_form.GroupDefaultMeals.Count < _slots.Count)
+                _form.GroupDefaultMeals.Add(null);
         }
 
         _loaded = true;
@@ -562,6 +617,7 @@ else
         var form = new CompletionFormModel
         {
             GroupDefaultFullBoard = defaultFullBoard,
+            GroupDefaultMeals = Enumerable.Repeat<string?>(null, slotCount).ToList(),
             IsOrganisation = booking.IsOrganisation,
             OrgName = booking.OrgName,
             OrgNumber = booking.OrgNumber,

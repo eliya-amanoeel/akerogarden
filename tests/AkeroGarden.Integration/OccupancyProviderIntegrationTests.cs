@@ -36,6 +36,17 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
         return building.Id;
     }
 
+    /// <summary>Inserts a booking and assigns its BookingReference (FR-92) from the DB-generated
+    /// SequenceNumber — the same two-phase pattern BookingService uses — since the shared per-class
+    /// database's unique index on BookingReference rejects a second empty-string row otherwise.</summary>
+    private static async Task AddBookingAsync(ApplicationDbContext db, Booking booking)
+    {
+        db.Bookings.Add(booking);
+        await db.SaveChangesAsync();
+        booking.BookingReference = BookingReferencePolicy.Format(booking.SequenceNumber, booking.CreatedAt.Year);
+        await db.SaveChangesAsync();
+    }
+
     private static Booking Booking(BookingStatus status, DateOnly checkIn, DateOnly checkOut, int guests) => new()
     {
         Id = Guid.NewGuid(),
@@ -62,14 +73,12 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
         var date = new DateOnly(2027, 3, 10);
 
         // Pending must not count.
-        db.Bookings.Add(Booking(BookingStatus.Pending, date, date.AddDays(2), 999));
-        await db.SaveChangesAsync();
+        await AddBookingAsync(db, Booking(BookingStatus.Pending, date, date.AddDays(2), 999));
         var states = await provider.GetStatesAsync(date, date);
         Assert.Equal(AvailabilityState.Free, states[date]);
 
         // Approved must count → 999 guests exceeds any capacity → Fully booked.
-        db.Bookings.Add(Booking(BookingStatus.Approved, date, date.AddDays(2), 999));
-        await db.SaveChangesAsync();
+        await AddBookingAsync(db, Booking(BookingStatus.Approved, date, date.AddDays(2), 999));
         states = await provider.GetStatesAsync(date, date);
         Assert.Equal(AvailabilityState.FullyBooked, states[date]);
     }

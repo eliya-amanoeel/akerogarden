@@ -21,25 +21,49 @@ public class BuildingService(ApplicationDbContext db)
     public async Task<Building?> GetAsync(Guid id) =>
         await db.Buildings.FindAsync(id);
 
-    public async Task CreateAsync(Building building)
+    /// <summary>Creates a building after validating it references a physical building (FR-13).</summary>
+    public async Task<SaveResult> TryCreateAsync(Building building)
     {
+        var error = await ValidatePhysicalBuildingAsync(building.PhysicalBuildingId);
+        if (error is not null) return SaveResult.Fail(error);
+
         building.Id = Guid.NewGuid();
         db.Buildings.Add(building);
         await db.SaveChangesAsync();
+        return SaveResult.Success;
     }
 
-    /// <summary>Updates the editable fields of an existing building (FR-14).</summary>
-    public async Task UpdateAsync(Building input)
+    /// <summary>Updates the editable fields of an existing building, re-validating its physical
+    /// building reference (FR-14).</summary>
+    public async Task<SaveResult> TryUpdateAsync(Building input)
     {
         var existing = await db.Buildings.FindAsync(input.Id);
-        if (existing is null) return;
+        if (existing is null) return SaveResult.Fail("Byggnaden kunde inte hittas.");
+
+        var error = await ValidatePhysicalBuildingAsync(input.PhysicalBuildingId);
+        if (error is not null) return SaveResult.Fail(error);
 
         existing.Name = input.Name;
+        existing.PhysicalBuildingId = input.PhysicalBuildingId;
         existing.Description = input.Description;
         existing.SharedFacilities = input.SharedFacilities;
         existing.IsAccessible = input.IsAccessible;
         existing.DisplayOrder = input.DisplayOrder;
         await db.SaveChangesAsync();
+        return SaveResult.Success;
+    }
+
+    /// <summary>
+    /// Required-FK guard: <see cref="Building.PhysicalBuildingId"/> is a non-nullable Guid, so
+    /// <c>[Required]</c> alone never catches an unset (default) value from a dropdown a user
+    /// never touched — this validates it explicitly (§8.14, FR-13).
+    /// </summary>
+    private async Task<string?> ValidatePhysicalBuildingAsync(Guid physicalBuildingId)
+    {
+        if (physicalBuildingId == Guid.Empty)
+            return "Fysisk byggnad krävs.";
+        var exists = await db.PhysicalBuildings.AnyAsync(p => p.Id == physicalBuildingId);
+        return exists ? null : "Vald fysisk byggnad finns inte.";
     }
 
     /// <summary>

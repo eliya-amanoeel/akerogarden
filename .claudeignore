@@ -1,0 +1,11 @@
+# Build output — compiled DLLs + Playwright browser binaries (~1.4 GB across bin/),
+# plus generated .g.cs / .AssemblyInfo.cs under obj/ that otherwise pollute code searches.
+**/bin/
+**/obj/
+
+# Local dev secrets — never pull these into context (.env.example stays, it's the template).
+.env
+.env.local
+
+# OS / editor cruft
+**/.DS_Store

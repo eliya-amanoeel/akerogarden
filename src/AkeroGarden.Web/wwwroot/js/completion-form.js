@@ -48,10 +48,21 @@
 
     // Group defaults (FR-59, scaled to the whole group): cascade one choice to every participant.
     // "Helpension för alla" toggles every participant's full-board box and re-syncs their meal
-    // visibility; each standard meal select copies into every matching per-day select for everyone.
+    // visibility; each per-day standard select copies into that same slot (day + meal) for everyone.
+    // Show the per-day group-default meal pickers only when "Helpension för alla" is checked —
+    // mirrors syncMeals's per-participant gating so a self-catering/half-board group isn't shown
+    // meal dropdowns it can't use.
+    function syncGroupDefaultMeals(checkbox) {
+        document.querySelectorAll("[data-groupdefault-days]").forEach(function (el) {
+            el.style.display = checkbox.checked ? "" : "none";
+        });
+    }
+
     var gdFullBoard = document.querySelector("[data-groupdefault-fullboard]");
     if (gdFullBoard) {
+        syncGroupDefaultMeals(gdFullBoard);
         gdFullBoard.addEventListener("change", function () {
+            syncGroupDefaultMeals(gdFullBoard);
             document.querySelectorAll("input[data-fullboard-participant]").forEach(function (cb) {
                 cb.checked = gdFullBoard.checked;
                 cb.dispatchEvent(new Event("change", { bubbles: true }));
@@ -59,13 +70,13 @@
         });
     }
 
-    document.querySelectorAll("select[data-groupdefault-meal]").forEach(function (source) {
+    document.querySelectorAll("select[data-groupdefault-slot]").forEach(function (source) {
         source.addEventListener("change", function () {
-            var meal = source.getAttribute("data-groupdefault-meal");
+            var slot = source.getAttribute("data-groupdefault-slot");
             if (!source.value) {
                 return;
             }
-            document.querySelectorAll('select[data-participant][data-meal="' + meal + '"]').forEach(function (target) {
+            document.querySelectorAll('select[data-participant][data-slot="' + slot + '"]').forEach(function (target) {
                 target.value = source.value;
             });
         });

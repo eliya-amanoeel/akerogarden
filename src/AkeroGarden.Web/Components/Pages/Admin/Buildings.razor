@@ -4,6 +4,7 @@
 @using AkeroGarden.Web.Data.Entities
 @inject BuildingService BuildingService
 @inject RoomService RoomService
+@inject PhysicalBuildingService PhysicalBuildingService
 @attribute [Authorize]
 
 <PageTitle>Byggnader &amp; rum — Åkerögården Admin</PageTitle>
@@ -27,6 +28,7 @@ else
                 <tr>
                     <th class="num">Ordning</th>
                     <th>Namn</th>
+                    <th>Fysisk byggnad</th>
                     <th>Tillgänglighetsanpassad</th>
                     <th>Status</th>
                     <th></th>
@@ -38,6 +40,7 @@ else
                     <tr>
                         <td class="num mono">@b.DisplayOrder</td>
                         <td><span class="rowlink">@b.Name</span></td>
+                        <td>@PhysicalBuildingName(b.PhysicalBuildingId)</td>
                         <td>@(b.IsAccessible ? "Ja" : "Nej")</td>
                         <td>
                             @if (b.IsActive)
@@ -78,6 +81,18 @@ else
             <label for="b-name">Namn</label>
             <InputText id="b-name" @bind-Value="_buildingForm.Name" />
             <ValidationMessage For="() => _buildingForm.Name" />
+        </div>
+
+        <div class="form-group">
+            <label for="b-physical">Fysisk byggnad</label>
+            <InputSelect id="b-physical" @bind-Value="_buildingForm.PhysicalBuildingId">
+                <option value="">Välj fysisk byggnad…</option>
+                @foreach (var pb in _physicalBuildings.Where(p => p.IsActive))
+                {
+                    <option value="@pb.Id">@pb.Name</option>
+                }
+            </InputSelect>
+            <ValidationMessage For="() => _buildingForm.PhysicalBuildingId" />
         </div>
 
         <div class="form-group">
@@ -210,6 +225,7 @@ else
 
 @code {
     private List<Building>? _buildings;
+    private List<PhysicalBuilding> _physicalBuildings = [];
     private Building _buildingForm = new();
     private Guid? _editingBuildingId;
 
@@ -220,9 +236,18 @@ else
 
     private string? _message;
 
-    protected override async Task OnInitializedAsync() => await LoadBuildings();
+    protected override async Task OnInitializedAsync()
+    {
+        // All (not just active) so the table can still show the name of a physical building that
+        // was since deactivated; the dropdown below filters to active for new selections.
+        _physicalBuildings = await PhysicalBuildingService.GetAllAsync();
+        await LoadBuildings();
+    }
 
     private async Task LoadBuildings() => _buildings = await BuildingService.GetAllAsync();
+
+    private string PhysicalBuildingName(Guid physicalBuildingId) =>
+        _physicalBuildings.FirstOrDefault(p => p.Id == physicalBuildingId)?.Name ?? "—";
 
     // ── Buildings ──────────────────────────────────────────────────────────────
     private void NewBuilding()
@@ -238,6 +263,7 @@ else
         {
             Id = b.Id,
             Name = b.Name,
+            PhysicalBuildingId = b.PhysicalBuildingId,
             Description = b.Description,
             SharedFacilities = b.SharedFacilities,
             IsAccessible = b.IsAccessible,
@@ -247,16 +273,19 @@ else
 
     private async Task SaveBuilding()
     {
-        if (_editingBuildingId is null)
+        var result = _editingBuildingId is null
+            ? await BuildingService.TryCreateAsync(_buildingForm)
+            : await BuildingService.TryUpdateAsync(_buildingForm);
+
+        if (!result.Succeeded)
         {
-            await BuildingService.CreateAsync(_buildingForm);
-            _message = $"Byggnaden \"{_buildingForm.Name}\" har lagts till.";
+            _message = result.Error;
+            return;
         }
-        else
-        {
-            await BuildingService.UpdateAsync(_buildingForm);
-            _message = $"Byggnaden \"{_buildingForm.Name}\" har uppdaterats.";
-        }
+
+        _message = _editingBuildingId is null
+            ? $"Byggnaden \"{_buildingForm.Name}\" har lagts till."
+            : $"Byggnaden \"{_buildingForm.Name}\" har uppdaterats.";
 
         NewBuilding();
         await LoadBuildings();

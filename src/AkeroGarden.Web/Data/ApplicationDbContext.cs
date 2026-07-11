@@ -36,6 +36,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Participant> Participants => Set<Participant>();
     public DbSet<MealPreference> MealPreferences => Set<MealPreference>();
 
+    // Phase 8: cleaning rework — PhysicalBuilding (§8.14).
+    public DbSet<PhysicalBuilding> PhysicalBuildings => Set<PhysicalBuilding>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -49,6 +52,15 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 // The app-level guard (BuildingService) blocks it first with a Swedish message;
                 // this is defence in depth, consistent with the no-hard-delete-of-referenced rule.
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Required FK → PhysicalBuilding (§8.14, FR-13). Restrict so a physical building with
+            // lodging units cannot be hard-deleted — defence in depth behind
+            // PhysicalBuildingService.CanHardDelete.
+            b.HasOne(x => x.PhysicalBuilding!)
+                .WithMany()
+                .HasForeignKey(x => x.PhysicalBuildingId)
+                .OnDelete(DeleteBehavior.Restrict);
+            b.HasIndex(x => x.PhysicalBuildingId);
         });
 
         builder.Entity<MealOption>(m =>
@@ -71,6 +83,19 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             c.Property(x => x.AmountExVat).HasPrecision(18, 2);
             c.Property(x => x.VatRate).HasPrecision(5, 4);
             // IncludesZoneIds maps to a native PostgreSQL uuid[] column (Npgsql).
+
+            // Enums persisted as strings: legible in the DB and stable against reordering.
+            c.Property(x => x.Kind).HasConversion<string>().HasMaxLength(20);
+
+            // Nullable FK → PhysicalBuilding (§8.11) — null only for the Everything bundle
+            // (validated in CleaningZoneService, not a DB constraint). Restrict so a physical
+            // building referenced by a zone cannot be hard-deleted — defence in depth behind
+            // PhysicalBuildingService.CanHardDelete.
+            c.HasOne(x => x.PhysicalBuilding)
+                .WithMany()
+                .HasForeignKey(x => x.PhysicalBuildingId)
+                .OnDelete(DeleteBehavior.Restrict);
+            c.HasIndex(x => x.PhysicalBuildingId);
         });
 
         builder.Entity<Facility>(f =>
@@ -78,6 +103,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             // Reference figures only, mirroring CleaningZone/PriceRule — no totals (C8).
             f.Property(x => x.AmountExVat).HasPrecision(18, 2);
             f.Property(x => x.VatRate).HasPrecision(5, 4); // fraction, e.g. 0.2500
+
+            // Nullable FK → PhysicalBuilding (§8.8) — set only for facilities that put a
+            // physical building's cleaning in play (Konferensrum → Konferensbyggnad). Restrict so
+            // a referenced physical building cannot be hard-deleted — defence in depth behind
+            // PhysicalBuildingService.CanHardDelete.
+            f.HasOne(x => x.PhysicalBuilding)
+                .WithMany()
+                .HasForeignKey(x => x.PhysicalBuildingId)
+                .OnDelete(DeleteBehavior.Restrict);
+            f.HasIndex(x => x.PhysicalBuildingId);
         });
 
         // ── Phase 3: booking lifecycle ──────────────────────────────────────────
@@ -88,6 +123,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.Property(x => x.Status).HasConversion<string>().HasMaxLength(30);
             b.Property(x => x.MealPlan).HasConversion<string>().HasMaxLength(30);
             b.Property(x => x.CancellationInitiator).HasConversion<string>().HasMaxLength(30);
+
+            // Global monotonic sequence backing BookingReference (FR-92) — DB-generated so it is
+            // race-free under concurrent inserts; the Guid Id stays the primary key.
+            b.Property(x => x.SequenceNumber).ValueGeneratedOnAdd().UseIdentityAlwaysColumn();
+            b.Property(x => x.BookingReference).HasMaxLength(20);
+            b.HasIndex(x => x.BookingReference).IsUnique();
 
             // Filter the booking list by status and type without scanning (FR-36).
             b.HasIndex(x => x.Status);

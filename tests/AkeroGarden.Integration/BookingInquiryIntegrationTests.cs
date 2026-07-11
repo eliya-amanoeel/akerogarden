@@ -30,6 +30,7 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<BookingEmailService>();
             s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
+            s.AddScoped<CleaningZoneService>();
             s.AddScoped<FacilityService>();
             s.Configure<BookingEmailOptions>(o =>
             {
@@ -56,36 +57,17 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
         return f;
     }
 
-    private static async Task<CleaningZone> SeedZoneAsync(
-        ApplicationDbContext db, decimal amount, decimal vat, params Guid[] includes)
-    {
-        var z = new CleaningZone
-        {
-            Id = Guid.NewGuid(),
-            Name = $"Zon-{Guid.NewGuid():N}",
-            AmountExVat = amount,
-            VatRate = vat,
-            IsActive = true,
-            IncludesZoneIds = includes.ToList()
-        };
-        db.CleaningZones.Add(z);
-        await db.SaveChangesAsync();
-        return z;
-    }
-
     [Fact]
     public async Task CreateStayRequest_PersistsPending_WithSnapshots_AndSendsBothEmails()
     {
         var provider = NewProvider(out var email);
         Guid bookingId;
         Facility facility;
-        CleaningZone zone;
 
         using (var scope = provider.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             facility = await SeedFacilityAsync(db, amount: 1000m, vat: 0.25m);
-            zone = await SeedZoneAsync(db, amount: 2000m, vat: 0.12m);
 
             var service = scope.ServiceProvider.GetRequiredService<BookingService>();
             var booking = await service.CreateStayRequestAsync(new StayRequestInput
@@ -97,7 +79,6 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
                 OvernightGuestCount = 12,
                 MealPlan = MealPlan.FullBoardAll,
                 SelectedFacilityIds = [facility.Id],
-                SelectedCleaningZoneIds = [zone.Id],
                 AcceptPrivacyPolicy = true
             });
             bookingId = booking.Id;
@@ -114,15 +95,20 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
             Assert.Equal(BookingStatus.Pending, reloaded.Status);
             Assert.Equal(BookingType.StayRequest, reloaded.BookingType);
             Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(12), reloaded.DeleteAfter);
+            // FR-92: reference is assigned at creation, format AG-YYYY-NNNN from the real DB sequence.
+            Assert.Matches(@"^AG-\d{4}-\d{4}$", reloaded.BookingReference);
+            Assert.True(reloaded.SequenceNumber > 0);
 
             var fs = Assert.Single(reloaded.FacilitySelections);
             Assert.Equal(facility.Name, fs.FacilityNameSnapshot);
             Assert.Equal(1000m, fs.AmountExVatSnapshot);
             Assert.Equal(0.25m, fs.VatRateSnapshot);
 
-            var cs = Assert.Single(reloaded.CleaningSelections);
-            Assert.Equal(zone.Name, cs.ZoneNameSnapshot);
-            Assert.Equal(2000m, cs.AmountExVatSnapshot);
+            // Cleaning is not selected at inquiry (FR-03) — it moves to the completion form (FR-93).
+            Assert.Empty(reloaded.CleaningSelections);
+            Assert.Null(reloaded.MainBuildingCleaningPurchased);
+            Assert.Null(reloaded.SleepingCleaningPurchased);
+            Assert.Null(reloaded.ConferenceCleaningPurchased);
         }
 
         Assert.Contains(email.Sent, e => e.ToAddress == "anna@test.se");   // guest ack (FR-05)
@@ -152,34 +138,6 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task CreateStayRequest_BundleDropsCoveredZones()
-    {
-        var provider = NewProvider(out _);
-        using var scope = provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-        var a = await SeedZoneAsync(db, 2000m, 0.12m);
-        var b = await SeedZoneAsync(db, 2000m, 0.12m);
-        var bundle = await SeedZoneAsync(db, 8000m, 0.12m, a.Id, b.Id);
-
-        var service = scope.ServiceProvider.GetRequiredService<BookingService>();
-        var booking = await service.CreateStayRequestAsync(new StayRequestInput
-        {
-            ContactName = "Cecilia",
-            ContactEmail = "cecilia@test.se",
-            CheckIn = new DateOnly(2026, 10, 1),
-            CheckOut = new DateOnly(2026, 10, 4),
-            OvernightGuestCount = 20,
-            MealPlan = MealPlan.FullBoardAll,
-            SelectedCleaningZoneIds = [bundle.Id, a.Id, b.Id], // bundle + covered zones
-            AcceptPrivacyPolicy = true
-        });
-
-        var selection = Assert.Single(booking.CleaningSelections);
-        Assert.Equal(bundle.Id, selection.CleaningZoneId);
-    }
-
-    [Fact]
     public async Task CreateGeneralInquiry_PersistsPending_AndSendsBothEmails()
     {
         var provider = NewProvider(out var email);
@@ -202,6 +160,39 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
 
         Assert.Contains(email.Sent, e => e.ToAddress == "david@test.se");
         Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se");
+        // FR-92: general inquiries get a reference too, not just stay requests.
+        Assert.Matches(@"^AG-\d{4}-\d{4}$", booking.BookingReference);
+    }
+
+    [Fact]
+    public async Task BookingReference_IsUniquePerBooking_AcrossStayRequestsAndGeneralInquiries()
+    {
+        // FR-92: the global sequence is shared across both booking types and never repeats — no
+        // per-year reset, so this only asserts uniqueness and monotonic growth, not a reset to 1.
+        var provider = NewProvider(out _);
+        using var scope = provider.CreateScope();
+        var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+
+        var first = await service.CreateGeneralInquiryAsync(new GeneralInquiryInput
+        {
+            ContactName = "Filip",
+            ContactEmail = "filip@test.se",
+            Message = "Fråga ett",
+            AcceptPrivacyPolicy = true
+        });
+        var second = await service.CreateStayRequestAsync(new StayRequestInput
+        {
+            ContactName = "Greta",
+            ContactEmail = "greta@test.se",
+            CheckIn = new DateOnly(2026, 12, 1),
+            CheckOut = new DateOnly(2026, 12, 3),
+            OvernightGuestCount = 2,
+            MealPlan = MealPlan.FullBoardAll,
+            AcceptPrivacyPolicy = true
+        });
+
+        Assert.NotEqual(first.BookingReference, second.BookingReference);
+        Assert.True(second.SequenceNumber > first.SequenceNumber);
     }
 
     [Fact]

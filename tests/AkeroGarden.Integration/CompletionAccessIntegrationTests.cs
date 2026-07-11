@@ -29,6 +29,7 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<BookingEmailService>();
             s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
+            s.AddScoped<CleaningZoneService>();
             s.Configure<BookingEmailOptions>(o =>
             {
                 o.PublicBaseUrl = "https://akerogarden.se";

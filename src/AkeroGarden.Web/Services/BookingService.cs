@@ -6,16 +6,20 @@ using Microsoft.EntityFrameworkCore;
 namespace AkeroGarden.Web.Services;
 
 /// <summary>
-/// Creates and (in later slices) transitions bookings. Inquiry creation applies the
-/// server-authoritative normalisation of <see cref="InquiryNormalizer"/>, captures price
-/// snapshots on the facility/cleaning selections (NFR-33/34), computes the initial retention
-/// date (FR-91), and fires the acknowledgement + admin notification emails (FR-05/06) — whose
-/// delivery is best-effort and never fails the booking (NFR-13).
+/// Creates and transitions bookings. Inquiry creation applies the server-authoritative
+/// normalisation of <see cref="InquiryNormalizer"/>, captures a price snapshot on each facility
+/// selection (NFR-34; cleaning is not selected at inquiry — it moves to the completion form,
+/// FR-93), computes the initial retention date (FR-91), and fires the acknowledgement + admin
+/// notification emails (FR-05/06) — whose delivery is best-effort and never fails the booking
+/// (NFR-13). Completion submission (FR-93, §5.5) snapshots the Huvudbyggnad/Konferensbyggnad
+/// cleaning choices immediately and resolves the sleeping-building selection from room assignment
+/// (§8.12), refreshed whenever room assignment is set or changed.
 ///
-/// <para>Status changes (approve/deny/close/cancel) are added in slice 4 and will route through
+/// <para>Status changes (approve/deny/close/cancel) route through
 /// <see cref="BookingStateMachine"/>; this service is the only place bookings are mutated.</para>
 /// </summary>
-public class BookingService(ApplicationDbContext db, BookingEmailService emails, RoomAvailabilityService rooms)
+public class BookingService(
+    ApplicationDbContext db, BookingEmailService emails, RoomAvailabilityService rooms, CleaningZoneService cleaning)
 {
     /// <summary>Creates a Pending stay request from the public inquiry form (FR-03).
     /// When <paramref name="createdByAdmin"/> is true the booking is created on the guest's
@@ -29,10 +33,8 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         var submissionDate = DateOnly.FromDateTime(now);
 
         var activeFacilities = await db.Facilities.Where(f => f.IsActive).ToListAsync();
-        var activeZones = await db.CleaningZones.Where(z => z.IsActive).ToListAsync();
 
         var facilityIds = InquiryNormalizer.NormalizeFacilitySelection(input.SelectedFacilityIds, activeFacilities);
-        var zoneIds = InquiryNormalizer.NormalizeCleaningSelection(input.SelectedCleaningZoneIds, activeZones);
 
         var booking = new Booking
         {
@@ -77,22 +79,9 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
             });
         }
 
-        var zonesById = activeZones.ToDictionary(z => z.Id);
-        foreach (var id in zoneIds)
-        {
-            var z = zonesById[id];
-            booking.CleaningSelections.Add(new BookingCleaningSelection
-            {
-                Id = Guid.NewGuid(),
-                CleaningZoneId = z.Id,
-                ZoneNameSnapshot = z.Name,
-                AmountExVatSnapshot = z.AmountExVat,
-                VatRateSnapshot = z.VatRate,
-            });
-        }
-
         db.Bookings.Add(booking);
         await db.SaveChangesAsync();
+        await AssignBookingReferenceAsync(booking);
 
         if (!createdByAdmin)
         {
@@ -128,6 +117,7 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
 
         db.Bookings.Add(booking);
         await db.SaveChangesAsync();
+        await AssignBookingReferenceAsync(booking);
 
         if (!createdByAdmin)
         {
@@ -136,6 +126,18 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         }
 
         return booking;
+    }
+
+    /// <summary>
+    /// Sets <see cref="Booking.BookingReference"/> from the DB-assigned <see cref="Booking.SequenceNumber"/>
+    /// (FR-92) — must run after the initial insert, since the identity value is only known once the row
+    /// exists. A second, small write; format is <c>AG-YYYY-NNNN</c> with the creation year and the
+    /// sequence zero-padded to 4 digits.
+    /// </summary>
+    private async Task AssignBookingReferenceAsync(Booking booking)
+    {
+        booking.BookingReference = BookingReferencePolicy.Format(booking.SequenceNumber, booking.CreatedAt.Year);
+        await db.SaveChangesAsync();
     }
 
     // ── Queries (admin) ───────────────────────────────────────────────────────────
@@ -246,26 +248,124 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         booking.OrgNumber = form.IsOrganisation ? form.OrgNumber?.Trim() : null;
         booking.InvoiceAddress = form.IsOrganisation ? form.InvoiceAddress?.Trim() : null;
 
+        // Cleaning (FR-93, §5.5). Huvudbyggnad always applies (a stay request always has overnight
+        // lodging); Konferensbyggnad only when the Konferensrum facility was actually selected —
+        // re-checked here server-side, never trusted from the posted form. Both snapshot their zone
+        // amount immediately. Sleeping is stored as intent only; its priced selections are resolved
+        // from room assignment below, once this save has persisted the participants' RoomId.
+        booking.MainBuildingCleaningPurchased = form.MainBuildingCleaning;
+        if (form.MainBuildingCleaning)
+            await AddCleaningSelectionAsync(booking, CleaningZoneKind.MainBuilding);
+
+        var conferenceApplicable = await cleaning.IsConferenceCleaningApplicableAsync(booking.Id);
+        booking.ConferenceCleaningPurchased = conferenceApplicable ? form.ConferenceCleaning : null;
+        if (conferenceApplicable && form.ConferenceCleaning)
+            await AddCleaningSelectionAsync(booking, CleaningZoneKind.Conference);
+
+        booking.SleepingCleaningPurchased = form.SleepingCleaning;
+
         // One-way transition (§2.5) — routed through the state machine, not set blindly (FR-62).
         BookingStateMachine.EnsureCanTransition(booking.Status, BookingStatus.DetailsComplete);
         booking.Status = BookingStatus.DetailsComplete;
         booking.UpdatedAt = nowUtc; // DetailsComplete is a live state → DeleteAfter stays null (FR-91)
         await db.SaveChangesAsync();
 
+        // Resolves after the save above, since it depends on participants' RoomId being persisted.
+        await ResolveSleepingCleaningSelectionsAsync(booking);
+
         await emails.SendAdminDetailsCompleteAsync(booking);
         return CompletionSubmitResult.Ok();
     }
 
+    /// <summary>Snapshots the active zone of a given Kind onto the booking's cleaning selections
+    /// (§8.12). A no-op if no active zone of that Kind is configured (defensive — should not
+    /// happen with correctly maintained reference data).</summary>
+    private async Task AddCleaningSelectionAsync(Booking booking, CleaningZoneKind kind)
+    {
+        var zone = await cleaning.GetActiveByKindAsync(kind);
+        if (zone is null) return;
+
+        db.BookingCleaningSelections.Add(new BookingCleaningSelection
+        {
+            Id = Guid.NewGuid(),
+            BookingId = booking.Id,
+            CleaningZoneId = zone.Id,
+            ZoneNameSnapshot = zone.Name,
+            AmountExVatSnapshot = zone.AmountExVat,
+            VatRateSnapshot = zone.VatRate,
+        });
+    }
+
     /// <summary>
-    /// The admin booking list, filterable by status, type, and check-in date range (FR-36).
-    /// Newest first. The date range matches a stay's check-in; general inquiries (no dates)
-    /// are excluded when a date range is supplied.
+    /// Resolves and snapshots the <see cref="CleaningZoneKind.SleepingBuilding"/> selections for a
+    /// booking from its currently assigned rooms (§8.12, FR-93) — one row per distinct occupied
+    /// physical building's zone, never per room, refreshed whenever room assignment is set or
+    /// changed. A no-op unless the guest opted in (<see cref="Booking.SleepingCleaningPurchased"/>
+    /// true); if intent is false, any stale sleeping-zone selections are removed. Requires
+    /// participants' RoomId to already be persisted — call after a <c>SaveChangesAsync</c> that
+    /// wrote the room assignment.
+    /// </summary>
+    private async Task ResolveSleepingCleaningSelectionsAsync(Booking booking)
+    {
+        var existingSleeping = await db.BookingCleaningSelections
+            .Where(s => s.BookingId == booking.Id)
+            .Join(db.CleaningZones, s => s.CleaningZoneId, z => z.Id, (s, z) => new { Selection = s, z.Kind })
+            .Where(x => x.Kind == CleaningZoneKind.SleepingBuilding)
+            .Select(x => x.Selection)
+            .ToListAsync();
+
+        if (booking.SleepingCleaningPurchased != true)
+        {
+            if (existingSleeping.Count > 0)
+            {
+                db.BookingCleaningSelections.RemoveRange(existingSleeping);
+                await db.SaveChangesAsync();
+            }
+            return;
+        }
+
+        var occupiedPhysicalBuildingIds = await db.Participants
+            .Where(p => p.BookingId == booking.Id && p.RoomId != null)
+            .Select(p => p.Room!.Building!.PhysicalBuildingId)
+            .Distinct()
+            .ToListAsync();
+
+        var sleepingZones = await cleaning.GetActiveListByKindAsync(CleaningZoneKind.SleepingBuilding);
+        var targetZoneIds = CleaningZoneResolver.ResolveSleepingZoneIds(occupiedPhysicalBuildingIds, sleepingZones);
+        var existingZoneIds = existingSleeping.Select(s => s.CleaningZoneId).ToHashSet();
+
+        foreach (var stale in existingSleeping.Where(s => !targetZoneIds.Contains(s.CleaningZoneId)))
+            db.BookingCleaningSelections.Remove(stale);
+
+        var zonesById = sleepingZones.ToDictionary(z => z.Id);
+        foreach (var newZoneId in targetZoneIds.Except(existingZoneIds))
+        {
+            var z = zonesById[newZoneId];
+            db.BookingCleaningSelections.Add(new BookingCleaningSelection
+            {
+                Id = Guid.NewGuid(),
+                BookingId = booking.Id,
+                CleaningZoneId = z.Id,
+                ZoneNameSnapshot = z.Name,
+                AmountExVatSnapshot = z.AmountExVat,
+                VatRateSnapshot = z.VatRate,
+            });
+        }
+
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// The admin booking list, filterable by status, type, check-in date range, and searchable by
+    /// booking reference (FR-36/FR-92). Newest first. The date range matches a stay's check-in;
+    /// general inquiries (no dates) are excluded when a date range is supplied.
     /// </summary>
     public async Task<List<Booking>> GetBookingsAsync(
         BookingStatus? status = null,
         BookingType? type = null,
         DateOnly? from = null,
-        DateOnly? to = null)
+        DateOnly? to = null,
+        string? reference = null)
     {
         var query = db.Bookings.AsQueryable();
 
@@ -273,6 +373,8 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
         if (type is not null) query = query.Where(b => b.BookingType == type);
         if (from is not null) query = query.Where(b => b.CheckIn != null && b.CheckIn >= from);
         if (to is not null) query = query.Where(b => b.CheckIn != null && b.CheckIn <= to);
+        if (!string.IsNullOrWhiteSpace(reference))
+            query = query.Where(b => b.BookingReference.Contains(reference.Trim()));
 
         return await query.OrderByDescending(b => b.CreatedAt).ToListAsync();
     }
@@ -599,6 +701,11 @@ public class BookingService(ApplicationDbContext db, BookingEmailService emails,
 
         booking.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+
+        // Room assignment may have just been set/changed above — refresh the sleeping-building
+        // cleaning selections to match (§8.12, FR-93). Needs the save above: it reads persisted
+        // RoomId values via ResolveSleepingCleaningSelectionsAsync's own query.
+        await ResolveSleepingCleaningSelectionsAsync(booking);
     }
 
     public async Task SetAdminNotesAsync(Guid id, string? notes)

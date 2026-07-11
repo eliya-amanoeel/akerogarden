@@ -28,6 +28,7 @@ public class RoomAssignmentIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<BookingEmailService>();
             s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
+            s.AddScoped<CleaningZoneService>();
             s.AddScoped<BuildingService>();
             s.AddScoped<RoomService>();
             s.AddScoped<BlockedPeriodService>();
@@ -50,8 +51,12 @@ public class RoomAssignmentIntegrationTests : IClassFixture<DbFixture>
         var rooms = scope.ServiceProvider.GetRequiredService<RoomService>();
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
 
-        var building = new Building { Name = $"Blidö-{Guid.NewGuid():N}", DisplayOrder = 1 };
-        await buildings.CreateAsync(building);
+        var physicalBuilding = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"Lilla-{Guid.NewGuid():N}" };
+        db.PhysicalBuildings.Add(physicalBuilding);
+        await db.SaveChangesAsync();
+
+        var building = new Building { Name = $"Blidö-{Guid.NewGuid():N}", PhysicalBuildingId = physicalBuilding.Id, DisplayOrder = 1 };
+        await buildings.TryCreateAsync(building);
         var room = new Room { Name = "Rum 1", BedCount = 4, BuildingId = building.Id, DisplayOrder = 1 };
         await rooms.CreateAsync(room);
 

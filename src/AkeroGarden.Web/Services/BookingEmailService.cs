@@ -19,8 +19,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     public Task SendInquiryAcknowledgementAsync(Booking booking)
     {
         var content = booking.BookingType == BookingType.StayRequest
-            ? BookingEmailTemplates.StayRequestAcknowledgement(booking.ContactName)
-            : BookingEmailTemplates.GeneralInquiryAcknowledgement(booking.ContactName);
+            ? BookingEmailTemplates.StayRequestAcknowledgement(booking.ContactName, booking.BookingReference)
+            : BookingEmailTemplates.GeneralInquiryAcknowledgement(booking.ContactName, booking.BookingReference);
         return SendToGuestAsync(booking, content);
     }
 
@@ -42,7 +42,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     /// <summary>Denial email to the guest, including the admin's reason (FR-50).</summary>
     public Task SendDenialAsync(Booking booking)
     {
-        var content = BookingEmailTemplates.Denial(booking.ContactName, booking.DenialReason ?? string.Empty);
+        var content = BookingEmailTemplates.Denial(booking.ContactName, booking.DenialReason ?? string.Empty, booking.BookingReference);
         return SendToGuestAsync(booking, content);
     }
 
@@ -56,7 +56,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         var content = BookingEmailTemplates.Approval(
             booking.ContactName,
             BuildCompletionUrl(booking.CompletionToken),
-            booking.CompletionTokenExpiry.Value);
+            booking.CompletionTokenExpiry.Value,
+            booking.BookingReference);
         return SendToGuestAsync(booking, content);
     }
 
@@ -68,7 +69,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         var dayGuests = booking.Participants.Count(p => p.ParticipantType == ParticipantType.DayGuest);
         var meals = booking.Participants.Sum(p => p.MealPreferences.Count);
         var content = BookingEmailTemplates.TwoWeekReminder(
-            booking.ContactName, overnight, dayGuests, meals, booking.CheckIn, booking.CheckOut, _opts.PropertyAddress);
+            booking.ContactName, overnight, dayGuests, meals, booking.CheckIn, booking.CheckOut,
+            _opts.PropertyAddress, booking.BookingReference);
         return SendToGuestAsync(booking, content);
     }
 
@@ -80,7 +82,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             throw new InvalidOperationException("Påminnelse kräver en genererad slutförandelänk och utgångstid.");
 
         var content = BookingEmailTemplates.CompletionNudge(
-            booking.ContactName, BuildCompletionUrl(booking.CompletionToken), booking.CompletionTokenExpiry.Value);
+            booking.ContactName, BuildCompletionUrl(booking.CompletionToken), booking.CompletionTokenExpiry.Value,
+            booking.BookingReference);
         return SendToGuestAsync(booking, content);
     }
 
@@ -111,7 +114,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     /// <summary>Standard fixed thank-you email when the admin marks the booking Completed (FR-65).</summary>
     public Task SendThankYouAsync(Booking booking)
     {
-        var content = BookingEmailTemplates.ThankYou(booking.ContactName);
+        var content = BookingEmailTemplates.ThankYou(booking.ContactName, booking.BookingReference);
         return SendToGuestAsync(booking, content);
     }
 
@@ -127,7 +130,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             ? DepositOutcome.FullRefund // no dated stay to judge timing against; default to full refund
             : CancellationPolicy.ResolveDepositOutcome(booking.CancellationInitiator.Value, booking.CheckIn.Value, cancelledOn);
 
-        var content = BookingEmailTemplates.Cancellation(booking.ContactName, booking.CancellationInitiator.Value, outcome);
+        var content = BookingEmailTemplates.Cancellation(
+            booking.ContactName, booking.CancellationInitiator.Value, outcome, booking.BookingReference);
         return SendToGuestAsync(booking, content);
     }
 

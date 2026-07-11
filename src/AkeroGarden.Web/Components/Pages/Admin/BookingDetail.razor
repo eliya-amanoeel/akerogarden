@@ -21,11 +21,12 @@
 else
 {
     <AdminHeader>
-        <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a> / @_booking.ContactName</span></TitleContent>
+        <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a> / @_booking.BookingReference</span></TitleContent>
     </AdminHeader>
 
     <div class="admin-detail-head">
         <h1>@_booking.ContactName</h1>
+        <span class="chip mono">@_booking.BookingReference</span>
         <span class="@BookingDisplay.StatusBadgeClass(_booking.Status)">@BookingDisplay.StatusLabel(_booking.Status)</span>
         <span class="chip">@BookingDisplay.TypeLabel(_booking.BookingType)</span>
     </div>
@@ -249,11 +250,17 @@ else
 
                 @if (_booking.Status == BookingStatus.Pending && _booking.BookingType == BookingType.StayRequest)
                 {
+                    @* Both pre-approval notices share one advisory style (amber .alert--warn, "!" badge,
+                       bold lead + body) so the action rail reads as one coherent voice, not a jumble of
+                       colours/icons. ARIA roles still differ by urgency (status vs alert). *@
                     @if (IsCheckInWithin14Days)
                     {
-                        <div class="alert alert--info" role="status">
-                            <span class="alert__ic" aria-hidden="true">i</span>
-                            <div>Incheckning är @DaysToCheckIn dagar bort — slutförandelänken förkortas till 48 timmar. Överväg att kontakta gästen direkt.</div>
+                        <div class="alert alert--warn" role="status">
+                            <span class="alert__ic" aria-hidden="true">!</span>
+                            <div>
+                                <b>Kort varsel — @DaysToCheckIn dagar till incheckning</b>
+                                <div>Slutförandelänken förkortas till 48 timmar. Överväg att kontakta gästen direkt.</div>
+                            </div>
                         </div>
                     }
                     @if (_approvalWarning.Any)

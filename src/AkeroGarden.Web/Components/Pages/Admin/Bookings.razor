@@ -42,6 +42,10 @@
         <label for="f-to">Incheckning t.o.m.</label>
         <input id="f-to" type="date" @bind="_to" @bind:after="Load" />
     </div>
+    <div class="form-group">
+        <label for="f-ref">Referensnummer</label>
+        <input id="f-ref" type="search" placeholder="t.ex. AG-2026-0042" @bind="_reference" @bind:after="Load" />
+    </div>
 </div>
 
 @if (_bookings is null)
@@ -58,6 +62,7 @@ else
         <table class="admin-table">
             <thead>
                 <tr>
+                    <th>Referens</th>
                     <th>Inkommen</th>
                     <th>Sällskap</th>
                     <th>Typ</th>
@@ -71,6 +76,7 @@ else
                 @foreach (var b in _bookings)
                 {
                     <tr>
+                        <td class="mono">@b.BookingReference</td>
                         <td class="mono">@b.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
                         <td>
                             <a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a>
@@ -103,6 +109,7 @@ else
     private string _type = "";
     private DateOnly? _from;
     private DateOnly? _to;
+    private string _reference = "";
 
     protected override async Task OnInitializedAsync() => await Load();
 
@@ -110,6 +117,6 @@ else
     {
         BookingStatus? status = Enum.TryParse<BookingStatus>(_status, out var s) ? s : null;
         BookingType? type = Enum.TryParse<BookingType>(_type, out var t) ? t : null;
-        _bookings = await BookingService.GetBookingsAsync(status, type, _from, _to);
+        _bookings = await BookingService.GetBookingsAsync(status, type, _from, _to, _reference);
     }
 }

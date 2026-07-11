@@ -1,0 +1,171 @@
+@page "/admin/fysiska-byggnader"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Data.Entities
+@inject PhysicalBuildingService PhysicalBuildingService
+@attribute [Authorize]
+
+<PageTitle>Fysiska byggnader — Åkerögården Admin</PageTitle>
+
+<AdminHeader Title="Fysiska byggnader" />
+
+<p class="form-hint">
+    En fysisk byggnad är den byggnad städning prissätts på (t.ex. Lilla bostadslängan, som
+    rymmer flera boendeenheter). Skapa dem här innan du kopplar en byggnad, facilitet eller
+    städzon till en fysisk byggnad.
+</p>
+
+@if (!string.IsNullOrEmpty(_message))
+{
+    <p role="status" class="form-status">@_message</p>
+}
+
+@if (_buildings is null)
+{
+    <p class="admin-empty">Laddar…</p>
+}
+else
+{
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th class="num">Ordning</th>
+                    <th>Namn</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var b in _buildings)
+                {
+                    <tr>
+                        <td class="num mono">@b.DisplayOrder</td>
+                        <td><span class="rowlink">@b.Name</span></td>
+                        <td>
+                            @if (b.IsActive)
+                            {
+                                <span class="badge badge--approved">Aktiv</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--neutral">Inaktiv</span>
+                            }
+                        </td>
+                        <td class="rowactions">
+                            <button class="btn-ghost" @onclick="() => Edit(b)">Redigera</button>
+                            @if (b.IsActive)
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(b, false)">Inaktivera</button>
+                            }
+                            else
+                            {
+                                <button class="btn-ghost" @onclick="() => SetActive(b, true)">Aktivera</button>
+                            }
+                            <button class="btn-ghost" @onclick="() => Delete(b)">Ta bort</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <section class="card admin-editcard">
+    <h2>@(_editingId is null ? "Lägg till fysisk byggnad" : "Redigera fysisk byggnad")</h2>
+
+    <EditForm Model="_form" OnValidSubmit="Save" FormName="physicalBuilding">
+        <DataAnnotationsValidator />
+
+        <div class="form-group">
+            <label for="pb-name">Namn</label>
+            <InputText id="pb-name" @bind-Value="_form.Name" />
+            <ValidationMessage For="() => _form.Name" />
+        </div>
+
+        <div class="form-group">
+            <label for="pb-description">Beskrivning</label>
+            <InputTextArea id="pb-description" @bind-Value="_form.Description" />
+            <ValidationMessage For="() => _form.Description" />
+        </div>
+
+        <div class="form-group">
+            <label for="pb-order">Visningsordning</label>
+            <InputNumber id="pb-order" min="0" @bind-Value="_form.DisplayOrder" />
+            <ValidationMessage For="() => _form.DisplayOrder" />
+        </div>
+
+        <button type="submit" class="btn">Spara</button>
+        @if (_editingId is not null)
+        {
+            <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
+        }
+    </EditForm>
+    </section>
+}
+
+@code {
+    private List<PhysicalBuilding>? _buildings;
+    private PhysicalBuilding _form = new();
+    private Guid? _editingId;
+    private string? _message;
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load() => _buildings = await PhysicalBuildingService.GetAllAsync();
+
+    private void New()
+    {
+        _editingId = null;
+        _form = new();
+    }
+
+    private void Edit(PhysicalBuilding b)
+    {
+        _editingId = b.Id;
+        _form = new PhysicalBuilding
+        {
+            Id = b.Id,
+            Name = b.Name,
+            Description = b.Description,
+            DisplayOrder = b.DisplayOrder
+        };
+    }
+
+    private async Task Save()
+    {
+        if (_editingId is null)
+        {
+            await PhysicalBuildingService.CreateAsync(_form);
+            _message = $"Byggnaden \"{_form.Name}\" har lagts till.";
+        }
+        else
+        {
+            await PhysicalBuildingService.UpdateAsync(_form);
+            _message = $"Byggnaden \"{_form.Name}\" har uppdaterats.";
+        }
+
+        New();
+        await Load();
+    }
+
+    private async Task SetActive(PhysicalBuilding b, bool isActive)
+    {
+        await PhysicalBuildingService.SetActiveAsync(b.Id, isActive);
+        _message = isActive
+            ? $"Byggnaden \"{b.Name}\" har aktiverats."
+            : $"Byggnaden \"{b.Name}\" har inaktiverats.";
+        await Load();
+    }
+
+    private async Task Delete(PhysicalBuilding b)
+    {
+        var result = await PhysicalBuildingService.TryHardDeleteAsync(b.Id);
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Byggnaden \"{b.Name}\" har tagits bort.",
+            HardDeleteResult.Blocked => $"Byggnaden \"{b.Name}\" kan inte tas bort eftersom den används av en byggnad, facilitet eller städzon. Inaktivera den i stället.",
+            _ => $"Byggnaden \"{b.Name}\" kunde inte hittas."
+        };
+        await Load();
+    }
+}

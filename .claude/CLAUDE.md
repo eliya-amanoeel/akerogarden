@@ -31,7 +31,7 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 |---|---|
 | `REQUIREMENTS/requirements.md` | Main SRS — v0.33, single source of truth |
 | `REQUIREMENTS/erd.md` | Mermaid entity-relationship diagram (13 app entities) |
-| `REQUIREMENTS/implementation-plan.md` | 12-phase dependency-ordered build plan (0–8 done; 9 pre-go-live, done not yet merged; 10 go-live; 11 post-production hardening & handover) |
+| `REQUIREMENTS/implementation-plan.md` | 12-phase dependency-ordered build plan (0–9 done; 10 go-live; 11 post-production hardening & handover) |
 | `UX/design.md` | Visual design tokens, CSS classes, logo usage |
 
 ## Data model (EF Core entities)

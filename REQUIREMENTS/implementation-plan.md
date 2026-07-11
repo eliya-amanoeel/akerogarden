@@ -340,7 +340,7 @@ Unlike the feature phases, this phase is **bookended by design discipline**: it 
 
 ---
 
-## Phase 9 — Pre-go-live
+## Phase 9 — Pre-go-live ✅ COMPLETE (merged to main 2026-07-11, `28a7e4f`)
 
 **Goal:** small, agreed pre-launch changes that are **not** part of the go-live transition itself — polish and late feedback surfaced on staging after the Phase 8 sign-off. Done before (or alongside) the production cutover so launch happens on a fully-agreed build. *(Open-ended, like Phase 8: contents are whatever staging use surfaces before launch.)*
 

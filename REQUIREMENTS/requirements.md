@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.44 — Working Draft  
+**Version:** 0.45 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.44:**
+
+- **FR-74 extended — pending-invite resend/remove (staging feedback 2026-07-11).** An invited admin's one-time setup link expires after 1 hour; there was no way to resend a fresh invite or remove a stale, never-completed one. FR-74 now covers **resend a fresh invitation** and **remove a pending invite**, both limited to never-activated invites (activated accounts keep deactivate-only, no delete). Scheduled in the new **Phase 9 — Pre-go-live** (a phase inserted before go-live, which becomes Phase 10); agreed, not yet built. No data-model change stated here beyond the plan's `ApplicationUser.SetupCompletedAt` implementation note.
 
 **Changes from v0.43:**
 
@@ -759,7 +763,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | FR-71 | Admin users shall authenticate via email address and password on a dedicated login page at `admin.akerogarden.se/login` |
 | FR-72 | The login form shall offer a "remember me" option that persists the admin session for 30 days via a secure, HTTP-only cookie |
 | FR-73 | Admin users shall be able to reset their password via a one-time reset link sent to their registered email address; the link shall expire after 1 hour |
-| FR-74 | An authenticated admin shall be able to create new admin accounts (by email invitation) and deactivate existing admin accounts; an admin cannot deactivate their own account. The system is designed for a small number of admins (2–3); there is no enforced hard limit |
+| FR-74 | An authenticated admin shall be able to create new admin accounts (by email invitation) and deactivate existing admin accounts; an admin cannot deactivate their own account. The system is designed for a small number of admins (2–3); there is no enforced hard limit. For a **pending invitation** (an invited account that has not completed its one-time setup link — which expires after 1 hour), an admin shall additionally be able to **resend a fresh invitation** and **remove the pending invite**; these two actions apply only to never-activated invites (an activated account offers deactivate only, never delete). *(Pre-go-live / Phase 9 — agreed on staging 2026-07-11, not yet built.)* |
 
 > **Note on admin user storage:** Admin accounts are managed by ASP.NET Core Identity, which provides its own user tables (`AspNetUsers`, etc.). There is no custom `AdminUser` entity in the application data model — Identity tables are treated as infrastructure.
 

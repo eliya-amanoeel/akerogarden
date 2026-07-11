@@ -31,7 +31,7 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 |---|---|
 | `REQUIREMENTS/requirements.md` | Main SRS — v0.33, single source of truth |
 | `REQUIREMENTS/erd.md` | Mermaid entity-relationship diagram (13 app entities) |
-| `REQUIREMENTS/implementation-plan.md` | 9-phase dependency-ordered build plan (0–7 done; 8 client feedback, 9 go-live) |
+| `REQUIREMENTS/implementation-plan.md` | 11-phase dependency-ordered build plan (0–8 done; 9 pre-go-live, 10 go-live) |
 | `UX/design.md` | Visual design tokens, CSS classes, logo usage |
 
 ## Data model (EF Core entities)
@@ -94,7 +94,8 @@ Follow `REQUIREMENTS/implementation-plan.md` in order. Do not start a phase unti
 6. UI/UX — visual + experiential design pass (from scratch, both surfaces), Figma-first then Blazor (scope TBD)
 7. Hardening & pre-demo readiness — security pass, NFR verification on staging, parked functional polish, operational/content blockers (privacy text, images, VAT)
 8. Client feedback — demo the app to the client on staging (real UAT), then implement the agreed issues/changes/improvements
-9. Transition & go-live — production provisioning, DNS/SSL, one.com/WordPress cutover, production-SMTP email E2E, production deploy
+9. Pre-go-live — small agreed pre-launch changes surfaced on staging after Phase 8 sign-off (e.g. admin invite-lifecycle resend/remove), done before the cutover
+10. Transition & go-live — production provisioning, DNS/SSL, one.com/WordPress cutover, production-SMTP email E2E, production deploy
 
 ## Working style
 

@@ -30,6 +30,13 @@ public class Facility
     [Range(0, 1, ErrorMessage = "Momssatsen anges som andel mellan 0 och 1 (t.ex. 0,25 för 25 %).")]
     public decimal VatRate { get; set; }
 
+    /// <summary>Nullable FK → PhysicalBuilding (§8.14) — set only where booking the facility puts
+    /// a physical building's cleaning in play (Konferensrum → Konferensbyggnad). Null for
+    /// facilities with no associated cleaning building (Kapellet, pitches, Spelrum).</summary>
+    public Guid? PhysicalBuildingId { get; set; }
+
+    public PhysicalBuilding? PhysicalBuilding { get; set; }
+
     public bool IsActive { get; set; } = true;
 
     [Range(0, int.MaxValue, ErrorMessage = "Visningsordningen kan inte vara negativ.")]

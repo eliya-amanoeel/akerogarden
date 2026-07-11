@@ -15,10 +15,12 @@ namespace AkeroGarden.Web.Services;
 /// restart) exactly like the surgical-to-staging changes in earlier phases; remove the flag after a
 /// run so a later restart does not wipe again.</para>
 ///
-/// <para>All data is synthetic and Swedish — no real PII (NFR-23). Reference data mirrors an actual
-/// small Norrtälje retreat; bookings cover every lifecycle state (§2.5) so every admin screen and the
-/// public calendar look lived-in. Snapshots are captured faithfully (as a real submission would —
-/// NFR-15/16/33/34) and retention dates follow <see cref="RetentionCalculator"/> (FR-91).</para>
+/// <para>All data is synthetic and Swedish — no real PII (NFR-23). Reference data mirrors the
+/// actual Åkerögården property layout (Blidö/Ljusterö/Singö/Tjockö in Lilla bostadslängan; Vätö 1/
+/// Vätö 2 in Stora bostadslängan; Smedjan and Tallstugan as standalone cabins — 79 beds total);
+/// bookings cover every lifecycle state (§2.5) so every admin screen and the public calendar look
+/// lived-in. Snapshots are captured faithfully (as a real submission would — NFR-15/16/33/34) and
+/// retention dates follow <see cref="RetentionCalculator"/> (FR-91).</para>
 /// </summary>
 public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> logger)
 {
@@ -41,17 +43,19 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         await db.SaveChangesAsync();
 
         logger.LogWarning(
-            "Demo data seeded: {Buildings} buildings, {Rooms} rooms, {Bookings} bookings, {Blocks} blocks. " +
+            "Demo data seeded: {PhysicalBuildings} physical buildings, {Buildings} buildings, {Rooms} rooms, " +
+            "{Bookings} bookings, {Blocks} blocks. " +
             "Remove the DemoSeed:Reset app setting so the next restart does not wipe again.",
-            refData.Buildings.Count, refData.Buildings.Sum(b => b.Rooms.Count),
+            refData.PhysicalBuildings.Count, refData.Buildings.Count, refData.Buildings.Sum(b => b.Rooms.Count),
             db.ChangeTracker.Entries<Booking>().Count(),
             db.ChangeTracker.Entries<BlockedPeriod>().Count());
     }
 
     // ── Wipe ────────────────────────────────────────────────────────────────────
     // Delete referencing rows before referenced rows so the Restrict FKs (Room, MealOption,
-    // Facility, CleaningZone) never block the delete. ExecuteDelete issues a raw bulk DELETE per
-    // table. Identity tables (AspNetUsers etc.) are deliberately untouched — the admin survives.
+    // Facility, CleaningZone, PhysicalBuilding) never block the delete. ExecuteDelete issues a raw
+    // bulk DELETE per table. Identity tables (AspNetUsers etc.) are deliberately untouched — the
+    // admin survives.
     private async Task WipeAsync()
     {
         await db.MealPreferences.ExecuteDeleteAsync();
@@ -66,10 +70,12 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         await db.PriceRules.ExecuteDeleteAsync();
         await db.CleaningZones.ExecuteDeleteAsync();
         await db.Facilities.ExecuteDeleteAsync();
+        await db.PhysicalBuildings.ExecuteDeleteAsync();
     }
 
     // ── Reference data ────────────────────────────────────────────────────────────
     private sealed record RefData(
+        List<PhysicalBuilding> PhysicalBuildings,
         List<Building> Buildings,
         List<Room> Rooms,
         List<MealOption> Lunches,
@@ -85,56 +91,78 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         const decimal VatFood = 0.12m;
         const decimal VatService = 0.25m;
 
-        // Buildings + rooms — a plausible ~79-bed rural retreat.
-        var huvud = new Building
-        {
-            Id = Guid.NewGuid(),
-            Name = "Huvudbyggnaden",
-            Description = "Anläggningens största hus med matsal, samlingssal och de flesta sovrummen.",
-            SharedFacilities = "Gemensam matsal, två allrum och fullt utrustat kök i bottenvåningen.",
-            IsAccessible = true,
-            IsActive = true,
-            DisplayOrder = 1,
-        };
-        var annexet = new Building
-        {
-            Id = Guid.NewGuid(),
-            Name = "Annexet",
-            Description = "Fristående hus i lugnt läge med egna sovrum och pentry.",
-            SharedFacilities = "Pentry och sällskapsrum på nedre plan.",
-            IsAccessible = false,
-            IsActive = true,
-            DisplayOrder = 2,
-        };
-        var stugan = new Building
-        {
-            Id = Guid.NewGuid(),
-            Name = "Sjöstugan",
-            Description = "Mysig stuga närmast vattnet, passar mindre sällskap.",
-            SharedFacilities = "Vedeldad kamin och egen altan mot sjön.",
-            IsAccessible = false,
-            IsActive = true,
-            DisplayOrder = 3,
-        };
+        // ── Physical buildings (§8.14) — the level cleaning is priced at ──────────────
+        var huvudPb = PhysicalBuilding(
+            "Huvudbyggnad", "Matsal, samlingsytor och kök — anläggningens gemensamma hjärta.", 1);
+        var lillaPb = PhysicalBuilding(
+            "Lilla bostadslängan", "Boendelänga med fyra sovsektioner: Blidö, Ljusterö, Singö, Tjockö.", 2);
+        var storaPb = PhysicalBuilding(
+            "Stora bostadslängan", "Boendelänga med två sovsektioner: Vätö 1 och Vätö 2.", 3);
+        var smedjanPb = PhysicalBuilding("Smedjan", "Fristående mindre stuga.", 4);
+        var tallstuganPb = PhysicalBuilding("Tallstugan", "Fristående enrumsstuga.", 5);
+        var konferensPb = PhysicalBuilding("Konferensbyggnad", "Byggnaden som rymmer konferensrummet.", 6);
+        var physicalBuildings = new List<PhysicalBuilding>
+            { huvudPb, lillaPb, storaPb, smedjanPb, tallstuganPb, konferensPb };
+
+        // ── Buildings + rooms — the real ~79-bed Åkerögården layout ───────────────────
+        var blido = Building(lillaPb, "Blidö", "4 rum, delar allrum, 1 dusch- och städrum, 2 toaletter.",
+            "Delar allrum, 1 dusch- och städrum, 2 toaletter.", isAccessible: false, 1);
+        var ljustero = Building(lillaPb, "Ljusterö", "4 rum, delar allrum, 1 dusch- och städrum, 1 toalett.",
+            "Delar allrum, 1 dusch- och städrum, 1 toalett.", isAccessible: true, 2);
+        var singo = Building(lillaPb, "Singö", "4 rum, delar allrum, 1 dusch, 2 toaletter.",
+            "Delar allrum, 1 dusch, 2 toaletter.", isAccessible: false, 3);
+        var tjocko = Building(lillaPb, "Tjockö", "4 rum, delar allrum, 1 dusch- och städrum, 2 toaletter.",
+            "Delar allrum, 1 dusch- och städrum, 2 toaletter.", isAccessible: false, 4);
+        var vato1 = Building(storaPb, "Vätö 1", "5 rum, delar allrum, 2 dusch- och städrum, 2 toaletter.",
+            "Delar allrum, 2 dusch- och städrum, 2 toaletter.", isAccessible: true, 5);
+        var vato2 = Building(storaPb, "Vätö 2", "5 rum, delar allrum, 2 dusch- och städrum, 2 toaletter.",
+            "Delar allrum, 2 dusch- och städrum, 2 toaletter.", isAccessible: true, 6);
+        var smedjanB = Building(smedjanPb, "Smedjan", "Liten stuga med eget rum.",
+            "Eget dusch- och städrum.", isAccessible: false, 7);
+        var tallstuganB = Building(tallstuganPb, "Tallstugan", "1 rum med dusch och toalett.",
+            "Eget dusch och toalett.", isAccessible: false, 8);
+        var buildings = new List<Building> { blido, ljustero, singo, tjocko, vato1, vato2, smedjanB, tallstuganB };
 
         var rooms = new List<Room>
         {
-            Room(huvud, "Rum 1", 4, "2 våningssängar", 1),
-            Room(huvud, "Rum 2", 4, "2 våningssängar", 2),
-            Room(huvud, "Rum 3", 2, "2 enkelsängar", 3),
-            Room(huvud, "Rum 4", 6, "3 våningssängar", 4),
-            Room(huvud, "Rum 5", 6, "3 våningssängar", 5),
-            Room(huvud, "Familjerummet", 5, "1 dubbelsäng + 1 våningssäng + 1 enkelsäng", 6),
-            Room(annexet, "Annex 1", 4, "2 våningssängar", 1),
-            Room(annexet, "Annex 2", 4, "2 våningssängar", 2),
-            Room(annexet, "Annex 3", 4, "2 våningssängar", 3),
-            Room(annexet, "Annex 4", 2, "2 enkelsängar", 4),
-            Room(stugan, "Stora rummet", 8, "4 våningssängar", 1),
-            Room(stugan, "Lilla rummet", 4, "2 våningssängar", 2),
+            Room(blido, "Rum 1", 4, "2 våningssängar", 1),
+            Room(blido, "Rum 2", 2, "2 enkelsängar", 2),
+            Room(blido, "Rum 3", 3, "3 enkelsängar", 3),
+            Room(blido, "Rum 4", 3, "3 enkelsängar", 4),
+
+            Room(ljustero, "Rum 1", 3, "3 enkelsängar", 1),
+            Room(ljustero, "Rum 2", 6, "3 våningssängar", 2),
+            Room(ljustero, "Rum 3", 4, "2 våningssängar", 3),
+            Room(ljustero, "Rum 4", 4, "2 våningssängar", 4),
+
+            Room(singo, "Rum 1", 3, "3 enkelsängar", 1),
+            Room(singo, "Rum 2", 5, "2 våningssängar & 1 enkelsäng", 2),
+            Room(singo, "Rum 3", 4, "1 våningssäng & 2 enkelsängar", 3),
+            Room(singo, "Rum 4", 4, "1 våningssäng & 2 enkelsängar", 4),
+
+            Room(tjocko, "Rum 1", 3, "3 enkelsängar", 1),
+            Room(tjocko, "Rum 2", 2, "2 enkelsängar", 2),
+            Room(tjocko, "Rum 3", 3, "3 enkelsängar", 3),
+            Room(tjocko, "Rum 4", 2, "2 enkelsängar", 4),
+
+            Room(vato1, "Rum 1", 2, "2 enkelsängar", 1),
+            Room(vato1, "Rum 2", 2, "2 enkelsängar", 2),
+            Room(vato1, "Rum 3", 1, "1 enkelsäng", 3),
+            Room(vato1, "Rum 4", 1, "1 enkelsäng", 4),
+            Room(vato1, "Rum 5", 2, "2 enkelsängar", 5),
+
+            Room(vato2, "Rum 6", 2, "2 enkelsängar", 1),
+            Room(vato2, "Rum 7", 1, "1 enkelsäng", 2),
+            Room(vato2, "Rum 8", 1, "1 enkelsäng", 3),
+            Room(vato2, "Rum 9", 2, "2 enkelsängar", 4),
+            Room(vato2, "Rum 10", 2, "2 enkelsängar", 5),
+
+            Room(smedjanB, "Rum 1", 4, "2 våningssängar", 1),
+
+            Room(tallstuganB, "Rum 1", 4, "2 våningssängar & 2 enkelsängar", 1),
         };
-        huvud.Rooms = rooms.Where(r => r.BuildingId == huvud.Id).ToList();
-        annexet.Rooms = rooms.Where(r => r.BuildingId == annexet.Id).ToList();
-        stugan.Rooms = rooms.Where(r => r.BuildingId == stugan.Id).ToList();
+        foreach (var b in buildings)
+            b.Rooms = rooms.Where(r => r.BuildingId == b.Id).ToList();
 
         var lunches = new List<MealOption>
         {
@@ -155,20 +183,38 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
                 "Laxfilé ur ugn med citron, serveras med färskpotatis och dillsås."),
         };
 
+        // Facility examples straight from the SRS (FR-03: "e.g. Kapellet, Spelrum"). Only
+        // Konferensrum carries a PhysicalBuildingId — it's the only facility that puts a
+        // building's cleaning in play (§8.8, §5.5).
         var facilities = new List<Facility>
         {
-            Facility("Bastu", "Vedeldad bastu vid sjön med plats för åtta personer.", 500m, VatService, 1),
-            Facility("Konferenssal", "Ljus sal för upp till 40 personer, med projektor och whiteboard.", 1200m, VatService, 2),
-            Facility("Kanoter och kajaker", "Fem kanoter och tre kajaker med flytvästar ingår.", 300m, VatService, 3),
-            Facility("Lekplats och bollplan", "Lekplats för barn samt gräsplan för fotboll och kubb.", 0m, VatService, 4),
+            Facility(null, "Kapellet", "Litet kapell för vigslar och andakt, plats för ca 30 personer.", 800m, VatService, 1),
+            Facility(null, "Bastu", "Vedeldad bastu vid sjön med plats för åtta personer.", 500m, VatService, 2),
+            Facility(konferensPb, "Konferensrum", "Ljust konferensrum för upp till 40 personer, med projektor och whiteboard.", 1200m, VatService, 3),
+            Facility(null, "Spelrum", "Biljard, bordtennis och pilkastning. Städning ingår i avgiften.", 300m, VatService, 4),
+            Facility(null, "Kanoter och kajaker", "Fem kanoter och tre kajaker med flytvästar ingår.", 300m, VatService, 5),
+            Facility(null, "Lekplats och bollplan", "Lekplats för barn samt gräsplan för fotboll och kubb.", 0m, VatService, 6),
         };
 
-        var kok = Zone("Kök", "Storstädning av köket efter vistelsen.", 800m, VatService, 1);
-        var samling = Zone("Samlingssal", "Städning av samlingssal och allrum.", 600m, VatService, 2);
-        var sovrum = Zone("Sovrum", "Städning av samtliga sovrum.", 900m, VatService, 3);
-        var hela = Zone("Hela lägret", "Fullständig slutstädning av hela anläggningen.", 2000m, VatService, 4);
-        hela.IncludesZoneIds = [kok.Id, samling.Id, sovrum.Id];
-        var zones = new List<CleaningZone> { kok, samling, sovrum, hela };
+        // Cleaning zones (§5.5) — one per physical building, priced per building never per room,
+        // plus the Hela lägret bundle covering the four 2 000 kr zones (4 × 2 000 = 8 000).
+        var huvudZone = Zone(huvudPb, CleaningZoneKind.MainBuilding, "Huvudbyggnad",
+            "Städning av matsal, kök och gemensamma ytor i huvudbyggnaden.", 2000m, VatService, 1);
+        var lillaZone = Zone(lillaPb, CleaningZoneKind.SleepingBuilding, "Lilla bostadslängan",
+            "Städning av hela Lilla bostadslängan (Blidö, Ljusterö, Singö, Tjockö).", 2000m, VatService, 2);
+        var storaZone = Zone(storaPb, CleaningZoneKind.SleepingBuilding, "Stora bostadslängan",
+            "Städning av hela Stora bostadslängan (Vätö 1, Vätö 2).", 2000m, VatService, 3);
+        var smedjanZone = Zone(smedjanPb, CleaningZoneKind.SleepingBuilding, "Smedjan",
+            "Städning av Smedjan.", 500m, VatService, 4);
+        var tallstuganZone = Zone(tallstuganPb, CleaningZoneKind.SleepingBuilding, "Tallstugan",
+            "Städning av Tallstugan.", 500m, VatService, 5);
+        var konferensZone = Zone(konferensPb, CleaningZoneKind.Conference, "Konferensbyggnad",
+            "Städning av konferensbyggnaden.", 2000m, VatService, 6);
+        var helaZone = Zone(null, CleaningZoneKind.Everything, "Hela lägret",
+            "Fullständig slutstädning av hela anläggningen — rate-card-referens, inte ett gästval.", 8000m, VatService, 7);
+        helaZone.IncludesZoneIds = [huvudZone.Id, lillaZone.Id, storaZone.Id, konferensZone.Id];
+        var zones = new List<CleaningZone>
+            { huvudZone, lillaZone, storaZone, smedjanZone, tallstuganZone, konferensZone, helaZone };
 
         var prices = new List<PriceRule>
         {
@@ -181,16 +227,35 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             Price("Konferenspaket", 595m, VatService, "per person och dag", null),
         };
 
-        db.Buildings.AddRange(huvud, annexet, stugan);
+        db.PhysicalBuildings.AddRange(physicalBuildings);
+        db.Buildings.AddRange(buildings);
         db.MealOptions.AddRange(lunches);
         db.MealOptions.AddRange(dinners);
         db.Facilities.AddRange(facilities);
         db.CleaningZones.AddRange(zones);
         db.PriceRules.AddRange(prices);
 
-        return new RefData(
-            [huvud, annexet, stugan], rooms, lunches, dinners, facilities, zones);
+        return new RefData(physicalBuildings, buildings, rooms, lunches, dinners, facilities, zones);
 
+        PhysicalBuilding PhysicalBuilding(string name, string desc, int order) => new()
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            Description = desc,
+            IsActive = true,
+            DisplayOrder = order,
+        };
+        Building Building(PhysicalBuilding pb, string name, string desc, string shared, bool isAccessible, int order) => new()
+        {
+            Id = Guid.NewGuid(),
+            PhysicalBuildingId = pb.Id,
+            Name = name,
+            Description = desc,
+            SharedFacilities = shared,
+            IsAccessible = isAccessible,
+            IsActive = true,
+            DisplayOrder = order,
+        };
         Room Room(Building b, string name, int beds, string config, int order) => new()
         {
             Id = Guid.NewGuid(),
@@ -211,9 +276,10 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             IsActive = true,
             DisplayOrder = order,
         };
-        Facility Facility(string name, string desc, decimal amount, decimal vat, int order) => new()
+        Facility Facility(PhysicalBuilding? pb, string name, string desc, decimal amount, decimal vat, int order) => new()
         {
             Id = Guid.NewGuid(),
+            PhysicalBuildingId = pb?.Id,
             Name = name,
             Description = desc,
             AmountExVat = amount,
@@ -221,9 +287,11 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             IsActive = true,
             DisplayOrder = order,
         };
-        CleaningZone Zone(string name, string desc, decimal amount, decimal vat, int order) => new()
+        CleaningZone Zone(PhysicalBuilding? pb, CleaningZoneKind kind, string name, string desc, decimal amount, decimal vat, int order) => new()
         {
             Id = Guid.NewGuid(),
+            PhysicalBuildingId = pb?.Id,
+            Kind = kind,
             Name = name,
             Description = desc,
             AmountExVat = amount,
@@ -250,7 +318,20 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         var nowUtc = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(nowUtc);
 
+        var bastu = r.Facilities.First(f => f.Name == "Bastu");
+        var konferensrum = r.Facilities.First(f => f.Name == "Konferensrum");
+
+        var huvudZone = r.Zones.First(z => z.Name == "Huvudbyggnad");
+        var lillaZone = r.Zones.First(z => z.Name == "Lilla bostadslängan");
+
+        var tjocko = r.Buildings.First(b => b.Name == "Tjockö");
+        var singo = r.Buildings.First(b => b.Name == "Singö");
+        var ljustero = r.Buildings.First(b => b.Name == "Ljusterö");
+        var blido = r.Buildings.First(b => b.Name == "Blidö");
+
         // 1. Pending — a fresh stay request awaiting an admin decision, with selections.
+        // Cleaning is not chosen at this stage under the new model (FR-93) — it is a
+        // completion-form choice, and this booking has not reached completion yet.
         var pending = StayRequest(
             "Karin Lundgren", "karin.lundgren@example.com", "070-123 45 67",
             today.AddDays(45), today.AddDays(48), overnight: 18, dayGuests: 0,
@@ -262,8 +343,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         pending.OrgNumber = "802000-1234";
         pending.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Pending, today.AddDays(-2), pending.CheckOut, today);
-        AddFacility(pending, r.Facilities[0]); // Bastu
-        AddZone(pending, r.Zones[3]);          // Hela lägret
+        AddFacility(pending, bastu);
         db.Bookings.Add(pending);
 
         // 2. Approved — token issued, guest yet to complete details (valid magic link).
@@ -278,10 +358,13 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         approved.Message = "Konfirmationsläger för församlingen.";
         approved.AdminNotes = "Ringde och bekräftade antal – återkommer med matval via länken.";
         approved.DeleteAfter = null; // live state
-        AddFacility(approved, r.Facilities[1]); // Konferenssal
+        AddFacility(approved, konferensrum);
         db.Bookings.Add(approved);
 
-        // 3. DetailsComplete — guest submitted the completion form (participants + meals + rooms).
+        // 3. DetailsComplete — guest submitted the completion form (participants + meals + rooms +
+        // cleaning, FR-93). Occupies rooms in both Tjockö and Singö — both map to the same Lilla
+        // bostadslängan zone, so this demonstrates the "one row per distinct occupied zone, never
+        // per room" rule (§8.12): two occupied lodging units, one cleaning charge.
         var details = StayRequest(
             "Anna Sjöberg", "anna.sjoberg@example.com", "076-555 11 22",
             today.AddDays(25), today.AddDays(28), overnight: 4, dayGuests: 1,
@@ -289,19 +372,24 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         details.Status = BookingStatus.DetailsComplete;
         details.GuestChoosesRooms = true;
         details.DeleteAfter = null;
-        AddFacility(details, r.Facilities[0]);
-        AddZone(details, r.Zones[0]);
-        var detailsRoom = r.Rooms.First(x => x.Name == "Rum 3"); // 2 beds
+        details.MainBuildingCleaningPurchased = true;
+        details.SleepingCleaningPurchased = true;
+        AddFacility(details, bastu);
+        AddZone(details, huvudZone);
+        AddZone(details, lillaZone);
+        var detailsRoom = r.Rooms.First(x => x.BuildingId == tjocko.Id && x.Name == "Rum 2"); // 2 beds
         AddOvernight(details, "Anna Sjöberg", AgeCategory.Adult, detailsRoom, [DietaryRequirement.LactoseFree], null, r);
         AddOvernight(details, "Erik Sjöberg", AgeCategory.Adult, detailsRoom, [], null, r);
-        var detailsRoom2 = r.Rooms.First(x => x.Name == "Familjerummet");
+        var detailsRoom2 = r.Rooms.First(x => x.BuildingId == singo.Id && x.Name == "Rum 2"); // 5 beds
         AddOvernight(details, "Maja Sjöberg", AgeCategory.Child, detailsRoom2, [DietaryRequirement.NutAllergy], null, r);
         AddOvernight(details, "Olle Sjöberg", AgeCategory.Child, detailsRoom2, [], null, r);
         AddDayGuest(details, "Britt Sjöberg", AgeCategory.Adult, details.CheckIn!.Value.AddDays(1),
             attendsBreakfast: false, [DietaryRequirement.Vegetarian], null, r);
         db.Bookings.Add(details);
 
-        // 4. Active — a group currently on site (check-in past, check-out ahead).
+        // 4. Active — a group currently on site (check-in past, check-out ahead). Completed
+        // details but chose the default self-clean for both areas (§5.5) — demonstrates the
+        // "guest cleans themselves" default path explicitly rather than leaving it ambiguous.
         var active = StayRequest(
             "Peter Nyström", "peter.nystrom@example.com", "070-888 99 00",
             today.AddDays(-1), today.AddDays(2), overnight: 3, dayGuests: 0,
@@ -311,14 +399,17 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         active.DepositInvoiced = true;
         active.DepositPaid = true;
         active.DeleteAfter = null;
-        var activeRoom = r.Rooms.First(x => x.Name == "Annex 1");
+        active.MainBuildingCleaningPurchased = false;
+        active.SleepingCleaningPurchased = false;
+        var activeRoom = r.Rooms.First(x => x.BuildingId == ljustero.Id && x.Name == "Rum 3"); // 4 beds
         AddOvernight(active, "Peter Nyström", AgeCategory.Adult, activeRoom, [], null, r);
         AddOvernight(active, "Lena Nyström", AgeCategory.Adult, activeRoom, [DietaryRequirement.GlutenFree], null, r);
         AddOvernight(active, "Sven Åkesson", AgeCategory.Adult, activeRoom,
             [DietaryRequirement.Other], "Undviker fläskkött.", r);
         db.Bookings.Add(active);
 
-        // 5. Completed — a finished stay (retention = check-out + 2 years).
+        // 5. Completed — a finished stay (retention = check-out + 2 years). Purchased both
+        // Huvudbyggnad and sleeping-building cleaning.
         var completed = StayRequest(
             "Margareta Holm", "margareta.holm@example.com", "073-111 22 33",
             today.AddDays(-30), today.AddDays(-27), overnight: 5, dayGuests: 2,
@@ -331,7 +422,11 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         completed.FinalPaid = true;
         completed.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Completed, today.AddDays(-60), completed.CheckOut, today.AddDays(-27));
-        var compRoom = r.Rooms.First(x => x.Name == "Stora rummet");
+        completed.MainBuildingCleaningPurchased = true;
+        completed.SleepingCleaningPurchased = true;
+        AddZone(completed, huvudZone);
+        AddZone(completed, lillaZone);
+        var compRoom = r.Rooms.First(x => x.BuildingId == ljustero.Id && x.Name == "Rum 2"); // 6 beds
         AddOvernight(completed, "Margareta Holm", AgeCategory.Adult, compRoom, [], null, r);
         AddOvernight(completed, "Gustav Holm", AgeCategory.Adult, compRoom, [], null, r);
         AddOvernight(completed, "Elin Holm", AgeCategory.Adult, compRoom, [DietaryRequirement.Vegan], null, r);
@@ -387,6 +482,9 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         };
         db.Bookings.Add(closed);
 
+        // Note: Kapellet is seeded but not used by any demo booking above — kept available for
+        // manual admin testing of facility selection on the inquiry form.
+
         // Blocks — make the public calendar and admin block views non-empty.
         db.BlockedPeriods.AddRange(
             new BlockedPeriod
@@ -402,18 +500,18 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             {
                 Id = Guid.NewGuid(),
                 Scope = BlockScope.Building,
-                BuildingId = r.Buildings.First(b => b.Name == "Annexet").Id,
+                BuildingId = ljustero.Id,
                 StartDate = today.AddDays(90),
                 EndDate = today.AddDays(95),
-                Reason = "Målning av Annexet.",
+                Reason = "Målning av Ljusterö.",
                 CreatedAt = nowUtc,
             },
             new BlockedPeriod
             {
                 Id = Guid.NewGuid(),
                 Scope = BlockScope.Room,
-                BuildingId = r.Buildings.First(b => b.Name == "Huvudbyggnaden").Id,
-                RoomId = r.Rooms.First(x => x.Name == "Rum 4").Id,
+                BuildingId = blido.Id,
+                RoomId = r.Rooms.First(x => x.BuildingId == blido.Id && x.Name == "Rum 4").Id,
                 StartDate = today.AddDays(10),
                 EndDate = today.AddDays(20),
                 Reason = "Renovering – trasigt fönster.",

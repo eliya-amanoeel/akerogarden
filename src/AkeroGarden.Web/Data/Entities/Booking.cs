@@ -82,6 +82,21 @@ public class Booking
 
     public List<BookingCleaningSelection> CleaningSelections { get; set; } = [];
 
+    // ── Completion-form cleaning choice (FR-93, §5.5) ────────────────────────────
+    /// <summary>Huvudbyggnad self-clean/buy toggle. Snapshot row written to
+    /// <see cref="CleaningSelections"/> at completion submission. Null until completion / for
+    /// general inquiries.</summary>
+    public bool? MainBuildingCleaningPurchased { get; set; }
+
+    /// <summary>The combined sleeping-building(s) toggle — intent flag. Priced selection rows for
+    /// the occupied <see cref="CleaningZoneKind.SleepingBuilding"/> zone(s) are resolved from room
+    /// assignment (§8.5/8.11) and snapshotted when assignment is set/changed.</summary>
+    public bool? SleepingCleaningPurchased { get; set; }
+
+    /// <summary>Konferensbyggnad toggle — shown/settable only when the Konferensrum facility is
+    /// booked. Snapshot row written at completion submission.</summary>
+    public bool? ConferenceCleaningPurchased { get; set; }
+
     /// <summary>Participants captured on the completion form (Phase 4, §8.5) — overnight guests
     /// and day guests. Empty until the guest submits the completion form.</summary>
     public List<Participant> Participants { get; set; } = [];

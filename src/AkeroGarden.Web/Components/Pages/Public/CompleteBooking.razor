@@ -7,6 +7,7 @@
 @inject BookingService BookingService
 @inject MealOptionService MealOptionService
 @inject RoomAvailabilityService RoomAvailability
+@inject CleaningZoneService CleaningZoneService
 
 @* Token-authenticated booking completion page (§6.6, FR-54..62). Static SSR: the token in the URL
    is the sole auth, validated server-side on every request; the submit handler re-validates before
@@ -378,6 +379,30 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                             formaction="@($"/slutfor/{Token}#dagsgaster")" class="btn-outline" formnovalidate>+ Lägg till dagsgäst</button>
                 }
 
+                <h2>Städning</h2>
+                <p class="sec-note">Standard är att ni städar själva. Kryssa i om ni i stället vill köpa städning — vi fakturerar det separat.</p>
+
+                <div class="fbrow">
+                    <input type="checkbox" id="clean-main" name="Form.MainBuildingCleaning" value="true" checked="@_form.MainBuildingCleaning" />
+                    <input type="hidden" name="Form.MainBuildingCleaning" value="false" />
+                    <label for="clean-main">Huvudbyggnad (matsal &amp; gemensamma ytor)</label>
+                </div>
+
+                <div class="fbrow">
+                    <input type="checkbox" id="clean-sleeping" name="Form.SleepingCleaning" value="true" checked="@_form.SleepingCleaning" />
+                    <input type="hidden" name="Form.SleepingCleaning" value="false" />
+                    <label for="clean-sleeping">Sovbyggnad(er) ni bor i</label>
+                </div>
+
+                @if (_conferenceCleaningApplicable)
+                {
+                    <div class="fbrow">
+                        <input type="checkbox" id="clean-conference" name="Form.ConferenceCleaning" value="true" checked="@_form.ConferenceCleaning" />
+                        <input type="hidden" name="Form.ConferenceCleaning" value="false" />
+                        <label for="clean-conference">Konferensbyggnad</label>
+                    </div>
+                }
+
                 <h2>Faktureringsuppgifter</h2>
                 <div class="fbrow">
                     <input type="checkbox" id="is-org" name="Form.IsOrganisation" value="true" checked="@_form.IsOrganisation" />
@@ -471,6 +496,7 @@ else
     private bool _guestChoosesRooms;
     private IReadOnlyList<RoomInfo> _availableRooms = [];
     private IReadOnlyList<string> _errors = [];
+    private bool _conferenceCleaningApplicable;
 
     private static readonly AgeCategory[] AgeCategories = [AgeCategory.Adult, AgeCategory.Child, AgeCategory.Infant];
     private static readonly DietaryRequirement[] DietaryOptions =
@@ -505,6 +531,11 @@ else
             _guestChoosesRooms = _booking.GuestChoosesRooms;
             if (_guestChoosesRooms)
                 _availableRooms = await RoomAvailability.GetAvailableRoomsAsync(_booking.Id);
+
+            // Konferensbyggnad toggle (§5.5, FR-93) only shown when the Konferensrum facility was
+            // actually requested — Huvudbyggnad/Sovbyggnader always apply since a stay request
+            // always has overnight lodging.
+            _conferenceCleaningApplicable = await CleaningZoneService.IsConferenceCleaningApplicableAsync(_booking.Id);
 
             // On POST the framework binds Form; on GET (or a post that bound no participant rows)
             // seed a blank form (one row per overnight guest). Guarding Overnight — not just Form —

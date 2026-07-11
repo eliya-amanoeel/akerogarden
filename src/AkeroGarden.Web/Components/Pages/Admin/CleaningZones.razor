@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using AkeroGarden.Web.Data.Entities
 @inject CleaningZoneService CleaningZoneService
+@inject PhysicalBuildingService PhysicalBuildingService
 @attribute [Authorize]
 
 <PageTitle>Städzoner — Åkerögården Admin</PageTitle>
@@ -29,6 +30,8 @@ else
                     <th>Namn</th>
                     <th class="num">Belopp exkl. moms</th>
                     <th class="num">Momssats</th>
+                    <th>Kategori</th>
+                    <th>Fysisk byggnad</th>
                     <th>Typ</th>
                     <th>Status</th>
                     <th></th>
@@ -42,6 +45,8 @@ else
                         <td><span class="rowlink">@z.Name</span></td>
                         <td class="num mono">@z.AmountExVat.ToString("0.00") kr</td>
                         <td class="num mono">@z.VatRate.ToString("0.##%")</td>
+                        <td>@KindLabel(z.Kind)</td>
+                        <td>@(z.PhysicalBuildingId is null ? "—" : PhysicalBuildingName(z.PhysicalBuildingId.Value))</td>
                         <td>@BundleText(z)</td>
                         <td>
                             @if (z.IsActive)
@@ -107,6 +112,31 @@ else
             <ValidationMessage For="() => _form.DisplayOrder" />
         </div>
 
+        <div class="form-group">
+            <label for="z-kind">Kategori</label>
+            <InputSelect id="z-kind" @bind-Value="_form.Kind">
+                @foreach (var kind in Enum.GetValues<CleaningZoneKind>())
+                {
+                    <option value="@kind">@KindLabel(kind)</option>
+                }
+            </InputSelect>
+            <p class="form-hint">Styr när zonen erbjuds på slutförandeformuläret och vilken städknapp den hör till (§8.11).</p>
+        </div>
+
+        @if (_form.Kind != CleaningZoneKind.Everything)
+        {
+            <div class="form-group">
+                <label for="z-physical">Fysisk byggnad</label>
+                <InputSelect id="z-physical" @bind-Value="_form.PhysicalBuildingId">
+                    <option value="">Välj fysisk byggnad…</option>
+                    @foreach (var pb in _physicalBuildings.Where(p => p.IsActive))
+                    {
+                        <option value="@pb.Id">@pb.Name</option>
+                    }
+                </InputSelect>
+            </div>
+        }
+
         <fieldset class="form-group">
             <legend>Bunt — inkluderade zoner (valfritt)</legend>
             <p>Kryssa i de zoner som denna zon paketerar (t.ex. Hela lägret). Lämna tomt för en vanlig zon.</p>
@@ -140,6 +170,7 @@ else
 
 @code {
     private List<CleaningZone>? _zones;
+    private List<PhysicalBuilding> _physicalBuildings = [];
     private CleaningZone _form = new();
     private Guid? _editingId;
     private string? _message;
@@ -148,13 +179,29 @@ else
     // and not themselves bundles (no nested bundles).
     private List<CleaningZone> _bundleCandidates = [];
 
-    protected override async Task OnInitializedAsync() => await Load();
+    protected override async Task OnInitializedAsync()
+    {
+        _physicalBuildings = await PhysicalBuildingService.GetAllAsync();
+        await Load();
+    }
 
     private async Task Load()
     {
         _zones = await CleaningZoneService.GetAllAsync();
         RefreshCandidates();
     }
+
+    private string PhysicalBuildingName(Guid physicalBuildingId) =>
+        _physicalBuildings.FirstOrDefault(p => p.Id == physicalBuildingId)?.Name ?? "—";
+
+    private static string KindLabel(CleaningZoneKind kind) => kind switch
+    {
+        CleaningZoneKind.MainBuilding => "Huvudbyggnad",
+        CleaningZoneKind.SleepingBuilding => "Sovbyggnad",
+        CleaningZoneKind.Conference => "Konferens",
+        CleaningZoneKind.Everything => "Hela lägret (bunt)",
+        _ => kind.ToString()
+    };
 
     private void RefreshCandidates()
     {
@@ -199,6 +246,8 @@ else
             Description = z.Description,
             AmountExVat = z.AmountExVat,
             VatRate = z.VatRate,
+            Kind = z.Kind,
+            PhysicalBuildingId = z.PhysicalBuildingId,
             IncludesZoneIds = [.. z.IncludesZoneIds],
             DisplayOrder = z.DisplayOrder
         };

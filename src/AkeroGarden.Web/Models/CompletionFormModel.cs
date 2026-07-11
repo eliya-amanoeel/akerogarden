@@ -40,6 +40,18 @@ public class CompletionFormModel
     /// reason as <see cref="OvernightParticipantEntry.MealChoices"/>; ignored by CompletionNormalizer.</summary>
     public List<string?> GroupDefaultMeals { get; set; } = [];
 
+    // ── Cleaning (FR-93, §5.5) ────────────────────────────────────────────────────
+    /// <summary>Huvudbyggnad self-clean/buy toggle. Default false (self-clean is the default).</summary>
+    public bool MainBuildingCleaning { get; set; }
+
+    /// <summary>The combined sleeping-building(s) toggle — intent only; the priced selection rows
+    /// resolve from room assignment (§8.12), not from this flag directly.</summary>
+    public bool SleepingCleaning { get; set; }
+
+    /// <summary>Konferensbyggnad toggle — only honored server-side when the Konferensrum facility
+    /// was actually selected on the booking (§5.5); ignored otherwise regardless of what posts.</summary>
+    public bool ConferenceCleaning { get; set; }
+
     // ── Org / invoice (FR-60) ────────────────────────────────────────────────────
     public bool IsOrganisation { get; set; }
 

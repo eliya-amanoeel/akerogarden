@@ -169,6 +169,9 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<DateTime?>("CompletionTokenExpiry")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<bool?>("ConferenceCleaningPurchased")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("ContactEmail")
                         .IsRequired()
                         .HasMaxLength(320)
@@ -224,6 +227,9 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<bool>("IsOrganisation")
                         .HasColumnType("boolean");
 
+                    b.Property<bool?>("MainBuildingCleaningPurchased")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("MealPlan")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
@@ -251,6 +257,9 @@ namespace AkeroGarden.Web.Data.Migrations
                         .HasColumnType("integer");
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<int>("SequenceNumber"));
+
+                    b.Property<bool?>("SleepingCleaningPurchased")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("Status")
                         .IsRequired()
@@ -368,11 +377,16 @@ namespace AkeroGarden.Web.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid>("PhysicalBuildingId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("SharedFacilities")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PhysicalBuildingId");
 
                     b.ToTable("Buildings");
                 });
@@ -401,16 +415,26 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("PhysicalBuildingId")
+                        .HasColumnType("uuid");
 
                     b.Property<decimal>("VatRate")
                         .HasPrecision(5, 4)
                         .HasColumnType("numeric(5,4)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PhysicalBuildingId");
 
                     b.ToTable("CleaningZones");
                 });
@@ -443,11 +467,16 @@ namespace AkeroGarden.Web.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("PhysicalBuildingId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("VatRate")
                         .HasPrecision(5, 4)
                         .HasColumnType("numeric(5,4)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PhysicalBuildingId");
 
                     b.ToTable("Facilities");
                 });
@@ -575,6 +604,32 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.HasIndex("RoomId");
 
                     b.ToTable("Participants");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.PhysicalBuilding", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PhysicalBuildings");
                 });
 
             modelBuilder.Entity("AkeroGarden.Web.Data.Entities.PriceRule", b =>
@@ -821,6 +876,37 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Navigation("Booking");
 
                     b.Navigation("Facility");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.Building", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Data.Entities.PhysicalBuilding", "PhysicalBuilding")
+                        .WithMany()
+                        .HasForeignKey("PhysicalBuildingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PhysicalBuilding");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.CleaningZone", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Data.Entities.PhysicalBuilding", "PhysicalBuilding")
+                        .WithMany()
+                        .HasForeignKey("PhysicalBuildingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PhysicalBuilding");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.Facility", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Data.Entities.PhysicalBuilding", "PhysicalBuilding")
+                        .WithMany()
+                        .HasForeignKey("PhysicalBuildingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PhysicalBuilding");
                 });
 
             modelBuilder.Entity("AkeroGarden.Web.Data.Entities.MealPreference", b =>

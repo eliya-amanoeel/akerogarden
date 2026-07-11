@@ -43,9 +43,9 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         Assert.NotEmpty(await db.PriceRules.ToListAsync());
         Assert.NotEmpty(await db.Facilities.ToListAsync());
 
-        // The "Hela lägret" bundle references three real zones.
+        // The "Hela lägret" bundle references the four 2 000 kr zones (§5.5).
         var bundle = await db.CleaningZones.SingleAsync(z => z.Name == "Hela lägret");
-        Assert.Equal(3, bundle.IncludesZoneIds.Count);
+        Assert.Equal(4, bundle.IncludesZoneIds.Count);
         var zoneIds = await db.CleaningZones.Select(z => z.Id).ToListAsync();
         Assert.All(bundle.IncludesZoneIds, id => Assert.Contains(id, zoneIds));
 

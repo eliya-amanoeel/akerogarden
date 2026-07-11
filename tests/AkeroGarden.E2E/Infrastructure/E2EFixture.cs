@@ -76,6 +76,14 @@ public sealed class E2EFixture : IAsyncLifetime
     public const string CompletionToken = "e2e-completion-token-abc123";
     public const string CompletionSubmitToken = "e2e-completion-submit-token-xyz789";
 
+    /// <summary>A booking with the Konferensrum facility selected at inquiry — read-only, for the
+    /// "conference toggle only shows when applicable" test (Phase 8 cleaning rework, §5.5).</summary>
+    public const string ConferenceCompletionToken = "e2e-completion-conference-token-def456";
+
+    /// <summary>Same as <see cref="ConferenceCompletionToken"/> but single-use, for the cleaning-
+    /// submission-persists-to-DB test.</summary>
+    public const string ConferenceCompletionSubmitToken = "e2e-completion-conference-submit-token-ghi789";
+
     /// <summary>Credentials for the admin user AdminSeeder creates on boot (Seed:AdminEmail/Password
     /// passed via env below). The admin E2E tests log in with these before hitting /admin.</summary>
     public const string AdminEmail = "e2e-admin@akerogarden.test";
@@ -130,6 +138,48 @@ public sealed class E2EFixture : IAsyncLifetime
         };
         ctx.Bookings.Add(CompletionBooking(CompletionToken));
         ctx.Bookings.Add(CompletionBooking(CompletionSubmitToken));
+
+        // Cleaning rework (Phase 8, §5.5): a Konferensbyggnad physical building + Konferensrum
+        // facility + Conference-kind cleaning zone, and two bookings that requested that facility
+        // — one read-only (toggle-visibility test), one single-use (submission test).
+        var huvudPb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = "Huvudbyggnad", IsActive = true };
+        var konferensPb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = "Konferensbyggnad", IsActive = true };
+        ctx.PhysicalBuildings.AddRange(huvudPb, konferensPb);
+
+        var konferensrum = new Facility
+        {
+            Id = Guid.NewGuid(), Name = "Konferensrum", PhysicalBuildingId = konferensPb.Id,
+            AmountExVat = 1200m, VatRate = 0.25m, IsActive = true,
+        };
+        ctx.Facilities.Add(konferensrum);
+
+        ctx.CleaningZones.AddRange(
+            new CleaningZone
+            {
+                Id = Guid.NewGuid(), Name = "Huvudbyggnad", Kind = CleaningZoneKind.MainBuilding,
+                PhysicalBuildingId = huvudPb.Id, AmountExVat = 2000m, VatRate = 0.25m, IsActive = true,
+            },
+            new CleaningZone
+            {
+                Id = Guid.NewGuid(), Name = "Konferensbyggnad", Kind = CleaningZoneKind.Conference,
+                PhysicalBuildingId = konferensPb.Id, AmountExVat = 2000m, VatRate = 0.25m, IsActive = true,
+            });
+
+        Booking ConferenceCompletionBooking(string token)
+        {
+            var b = CompletionBooking(token);
+            b.FacilitySelections.Add(new BookingFacilitySelection
+            {
+                Id = Guid.NewGuid(),
+                FacilityId = konferensrum.Id,
+                FacilityNameSnapshot = konferensrum.Name,
+                AmountExVatSnapshot = konferensrum.AmountExVat,
+                VatRateSnapshot = konferensrum.VatRate,
+            });
+            return b;
+        }
+        ctx.Bookings.Add(ConferenceCompletionBooking(ConferenceCompletionToken));
+        ctx.Bookings.Add(ConferenceCompletionBooking(ConferenceCompletionSubmitToken));
 
         // One Pending stay request so the admin dashboard's "Väntar på svar" queue and the nav
         // count badge have something to render (the completion bookings above are Approved).

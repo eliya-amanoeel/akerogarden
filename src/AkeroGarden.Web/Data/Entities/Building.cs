@@ -14,6 +14,13 @@ public class Building
     [StringLength(200, ErrorMessage = "Namnet får vara högst 200 tecken.")]
     public string Name { get; set; } = string.Empty;
 
+    /// <summary>The physical building (§8.14) this lodging unit sits in — several lodging units
+    /// can share one physical building (e.g. Blidö/Ljusterö/Singö/Tjockö → Lilla bostadslängan).
+    /// Drives cleaning-zone resolution (room → building → physical building → zone, FR-13).</summary>
+    public Guid PhysicalBuildingId { get; set; }
+
+    public PhysicalBuilding? PhysicalBuilding { get; set; }
+
     [StringLength(2000, ErrorMessage = "Beskrivningen får vara högst 2000 tecken.")]
     public string? Description { get; set; }
 

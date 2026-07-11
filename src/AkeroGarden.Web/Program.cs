@@ -136,6 +136,9 @@ builder.Services.AddScoped<PriceRuleService>();
 builder.Services.AddScoped<CleaningZoneService>();
 builder.Services.AddScoped<FacilityService>();
 
+// ── Reference data services (Phase 8: cleaning rework, §8.14) ────────────────
+builder.Services.AddScoped<PhysicalBuildingService>();
+
 // ── Blob storage (facility images, FR-27) ─────────────────────────────────────
 builder.Services.Configure<BlobOptions>(builder.Configuration.GetSection("Blob"));
 builder.Services.AddScoped<IImageStorage, BlobImageStorage>();

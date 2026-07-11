@@ -34,15 +34,26 @@ public class BuildingRoomIntegrationTests : IClassFixture<DbFixture>
             db);
     }
 
+    /// <summary>Every lodging Building now requires a real PhysicalBuilding FK (FR-13, §8.14) —
+    /// seeds a throwaway one for tests that only care about Building/Room behaviour.</summary>
+    private static async Task<PhysicalBuilding> SeedPhysicalBuildingAsync(ApplicationDbContext db)
+    {
+        var pb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"Fysisk-{Guid.NewGuid():N}" };
+        db.PhysicalBuildings.Add(pb);
+        await db.SaveChangesAsync();
+        return pb;
+    }
+
     [Fact]
     public async Task CreateBuilding_PersistsAndAppearsInList()
     {
-        var (buildings, _, _) = NewScope(out var scope);
+        var (buildings, _, db) = NewScope(out var scope);
         using var _s = scope;
+        var pb = await SeedPhysicalBuildingAsync(db);
 
         var name = $"Blidö-{Guid.NewGuid():N}";
-        var building = new Building { Name = name, DisplayOrder = 1, IsAccessible = false };
-        await buildings.CreateAsync(building);
+        var building = new Building { Name = name, PhysicalBuildingId = pb.Id, DisplayOrder = 1, IsAccessible = false };
+        await buildings.TryCreateAsync(building);
 
         var all = await buildings.GetAllAsync();
         Assert.Contains(all, b => b.Id == building.Id && b.Name == name && b.IsActive);
@@ -51,11 +62,12 @@ public class BuildingRoomIntegrationTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Deactivate_KeepsRecord_AndFlipsFlag()
     {
-        var (buildings, _, _) = NewScope(out var scope);
+        var (buildings, _, db) = NewScope(out var scope);
         using var _s = scope;
+        var pb = await SeedPhysicalBuildingAsync(db);
 
-        var building = new Building { Name = $"Singö-{Guid.NewGuid():N}" };
-        await buildings.CreateAsync(building);
+        var building = new Building { Name = $"Singö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id };
+        await buildings.TryCreateAsync(building);
 
         await buildings.SetActiveAsync(building.Id, false);
 
@@ -67,11 +79,12 @@ public class BuildingRoomIntegrationTests : IClassFixture<DbFixture>
     [Fact]
     public async Task HardDeleteBuilding_Blocked_WhenItHasRooms()
     {
-        var (buildings, rooms, _) = NewScope(out var scope);
+        var (buildings, rooms, db) = NewScope(out var scope);
         using var _s = scope;
+        var pb = await SeedPhysicalBuildingAsync(db);
 
-        var building = new Building { Name = $"Ljusterö-{Guid.NewGuid():N}" };
-        await buildings.CreateAsync(building);
+        var building = new Building { Name = $"Ljusterö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id };
+        await buildings.TryCreateAsync(building);
         await rooms.CreateAsync(new Room { BuildingId = building.Id, Name = "Rum 1", BedCount = 2 });
 
         var result = await buildings.TryHardDeleteAsync(building.Id);
@@ -83,11 +96,12 @@ public class BuildingRoomIntegrationTests : IClassFixture<DbFixture>
     [Fact]
     public async Task HardDeleteBuilding_Succeeds_WhenEmpty()
     {
-        var (buildings, _, _) = NewScope(out var scope);
+        var (buildings, _, db) = NewScope(out var scope);
         using var _s = scope;
+        var pb = await SeedPhysicalBuildingAsync(db);
 
-        var building = new Building { Name = $"Tjockö-{Guid.NewGuid():N}" };
-        await buildings.CreateAsync(building);
+        var building = new Building { Name = $"Tjockö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id };
+        await buildings.TryCreateAsync(building);
 
         var result = await buildings.TryHardDeleteAsync(building.Id);
 
@@ -98,11 +112,12 @@ public class BuildingRoomIntegrationTests : IClassFixture<DbFixture>
     [Fact]
     public async Task HardDeleteRoom_Succeeds_AndLeavesBuildingDeletable()
     {
-        var (buildings, rooms, _) = NewScope(out var scope);
+        var (buildings, rooms, db) = NewScope(out var scope);
         using var _s = scope;
+        var pb = await SeedPhysicalBuildingAsync(db);
 
-        var building = new Building { Name = $"Vätö-{Guid.NewGuid():N}" };
-        await buildings.CreateAsync(building);
+        var building = new Building { Name = $"Vätö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id };
+        await buildings.TryCreateAsync(building);
         var room = new Room { BuildingId = building.Id, Name = "Rum 1", BedCount = 2 };
         await rooms.CreateAsync(room);
 
@@ -117,11 +132,12 @@ public class BuildingRoomIntegrationTests : IClassFixture<DbFixture>
     [Fact]
     public async Task GetForBuilding_ReturnsRoomsInDisplayOrder()
     {
-        var (buildings, rooms, _) = NewScope(out var scope);
+        var (buildings, rooms, db) = NewScope(out var scope);
         using var _s = scope;
+        var pb = await SeedPhysicalBuildingAsync(db);
 
-        var building = new Building { Name = $"Smedjan-{Guid.NewGuid():N}" };
-        await buildings.CreateAsync(building);
+        var building = new Building { Name = $"Smedjan-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id };
+        await buildings.TryCreateAsync(building);
         await rooms.CreateAsync(new Room { BuildingId = building.Id, Name = "B", BedCount = 1, DisplayOrder = 2 });
         await rooms.CreateAsync(new Room { BuildingId = building.Id, Name = "A", BedCount = 1, DisplayOrder = 1 });
 

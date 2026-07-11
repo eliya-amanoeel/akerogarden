@@ -3,12 +3,12 @@ using System.ComponentModel.DataAnnotations;
 namespace AkeroGarden.Web.Data.Entities;
 
 /// <summary>
-/// A cleaning package selectable on the inquiry form (requirements.md §8.11, FR-85–88).
-/// Reference data — deactivate instead of deleting (FR-87); never hard-deleted while
-/// referenced by a booking's cleaning selection (FR-88). Amounts are reference figures
-/// only — the system computes no totals (C8).
-/// A zone whose <see cref="IncludesZoneIds"/> is non-empty is a bundle (e.g. Hela lägret)
-/// that covers the listed zones; selecting it later disables those zones on the inquiry form.
+/// A cleaning package, admin-managed rate-card data selectable on the completion form (FR-93),
+/// not at inquiry (requirements.md §8.11, §5.5, FR-85–88). Reference data — deactivate instead of
+/// deleting (FR-87); never hard-deleted while referenced by a booking's cleaning selection (FR-88).
+/// Amounts are reference figures only — the system computes no totals (C8).
+/// A zone whose <see cref="IncludesZoneIds"/> is non-empty is a bundle (Hela lägret) that covers
+/// the listed zones — reference/rate-card only, not itself a guest option.
 /// </summary>
 public class CleaningZone
 {
@@ -27,6 +27,19 @@ public class CleaningZone
     // VAT stored as a fraction, e.g. 0.12 for 12 % (§8.11), mirroring PriceRule.
     [Range(0, 1, ErrorMessage = "Momssatsen anges som andel mellan 0 och 1 (t.ex. 0,12 för 12 %).")]
     public decimal VatRate { get; set; }
+
+    /// <summary>Drives when the zone is offered and which completion-form toggle it belongs to
+    /// (§8.11, FR-93).</summary>
+    public CleaningZoneKind Kind { get; set; }
+
+    /// <summary>FK → PhysicalBuilding (§8.14) — the physical building this zone cleans. Required
+    /// for every <see cref="Kind"/> except <see cref="CleaningZoneKind.Everything"/> (validated in
+    /// the service layer, not a DB constraint, since the column must stay nullable for the bundle).
+    /// Applicability resolves by structural join (room → building → physical building → zone; or
+    /// facility → physical building → zone) — no ID arrays.</summary>
+    public Guid? PhysicalBuildingId { get; set; }
+
+    public PhysicalBuilding? PhysicalBuilding { get; set; }
 
     /// <summary>
     /// Empty for a normal zone. For a bundle, the IDs of the zones it covers (self-reference,

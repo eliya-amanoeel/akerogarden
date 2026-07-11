@@ -30,6 +30,7 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<BookingEmailService>();
             s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
+            s.AddScoped<CleaningZoneService>();
             s.AddScoped<ReminderJob>();
             s.Configure<BookingEmailOptions>(o =>
             {

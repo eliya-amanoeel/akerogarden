@@ -17,23 +17,6 @@
         toggleDayGuests();
     }
 
-    // §5.5 — selecting a bundle (e.g. Hela lägret) disables the individual zones it covers.
-    var bundles = document.querySelectorAll('input[data-covers]');
-    function applyBundle(cb) {
-        var ids = cb.getAttribute('data-covers').split(',').filter(Boolean);
-        ids.forEach(function (id) {
-            var target = document.querySelector(
-                'input[name="StayModel.SelectedCleaningZoneIds"][value="' + id + '"]');
-            if (!target) return;
-            target.disabled = cb.checked;
-            if (cb.checked) target.checked = false;
-        });
-    }
-    bundles.forEach(function (cb) {
-        cb.addEventListener('change', function () { applyBundle(cb); });
-        applyBundle(cb);
-    });
-
     // Organisation fields appear only when "for an organisation" is ticked (progressive
     // disclosure). Without JS the panel stays visible, so the fields remain reachable.
     var isOrg = document.getElementById('s-isorg');

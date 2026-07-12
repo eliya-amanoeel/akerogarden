@@ -9,11 +9,15 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
 {
     private readonly SmtpOptions _opts = options.Value;
 
-    public async Task SendAsync(string toAddress, string toName, string subject, string htmlBody)
+    public async Task SendAsync(
+        string toAddress, string toName, string subject, string htmlBody,
+        string? replyToAddress = null, string? replyToName = null)
     {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(_opts.FromName, _opts.FromAddress));
         message.To.Add(new MailboxAddress(toName, toAddress));
+        if (!string.IsNullOrEmpty(replyToAddress))
+            message.ReplyTo.Add(new MailboxAddress(replyToName, replyToAddress));
         message.Subject = subject;
         message.Body = new TextPart("html") { Text = htmlBody };
 

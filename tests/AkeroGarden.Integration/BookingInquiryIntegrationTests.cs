@@ -112,7 +112,11 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
         }
 
         Assert.Contains(email.Sent, e => e.ToAddress == "anna@test.se");   // guest ack (FR-05)
-        Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se");  // admin notify (FR-06)
+        var adminNotification = Assert.Single(email.Sent, e => e.ToAddress == "admin@test.se"); // admin notify (FR-06)
+        // Reply-To must be the guest, not the notification mailbox itself — otherwise hitting
+        // "Reply" in the mail client silently sends back to admin@test.se instead of the guest.
+        Assert.Equal("anna@test.se", adminNotification.ReplyToAddress);
+        Assert.Equal("Anna Andersson", adminNotification.ReplyToName);
     }
 
     [Fact]
@@ -159,7 +163,10 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
         Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(12), booking.DeleteAfter);
 
         Assert.Contains(email.Sent, e => e.ToAddress == "david@test.se");
-        Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se");
+        var adminNotification = Assert.Single(email.Sent, e => e.ToAddress == "admin@test.se");
+        // Reply-To must reach the guest directly, not loop back to the notification mailbox.
+        Assert.Equal("david@test.se", adminNotification.ReplyToAddress);
+        Assert.Equal("David", adminNotification.ReplyToName);
         // FR-92: general inquiries get a reference too, not just stay requests.
         Assert.Matches(@"^AG-\d{4}-\d{4}$", booking.BookingReference);
     }

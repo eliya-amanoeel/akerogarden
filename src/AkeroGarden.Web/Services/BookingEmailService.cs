@@ -24,11 +24,13 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToGuestAsync(booking, content);
     }
 
-    /// <summary>Admin notification of a new inquiry with a direct link to the booking (FR-06).</summary>
+    /// <summary>Admin notification of a new inquiry with a direct link to the booking (FR-06).
+    /// Reply-To is the guest's own address — hitting "Reply" in the mail client should reach the
+    /// guest who submitted the inquiry, not bounce back to the notification mailbox itself.</summary>
     public Task SendAdminNewInquiryAsync(Booking booking)
     {
         var content = BookingEmailTemplates.AdminNewInquiry(booking, BuildAdminBookingUrl(booking.Id));
-        return SendToAdminAsync(content);
+        return SendToAdminAsync(content, booking);
     }
 
     /// <summary>Admin notification that the guest submitted the completion form (FR-61). Requires
@@ -36,7 +38,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     public Task SendAdminDetailsCompleteAsync(Booking booking)
     {
         var content = BookingEmailTemplates.AdminDetailsComplete(booking, BuildAdminBookingUrl(booking.Id));
-        return SendToAdminAsync(content);
+        return SendToAdminAsync(content, booking);
     }
 
     /// <summary>Denial email to the guest, including the admin's reason (FR-50).</summary>
@@ -96,7 +98,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
         var content = BookingEmailTemplates.AdminGuestNotCompleted(
             booking, BuildAdminBookingUrl(booking.Id), booking.CompletionTokenExpiry.Value);
-        return SendToAdminAsync(content);
+        return SendToAdminAsync(content, booking);
     }
 
     /// <summary>Admin warning 30 days before a record is auto-deleted (FR-66). Requires
@@ -139,8 +141,10 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     private Task SendToGuestAsync(Booking booking, EmailContent content) =>
         email.SendAsync(booking.ContactEmail, booking.ContactName, content.Subject, WithFooter(content.HtmlBody));
 
-    private Task SendToAdminAsync(EmailContent content) =>
-        email.SendAsync(_opts.AdminNotificationEmail, _opts.AdminNotificationName, content.Subject, WithFooter(content.HtmlBody));
+    private Task SendToAdminAsync(EmailContent content, Booking? replyToBooking = null) =>
+        email.SendAsync(
+            _opts.AdminNotificationEmail, _opts.AdminNotificationName, content.Subject, WithFooter(content.HtmlBody),
+            replyToBooking?.ContactEmail, replyToBooking?.ContactName);
 
     private string BuildCompletionUrl(string token) =>
         $"{_opts.PublicBaseUrl.TrimEnd('/')}/slutfor/{token}";

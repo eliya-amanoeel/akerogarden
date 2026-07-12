@@ -19,7 +19,8 @@ namespace AkeroGarden.Web.Services;
 /// <see cref="BookingStateMachine"/>; this service is the only place bookings are mutated.</para>
 /// </summary>
 public class BookingService(
-    ApplicationDbContext db, BookingEmailService emails, RoomAvailabilityService rooms, CleaningZoneService cleaning)
+    ApplicationDbContext db, BookingEmailService emails, RoomAvailabilityService rooms, CleaningZoneService cleaning,
+    ILogger<BookingService> logger)
 {
     /// <summary>Creates a Pending stay request from the public inquiry form (FR-03).
     /// When <paramref name="createdByAdmin"/> is true the booking is created on the guest's
@@ -89,6 +90,7 @@ public class BookingService(
             await emails.SendAdminNewInquiryAsync(booking);
         }
 
+        logger.LogInformation("Stay request {BookingId} created (admin: {CreatedByAdmin})", booking.Id, createdByAdmin);
         return booking;
     }
 
@@ -125,6 +127,7 @@ public class BookingService(
             await emails.SendAdminNewInquiryAsync(booking);
         }
 
+        logger.LogInformation("General inquiry {BookingId} created (admin: {CreatedByAdmin})", booking.Id, createdByAdmin);
         return booking;
     }
 
@@ -274,6 +277,7 @@ public class BookingService(
         await ResolveSleepingCleaningSelectionsAsync(booking);
 
         await emails.SendAdminDetailsCompleteAsync(booking);
+        logger.LogInformation("Booking {BookingId} completion submitted", booking.Id);
         return CompletionSubmitResult.Ok();
     }
 
@@ -411,6 +415,7 @@ public class BookingService(
         await db.SaveChangesAsync();
 
         await emails.SendApprovalAsync(booking);
+        logger.LogInformation("Booking {BookingId} approved", booking.Id);
 
         // FR-75: warn when check-in is 14 days away or sooner (the link is shortened).
         var daysToCheckIn = booking.CheckIn.Value.DayNumber - DateOnly.FromDateTime(now).DayNumber;
@@ -497,6 +502,7 @@ public class BookingService(
         await db.SaveChangesAsync();
 
         await emails.SendDenialAsync(booking);
+        logger.LogInformation("Booking {BookingId} denied", booking.Id);
         return SaveResult.Success;
     }
 
@@ -516,6 +522,7 @@ public class BookingService(
             BookingStatus.Closed, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
         booking.UpdatedAt = now;
         await db.SaveChangesAsync();
+        logger.LogInformation("Inquiry {BookingId} closed", booking.Id);
         return SaveResult.Success;
     }
 
@@ -542,6 +549,7 @@ public class BookingService(
         await db.SaveChangesAsync();
 
         await emails.SendCancellationAsync(booking);
+        logger.LogInformation("Booking {BookingId} cancelled by {Initiator}", booking.Id, initiator);
         return SaveResult.Success;
     }
 
@@ -560,6 +568,7 @@ public class BookingService(
         booking.DeleteAfter = null; // live in-progress state (FR-91)
         booking.UpdatedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
+        logger.LogInformation("Booking {BookingId} marked arrived", booking.Id);
         return SaveResult.Success;
     }
 
@@ -585,6 +594,7 @@ public class BookingService(
         await db.SaveChangesAsync();
 
         await emails.SendThankYouAsync(booking);
+        logger.LogInformation("Booking {BookingId} marked completed", booking.Id);
         return SaveResult.Success;
     }
 
@@ -605,6 +615,7 @@ public class BookingService(
         await db.SaveChangesAsync();
 
         await emails.SendApprovalAsync(booking);
+        logger.LogInformation("Booking {BookingId} completion link regenerated", booking.Id);
         return SaveResult.Success;
     }
 

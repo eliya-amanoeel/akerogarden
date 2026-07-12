@@ -1,6 +1,7 @@
 using AkeroGarden.Web.Components;
 using AkeroGarden.Web.Data;
 using AkeroGarden.Web.Services;
+using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
@@ -8,6 +9,19 @@ using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// ── Diagnostics (Phase 11) — structured logging, correlation IDs, failure diagnosis ──────────
+// Config-gated like Data Protection below: local dev (no connection string) exports nothing;
+// staging/prod send traces/logs/metrics to Application Insights via OpenTelemetry. Request
+// correlation (an operation ID tying together logs + dependency calls — SMTP, Postgres, Redis,
+// Blob — for a single request) comes from the ASP.NET Core instrumentation this package wires
+// in automatically; no hand-rolled correlation middleware needed.
+var appInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
+if (!string.IsNullOrEmpty(appInsightsConnectionString))
+{
+    builder.Services.AddOpenTelemetry().UseAzureMonitor(options =>
+        options.ConnectionString = appInsightsConnectionString);
+}
 
 // ── Forwarded headers (NFR-04 — real client IP behind the App Service load balancer) ──────────
 // App Service terminates TLS and reverse-proxies to the app, so RemoteIpAddress is the platform

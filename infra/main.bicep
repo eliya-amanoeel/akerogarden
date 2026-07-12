@@ -233,6 +233,12 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
           name: 'BookingEmail__ContactEmail'
           value: contactEmail
         }
+        {
+          // Structured logging / correlation IDs (Phase 11). Not a secret (write-only telemetry
+          // ingestion key) — plain app setting is fine, no Key Vault indirection needed.
+          name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
+          value: appInsights.properties.ConnectionString
+        }
       ]
     }
     virtualNetworkSubnetId: appSubnet.id
@@ -419,6 +425,35 @@ resource dataProtectionKeysContainer 'Microsoft.Storage/storageAccounts/blobServ
   }
 }
 
+// ── Diagnostics (Phase 11 — structured logging, correlation IDs, failure diagnosis) ───────────
+// Workspace-based Application Insights (the AI-only "classic" resource is retired for new
+// deployments). dailyQuotaGb caps ingestion cost — 0.1 GB/day is a deliberately conservative
+// ceiling for a low-traffic booking site; raise it if legitimate telemetry gets throttled.
+// retentionInDays is set explicitly rather than left at the platform default (NFR-05/06 —
+// logs must not outlive their diagnostic usefulness, and must stay in an EU region).
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' = {
+  name: '${prefix}-logs'
+  location: location
+  properties: {
+    sku: { name: 'PerGB2018' }
+    retentionInDays: 30
+    workspaceCapping: {
+      dailyQuotaGb: json('0.1')
+    }
+  }
+}
+
+resource appInsights 'Microsoft.Insights/components@2020-02-02' = {
+  name: '${prefix}-appinsights'
+  location: location
+  kind: 'web'
+  properties: {
+    Application_Type: 'web'
+    WorkspaceResourceId: logAnalyticsWorkspace.id
+    IngestionMode: 'LogAnalytics'
+  }
+}
+
 // ── Azure Managed Redis (distributed rate limiting — NFR-04) ──────────────────
 // Classic Azure Cache for Redis is retiring and can no longer be created; Azure Managed Redis
 // (Microsoft.Cache/redisEnterprise) is its successor. Balanced B0 is the entry tier — ample for
@@ -449,3 +484,4 @@ output appServiceName string = appService.name
 output appServiceHostname string = appService.properties.defaultHostName
 output postgresHostname string = postgresServer.properties.fullyQualifiedDomainName
 output keyVaultName string = keyVault.name
+output appInsightsName string = appInsights.name

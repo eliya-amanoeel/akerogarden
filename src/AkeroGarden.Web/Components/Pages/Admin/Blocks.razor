@@ -44,7 +44,7 @@ else
                         <td>@(p.Reason ?? "—")</td>
                         <td class="rowactions">
                             <button class="btn-ghost" @onclick="() => Edit(p)">Redigera</button>
-                            <button class="btn-ghost" @onclick="() => Delete(p)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => RequestDelete(p)">Ta bort</button>
                         </td>
                     </tr>
                 }
@@ -120,6 +120,12 @@ else
     }
 </EditForm>
 </section>
+
+<ConfirmDialog Visible="_pendingDelete is not null"
+               Title="Ta bort blockering"
+               Message="@($"Vill du ta bort blockeringen {_pendingDelete?.StartDate:yyyy-MM-dd}–{_pendingDelete?.EndDate:yyyy-MM-dd}? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDelete"
+               OnCancel="CancelDelete" />
 
 @code {
     private List<BlockedPeriod>? _blocks;
@@ -210,8 +216,20 @@ else
         if (result.Succeeded) { New(); await Load(); }
     }
 
-    private async Task Delete(BlockedPeriod p)
+    private BlockedPeriod? _pendingDelete;
+
+    private void RequestDelete(BlockedPeriod p) => _pendingDelete = p;
+
+    private void CancelDelete() => _pendingDelete = null;
+
+    private async Task ConfirmDelete()
     {
+        if (_pendingDelete is null)
+            return;
+
+        var p = _pendingDelete;
+        _pendingDelete = null;
+
         await BlockedPeriodService.DeleteAsync(p.Id);
         _message = "Blockeringen har tagits bort.";
         if (_editingId == p.Id) New();

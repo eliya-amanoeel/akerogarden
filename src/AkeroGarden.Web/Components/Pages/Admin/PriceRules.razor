@@ -63,7 +63,7 @@ else
                             {
                                 <button class="btn-ghost" @onclick="() => SetActive(p, true)">Aktivera</button>
                             }
-                            <button class="btn-ghost" @onclick="() => Delete(p)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => RequestDelete(p)">Ta bort</button>
                         </td>
                     </tr>
                 }
@@ -130,6 +130,12 @@ else
     </section>
 }
 
+<ConfirmDialog Visible="_pendingDelete is not null"
+               Title="Ta bort pris"
+               Message="@($"Vill du ta bort priset \"{_pendingDelete?.Label}\"? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDelete"
+               OnCancel="CancelDelete" />
+
 @code {
     private List<PriceRule>? _priceRules;
     private PriceRule _form = new();
@@ -194,8 +200,20 @@ else
         await Load();
     }
 
-    private async Task Delete(PriceRule p)
+    private PriceRule? _pendingDelete;
+
+    private void RequestDelete(PriceRule p) => _pendingDelete = p;
+
+    private void CancelDelete() => _pendingDelete = null;
+
+    private async Task ConfirmDelete()
     {
+        if (_pendingDelete is null)
+            return;
+
+        var p = _pendingDelete;
+        _pendingDelete = null;
+
         await PriceRuleService.DeleteAsync(p.Id);
         _message = $"Priset \"{p.Label}\" har tagits bort.";
         await Load();

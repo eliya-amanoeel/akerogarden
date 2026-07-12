@@ -1,5 +1,6 @@
 using AkeroGarden.Integration.Infrastructure;
 using AkeroGarden.Web.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;
 
@@ -28,7 +29,7 @@ public class RateLimiterIntegrationTests : IClassFixture<RedisFixture>, IAsyncLi
             MaxRequests = max,
             WindowSeconds = 600,
             KeyPrefix = $"test:{Guid.NewGuid():N}:"
-        }));
+        }), NullLogger<RedisInquiryRateLimiter>.Instance);
 
     [Fact]
     public async Task Allows_UpToLimit_ThenBlocks()

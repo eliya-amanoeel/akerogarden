@@ -68,7 +68,7 @@ else
                             {
                                 <button class="btn-ghost" @onclick="() => SetActive(z, true)">Aktivera</button>
                             }
-                            <button class="btn-ghost" @onclick="() => Delete(z)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => RequestDelete(z)">Ta bort</button>
                         </td>
                     </tr>
                 }
@@ -167,6 +167,12 @@ else
     </EditForm>
     </section>
 }
+
+<ConfirmDialog Visible="_pendingDelete is not null"
+               Title="Ta bort städzon"
+               Message="@($"Vill du ta bort städzonen \"{_pendingDelete?.Name}\"? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDelete"
+               OnCancel="CancelDelete" />
 
 @code {
     private List<CleaningZone>? _zones;
@@ -283,8 +289,20 @@ else
         await Load();
     }
 
-    private async Task Delete(CleaningZone z)
+    private CleaningZone? _pendingDelete;
+
+    private void RequestDelete(CleaningZone z) => _pendingDelete = z;
+
+    private void CancelDelete() => _pendingDelete = null;
+
+    private async Task ConfirmDelete()
     {
+        if (_pendingDelete is null)
+            return;
+
+        var z = _pendingDelete;
+        _pendingDelete = null;
+
         var result = await CleaningZoneService.TryHardDeleteAsync(z.Id);
         _message = result switch
         {

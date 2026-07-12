@@ -35,6 +35,9 @@ public class CleaningZoneBundleTests
         Assert.Null(error);
     }
 
+    // Each invalid case asserts the SPECIFIC rule's message, not merely that some error came back —
+    // otherwise a regression that broke the intended rule while another fired (all four cases isolate
+    // one violation from a valid baseline) would still go green.
     [Fact]
     public void Bundle_IncludingItself_IsInvalid()
     {
@@ -43,7 +46,7 @@ public class CleaningZoneBundleTests
 
         var error = CleaningZoneService.ValidateBundle(bundleId, [bundleId, a.Id], [a]);
 
-        Assert.NotNull(error);
+        Assert.Equal("En städzon kan inte inkludera sig själv.", error);
     }
 
     [Fact]
@@ -51,7 +54,7 @@ public class CleaningZoneBundleTests
     {
         var bundleId = Guid.NewGuid();
         var error = CleaningZoneService.ValidateBundle(bundleId, [Guid.NewGuid()], []);
-        Assert.NotNull(error);
+        Assert.Equal("En av de inkluderade städzonerna finns inte.", error);
     }
 
     [Fact]
@@ -62,7 +65,7 @@ public class CleaningZoneBundleTests
 
         var error = CleaningZoneService.ValidateBundle(bundleId, [inactive.Id], [inactive]);
 
-        Assert.NotNull(error);
+        Assert.Equal("En bunt kan endast inkludera aktiva städzoner.", error);
     }
 
     [Fact]
@@ -73,7 +76,7 @@ public class CleaningZoneBundleTests
 
         var error = CleaningZoneService.ValidateBundle(bundleId, [nestedBundle.Id], [nestedBundle]);
 
-        Assert.NotNull(error);
+        Assert.Equal("En bunt kan inte inkludera en annan bunt.", error);
     }
 
     [Fact]

@@ -277,9 +277,126 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("Ny inbjudan skickad");
         await Assertions.Expect(row.Locator(".badge")).ToHaveTextAsync("Väntar på aktivering");
 
+        // "Ta bort" now opens a confirmation dialog (Phase 11); confirm it to actually remove the invite.
         await row.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+        await Page.GetByRole(AriaRole.Dialog)
+            .GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
         await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har tagits bort");
         await Assertions.Expect(Page.Locator("tr", new() { HasText = email })).Not.ToBeVisibleAsync();
+    }
+
+    /// <summary>Phase 11: irreversible "Ta bort" now opens a confirmation dialog. Seed an
+    /// unreferenced facility, prove Avbryt keeps the row, and that confirming actually removes it
+    /// (reaches the "har tagits bort" toast and the row disappears) — the real outcome, not merely
+    /// that a dialog renders.</summary>
+    [Fact]
+    public async Task Delete_facility_asks_for_confirmation_then_removes_the_row()
+    {
+        var name = $"E2E Radera {Guid.NewGuid():N}";
+        var id = Guid.NewGuid();
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Facilities.Add(new Facility { Id = id, Name = name, IsActive = true });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/admin/faciliteter");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var row = Page.Locator("tr", new() { HasText = name });
+            await Assertions.Expect(row).ToBeVisibleAsync();
+
+            // Open the dialog, then cancel — the row must survive (nothing deleted).
+            await row.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            var dialog = Page.GetByRole(AriaRole.Dialog);
+            await Assertions.Expect(dialog).ToBeVisibleAsync();
+            await dialog.GetByRole(AriaRole.Button, new() { Name = "Avbryt" }).ClickAsync();
+            await Assertions.Expect(dialog).Not.ToBeVisibleAsync();
+            await Assertions.Expect(row).ToBeVisibleAsync();
+
+            // Open again and confirm — the facility is actually deleted.
+            await row.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Page.GetByRole(AriaRole.Dialog)
+                .GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har tagits bort");
+            await Assertions.Expect(Page.Locator("tr", new() { HasText = name })).Not.ToBeVisibleAsync();
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Facilities.Where(f => f.Id == id).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>Phase 11: guest-facing booking actions gate behind a confirmation dialog. On a
+    /// throwaway Pending stay, "Godkänn" opens the dialog; Avbryt leaves it Pending (the approval
+    /// email/one-way transition does NOT fire), and confirming actually approves it (reaches the
+    /// "godkänd" toast). Seeded/cleaned up here so the shared Pending booking is untouched.</summary>
+    [Fact]
+    public async Task Approve_gates_behind_confirmation_and_only_fires_on_confirm()
+    {
+        var id = Guid.NewGuid();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Bookings.Add(new Booking
+            {
+                Id = id,
+                BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
+                BookingType = BookingType.StayRequest,
+                Status = BookingStatus.Pending,
+                ContactName = "Bekräfta Godkänn",
+                ContactEmail = "godkann@example.se",
+                CheckIn = today.AddDays(60),
+                CheckOut = today.AddDays(62),
+                OvernightGuestCount = 6,
+                MealPlan = MealPlan.FullBoardAll,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                DeleteAfter = today.AddYears(1),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync($"/admin/bokningar/{id}");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var approve = Page.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true });
+            await approve.ClickAsync();
+
+            // Dialog opens; cancelling must leave the booking Pending (Godkänn still offered).
+            var dialog = Page.GetByRole(AriaRole.Dialog);
+            await Assertions.Expect(dialog).ToBeVisibleAsync();
+            await dialog.GetByRole(AriaRole.Button, new() { Name = "Avbryt" }).ClickAsync();
+            await Assertions.Expect(dialog).Not.ToBeVisibleAsync();
+            await Assertions.Expect(approve).ToBeVisibleAsync();
+
+            // Honest cross-check: the transition genuinely did not happen on cancel.
+            await using (var db = Fixture.NewDbContext())
+            {
+                var status = (await db.Bookings.FindAsync(id))!.Status;
+                Assert.Equal(BookingStatus.Pending, status);
+            }
+
+            // Confirm this time — the booking is actually approved.
+            await approve.ClickAsync();
+            await Page.GetByRole(AriaRole.Dialog)
+                .GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("godkänd");
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Bookings.Where(b => b.Id == id).ExecuteDeleteAsync();
+        }
     }
 
     // The three login-layout pages are public (no auth). /aterstall-losenord renders its

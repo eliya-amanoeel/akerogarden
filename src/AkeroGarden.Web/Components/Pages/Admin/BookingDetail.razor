@@ -284,12 +284,12 @@ else
                         </div>
                     }
                     <div class="rail-actions">
-                        <button class="btn" @onclick="Approve">Godkänn</button>
+                        <button class="btn" @onclick="() => _pending = PendingBookingAction.Approve">Godkänn</button>
                     </div>
                     <div class="action-panel">
                         <label for="deny-reason">Avslagsmotivering (skickas till gästen)</label>
                         <InputTextArea id="deny-reason" @bind-Value="_denyReason" />
-                        <button class="btn-outline btn-danger" @onclick="Deny">Avslå</button>
+                        <button class="btn-outline btn-danger" @onclick="() => _pending = PendingBookingAction.Deny">Avslå</button>
                     </div>
                 }
                 else if (_booking.Status == BookingStatus.Pending && _booking.BookingType == BookingType.GeneralInquiry)
@@ -303,7 +303,7 @@ else
                 {
                     <p class="action-note"><strong>Slutförandelänk giltig till:</strong><br />@(_booking.CompletionTokenExpiry?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</p>
                     <div class="rail-actions" style="margin-top:0.6rem">
-                        <button class="btn-outline" @onclick="Regenerate">Återutfärda och skicka länk på nytt</button>
+                        <button class="btn-outline" @onclick="() => _pending = PendingBookingAction.Regenerate">Återutfärda och skicka länk på nytt</button>
                     </div>
                 }
 
@@ -317,7 +317,7 @@ else
                 @if (_booking.Status == BookingStatus.Active)
                 {
                     <div class="rail-actions">
-                        <button class="btn" @onclick="MarkCompleted">Markera avslutad</button>
+                        <button class="btn" @onclick="() => _pending = PendingBookingAction.MarkCompleted">Markera avslutad</button>
                     </div>
                 }
 
@@ -332,7 +332,7 @@ else
                         </select>
                         <label for="cancel-reason">Orsak (intern, valfritt)</label>
                         <InputTextArea id="cancel-reason" @bind-Value="_cancelReason" />
-                        <button class="btn-outline btn-danger" @onclick="Cancel">Avboka</button>
+                        <button class="btn-outline btn-danger" @onclick="() => _pending = PendingBookingAction.Cancel">Avboka</button>
                     </div>
                 }
             </section>
@@ -378,10 +378,73 @@ else
             </section>
         </aside>
     </div>
+
+    <ConfirmDialog Visible="_pending is not null"
+                   Title="@PendingTitle"
+                   Message="@PendingMessage"
+                   ConfirmText="@PendingConfirmText"
+                   Danger="PendingIsDanger"
+                   OnConfirm="ConfirmPending"
+                   OnCancel="() => _pending = null" />
 }
 
 @code {
     [Parameter] public Guid Id { get; set; }
+
+    // Guest-facing actions gate behind a confirmation (Phase 11) — each one emails or otherwise
+    // reaches the booker, so an accidental click has an external, hard-to-undo effect. Purely
+    // internal transitions (Close, MarkArrived) and reversible saves are deliberately NOT gated.
+    private enum PendingBookingAction { Approve, Deny, Cancel, MarkCompleted, Regenerate }
+
+    private PendingBookingAction? _pending;
+
+    private string PendingTitle => _pending switch
+    {
+        PendingBookingAction.Approve => "Godkänn bokning",
+        PendingBookingAction.Deny => "Avslå bokning",
+        PendingBookingAction.Cancel => "Avboka bokning",
+        PendingBookingAction.MarkCompleted => "Markera som avslutad",
+        PendingBookingAction.Regenerate => "Återutfärda slutförandelänk",
+        _ => ""
+    };
+
+    private string PendingMessage => _pending switch
+    {
+        PendingBookingAction.Approve => "Bokningen godkänns och ett e-postmeddelande med slutförandelänk skickas till gästen. Vill du fortsätta?",
+        PendingBookingAction.Deny => "Bokningen avslås och gästen underrättas via e-post. Vill du fortsätta?",
+        PendingBookingAction.Cancel => "Bokningen avbokas och gästen underrättas via e-post. Vill du fortsätta?",
+        PendingBookingAction.MarkCompleted => "Bokningen markeras som avslutad och ett tackmejl skickas till gästen. Vill du fortsätta?",
+        PendingBookingAction.Regenerate => "En ny slutförandelänk skickas till gästen via e-post. Vill du fortsätta?",
+        _ => ""
+    };
+
+    private string PendingConfirmText => _pending switch
+    {
+        PendingBookingAction.Approve => "Godkänn",
+        PendingBookingAction.Deny => "Avslå",
+        PendingBookingAction.Cancel => "Avboka",
+        PendingBookingAction.MarkCompleted => "Markera avslutad",
+        PendingBookingAction.Regenerate => "Skicka ny länk",
+        _ => "Bekräfta"
+    };
+
+    // Red only for the negative/destructive transitions; positive actions stay primary-green.
+    private bool PendingIsDanger => _pending is PendingBookingAction.Deny or PendingBookingAction.Cancel;
+
+    private async Task ConfirmPending()
+    {
+        var action = _pending;
+        _pending = null;
+
+        switch (action)
+        {
+            case PendingBookingAction.Approve: await Approve(); break;
+            case PendingBookingAction.Deny: await Deny(); break;
+            case PendingBookingAction.Cancel: await Cancel(); break;
+            case PendingBookingAction.MarkCompleted: await MarkCompleted(); break;
+            case PendingBookingAction.Regenerate: await Regenerate(); break;
+        }
+    }
 
     private Booking? _booking;
     private bool _loaded;

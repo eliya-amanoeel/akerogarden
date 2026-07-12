@@ -53,7 +53,7 @@ else
                             @if (user.SetupCompletedAt is null)
                             {
                                 <button class="btn-ghost" @onclick="() => ResendInvite(user)">Skicka ny inbjudan</button>
-                                <button class="btn-ghost" @onclick="() => RemoveInvite(user)">Ta bort</button>
+                                <button class="btn-ghost" @onclick="() => RequestRemoveInvite(user)">Ta bort</button>
                             }
                             else if (user.Id != _currentUserId)
                             {
@@ -93,6 +93,12 @@ else
     </EditForm>
     </section>
 }
+
+<ConfirmDialog Visible="_pendingRemove is not null"
+               Title="Ta bort inbjudan"
+               Message="@($"Vill du ta bort inbjudan för {_pendingRemove?.Email}? Detta går inte att ångra.")"
+               OnConfirm="ConfirmRemoveInvite"
+               OnCancel="CancelRemoveInvite" />
 
 @code {
     private List<ApplicationUser>? _users;
@@ -148,8 +154,20 @@ else
         _message = $"Ny inbjudan skickad till {user.Email}.";
     }
 
-    private async Task RemoveInvite(ApplicationUser user)
+    private ApplicationUser? _pendingRemove;
+
+    private void RequestRemoveInvite(ApplicationUser user) => _pendingRemove = user;
+
+    private void CancelRemoveInvite() => _pendingRemove = null;
+
+    private async Task ConfirmRemoveInvite()
     {
+        if (_pendingRemove is null)
+            return;
+
+        var user = _pendingRemove;
+        _pendingRemove = null;
+
         var result = await InviteService.RemoveInviteAsync(user.Id);
 
         _message = result switch

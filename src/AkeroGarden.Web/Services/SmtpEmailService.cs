@@ -34,7 +34,7 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
                 {
                     logger.LogWarning(ex,
                         "Email send attempt {Attempt}/{Max} to {Address} failed (subject: {Subject}); retrying",
-                        attempt, maxAttempts, toAddress, subject);
+                        attempt, maxAttempts, MaskAddress(toAddress), subject);
                     if (_opts.RetryDelayMs > 0)
                         await Task.Delay(_opts.RetryDelayMs * attempt);
                 }
@@ -42,10 +42,18 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
                 {
                     logger.LogError(ex,
                         "Email send to {Address} failed after {Max} attempts (subject: {Subject}); giving up",
-                        toAddress, maxAttempts, subject);
+                        MaskAddress(toAddress), maxAttempts, subject);
                 }
             }
         }
+    }
+
+    /// <summary>Reduces a recipient address to its domain for logging — enough to diagnose a
+    /// provider-wide delivery problem without writing a guest's email into telemetry (NFR-05/06).</summary>
+    private static string MaskAddress(string address)
+    {
+        var at = address.IndexOf('@');
+        return at < 0 ? "***" : $"***@{address[(at + 1)..]}";
     }
 
     private async Task TrySendAsync(MimeMessage message)

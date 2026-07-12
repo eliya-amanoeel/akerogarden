@@ -902,6 +902,24 @@ select.inp {
 .btn-outline.btn-danger { color: var(--color-err); border-color: rgba(179, 52, 26, 0.4); }
 .btn-outline.btn-danger:hover { border-color: var(--color-err); background: var(--color-err-bg); }
 
+/* ── Modal / confirmation dialog ─────────────────────────── */
+.modal-overlay {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: center; padding: 1rem;
+    background: rgba(26, 23, 20, 0.45);
+}
+.modal {
+    background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-modal);
+    width: 100%; max-width: 26rem; padding: 1.4rem 1.5rem;
+    box-shadow: 0 10px 40px rgba(26, 23, 20, 0.22);
+}
+.modal__title {
+    font-family: var(--font-heading); font-size: 1.25rem;
+    color: var(--color-heading); margin: 0 0 0.5rem;
+}
+.modal__body { margin: 0 0 1.2rem; color: var(--color-text); font-size: 0.925rem; line-height: 1.5; }
+.modal__actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+
 /* ── Cards / panels ──────────────────────────────────────── */
 .card { background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 1.1rem 1.2rem; }
 .card__head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.7rem; }

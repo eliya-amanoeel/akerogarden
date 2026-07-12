@@ -62,7 +62,7 @@ else
                             {
                                 <button class="btn-ghost" @onclick="() => SetActive(b, true)">Aktivera</button>
                             }
-                            <button class="btn-ghost" @onclick="() => Delete(b)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => RequestDelete(b)">Ta bort</button>
                         </td>
                     </tr>
                 }
@@ -102,6 +102,12 @@ else
     </EditForm>
     </section>
 }
+
+<ConfirmDialog Visible="_pendingDelete is not null"
+               Title="Ta bort fysisk byggnad"
+               Message="@($"Vill du ta bort byggnaden \"{_pendingDelete?.Name}\"? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDelete"
+               OnCancel="CancelDelete" />
 
 @code {
     private List<PhysicalBuilding>? _buildings;
@@ -157,8 +163,20 @@ else
         await Load();
     }
 
-    private async Task Delete(PhysicalBuilding b)
+    private PhysicalBuilding? _pendingDelete;
+
+    private void RequestDelete(PhysicalBuilding b) => _pendingDelete = b;
+
+    private void CancelDelete() => _pendingDelete = null;
+
+    private async Task ConfirmDelete()
     {
+        if (_pendingDelete is null)
+            return;
+
+        var b = _pendingDelete;
+        _pendingDelete = null;
+
         var result = await PhysicalBuildingService.TryHardDeleteAsync(b.Id);
         _message = result switch
         {

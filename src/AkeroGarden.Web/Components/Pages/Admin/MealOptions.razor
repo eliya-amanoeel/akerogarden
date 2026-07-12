@@ -60,7 +60,7 @@ else
                             {
                                 <button class="btn-ghost" @onclick="() => SetActive(m, true)">Aktivera</button>
                             }
-                            <button class="btn-ghost" @onclick="() => Delete(m)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => RequestDelete(m)">Ta bort</button>
                         </td>
                     </tr>
                 }
@@ -116,6 +116,12 @@ else
     </EditForm>
     </section>
 }
+
+<ConfirmDialog Visible="_pendingDelete is not null"
+               Title="Ta bort matalternativ"
+               Message="@($"Vill du ta bort matalternativet \"{_pendingDelete?.Name}\"? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDelete"
+               OnCancel="CancelDelete" />
 
 @code {
     private List<MealOption>? _mealOptions;
@@ -180,8 +186,20 @@ else
         await Load();
     }
 
-    private async Task Delete(MealOption m)
+    private MealOption? _pendingDelete;
+
+    private void RequestDelete(MealOption m) => _pendingDelete = m;
+
+    private void CancelDelete() => _pendingDelete = null;
+
+    private async Task ConfirmDelete()
     {
+        if (_pendingDelete is null)
+            return;
+
+        var m = _pendingDelete;
+        _pendingDelete = null;
+
         var result = await MealOptionService.TryHardDeleteAsync(m.Id);
         _message = result switch
         {

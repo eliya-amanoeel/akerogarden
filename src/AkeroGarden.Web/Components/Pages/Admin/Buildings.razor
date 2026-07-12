@@ -63,7 +63,7 @@ else
                             {
                                 <button class="btn-ghost" @onclick="() => SetBuildingActive(b, true)">Aktivera</button>
                             }
-                            <button class="btn-ghost" @onclick="() => DeleteBuilding(b)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => RequestDeleteBuilding(b)">Ta bort</button>
                         </td>
                     </tr>
                 }
@@ -174,7 +174,7 @@ else
                                     {
                                         <button class="btn-ghost" @onclick="() => SetRoomActive(r, true)">Aktivera</button>
                                     }
-                                    <button class="btn-ghost" @onclick="() => DeleteRoom(r)">Ta bort</button>
+                                    <button class="btn-ghost" @onclick="() => RequestDeleteRoom(r)">Ta bort</button>
                                 </td>
                             </tr>
                         }
@@ -222,6 +222,18 @@ else
         </section>
     }
 }
+
+<ConfirmDialog Visible="_pendingDeleteBuilding is not null"
+               Title="Ta bort byggnad"
+               Message="@($"Vill du ta bort byggnaden \"{_pendingDeleteBuilding?.Name}\"? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDeleteBuilding"
+               OnCancel="CancelDeleteBuilding" />
+
+<ConfirmDialog Visible="_pendingDeleteRoom is not null"
+               Title="Ta bort rum"
+               Message="@($"Vill du ta bort rummet \"{_pendingDeleteRoom?.Name}\"? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDeleteRoom"
+               OnCancel="CancelDeleteRoom" />
 
 @code {
     private List<Building>? _buildings;
@@ -300,8 +312,20 @@ else
         await LoadBuildings();
     }
 
-    private async Task DeleteBuilding(Building b)
+    private Building? _pendingDeleteBuilding;
+
+    private void RequestDeleteBuilding(Building b) => _pendingDeleteBuilding = b;
+
+    private void CancelDeleteBuilding() => _pendingDeleteBuilding = null;
+
+    private async Task ConfirmDeleteBuilding()
     {
+        if (_pendingDeleteBuilding is null)
+            return;
+
+        var b = _pendingDeleteBuilding;
+        _pendingDeleteBuilding = null;
+
         var result = await BuildingService.TryHardDeleteAsync(b.Id);
         _message = result switch
         {
@@ -382,8 +406,20 @@ else
         await LoadRooms();
     }
 
-    private async Task DeleteRoom(Room r)
+    private Room? _pendingDeleteRoom;
+
+    private void RequestDeleteRoom(Room r) => _pendingDeleteRoom = r;
+
+    private void CancelDeleteRoom() => _pendingDeleteRoom = null;
+
+    private async Task ConfirmDeleteRoom()
     {
+        if (_pendingDeleteRoom is null)
+            return;
+
+        var r = _pendingDeleteRoom;
+        _pendingDeleteRoom = null;
+
         var result = await RoomService.TryHardDeleteAsync(r.Id);
         _message = result switch
         {

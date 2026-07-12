@@ -1,0 +1,62 @@
+@* Reusable confirmation dialog for irreversible admin actions (Phase 11).
+   Presentational + controlled: the parent owns the "is it open" state and the pending item,
+   and supplies OnConfirm / OnCancel. Inherits the parent page's render mode (Interactive
+   Server on the admin pages), so the button clicks and Escape reach the server. *@
+
+@if (Visible)
+{
+    <div class="modal-overlay" @onclick="Cancel">
+        <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title"
+             @onclick:stopPropagation="true" @onkeydown="OnKeyDown">
+            <h2 id="confirm-dialog-title" class="modal__title">@Title</h2>
+            @if (!string.IsNullOrEmpty(Message))
+            {
+                <p class="modal__body">@Message</p>
+            }
+            <div class="modal__actions">
+                <button type="button" class="btn-ghost" @onclick="Cancel">@CancelText</button>
+                <button type="button" class="@(Danger ? "btn-outline btn-danger" : "btn")" @ref="_confirmButton"
+                        @onclick="Confirm">@ConfirmText</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string Title { get; set; } = "Bekräfta borttagning";
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string ConfirmText { get; set; } = "Ta bort";
+    [Parameter] public string CancelText { get; set; } = "Avbryt";
+
+    /// <summary>Red (destructive) confirm button when true; primary/green when false — so positive
+    /// actions like "Godkänn" aren't styled as dangerous.</summary>
+    [Parameter] public bool Danger { get; set; } = true;
+    [Parameter] public EventCallback OnConfirm { get; set; }
+    [Parameter] public EventCallback OnCancel { get; set; }
+
+    private ElementReference _confirmButton;
+    private bool _focused;
+
+    // Move keyboard focus onto the (destructive) confirm button the first render it opens, so the
+    // dialog is operable by keyboard and Escape is captured. Reset once closed so it re-focuses next time.
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (Visible && !_focused)
+        {
+            _focused = true;
+            await _confirmButton.FocusAsync();
+        }
+        else if (!Visible && _focused)
+        {
+            _focused = false;
+        }
+    }
+
+    private Task Confirm() => OnConfirm.InvokeAsync();
+
+    private Task Cancel() => OnCancel.InvokeAsync();
+
+    private Task OnKeyDown(KeyboardEventArgs e) =>
+        e.Key == "Escape" ? OnCancel.InvokeAsync() : Task.CompletedTask;
+}

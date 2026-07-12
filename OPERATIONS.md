@@ -21,6 +21,14 @@ Backed by a Log Analytics workspace (`akerogarden-<env>-logs`) with:
   appearing mid-day, check the workspace's `workspaceCapping` state in the Portal before
   assuming the app has gone silent — the cap may have been hit.
 
+Wiring OpenTelemetry into `ILogger` exports everything at `Information` level or above, not
+just the lines this project added deliberately — verified on staging: EF Core's own
+`Executed DbCommand ...` trace (category `Microsoft.EntityFrameworkCore.Database.Command`)
+was showing up for every database round-trip, adding real volume against the daily cap for
+no diagnostic value beyond what a `Warning`-level EF Core log already gives you (actual query
+problems still surface). `appsettings.json` caps that category at `Warning`; local dev keeps
+it at `Information` in `appsettings.Development.json` since nothing is exported there anyway.
+
 ## Finding a specific failure
 
 Every request gets an **operation ID** automatically (ASP.NET Core OpenTelemetry

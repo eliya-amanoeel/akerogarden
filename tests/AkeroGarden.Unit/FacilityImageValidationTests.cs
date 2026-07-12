@@ -25,15 +25,23 @@ public class FacilityImageValidationTests
     [InlineData("text/plain")]
     [InlineData("")]
     [InlineData(null)]
-    public void RejectedFormats_AreInvalid(string? contentType)
+    public void RejectedFormats_ReportTheFormatError(string? contentType)
     {
-        Assert.NotNull(FacilityService.ValidateImage(contentType, 1_000_000));
+        // A valid size is used so ONLY the format rule can be the cause — assert the format message
+        // specifically, not merely that some error came back (which the size/empty rules would also
+        // satisfy if the checks were ever reordered or crossed).
+        Assert.Equal(
+            "Bilden måste vara i formatet JPEG, PNG eller WebP.",
+            FacilityService.ValidateImage(contentType, 1_000_000));
     }
 
     [Fact]
-    public void OverFiveMegabytes_IsInvalid()
+    public void OverFiveMegabytes_ReportsTheSizeError()
     {
-        Assert.NotNull(FacilityService.ValidateImage("image/png", FacilityService.MaxImageBytes + 1));
+        // Valid format → the size rule is the only thing that can fire.
+        Assert.Equal(
+            "Bilden får vara högst 5 MB.",
+            FacilityService.ValidateImage("image/png", FacilityService.MaxImageBytes + 1));
     }
 
     [Fact]
@@ -43,9 +51,10 @@ public class FacilityImageValidationTests
     }
 
     [Fact]
-    public void EmptyFile_IsInvalid()
+    public void EmptyFile_ReportsTheEmptyError()
     {
-        Assert.NotNull(FacilityService.ValidateImage("image/png", 0));
+        // Valid format, zero bytes → the empty rule, not the size or format one.
+        Assert.Equal("Bilden är tom.", FacilityService.ValidateImage("image/png", 0));
     }
 
     [Fact]

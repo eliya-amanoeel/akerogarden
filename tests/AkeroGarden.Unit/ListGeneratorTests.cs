@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using AkeroGarden.Web.Data.Entities;
 using AkeroGarden.Web.Services;
+using ClosedXML.Excel;
 
 namespace AkeroGarden.Unit;
 
@@ -39,27 +40,68 @@ public class ListGeneratorTests
     }
 
     [Fact]
-    public void Pdf_ProducesValidNonEmptyDocument()
+    public void Pdf_IsWellFormed_AndScalesWithContent()
     {
-        var pdf = ListPdfGenerator.ParticipantList(Data(3));
-        Assert.True(pdf.Length > 0);
+        // QuestPDF output isn't cheaply text-extractable, so the PDF path asserts structural validity
+        // (magic bytes) PLUS that the document grows materially with row count — a real signal that
+        // participants are rendered into it, not a fixed empty shell. Content fidelity (that the
+        // shaped values themselves are correct) is asserted exhaustively in ListShaperTests, and the
+        // shaped-value → cell mapping is asserted on the Excel path below.
+        var small = ListPdfGenerator.ParticipantList(Data(3));
+        var large = ListPdfGenerator.ParticipantList(Data(60));
+
         // PDF magic bytes "%PDF".
-        Assert.Equal([0x25, 0x50, 0x44, 0x46], pdf.Take(4).ToArray());
+        Assert.Equal([0x25, 0x50, 0x44, 0x46], small.Take(4).ToArray());
+        Assert.Equal([0x25, 0x50, 0x44, 0x46], large.Take(4).ToArray());
+        Assert.True(large.Length > small.Length * 2,
+            $"A 60-participant list ({large.Length} B) should dwarf a 3-participant one ({small.Length} B) — " +
+            "if it doesn't, rows aren't being rendered.");
 
         var food = ListPdfGenerator.FoodPreferenceList(Data(3));
-        Assert.True(food.Length > 0);
+        Assert.Equal([0x25, 0x50, 0x44, 0x46], food.Take(4).ToArray());
     }
 
     [Fact]
-    public void Excel_ProducesValidNonEmptyWorkbook()
+    public void Excel_ParticipantList_ContainsTheShapedRows()
     {
         var xlsx = ListExcelGenerator.ParticipantList(Data(3));
-        Assert.True(xlsx.Length > 0);
         // XLSX is a ZIP → "PK" magic bytes.
         Assert.Equal([0x50, 0x4B], xlsx.Take(2).ToArray());
 
-        var food = ListExcelGenerator.FoodPreferenceList(Data(3));
-        Assert.True(food.Length > 0);
+        // Re-open the workbook and prove the shaped data actually reached the cells — not just that
+        // a well-formed (but possibly empty) file was produced.
+        var cells = SheetStrings(xlsx, "Deltagarlista");
+        Assert.Contains("Namn", cells);                 // header rendered
+        Assert.Contains("Deltagare 000", cells);        // first participant
+        Assert.Contains("Deltagare 001", cells);
+        Assert.Contains("Deltagare 002", cells);
+        Assert.Contains("Vegetarian", cells);           // Deltagare 000's dietary requirement (i % 3 == 0)
+    }
+
+    [Fact]
+    public void Excel_FoodList_ContainsPrepCountsAndSpecialDiets()
+    {
+        var xlsx = ListExcelGenerator.FoodPreferenceList(Data(3));
+        Assert.Equal([0x50, 0x4B], xlsx.Take(2).ToArray());
+
+        // Sheet 1 (Tillagning): the seeded dishes are aggregated into the prep summary.
+        var prep = SheetStrings(xlsx, "Tillagning");
+        Assert.Contains("Köttbullar", prep);
+        Assert.Contains("Fisk", prep);
+
+        // Sheet 2 (Kostbehov): only people with a dietary need, named, with the requirement.
+        var diets = SheetStrings(xlsx, "Kostbehov");
+        Assert.Contains("Deltagare 000", diets);        // i % 3 == 0 → Vegetarian
+        Assert.Contains("Vegetarian", diets);
+    }
+
+    /// <summary>Re-opens a produced workbook and returns every used cell's string value on the named
+    /// sheet, so a test can assert the shaped data survived into the actual file.</summary>
+    private static List<string> SheetStrings(byte[] xlsx, string sheet)
+    {
+        using var stream = new MemoryStream(xlsx);
+        using var workbook = new XLWorkbook(stream);
+        return workbook.Worksheet(sheet).CellsUsed().Select(c => c.GetString()).ToList();
     }
 
     [Fact]

@@ -53,9 +53,13 @@ public class ListGeneratorTests
         // PDF magic bytes "%PDF".
         Assert.Equal([0x25, 0x50, 0x44, 0x46], small.Take(4).ToArray());
         Assert.Equal([0x25, 0x50, 0x44, 0x46], large.Take(4).ToArray());
-        Assert.True(large.Length > small.Length * 2,
-            $"A 60-participant list ({large.Length} B) should dwarf a 3-participant one ({small.Length} B) — " +
-            "if it doesn't, rows aren't being rendered.");
+        // QuestPDF embeds fonts, so a small list already carries a large fixed baseline and content
+        // grows sub-linearly against the total byte count — assert a material increase (57 extra
+        // participants add several KB of rows), not a multiple, so this proves rows render without a
+        // brittle ratio.
+        Assert.True(large.Length > small.Length + 2000,
+            $"A 60-participant list ({large.Length} B) should be materially larger than a 3-participant " +
+            $"one ({small.Length} B) — if it isn't, participant rows aren't being rendered into the PDF.");
 
         var food = ListPdfGenerator.FoodPreferenceList(Data(3));
         Assert.Equal([0x25, 0x50, 0x44, 0x46], food.Take(4).ToArray());

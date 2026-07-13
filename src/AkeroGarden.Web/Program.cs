@@ -135,6 +135,10 @@ builder.Services.AddScoped<BlockedPeriodService>();
 builder.Services.AddScoped<OccupancyProvider>();
 builder.Services.AddScoped<RoomAvailabilityService>();
 
+// ── Audit trail (Phase 11, §6.9 / §8.15) ──────────────────────────────────────
+builder.Services.AddScoped<IAuditActorAccessor, AuditActorAccessor>();
+builder.Services.AddScoped<IAuditWriter, AuditWriter>();
+
 // ── Scheduled background jobs (Phase 5) ───────────────────────────────────────
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.Configure<JobOptions>(builder.Configuration.GetSection("Jobs"));
@@ -215,6 +219,21 @@ app.MapPost("/logout", async (
     await signInManager.SignOutAsync();
     return Results.LocalRedirect("/login");
 });
+
+// ── E2E test seam (Development only) ──────────────────────────────────────────
+// Returns a pending invite's real setup link so the browser-driven activation test can reach the
+// /aterstall-losenord flow, which is otherwise only delivered by email (no SMTP in E2E). Gated on
+// BOTH Development AND an explicit config flag (E2ETestHooks) the E2E fixture sets — it is never
+// mapped in staging or production. Exposes no data beyond a link the inviting admin already sees.
+if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("E2ETestHooks"))
+{
+    app.MapGet("/e2e/setup-link", async (
+        string email, UserManager<ApplicationUser> users, AdminInviteService invites) =>
+    {
+        var user = await users.FindByEmailAsync(email);
+        return user is null ? Results.NotFound() : Results.Text(await invites.GenerateSetupLinkAsync(user));
+    });
+}
 
 // ── Admin list downloads (FR-44/45) ───────────────────────────────────────────
 // PDF + Excel participant and food-preference lists, streamed on demand from the booking detail

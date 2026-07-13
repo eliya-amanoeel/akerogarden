@@ -1,10 +1,18 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.45 — Working Draft  
+**Version:** 0.47 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.46:**
+
+- **Admin profile fields — first name, last name, phone (all required) — added during audit-trail implementation.** Admins previously carried only an email. FR-74 and the §6.4 storage note now require every admin to have a **first name, last name and phone number**, all mandatory. Decision taken with the client-developer: the **invitee enters their own** first/last/phone when they activate their account (the setup/password page), so the invite itself stays email-only. `PhoneNumber` is the built-in ASP.NET Identity field; `FirstName`/`LastName` are added to `ApplicationUser` (Identity infrastructure — still no custom app entity). This pairs with the audit trail: `AuditLog.ActorNameSnapshot` (§8.15, new) captures the acting admin's **name** alongside their email at write time, so the trail reads "Anna Andersson gjorde X" rather than an address. The admin name (staff data, not guest data) in the audit trail does not affect NFR-37, which governs *guest* personal data. `docs/product/erd.md` updated (AUDITLOG gains `ActorNameSnapshot`).
+
+**Changes from v0.45:**
+
+- **New audit trail (Phase 11 — post-production; backend now, admin view deferred).** The system had no record of who changed what: no reference-data or booking service logged the acting user, no entity carried a `ModifiedBy` field, and no `AuditLog` table existed. Added a first-class **`AuditLog`** entity (§8.15) and a new **§6.9 Admin — Audit Trail** (FR-95–98). Design decisions taken with the client-developer: (1) **no personal data in the trail** — booking-change entries record only *which* action occurred (approve, cancel, payment marked, participants edited, …) plus the acting user and the `BookingReference`, never the guest field values, so no guest names/contact details and no special-category dietary/allergy data (GDPR art. 9) are ever duplicated into the log (NFR-37); reference-data entries (prices, rooms, zones — no personal data) may carry a before/after summary; (2) the **actor** is one of `Admin` / `Guest` (completion via magic link) / `System` (background jobs), so a change is always attributable; (3) the trail is **append-only** — no admin edit-or-delete path (NFR-36); (4) **reads are not audited** — only changes; (5) **retention matches the booking** — booking-scoped entries are deleted with the booking (FR-67/68/89/90), non-booking entries after 2 years (FR-98). The admin-facing view (FR-97) is captured in scope but its UI is a later slice — the trail is written from the outset and, until the view exists, is queryable directly against the database. Entity count 13 → 14. `docs/legal/Integritetspolicy.md` and `docs/product/erd.md` updated in step; no change to any go-live requirement.
 
 **Changes from v0.44:**
 
@@ -763,9 +771,9 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | FR-71 | Admin users shall authenticate via email address and password on a dedicated login page at `admin.akerogarden.se/login` |
 | FR-72 | The login form shall offer a "remember me" option that persists the admin session for 30 days via a secure, HTTP-only cookie |
 | FR-73 | Admin users shall be able to reset their password via a one-time reset link sent to their registered email address; the link shall expire after 1 hour |
-| FR-74 | An authenticated admin shall be able to create new admin accounts (by email invitation) and deactivate existing admin accounts; an admin cannot deactivate their own account. The system is designed for a small number of admins (2–3); there is no enforced hard limit. For a **pending invitation** (an invited account that has not completed its one-time setup link — which expires after 1 hour), an admin shall additionally be able to **resend a fresh invitation** and **remove the pending invite**; these two actions apply only to never-activated invites (an activated account offers deactivate only, never delete). *(Pre-go-live / Phase 9 — agreed on staging 2026-07-11, not yet built.)* |
+| FR-74 | An authenticated admin shall be able to create new admin accounts (by email invitation) and deactivate existing admin accounts; an admin cannot deactivate their own account. The system is designed for a small number of admins (2–3); there is no enforced hard limit. For a **pending invitation** (an invited account that has not completed its one-time setup link — which expires after 1 hour), an admin shall additionally be able to **resend a fresh invitation** and **remove the pending invite**; these two actions apply only to never-activated invites (an activated account offers deactivate only, never delete). Every admin shall have a **first name, last name and phone number (all required)**; the **invitee enters these themselves** when activating their account on the setup/password page (so the invitation stays email-only). These are shown in the admin account list and used to attribute audit-trail actions by name (§6.9, §8.15). *(Pre-go-live / Phase 9 — agreed on staging 2026-07-11; invite lifecycle built, admin profile fields added during Phase 11 audit-trail work.)* |
 
-> **Note on admin user storage:** Admin accounts are managed by ASP.NET Core Identity, which provides its own user tables (`AspNetUsers`, etc.). There is no custom `AdminUser` entity in the application data model — Identity tables are treated as infrastructure.
+> **Note on admin user storage:** Admin accounts are managed by ASP.NET Core Identity, which provides its own user tables (`AspNetUsers`, etc.). There is no custom `AdminUser` entity in the application data model — Identity tables are treated as infrastructure. The `ApplicationUser` (Identity) record carries `FirstName` and `LastName` (custom) plus the built-in `PhoneNumber` and `Email` — all required (FR-74) and entered by the invitee at account activation — and the existing `IsActive` / `SetupCompletedAt` flags. These remain infrastructure, not an app entity.
 
 ---
 
@@ -834,6 +842,17 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | FR-90 | Closed general inquiries shall be automatically deleted 12 months after their submission date |
 | FR-91 | The `DeleteAfter` date shall be (re)computed whenever a booking enters a retention-relevant state: submission date + 12 months while `Pending`; check-out date + 2 years on `Completed`; denial or cancellation date + 12 months on `Denied`/`Cancelled`; submission date + 12 months on `Closed`. Records in the live in-progress states (`Approved`, `DetailsComplete`, `Active`) are not subject to automatic deletion. Both the pre-deletion warning (FR-66) and the deletion job (FR-69) operate off `DeleteAfter` |
 
+### 6.9 Admin — Audit Trail
+
+> An append-only record of who changed what, and when, for accountability. Captures **changes only** (not reads), attributed to an actor that is one of `Admin`, `Guest` (completion via magic link, FR-54), or `System` (background jobs, FR-69). The trail deliberately stores **no guest personal data** — booking-change entries record the action and the affected `BookingReference` (not PII, FR-92), never the guest field values, so no names, contact details, or special-category dietary/allergy data (GDPR art. 9) are ever duplicated into it (NFR-37). Backed by the `AuditLog` entity (§8.15). *(Phase 11, post-production. FR-95/96/98 are the backend capture + retention, built first; FR-97 is the admin-facing view, a later slice — until it exists the trail is queryable directly against the database.)*
+
+| ID | Requirement |
+|---|---|
+| FR-95 | The system shall record an immutable audit entry for every action that changes a booking: each status transition (§2.5), approval and denial (FR-38/50), cancellation including initiator (FR-76/77), deposit and final-payment status changes (FR-42), manual admin creation of a booking (FR-47), admin edits to participant or booking data after submission (FR-48), completion-form submission (FR-62, actor `Guest`), and (re)generation/resend of the completion link (FR-49). Each entry records the actor, the action, the affected booking (by `BookingReference`), and a timestamp — **never the guest field values themselves** (NFR-37) |
+| FR-96 | The system shall record an audit entry for every admin create, edit, deactivate, and hard-delete on reference data (`Building`, `PhysicalBuilding`, `Room`, `MealOption`, `Facility`, `PriceRule`, `CleaningZone`) and for every admin-account and invitation lifecycle action (FR-74: create/invite, deactivate, resend, remove). As these records contain no personal data, the entry may include a before/after summary of the changed fields |
+| FR-97 | The admin panel shall provide a view of the audit trail — a per-booking activity list on the booking detail page and a global, filterable audit-log page (by actor, action, and date range). *(UI deferred — the trail is captured from the outset per FR-95/96; the admin-facing view is a later slice. Until it is built, the trail is read directly from the database.)* |
+| FR-98 | Audit entries scoped to a booking shall be deleted together with that booking when it is automatically deleted (FR-67/68/89/90). Audit entries not scoped to a booking (reference-data and admin-account actions) shall be deleted 2 years after they are written, by the scheduled background job (FR-69) |
+
 ---
 
 ## 7. Non-Functional Requirements
@@ -851,6 +870,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | NFR-07 | The public calendar endpoint exposes only availability status — no data that could identify a guest, group size, or booking detail |
 | NFR-25 | The PostgreSQL Flexible Server shall have public network access disabled, reachable only via VNet integration from the App Service. No direct internet path to the database shall exist |
 | NFR-30 | SMTP credentials shall be stored as encrypted secrets (Azure App Service Application Settings or Key Vault), never committed to source control or stored in plain text configuration |
+| NFR-36 | The audit trail (§6.9, §8.15) shall be append-only. No application function — admin UI or API — shall provide a path to edit or delete audit entries; entries are removed only by the scheduled retention job (FR-98). This preserves the trail's integrity as an accountability record |
 
 ### 7.2 Performance
 
@@ -899,6 +919,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | NFR-22 | Privacy policy names data controller, states retention periods, references IMY |
 | NFR-23 | System does not collect personnummer |
 | NFR-24 | All data processing within Azure EU regions |
+| NFR-37 | The audit trail (§6.9, §8.15) shall not store guest personal data. Entries record only the acting user's identity (admin email, or the actor type `Guest`/`System`), the action, the affected `BookingReference` (not PII, FR-92), and a timestamp — never guest names, contact details, or special-category dietary/allergy data (GDPR art. 9). Booking-scoped entries are covered by the audited booking's retention period (FR-98) |
 
 ### 7.7 Testing
 
@@ -1128,6 +1149,25 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | `Description` | string? | Optional |
 | `IsActive` | bool | |
 | `DisplayOrder` | int | |
+
+### 8.15 AuditLog
+
+> Append-only accountability record of every change (never reads) — who did what, when (§6.9, FR-95/96). **Semi-polymorphic**: `EntityType`/`EntityId` identify the affected record of any kind, while an optional hard FK `BookingId` (cascade-delete) is set for booking-scoped entries so they are removed with their booking (FR-98) and can be listed per booking. Stores **no guest personal data** (NFR-37) — booking-change entries carry only the action + `BookingReferenceSnapshot`, not guest field values; special-category dietary/allergy data (art. 9) is never written here. Audit ≠ snapshot: the snapshot pattern (NFR-15/16/33/34) preserves *what was agreed*; the audit trail records *who acted*.
+
+| Field | Type | Notes |
+|---|---|---|
+| `Id` | GUID | Primary key |
+| `Timestamp` | datetime | Auto — UTC, set at write |
+| `ActorType` | Enum | `Admin \| Guest \| System` |
+| `ActorUserId` | GUID? | ASP.NET Identity user id when `ActorType = Admin`; null for `Guest`/`System`. Not FK-constrained — Identity tables are infrastructure (§6.4) |
+| `ActorEmailSnapshot` | string? | Acting admin's email captured at write time (admins can be deactivated/removed — FR-74); null for `Guest`/`System` |
+| `ActorNameSnapshot` | string? | Acting admin's full name (FR-74) captured at write time, for readable attribution in the trail; null for `Guest`/`System`. Staff data, not guest data — outside NFR-37's scope |
+| `ActionType` | Enum | The action performed — e.g. `BookingApproved`, `BookingCancelled`, `PaymentStatusChanged`, `ParticipantsEdited`, `CompletionSubmitted`, `CleaningZoneEdited`, `AdminInviteRemoved` |
+| `EntityType` | string | The kind of record affected — e.g. `Booking`, `CleaningZone`, `Room`, `AdminInvite` |
+| `EntityId` | GUID | The affected record's id |
+| `BookingId` | GUID? | FK → Booking, **ON DELETE CASCADE**, for booking-scoped entries (drives per-booking listing + retention, FR-98); null for reference-data/admin-account entries |
+| `BookingReferenceSnapshot` | string? | The affected booking's reference (FR-92) for readability; null for non-booking entries |
+| `Summary` | string | Human-readable Swedish description of the action. For reference-data entries (FR-96) may include a before/after of changed fields; for booking entries records the action only — never guest field values (NFR-37) |
 
 ---
 

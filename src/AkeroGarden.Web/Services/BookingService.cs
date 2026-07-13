@@ -20,8 +20,15 @@ namespace AkeroGarden.Web.Services;
 /// </summary>
 public class BookingService(
     ApplicationDbContext db, BookingEmailService emails, RoomAvailabilityService rooms, CleaningZoneService cleaning,
-    ILogger<BookingService> logger)
+    IAuditWriter audit, ILogger<BookingService> logger)
 {
+    /// <summary>Queues a booking-scoped audit entry (§8.15) on the current unit of work — persists
+    /// with the caller's next <c>SaveChangesAsync</c>. <paramref name="summary"/> must carry no
+    /// guest personal data (NFR-37). Actor defaults to the ambient admin; pass an explicit actor for
+    /// guest (completion) or system (background) actions.</summary>
+    private Task RecordBookingAuditAsync(Booking booking, AuditAction action, string summary, AuditActor? actor = null)
+        => audit.RecordAsync(action, nameof(Booking), booking.Id, summary, booking.Id, booking.BookingReference, actor);
+
     /// <summary>Creates a Pending stay request from the public inquiry form (FR-03).
     /// When <paramref name="createdByAdmin"/> is true the booking is created on the guest's
     /// behalf (FR-47) and no acknowledgement/notification emails are sent.</summary>
@@ -84,7 +91,14 @@ public class BookingService(
         await db.SaveChangesAsync();
         await AssignBookingReferenceAsync(booking);
 
-        if (!createdByAdmin)
+        if (createdByAdmin)
+        {
+            // FR-95: manual admin creation is audited; a public inquiry submission is not.
+            await RecordBookingAuditAsync(booking, AuditAction.BookingCreatedByAdmin,
+                "Bokningsförfrågan skapades av administratör.");
+            await db.SaveChangesAsync();
+        }
+        else
         {
             await emails.SendInquiryAcknowledgementAsync(booking);
             await emails.SendAdminNewInquiryAsync(booking);
@@ -121,7 +135,14 @@ public class BookingService(
         await db.SaveChangesAsync();
         await AssignBookingReferenceAsync(booking);
 
-        if (!createdByAdmin)
+        if (createdByAdmin)
+        {
+            // FR-95: manual admin creation is audited; a public inquiry submission is not.
+            await RecordBookingAuditAsync(booking, AuditAction.BookingCreatedByAdmin,
+                "Allmän förfrågan skapades av administratör.");
+            await db.SaveChangesAsync();
+        }
+        else
         {
             await emails.SendInquiryAcknowledgementAsync(booking);
             await emails.SendAdminNewInquiryAsync(booking);
@@ -271,6 +292,9 @@ public class BookingService(
         BookingStateMachine.EnsureCanTransition(booking.Status, BookingStatus.DetailsComplete);
         booking.Status = BookingStatus.DetailsComplete;
         booking.UpdatedAt = nowUtc; // DetailsComplete is a live state → DeleteAfter stays null (FR-91)
+        // Actor is the guest (magic link, FR-54) — no participant names in the summary (NFR-37).
+        await RecordBookingAuditAsync(booking, AuditAction.CompletionSubmitted,
+            "Bokningsuppgifter skickades in via slutförandelänken.", AuditActor.Guest);
         await db.SaveChangesAsync();
 
         // Resolves after the save above, since it depends on participants' RoomId being persisted.
@@ -412,6 +436,7 @@ public class BookingService(
         booking.Status = BookingStatus.Approved;
         booking.DeleteAfter = null; // live in-progress state (FR-91)
         booking.UpdatedAt = now;
+        await RecordBookingAuditAsync(booking, AuditAction.BookingApproved, "Bokningen godkändes.");
         await db.SaveChangesAsync();
 
         await emails.SendApprovalAsync(booking);
@@ -499,6 +524,8 @@ public class BookingService(
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Denied, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
         booking.UpdatedAt = now;
+        // No denial reason in the summary — it is admin free-text that could name the guest (NFR-37).
+        await RecordBookingAuditAsync(booking, AuditAction.BookingDenied, "Bokningen avslogs.");
         await db.SaveChangesAsync();
 
         await emails.SendDenialAsync(booking);
@@ -521,6 +548,7 @@ public class BookingService(
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Closed, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
         booking.UpdatedAt = now;
+        await RecordBookingAuditAsync(booking, AuditAction.InquiryClosed, "Förfrågan markerades som besvarad.");
         await db.SaveChangesAsync();
         logger.LogInformation("Inquiry {BookingId} closed", booking.Id);
         return SaveResult.Success;
@@ -546,6 +574,9 @@ public class BookingService(
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Cancelled, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
         booking.UpdatedAt = now;
+        // The initiator is an enum, not PII; the free-text reason is deliberately omitted (NFR-37).
+        var initiatorLabel = initiator == CancellationInitiator.GuestInitiated ? "gästinitierad" : "anläggningsinitierad";
+        await RecordBookingAuditAsync(booking, AuditAction.BookingCancelled, $"Bokningen avbokades ({initiatorLabel}).");
         await db.SaveChangesAsync();
 
         await emails.SendCancellationAsync(booking);
@@ -567,6 +598,7 @@ public class BookingService(
         booking.Status = BookingStatus.Active;
         booking.DeleteAfter = null; // live in-progress state (FR-91)
         booking.UpdatedAt = DateTime.UtcNow;
+        await RecordBookingAuditAsync(booking, AuditAction.BookingMarkedArrived, "Bokningen markerades som anländ.");
         await db.SaveChangesAsync();
         logger.LogInformation("Booking {BookingId} marked arrived", booking.Id);
         return SaveResult.Success;
@@ -591,6 +623,7 @@ public class BookingService(
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Completed, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
         booking.UpdatedAt = now;
+        await RecordBookingAuditAsync(booking, AuditAction.BookingMarkedCompleted, "Bokningen markerades som avslutad.");
         await db.SaveChangesAsync();
 
         await emails.SendThankYouAsync(booking);
@@ -612,6 +645,8 @@ public class BookingService(
             return SaveResult.Fail("Bokningen saknar incheckningsdatum.");
 
         RegenerateCompletionToken(booking);
+        await RecordBookingAuditAsync(booking, AuditAction.CompletionLinkRegenerated,
+            "Slutförandelänk återutfärdades och skickades till gästen.");
         await db.SaveChangesAsync();
 
         await emails.SendApprovalAsync(booking);
@@ -653,6 +688,8 @@ public class BookingService(
         if (booking is null) return;
         booking.GuestChoosesRooms = value;
         booking.UpdatedAt = DateTime.UtcNow;
+        await RecordBookingAuditAsync(booking, AuditAction.GuestChoosesRoomsChanged,
+            $"Inställning för gästens rumsval ändrades till {(value ? "på" : "av")}.");
         await db.SaveChangesAsync();
     }
 
@@ -711,6 +748,9 @@ public class BookingService(
         }
 
         booking.UpdatedAt = DateTime.UtcNow;
+        // Count only — never participant names/dietary values (NFR-37).
+        await RecordBookingAuditAsync(booking, AuditAction.ParticipantsEdited,
+            $"Deltagaruppgifter uppdaterades ({booking.Participants.Count} deltagare).");
         await db.SaveChangesAsync();
 
         // Room assignment may have just been set/changed above — refresh the sleeping-building
@@ -725,6 +765,8 @@ public class BookingService(
         if (booking is null) return;
         booking.AdminNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
         booking.UpdatedAt = DateTime.UtcNow;
+        // Note content is not recorded — it is internal free-text that may reference the guest (NFR-37).
+        await RecordBookingAuditAsync(booking, AuditAction.AdminNotesEdited, "Interna anteckningar uppdaterades.");
         await db.SaveChangesAsync();
     }
 
@@ -739,6 +781,11 @@ public class BookingService(
         booking.FinalInvoiced = finalInvoiced;
         booking.FinalPaid = finalPaid;
         booking.UpdatedAt = DateTime.UtcNow;
+        // Boolean status flags only — no amounts (C8) and no guest data (NFR-37).
+        static string Flag(bool v) => v ? "ja" : "nej";
+        await RecordBookingAuditAsync(booking, AuditAction.PaymentStatusChanged,
+            $"Betalningsstatus uppdaterad — handpenning fakturerad: {Flag(depositInvoiced)}, betald: {Flag(depositPaid)}; "
+            + $"slutbetalning fakturerad: {Flag(finalInvoiced)}, betald: {Flag(finalPaid)}.");
         await db.SaveChangesAsync();
     }
 

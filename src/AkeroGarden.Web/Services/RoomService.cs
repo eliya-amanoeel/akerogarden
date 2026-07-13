@@ -8,7 +8,7 @@ namespace AkeroGarden.Web.Services;
 /// CRUD and lifecycle rules for <see cref="Room"/> reference data
 /// (FR-17–20, NFR-14). Business rules live here, not in the Razor component (NFR-26/27).
 /// </summary>
-public class RoomService(ApplicationDbContext db)
+public class RoomService(ApplicationDbContext db, IAuditWriter audit)
 {
     /// <summary>All rooms in a building, active and inactive, in admin display order.</summary>
     public async Task<List<Room>> GetForBuildingAsync(Guid buildingId) =>
@@ -34,6 +34,8 @@ public class RoomService(ApplicationDbContext db)
     {
         room.Id = Guid.NewGuid();
         db.Rooms.Add(room);
+        await audit.RecordAsync(AuditAction.ReferenceDataCreated, nameof(Room), room.Id,
+            $"Rum skapades: \"{room.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -47,6 +49,8 @@ public class RoomService(ApplicationDbContext db)
         existing.BedCount = input.BedCount;
         existing.BedConfiguration = input.BedConfiguration;
         existing.DisplayOrder = input.DisplayOrder;
+        await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(Room), existing.Id,
+            $"Rum uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -57,6 +61,10 @@ public class RoomService(ApplicationDbContext db)
         if (room is null) return;
 
         room.IsActive = isActive;
+        await audit.RecordAsync(
+            isActive ? AuditAction.ReferenceDataActivated : AuditAction.ReferenceDataDeactivated,
+            nameof(Room), room.Id,
+            $"Rum {(isActive ? "aktiverades" : "inaktiverades")}: \"{room.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -72,6 +80,8 @@ public class RoomService(ApplicationDbContext db)
             return HardDeleteResult.Blocked;
 
         db.Rooms.Remove(room);
+        await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(Room), room.Id,
+            $"Rum togs bort: \"{room.Name}\".");
         await db.SaveChangesAsync();
         return HardDeleteResult.Deleted;
     }

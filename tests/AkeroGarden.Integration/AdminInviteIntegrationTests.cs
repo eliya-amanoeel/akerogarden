@@ -112,6 +112,26 @@ public class AdminInviteIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
+    public async Task CompleteActivationAsync_StoresProfileFields_AndStampsSetup()
+    {
+        var (_, invites, users, _) = NewProvider();
+        var address = $"{Guid.NewGuid()}@akerogarden.se";
+        await invites.InviteAsync(address);
+        var user = await users.FindByEmailAsync(address);
+        Assert.Null(user!.SetupCompletedAt);
+
+        var result = await invites.CompleteActivationAsync(user, "  Anna ", " Andersson ", " 070-123 45 67 ");
+
+        Assert.True(result.Succeeded);
+        var reloaded = (await users.FindByEmailAsync(address))!;
+        Assert.Equal("Anna", reloaded.FirstName);            // trimmed (FR-74)
+        Assert.Equal("Andersson", reloaded.LastName);
+        Assert.Equal("070-123 45 67", reloaded.PhoneNumber);
+        Assert.NotNull(reloaded.SetupCompletedAt);           // activation stamped in the same update
+        Assert.Equal("Anna Andersson", reloaded.DisplayName);
+    }
+
+    [Fact]
     public async Task StampSetupCompletedAsync_SetsTimestamp_Once()
     {
         var (_, invites, users, _) = NewProvider();

@@ -9,7 +9,7 @@ namespace AkeroGarden.Web.Services;
 /// Business rules live here, not in the Razor component (NFR-26/27). Image upload itself
 /// is handled by <see cref="IImageStorage"/>; this service validates the upload's format/size.
 /// </summary>
-public class FacilityService(ApplicationDbContext db)
+public class FacilityService(ApplicationDbContext db, IAuditWriter audit)
 {
     /// <summary>5 MB upload ceiling for facility images (FR-27).</summary>
     public const long MaxImageBytes = 5 * 1024 * 1024;
@@ -38,6 +38,8 @@ public class FacilityService(ApplicationDbContext db)
     {
         facility.Id = Guid.NewGuid();
         db.Facilities.Add(facility);
+        await audit.RecordAsync(AuditAction.ReferenceDataCreated, nameof(Facility), facility.Id,
+            $"Facilitet skapades: \"{facility.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -54,6 +56,8 @@ public class FacilityService(ApplicationDbContext db)
         existing.AmountExVat = input.AmountExVat;
         existing.VatRate = input.VatRate;
         existing.DisplayOrder = input.DisplayOrder;
+        await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(Facility), existing.Id,
+            $"Facilitet uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -64,6 +68,10 @@ public class FacilityService(ApplicationDbContext db)
         if (facility is null) return;
 
         facility.IsActive = isActive;
+        await audit.RecordAsync(
+            isActive ? AuditAction.ReferenceDataActivated : AuditAction.ReferenceDataDeactivated,
+            nameof(Facility), facility.Id,
+            $"Facilitet {(isActive ? "aktiverades" : "inaktiverades")}: \"{facility.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -79,6 +87,8 @@ public class FacilityService(ApplicationDbContext db)
             return HardDeleteResult.Blocked;
 
         db.Facilities.Remove(facility);
+        await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(Facility), facility.Id,
+            $"Facilitet togs bort: \"{facility.Name}\".");
         await db.SaveChangesAsync();
         return HardDeleteResult.Deleted;
     }

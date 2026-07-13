@@ -11,7 +11,7 @@ namespace AkeroGarden.Web.Services;
 /// <see cref="DeleteAsync"/> always removes. Deactivation (FR-33) is still offered for
 /// rules an admin wants to retire while keeping history.
 /// </summary>
-public class PriceRuleService(ApplicationDbContext db)
+public class PriceRuleService(ApplicationDbContext db, IAuditWriter audit)
 {
     /// <summary>All price rules, active and inactive, ordered by label.</summary>
     public async Task<List<PriceRule>> GetAllAsync() =>
@@ -33,6 +33,8 @@ public class PriceRuleService(ApplicationDbContext db)
     {
         priceRule.Id = Guid.NewGuid();
         db.PriceRules.Add(priceRule);
+        await audit.RecordAsync(AuditAction.ReferenceDataCreated, nameof(PriceRule), priceRule.Id,
+            $"Prisregel skapades: \"{priceRule.Label}\".");
         await db.SaveChangesAsync();
     }
 
@@ -49,6 +51,8 @@ public class PriceRuleService(ApplicationDbContext db)
         existing.SeasonStart = input.SeasonStart;
         existing.SeasonEnd = input.SeasonEnd;
         existing.Notes = input.Notes;
+        await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(PriceRule), existing.Id,
+            $"Prisregel uppdaterades: \"{existing.Label}\".");
         await db.SaveChangesAsync();
     }
 
@@ -59,6 +63,10 @@ public class PriceRuleService(ApplicationDbContext db)
         if (priceRule is null) return;
 
         priceRule.IsActive = isActive;
+        await audit.RecordAsync(
+            isActive ? AuditAction.ReferenceDataActivated : AuditAction.ReferenceDataDeactivated,
+            nameof(PriceRule), priceRule.Id,
+            $"Prisregel {(isActive ? "aktiverades" : "inaktiverades")}: \"{priceRule.Label}\".");
         await db.SaveChangesAsync();
     }
 
@@ -72,6 +80,8 @@ public class PriceRuleService(ApplicationDbContext db)
         if (priceRule is null) return;
 
         db.PriceRules.Remove(priceRule);
+        await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(PriceRule), priceRule.Id,
+            $"Prisregel togs bort: \"{priceRule.Label}\".");
         await db.SaveChangesAsync();
     }
 }

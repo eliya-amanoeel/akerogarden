@@ -8,7 +8,7 @@ namespace AkeroGarden.Web.Services;
 /// CRUD, bundle-integrity, and lifecycle rules for <see cref="CleaningZone"/> reference
 /// data (FR-85–88, NFR-14). Business rules live here, not in the Razor component (NFR-26/27).
 /// </summary>
-public class CleaningZoneService(ApplicationDbContext db)
+public class CleaningZoneService(ApplicationDbContext db, IAuditWriter audit)
 {
     /// <summary>All cleaning zones, active and inactive, in admin display order.</summary>
     public async Task<List<CleaningZone>> GetAllAsync() =>
@@ -71,6 +71,8 @@ public class CleaningZoneService(ApplicationDbContext db)
 
         NormalizePhysicalBuildingForKind(zone);
         db.CleaningZones.Add(zone);
+        await audit.RecordAsync(AuditAction.ReferenceDataCreated, nameof(CleaningZone), zone.Id,
+            $"Städzon skapades: \"{zone.Name}\".");
         await db.SaveChangesAsync();
         return SaveResult.Success;
     }
@@ -96,6 +98,8 @@ public class CleaningZoneService(ApplicationDbContext db)
         existing.PhysicalBuildingId = input.PhysicalBuildingId;
         existing.IncludesZoneIds = includes;
         existing.DisplayOrder = input.DisplayOrder;
+        await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(CleaningZone), existing.Id,
+            $"Städzon uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
         return SaveResult.Success;
     }
@@ -133,6 +137,10 @@ public class CleaningZoneService(ApplicationDbContext db)
         if (zone is null) return;
 
         zone.IsActive = isActive;
+        await audit.RecordAsync(
+            isActive ? AuditAction.ReferenceDataActivated : AuditAction.ReferenceDataDeactivated,
+            nameof(CleaningZone), zone.Id,
+            $"Städzon {(isActive ? "aktiverades" : "inaktiverades")}: \"{zone.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -148,6 +156,8 @@ public class CleaningZoneService(ApplicationDbContext db)
             return HardDeleteResult.Blocked;
 
         db.CleaningZones.Remove(zone);
+        await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(CleaningZone), zone.Id,
+            $"Städzon togs bort: \"{zone.Name}\".");
         await db.SaveChangesAsync();
         return HardDeleteResult.Deleted;
     }

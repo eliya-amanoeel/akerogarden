@@ -1,6 +1,6 @@
 # Åkerögården — Entity Relationship Diagram
 
-**Derived from:** requirements.md v0.35, Section 8 (Core Data Model)
+**Derived from:** requirements.md v0.47, Section 8 (Core Data Model)
 **Status:** Pre-development artefact — the schema blueprint for the .NET 10 / EF Core / PostgreSQL build.
 
 This is the diagram Section 8 of the SRS calls for. Attribute lists below show the **primary key, foreign keys, and the fields that drive relationships or logic** — see requirements.md §8 for the complete field list of each entity.
@@ -30,6 +30,8 @@ erDiagram
 
     CLEANINGZONE ||--o{ BOOKINGCLEANINGSELECTION : "selected as"
     FACILITY     ||--o{ BOOKINGFACILITYSELECTION : "selected as"
+
+    BOOKING  |o--o{ AUDITLOG : "audited by (nullable)"
 
     BOOKING {
         guid Id PK
@@ -169,6 +171,20 @@ erDiagram
         date SeasonEnd "nullable"
         bool IsActive
     }
+
+    AUDITLOG {
+        guid Id PK
+        guid BookingId FK "nullable; cascade-delete; booking-scoped entries"
+        datetime Timestamp
+        enum ActorType "Admin | Guest | System"
+        guid ActorUserId "nullable; Identity user, not FK-constrained"
+        string ActorEmailSnapshot "nullable; admin email at write time"
+        string ActorNameSnapshot "nullable; admin name at write time"
+        enum ActionType "BookingApproved, PaymentStatusChanged, …"
+        string EntityType "Booking, CleaningZone, Room, …"
+        guid EntityId "affected record"
+        string Summary "no guest PII (NFR-37)"
+    }
 ```
 
 > `PRICERULE` has no foreign keys — it is standalone reference data, displayed read-only on the public prices page (FR-82) and on booking records (FR-34). It is shown above without relationship lines for that reason.
@@ -194,6 +210,7 @@ erDiagram
 | Building | BlockedPeriod | 0..1 → many | `BlockedPeriod.BuildingId` | Null for `WholeProperty` scope |
 | Room | BlockedPeriod | 0..1 → many | `BlockedPeriod.RoomId` | Set only for `Room` scope |
 | CleaningZone | CleaningZone | many ↔ many (self) | `CleaningZone.IncludesZoneIds[]` | A bundle (Hela lägret) covers other zones |
+| Booking | AuditLog | 0..1 → many | `AuditLog.BookingId` | Nullable, cascade-delete — set for booking-scoped audit entries; null for reference-data/admin-account entries (which are keyed only by `EntityType`/`EntityId`) |
 
 ---
 
@@ -208,3 +225,5 @@ erDiagram
 4. **Facility & cleaning selections are symmetric.** Both `BookingFacilitySelection` and `BookingCleaningSelection` are child entities with a live FK plus name/amount snapshots, so an agreed facility or cleaning price survives later edits to the reference record (NFR-33/34, resolved consistently with C6). This was previously an asymmetry (facilities were a bare ID array) — aligned in v0.32.
 
 5. **PhysicalBuilding is the cleaning/blocking level.** Cleaning is priced per physical building, so `CleaningZone` links to `PhysicalBuilding` by **FK** (not a `uuid[]` of building/facility IDs) — sleeping-cleaning resolves by the structural join room → `Building.PhysicalBuildingId` → `CleaningZone.PhysicalBuildingId` with referential integrity, and `Facility.PhysicalBuildingId` drives conference cleaning. The lodging `Building` (Blidö, …) is a *unit inside* a physical building; the level was promoted to a first-class entity (rather than a `CleaningZone`↔`Building` join table) because a concrete future use exists — blocking a whole physical building (e.g. all of Stora bostadslängan) in one action, a `BlockedPeriod.PhysicalBuilding` scope planned as a later slice.
+
+6. **AuditLog is accountability, not preservation.** The snapshot pattern (note 1) answers *"what was agreed?"*; `AuditLog` (§8.15) answers *"who changed this, and when?"* — a distinct concern, so it is a separate append-only entity, not more snapshot columns. It is **semi-polymorphic**: `EntityType`/`EntityId` identify the affected record of any kind, while an optional hard FK `BookingId` (ON DELETE CASCADE) is set for booking-scoped entries so they are purged with the booking (FR-98) and listable per booking. It stores **no guest personal data** (NFR-37) — booking-change entries carry the action + `BookingReferenceSnapshot` only, never guest field values or art. 9 dietary data. Actor is `Admin` / `Guest` (magic-link completion) / `System` (background jobs), so every change is attributable. Admin identity is stored as a live `ActorUserId` plus an `ActorEmailSnapshot` (not FK-constrained — Identity tables are infrastructure, §6.4 — and admins can be removed, FR-74).

@@ -37,6 +37,14 @@ public sealed class DbFixture : IAsyncLifetime
         services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning));
         services.AddScoped<AdminSeeder>();
 
+        // Audit trail (§6.9): registered in the base so any service that now depends on IAuditWriter
+        // (BookingService, ReminderJob) resolves. Defaults to a System actor; audit tests override
+        // the accessor via `configure` to assert admin attribution. TimeProvider backs the audit
+        // timestamp; a test may replace it (last registration wins).
+        services.AddSingleton(TimeProvider.System);
+        services.AddScoped<IAuditActorAccessor, TestAuditActorAccessor>();
+        services.AddScoped<IAuditWriter, AuditWriter>();
+
         configure?.Invoke(services);
 
         return services.BuildServiceProvider();

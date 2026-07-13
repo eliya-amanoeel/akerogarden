@@ -8,7 +8,7 @@ namespace AkeroGarden.Web.Services;
 /// CRUD and lifecycle rules for <see cref="PhysicalBuilding"/> reference data (requirements.md
 /// §8.14, FR-94, NFR-14). Business rules live here, not in the Razor component (NFR-26/27).
 /// </summary>
-public class PhysicalBuildingService(ApplicationDbContext db)
+public class PhysicalBuildingService(ApplicationDbContext db, IAuditWriter audit)
 {
     /// <summary>All physical buildings, active and inactive, in admin display order.</summary>
     public async Task<List<PhysicalBuilding>> GetAllAsync() =>
@@ -33,6 +33,8 @@ public class PhysicalBuildingService(ApplicationDbContext db)
     {
         building.Id = Guid.NewGuid();
         db.PhysicalBuildings.Add(building);
+        await audit.RecordAsync(AuditAction.ReferenceDataCreated, nameof(PhysicalBuilding), building.Id,
+            $"Fysisk byggnad skapades: \"{building.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -45,6 +47,8 @@ public class PhysicalBuildingService(ApplicationDbContext db)
         existing.Name = input.Name;
         existing.Description = input.Description;
         existing.DisplayOrder = input.DisplayOrder;
+        await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(PhysicalBuilding), existing.Id,
+            $"Fysisk byggnad uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -57,6 +61,10 @@ public class PhysicalBuildingService(ApplicationDbContext db)
         if (building is null) return;
 
         building.IsActive = isActive;
+        await audit.RecordAsync(
+            isActive ? AuditAction.ReferenceDataActivated : AuditAction.ReferenceDataDeactivated,
+            nameof(PhysicalBuilding), building.Id,
+            $"Fysisk byggnad {(isActive ? "aktiverades" : "inaktiverades")}: \"{building.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -73,6 +81,8 @@ public class PhysicalBuildingService(ApplicationDbContext db)
             return HardDeleteResult.Blocked;
 
         db.PhysicalBuildings.Remove(building);
+        await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(PhysicalBuilding), building.Id,
+            $"Fysisk byggnad togs bort: \"{building.Name}\".");
         await db.SaveChangesAsync();
         return HardDeleteResult.Deleted;
     }

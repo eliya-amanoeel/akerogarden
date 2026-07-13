@@ -26,7 +26,9 @@ else
         <table class="admin-table">
             <thead>
                 <tr>
+                    <th>Namn</th>
                     <th>E-postadress</th>
+                    <th>Telefon</th>
                     <th>Status</th>
                     <th></th>
                 </tr>
@@ -35,7 +37,9 @@ else
                 @foreach (var user in _users)
                 {
                     <tr>
+                        <td>@(HasName(user) ? $"{user.FirstName} {user.LastName}".Trim() : "—")</td>
                         <td><span class="rowlink">@user.Email</span>@if (user.Id == _currentUserId) {<span class="chip" style="margin-left:0.5rem">Du</span>}</td>
+                        <td>@(string.IsNullOrWhiteSpace(user.PhoneNumber) ? "—" : user.PhoneNumber)</td>
                         <td>
                             @if (user.SetupCompletedAt is null)
                             {
@@ -103,6 +107,9 @@ else
                OnCancel="CancelRemoveInvite" />
 
 @code {
+    private static bool HasName(ApplicationUser u) =>
+        !(string.IsNullOrWhiteSpace(u.FirstName) && string.IsNullOrWhiteSpace(u.LastName));
+
     private List<ApplicationUser>? _users;
     private string? _currentUserId;
     private string? _message;
@@ -135,15 +142,13 @@ else
 
     private async Task Deactivate(ApplicationUser user)
     {
-        user.IsActive = false;
-        await UserManager.UpdateAsync(user);
+        await InviteService.SetAccountActiveAsync(user, false); // audited (FR-96)
         _message = $"{user.Email} har inaktiverats.";
     }
 
     private async Task Activate(ApplicationUser user)
     {
-        user.IsActive = true;
-        await UserManager.UpdateAsync(user);
+        await InviteService.SetAccountActiveAsync(user, true); // audited (FR-96)
         _message = $"{user.Email} har aktiverats.";
     }
 

@@ -19,6 +19,7 @@ public class ReminderJob(
     ApplicationDbContext db,
     BookingService bookings,
     BookingEmailService emails,
+    IAuditWriter audit,
     TimeProvider clock) : IScheduledJob
 {
     public string Name => "14-dagarspåminnelse";
@@ -50,6 +51,10 @@ public class ReminderJob(
             {
                 // Regenerate the link first so the nudge never carries an already-expired token (I13).
                 bookings.RegenerateCompletionToken(booking);
+                // System actor (FR-63/95): the automated nudge reissued the link — no admin involved.
+                await audit.RecordAsync(AuditAction.CompletionLinkRegenerated, nameof(Booking), booking.Id,
+                    "Slutförandelänk återutfärdades automatiskt av 14-dagarspåminnelsen.",
+                    booking.Id, booking.BookingReference, AuditActor.System);
                 await emails.SendCompletionNudgeAsync(booking);
                 await emails.SendAdminGuestNotCompletedAsync(booking);
                 nudged++;

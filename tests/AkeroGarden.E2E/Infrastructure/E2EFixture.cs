@@ -105,7 +105,10 @@ public sealed class E2EFixture : IAsyncLifetime
         await using var ctx = new ApplicationDbContext(options);
         if (await ctx.Buildings.AnyAsync()) return;
 
-        var building = new Building { Id = Guid.NewGuid(), Name = "Huvudbyggnaden", IsActive = true };
+        // A lodging Building requires a PhysicalBuilding (§8.2, FR-13) — seed one and link it.
+        var sovPb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = "Sovbyggnad", IsActive = true };
+        ctx.PhysicalBuildings.Add(sovPb);
+        var building = new Building { Id = Guid.NewGuid(), Name = "Huvudbyggnaden", PhysicalBuildingId = sovPb.Id, IsActive = true };
         building.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = building.Id, Name = "Sovsal", BedCount = 40, IsActive = true });
         ctx.Buildings.Add(building);
 
@@ -239,6 +242,10 @@ public sealed class E2EFixture : IAsyncLifetime
         // Seed the first admin so the admin E2E tests can log in (AdminSeeder is a no-op without these).
         psi.Environment["Seed__AdminEmail"] = AdminEmail;
         psi.Environment["Seed__AdminPassword"] = AdminPassword;
+
+        // Enable the Development-only /e2e/setup-link seam so the invite-activation flow (normally
+        // reachable only via the emailed link) can be driven by the browser. Never set in prod.
+        psi.Environment["E2ETestHooks"] = "true";
 
         // No SMTP server in E2E. SmtpEmailService already swallows send failures (NFR-13), so a
         // submit still succeeds — but make it fail fast (1 attempt, no retry delay) and give it a

@@ -11,6 +11,17 @@ public static class RetentionSchedule
     /// <summary>Days before <c>DeleteAfter</c> that the admin pre-deletion warning fires (FR-66).</summary>
     public const int WarningLeadDays = 30;
 
+    /// <summary>Years a non-booking audit entry (reference-data / admin-account) is retained before
+    /// it is age-purged (FR-98). Booking-scoped audit entries instead follow their booking's
+    /// retention via the cascade FK (§8.15).</summary>
+    public const int AuditRetentionYears = 2;
+
+    /// <summary>The instant before which non-booking audit entries are purged (FR-98):
+    /// <see cref="AuditRetentionYears"/> before <paramref name="today"/>, as UTC midnight — the
+    /// two-year civil boundary needs no sub-day precision.</summary>
+    public static DateTime AuditPurgeCutoffUtc(DateOnly today) =>
+        today.AddYears(-AuditRetentionYears).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
     /// <summary>True if the record is at or past its deletion date and must be deleted (FR-69/91).</summary>
     public static bool IsDeletionDue(DateOnly? deleteAfter, DateOnly today) =>
         deleteAfter is { } d && d <= today;

@@ -45,7 +45,10 @@ Uppgifter om allergier och specialkost kan utgöra känsliga personuppgifter (up
 | Behandla allergi- och kostuppgifter | Uttryckligt samtycke (6.1 a, jämfört med 9.2 a) |
 | Skicka påminnelser inför ankomst | Fullgörande av avtal (6.1 b) |
 | Besvara allmänna förfrågningar som inte leder till bokning | Berättigat intresse av att kunna besvara förfrågningar (6.1 f) |
+| Föra en intern ändringslogg över administrativa åtgärder på en bokning (t.ex. godkännande, avbokning) för spårbarhet och säkerhet | Berättigat intresse av spårbarhet och informationssäkerhet (6.1 f) |
 | Uppfylla bokförings- och redovisningsskyldigheter | Rättslig förpliktelse (6.1 c) |
+
+> Ändringsloggen innehåller **inga uppgifter om dig som gäst** — den registrerar endast vilken åtgärd som utförts, av vem (administratör) och när, samt bokningens referensnummer. Inga namn, kontaktuppgifter eller kost-/allergiuppgifter lagras i loggen. Loggposter som hör till en bokning raderas tillsammans med bokningen (se avsnitt 5).
 
 ## 4. Vem får ta del av dina uppgifter?
 

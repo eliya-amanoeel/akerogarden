@@ -290,6 +290,79 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         await Assertions.Expect(Page.Locator("tr", new() { HasText = email })).Not.ToBeVisibleAsync();
     }
 
+    /// <summary>Phase 11 (audit-trail work): an invited admin sets their own required first name,
+    /// last name and phone when activating their account (FR-74, §6.4). Drives the real flow end to
+    /// end: invite through the Konton panel, follow the actual setup link (minted via the
+    /// Development-only /e2e/setup-link seam, since there is no SMTP in E2E), prove the profile
+    /// fields are required (empty submit is rejected and does NOT activate), then complete activation
+    /// and cross-check the database that the profile landed and setup was stamped.</summary>
+    [Fact]
+    public async Task Invited_admin_sets_required_profile_fields_on_activation()
+    {
+        var email = $"{Guid.NewGuid():N}@akerogarden.se";
+        const string password = "E2e-Setup-Pass1!";
+
+        try
+        {
+            // 1. Invite the new admin through the real Konton panel (creates a pending account).
+            await LoginAsync();
+            await Page.GotoAsync("/admin/konton");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in administratör" }).ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
+            await Page.FillAsync("#invite-email", email);
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Skicka inbjudan" }).ClickAsync();
+            await Assertions.Expect(Page.Locator("tr", new() { HasText = email }).Locator(".badge"))
+                .ToHaveTextAsync("Väntar på aktivering");
+
+            // 2. Fetch the real setup link (the app builds a valid data-protected code + reset token).
+            var resp = await Page.APIRequest.GetAsync($"/e2e/setup-link?email={Uri.EscapeDataString(email)}");
+            Assert.True(resp.Ok, $"setup-link seam returned {resp.Status}");
+            var setupPathAndQuery = new Uri(await resp.TextAsync()).PathAndQuery;
+
+            // 3. The activation page shows the three required profile fields.
+            await Page.GotoAsync(setupPathAndQuery);
+            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Aktivera ditt konto" })).ToBeVisibleAsync();
+            await Assertions.Expect(Page.Locator("#firstName")).ToBeVisibleAsync();
+            await Assertions.Expect(Page.Locator("#lastName")).ToBeVisibleAsync();
+            await Assertions.Expect(Page.Locator("#phone")).ToBeVisibleAsync();
+
+            // 4. Password valid but profile empty → rejected, and the account is NOT activated.
+            await Page.FillAsync("#password", password);
+            await Page.FillAsync("#confirm", password);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Aktivera konto" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-error"))
+                .ToContainTextAsync("Förnamn, efternamn och telefonnummer krävs.");
+            await using (var db = Fixture.NewDbContext())
+                Assert.Null((await db.Users.SingleAsync(u => u.Email == email)).SetupCompletedAt);
+
+            // 5. Complete activation with the profile filled in (re-fill after the post re-render).
+            await Page.FillAsync("#firstName", "Bengt");
+            await Page.FillAsync("#lastName", "Bengtsson");
+            await Page.FillAsync("#phone", "070-987 65 43");
+            await Page.FillAsync("#password", password);
+            await Page.FillAsync("#confirm", password);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Aktivera konto" }).ClickAsync();
+            await Assertions.Expect(Page.GetByText("Ditt konto är aktiverat.")).ToBeVisibleAsync();
+
+            // 6. Honest cross-check: the profile persisted and activation was stamped.
+            await using (var db = Fixture.NewDbContext())
+            {
+                var user = await db.Users.SingleAsync(u => u.Email == email);
+                Assert.Equal("Bengt", user.FirstName);
+                Assert.Equal("Bengtsson", user.LastName);
+                Assert.Equal("070-987 65 43", user.PhoneNumber);
+                Assert.NotNull(user.SetupCompletedAt);
+            }
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Users.Where(u => u.Email == email).ExecuteDeleteAsync();
+        }
+    }
+
     /// <summary>Phase 11: irreversible "Ta bort" opens a confirmation dialog. Reference-data pages
     /// were reworked to the same row+slide-in-panel pattern as Byggnader (Aktivera/Ta bort moved
     /// off the row and into the panel footer, row keeps only Redigera) — Ta bort now lives inside

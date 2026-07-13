@@ -4,7 +4,7 @@
 
 A full-stack booking and admin system for Åkerögården, a rural retreat in Norrtälje, Sweden. Replaces a decommissioned Payload CMS. The old production database was dropped during decommission — all data must be rebuilt from scratch.
 
-**Single source of truth:** `docs/product/requirements.md` (v0.46). If anything here conflicts with the SRS, the SRS wins — raise it, don't silently diverge.
+**Single source of truth:** `docs/product/requirements.md` (v0.47). If anything here conflicts with the SRS, the SRS wins — raise it, don't silently diverge.
 
 ## Tech stack (locked — do not change without explicit discussion)
 

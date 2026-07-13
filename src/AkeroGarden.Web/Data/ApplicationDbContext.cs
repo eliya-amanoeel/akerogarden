@@ -39,6 +39,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     // Phase 8: cleaning rework — PhysicalBuilding (§8.14).
     public DbSet<PhysicalBuilding> PhysicalBuildings => Set<PhysicalBuilding>();
 
+    // Phase 11: audit trail — AuditLog (§8.15, §6.9).
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -254,6 +257,32 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
                 .HasForeignKey(x => x.MealOptionId)
                 .OnDelete(DeleteBehavior.Restrict);
             m.HasIndex(x => x.MealOptionId);
+        });
+
+        // ── Phase 11: audit trail (§8.15, §6.9) ─────────────────────────────────
+        builder.Entity<AuditLog>(a =>
+        {
+            // Enums persisted as strings: legible in the DB and stable against reordering.
+            a.Property(x => x.ActorType).HasConversion<string>().HasMaxLength(20);
+            a.Property(x => x.Action).HasConversion<string>().HasMaxLength(50);
+            a.Property(x => x.EntityType).HasMaxLength(50);
+            a.Property(x => x.ActorEmailSnapshot).HasMaxLength(256);
+            a.Property(x => x.ActorNameSnapshot).HasMaxLength(200);
+            a.Property(x => x.BookingReferenceSnapshot).HasMaxLength(20);
+            a.Property(x => x.Summary).HasMaxLength(500);
+
+            // Booking-scoped entries cascade-delete with the booking (FR-98) so the trail honours
+            // the booking's retention; non-booking entries (BookingId null) are purged on age by
+            // the retention job. Optional FK — reference-data/admin entries carry no BookingId.
+            a.HasOne(x => x.Booking)
+                .WithMany()
+                .HasForeignKey(x => x.BookingId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // The future admin view (FR-97) lists per booking and filters/sorts by time; the
+            // retention job scans non-booking rows by age.
+            a.HasIndex(x => x.BookingId);
+            a.HasIndex(x => x.Timestamp);
         });
     }
 }

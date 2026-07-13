@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.46 — Working Draft  
+**Version:** 0.47 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.46:**
+
+- **Admin profile fields — first name, last name, phone (all required) — added during audit-trail implementation.** Admins previously carried only an email. FR-74 and the §6.4 storage note now require every admin to have a **first name, last name and phone number**, all mandatory. Decision taken with the client-developer: the **invitee enters their own** first/last/phone when they activate their account (the setup/password page), so the invite itself stays email-only. `PhoneNumber` is the built-in ASP.NET Identity field; `FirstName`/`LastName` are added to `ApplicationUser` (Identity infrastructure — still no custom app entity). This pairs with the audit trail: `AuditLog.ActorNameSnapshot` (§8.15, new) captures the acting admin's **name** alongside their email at write time, so the trail reads "Anna Andersson gjorde X" rather than an address. The admin name (staff data, not guest data) in the audit trail does not affect NFR-37, which governs *guest* personal data. `docs/product/erd.md` updated (AUDITLOG gains `ActorNameSnapshot`).
 
 **Changes from v0.45:**
 
@@ -767,9 +771,9 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | FR-71 | Admin users shall authenticate via email address and password on a dedicated login page at `admin.akerogarden.se/login` |
 | FR-72 | The login form shall offer a "remember me" option that persists the admin session for 30 days via a secure, HTTP-only cookie |
 | FR-73 | Admin users shall be able to reset their password via a one-time reset link sent to their registered email address; the link shall expire after 1 hour |
-| FR-74 | An authenticated admin shall be able to create new admin accounts (by email invitation) and deactivate existing admin accounts; an admin cannot deactivate their own account. The system is designed for a small number of admins (2–3); there is no enforced hard limit. For a **pending invitation** (an invited account that has not completed its one-time setup link — which expires after 1 hour), an admin shall additionally be able to **resend a fresh invitation** and **remove the pending invite**; these two actions apply only to never-activated invites (an activated account offers deactivate only, never delete). *(Pre-go-live / Phase 9 — agreed on staging 2026-07-11, not yet built.)* |
+| FR-74 | An authenticated admin shall be able to create new admin accounts (by email invitation) and deactivate existing admin accounts; an admin cannot deactivate their own account. The system is designed for a small number of admins (2–3); there is no enforced hard limit. For a **pending invitation** (an invited account that has not completed its one-time setup link — which expires after 1 hour), an admin shall additionally be able to **resend a fresh invitation** and **remove the pending invite**; these two actions apply only to never-activated invites (an activated account offers deactivate only, never delete). Every admin shall have a **first name, last name and phone number (all required)**; the **invitee enters these themselves** when activating their account on the setup/password page (so the invitation stays email-only). These are shown in the admin account list and used to attribute audit-trail actions by name (§6.9, §8.15). *(Pre-go-live / Phase 9 — agreed on staging 2026-07-11; invite lifecycle built, admin profile fields added during Phase 11 audit-trail work.)* |
 
-> **Note on admin user storage:** Admin accounts are managed by ASP.NET Core Identity, which provides its own user tables (`AspNetUsers`, etc.). There is no custom `AdminUser` entity in the application data model — Identity tables are treated as infrastructure.
+> **Note on admin user storage:** Admin accounts are managed by ASP.NET Core Identity, which provides its own user tables (`AspNetUsers`, etc.). There is no custom `AdminUser` entity in the application data model — Identity tables are treated as infrastructure. The `ApplicationUser` (Identity) record carries `FirstName` and `LastName` (custom) plus the built-in `PhoneNumber` and `Email` — all required (FR-74) and entered by the invitee at account activation — and the existing `IsActive` / `SetupCompletedAt` flags. These remain infrastructure, not an app entity.
 
 ---
 
@@ -1157,7 +1161,8 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | `ActorType` | Enum | `Admin \| Guest \| System` |
 | `ActorUserId` | GUID? | ASP.NET Identity user id when `ActorType = Admin`; null for `Guest`/`System`. Not FK-constrained — Identity tables are infrastructure (§6.4) |
 | `ActorEmailSnapshot` | string? | Acting admin's email captured at write time (admins can be deactivated/removed — FR-74); null for `Guest`/`System` |
-| `ActionType` | Enum | The action performed — e.g. `BookingApproved`, `BookingCancelled`, `DepositPaidChanged`, `ParticipantsEdited`, `CompletionSubmitted`, `CleaningZoneEdited`, `AdminInviteRemoved` |
+| `ActorNameSnapshot` | string? | Acting admin's full name (FR-74) captured at write time, for readable attribution in the trail; null for `Guest`/`System`. Staff data, not guest data — outside NFR-37's scope |
+| `ActionType` | Enum | The action performed — e.g. `BookingApproved`, `BookingCancelled`, `PaymentStatusChanged`, `ParticipantsEdited`, `CompletionSubmitted`, `CleaningZoneEdited`, `AdminInviteRemoved` |
 | `EntityType` | string | The kind of record affected — e.g. `Booking`, `CleaningZone`, `Room`, `AdminInvite` |
 | `EntityId` | GUID | The affected record's id |
 | `BookingId` | GUID? | FK → Booking, **ON DELETE CASCADE**, for booking-scoped entries (drives per-booking listing + retention, FR-98); null for reference-data/admin-account entries |

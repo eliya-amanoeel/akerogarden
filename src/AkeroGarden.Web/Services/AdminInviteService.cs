@@ -75,12 +75,38 @@ public class AdminInviteService(
         await userManager.UpdateAsync(user);
     }
 
-    private async Task SendInviteEmailAsync(ApplicationUser user)
+    /// <summary>
+    /// Completes a first-time invite activation (FR-74, §6.4): stores the invitee's required
+    /// first name, last name and phone, and stamps setup as completed — in a single update. The
+    /// caller (setup page) has already reset the password with the one-time token.
+    /// </summary>
+    public async Task<IdentityResult> CompleteActivationAsync(
+        ApplicationUser user, string firstName, string lastName, string phone)
+    {
+        user.FirstName = firstName.Trim();
+        user.LastName = lastName.Trim();
+        user.PhoneNumber = phone.Trim();
+        user.SetupCompletedAt ??= DateTime.UtcNow;
+        return await userManager.UpdateAsync(user);
+    }
+
+    /// <summary>
+    /// Builds the one-time setup/activation link for a user (the URL the invite email carries):
+    /// a fresh password-reset token, wrapped with the email in a data-protected <c>?code=</c>. Public
+    /// so a Development-only E2E test seam can drive the activation flow the browser otherwise can't
+    /// reach (the link is normally only delivered by email).
+    /// </summary>
+    public async Task<string> GenerateSetupLinkAsync(ApplicationUser user)
     {
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var protector = dataProtectionProvider.CreateProtector("PasswordReset");
         var code = Uri.EscapeDataString(protector.Protect($"{user.Email}|{token}"));
-        var setupUrl = $"{emailOptions.Value.AdminBaseUrl.TrimEnd('/')}/aterstall-losenord?code={code}";
+        return $"{emailOptions.Value.AdminBaseUrl.TrimEnd('/')}/aterstall-losenord?code={code}";
+    }
+
+    private async Task SendInviteEmailAsync(ApplicationUser user)
+    {
+        var setupUrl = await GenerateSetupLinkAsync(user);
 
         await emailService.SendAsync(
             user.Email!,

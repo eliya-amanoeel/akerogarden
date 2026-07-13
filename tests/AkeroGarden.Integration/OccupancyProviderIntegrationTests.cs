@@ -28,7 +28,10 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
 
     private static async Task<Guid> SeedBuildingWithBedsAsync(ApplicationDbContext db, params int[] beds)
     {
-        var building = new Building { Id = Guid.NewGuid(), Name = $"Hus-{Guid.NewGuid():N}", IsActive = true };
+        // A lodging Building requires a PhysicalBuilding (§8.2, FR-13) — seed one and link it.
+        var pb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"Fysisk-{Guid.NewGuid():N}", IsActive = true };
+        var building = new Building { Id = Guid.NewGuid(), Name = $"Hus-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id, IsActive = true };
+        db.PhysicalBuildings.Add(pb);
         db.Buildings.Add(building);
         foreach (var b in beds)
             db.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = building.Id, Name = "R", BedCount = b, IsActive = true });

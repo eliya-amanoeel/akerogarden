@@ -10,11 +10,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace AkeroGarden.Web.Data.Migrations
+namespace AkeroGarden.Web.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260701174555_AddFacilityPricing")]
-    partial class AddFacilityPricing
+    [Migration("20260713155158_InitialSchema")]
+    partial class InitialSchema
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -45,8 +45,14 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("FirstName")
+                        .HasColumnType("text");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
+
+                    b.Property<string>("LastName")
+                        .HasColumnType("text");
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
@@ -74,6 +80,9 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<string>("SecurityStamp")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("SetupCompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<bool>("TwoFactorEnabled")
                         .HasColumnType("boolean");
 
@@ -91,6 +100,65 @@ namespace AkeroGarden.Web.Data.Migrations
                         .HasDatabaseName("UserNameIndex");
 
                     b.ToTable("AspNetUsers", (string)null);
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("ActorEmailSnapshot")
+                        .HasMaxLength(256)
+                        .HasColumnType("character varying(256)");
+
+                    b.Property<string>("ActorNameSnapshot")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("ActorType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid?>("ActorUserId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BookingReferenceSnapshot")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)");
+
+                    b.Property<string>("Summary")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("Timestamp");
+
+                    b.ToTable("AuditLogs");
                 });
 
             modelBuilder.Entity("AkeroGarden.Web.Data.Entities.BlockedPeriod", b =>
@@ -139,6 +207,11 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<string>("AdminNotes")
                         .HasColumnType("text");
 
+                    b.Property<string>("BookingReference")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("BookingType")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -166,6 +239,9 @@ namespace AkeroGarden.Web.Data.Migrations
 
                     b.Property<DateTime?>("CompletionTokenExpiry")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool?>("ConferenceCleaningPurchased")
+                        .HasColumnType("boolean");
 
                     b.Property<string>("ContactEmail")
                         .IsRequired()
@@ -222,6 +298,9 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<bool>("IsOrganisation")
                         .HasColumnType("boolean");
 
+                    b.Property<bool?>("MainBuildingCleaningPurchased")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("MealPlan")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
@@ -241,6 +320,18 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<int?>("OvernightGuestCount")
                         .HasColumnType("integer");
 
+                    b.Property<DateTime?>("ReminderEmailSentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SequenceNumber")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityAlwaysColumn(b.Property<int>("SequenceNumber"));
+
+                    b.Property<bool?>("SleepingCleaningPurchased")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(30)
@@ -251,7 +342,12 @@ namespace AkeroGarden.Web.Data.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BookingReference")
+                        .IsUnique();
+
                     b.HasIndex("BookingType");
+
+                    b.HasIndex("CheckIn");
 
                     b.HasIndex("DeleteAfter");
 
@@ -352,11 +448,16 @@ namespace AkeroGarden.Web.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid>("PhysicalBuildingId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("SharedFacilities")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PhysicalBuildingId");
 
                     b.ToTable("Buildings");
                 });
@@ -385,16 +486,26 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
 
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("PhysicalBuildingId")
+                        .HasColumnType("uuid");
 
                     b.Property<decimal>("VatRate")
                         .HasPrecision(5, 4)
                         .HasColumnType("numeric(5,4)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PhysicalBuildingId");
 
                     b.ToTable("CleaningZones");
                 });
@@ -427,11 +538,16 @@ namespace AkeroGarden.Web.Data.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<Guid?>("PhysicalBuildingId")
+                        .HasColumnType("uuid");
+
                     b.Property<decimal>("VatRate")
                         .HasPrecision(5, 4)
                         .HasColumnType("numeric(5,4)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PhysicalBuildingId");
 
                     b.ToTable("Facilities");
                 });
@@ -468,6 +584,123 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("MealOptions");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.MealPreference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateOnly>("Date")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("MealOptionId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("MealOptionSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("MealType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<Guid>("ParticipantId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("MealOptionId");
+
+                    b.HasIndex("ParticipantId");
+
+                    b.ToTable("MealPreferences");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.Participant", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AgeCategory")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateOnly?>("AttendanceDate")
+                        .HasColumnType("date");
+
+                    b.Property<bool>("AttendsBreakfast")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("DietaryNotes")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("DietaryRequirements")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<bool>("IsFullBoard")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("ParticipantType")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("RoomAssignmentSnapshot")
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid?>("RoomId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId");
+
+                    b.HasIndex("RoomId");
+
+                    b.ToTable("Participants");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.PhysicalBuilding", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("PhysicalBuildings");
                 });
 
             modelBuilder.Entity("AkeroGarden.Web.Data.Entities.PriceRule", b =>
@@ -678,6 +911,16 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.AuditLog", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Data.Entities.Booking", "Booking")
+                        .WithMany()
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Booking");
+                });
+
             modelBuilder.Entity("AkeroGarden.Web.Data.Entities.BookingCleaningSelection", b =>
                 {
                     b.HasOne("AkeroGarden.Web.Data.Entities.Booking", "Booking")
@@ -714,6 +957,74 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Navigation("Booking");
 
                     b.Navigation("Facility");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.Building", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Data.Entities.PhysicalBuilding", "PhysicalBuilding")
+                        .WithMany()
+                        .HasForeignKey("PhysicalBuildingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PhysicalBuilding");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.CleaningZone", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Data.Entities.PhysicalBuilding", "PhysicalBuilding")
+                        .WithMany()
+                        .HasForeignKey("PhysicalBuildingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PhysicalBuilding");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.Facility", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Data.Entities.PhysicalBuilding", "PhysicalBuilding")
+                        .WithMany()
+                        .HasForeignKey("PhysicalBuildingId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("PhysicalBuilding");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.MealPreference", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Data.Entities.MealOption", "MealOption")
+                        .WithMany()
+                        .HasForeignKey("MealOptionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("AkeroGarden.Web.Data.Entities.Participant", "Participant")
+                        .WithMany("MealPreferences")
+                        .HasForeignKey("ParticipantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("MealOption");
+
+                    b.Navigation("Participant");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.Participant", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Data.Entities.Booking", "Booking")
+                        .WithMany("Participants")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AkeroGarden.Web.Data.Entities.Room", "Room")
+                        .WithMany()
+                        .HasForeignKey("RoomId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Booking");
+
+                    b.Navigation("Room");
                 });
 
             modelBuilder.Entity("AkeroGarden.Web.Data.Entities.Room", b =>
@@ -783,11 +1094,18 @@ namespace AkeroGarden.Web.Data.Migrations
                     b.Navigation("CleaningSelections");
 
                     b.Navigation("FacilitySelections");
+
+                    b.Navigation("Participants");
                 });
 
             modelBuilder.Entity("AkeroGarden.Web.Data.Entities.Building", b =>
                 {
                     b.Navigation("Rooms");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Data.Entities.Participant", b =>
+                {
+                    b.Navigation("MealPreferences");
                 });
 #pragma warning restore 612, 618
         }

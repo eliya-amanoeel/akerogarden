@@ -26,8 +26,11 @@ public class BlockedPeriodIntegrationTests : IClassFixture<DbFixture>
 
     private static async Task<(Building building, Room room)> SeedBuildingRoomAsync(ApplicationDbContext db)
     {
-        var b = new Building { Id = Guid.NewGuid(), Name = $"Hus-{Guid.NewGuid():N}" };
+        // A lodging Building requires a PhysicalBuilding (§8.2, FR-13) — seed one and link it.
+        var pb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"Fysisk-{Guid.NewGuid():N}", IsActive = true };
+        var b = new Building { Id = Guid.NewGuid(), Name = $"Hus-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id };
         var r = new Room { Id = Guid.NewGuid(), BuildingId = b.Id, Name = "Rum 1", BedCount = 2 };
+        db.PhysicalBuildings.Add(pb);
         db.Buildings.Add(b);
         db.Rooms.Add(r);
         await db.SaveChangesAsync();

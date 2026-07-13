@@ -1,6 +1,6 @@
 # Åkerögården — Entity Relationship Diagram
 
-**Derived from:** requirements.md v0.46, Section 8 (Core Data Model)
+**Derived from:** requirements.md v0.47, Section 8 (Core Data Model)
 **Status:** Pre-development artefact — the schema blueprint for the .NET 10 / EF Core / PostgreSQL build.
 
 This is the diagram Section 8 of the SRS calls for. Attribute lists below show the **primary key, foreign keys, and the fields that drive relationships or logic** — see requirements.md §8 for the complete field list of each entity.
@@ -179,7 +179,8 @@ erDiagram
         enum ActorType "Admin | Guest | System"
         guid ActorUserId "nullable; Identity user, not FK-constrained"
         string ActorEmailSnapshot "nullable; admin email at write time"
-        enum ActionType "BookingApproved, DepositPaidChanged, …"
+        string ActorNameSnapshot "nullable; admin name at write time"
+        enum ActionType "BookingApproved, PaymentStatusChanged, …"
         string EntityType "Booking, CleaningZone, Room, …"
         guid EntityId "affected record"
         string Summary "no guest PII (NFR-37)"

@@ -9,7 +9,7 @@ namespace AkeroGarden.Web.Services;
 /// (FR-13–16, NFR-14). Business rules live here, not in the Razor component,
 /// so the deactivate / no-hard-delete rules are testable (NFR-26/27).
 /// </summary>
-public class BuildingService(ApplicationDbContext db)
+public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
 {
     /// <summary>All buildings, active and inactive, in admin display order.</summary>
     public async Task<List<Building>> GetAllAsync() =>
@@ -29,6 +29,8 @@ public class BuildingService(ApplicationDbContext db)
 
         building.Id = Guid.NewGuid();
         db.Buildings.Add(building);
+        await audit.RecordAsync(AuditAction.ReferenceDataCreated, nameof(Building), building.Id,
+            $"Byggnad skapades: \"{building.Name}\".");
         await db.SaveChangesAsync();
         return SaveResult.Success;
     }
@@ -49,6 +51,8 @@ public class BuildingService(ApplicationDbContext db)
         existing.SharedFacilities = input.SharedFacilities;
         existing.IsAccessible = input.IsAccessible;
         existing.DisplayOrder = input.DisplayOrder;
+        await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(Building), existing.Id,
+            $"Byggnad uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
         return SaveResult.Success;
     }
@@ -75,6 +79,10 @@ public class BuildingService(ApplicationDbContext db)
         if (building is null) return;
 
         building.IsActive = isActive;
+        await audit.RecordAsync(
+            isActive ? AuditAction.ReferenceDataActivated : AuditAction.ReferenceDataDeactivated,
+            nameof(Building), building.Id,
+            $"Byggnad {(isActive ? "aktiverades" : "inaktiverades")}: \"{building.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -90,6 +98,8 @@ public class BuildingService(ApplicationDbContext db)
             return HardDeleteResult.Blocked;
 
         db.Buildings.Remove(building);
+        await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(Building), building.Id,
+            $"Byggnad togs bort: \"{building.Name}\".");
         await db.SaveChangesAsync();
         return HardDeleteResult.Deleted;
     }

@@ -1,4 +1,5 @@
 using AkeroGarden.Web.Data;
+using AkeroGarden.Web.Data.Entities;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Options;
@@ -10,13 +11,24 @@ namespace AkeroGarden.Web.Services;
 /// invitations. Business rules live here, not in the Razor component (NFR-26/27).
 /// A user is "pending" while <see cref="ApplicationUser.SetupCompletedAt"/> is null;
 /// setup links expire after 1 hour (DataProtectionTokenProviderOptions.TokenLifespan).
+/// Lifecycle actions are audited (FR-96) — admin accounts are staff data, so the account
+/// email may be recorded (NFR-37 governs guest data only).
 /// </summary>
 public class AdminInviteService(
     UserManager<ApplicationUser> userManager,
     IEmailService emailService,
     IOptions<BookingEmailOptions> emailOptions,
-    IDataProtectionProvider dataProtectionProvider)
+    IDataProtectionProvider dataProtectionProvider,
+    IAuditWriter audit,
+    ApplicationDbContext db)
 {
+    private const string AccountEntity = "AdminAccount";
+
+    /// <summary>Queues an admin-account audit entry (§8.15) — actor defaults to the ambient admin.
+    /// EntityId is the Identity user id; not booking-scoped, so age-purged by the retention job.</summary>
+    private Task RecordAccountAuditAsync(ApplicationUser user, AuditAction action, string summary, AuditActor? actor = null)
+        => audit.RecordAsync(action, AccountEntity, Guid.Parse(user.Id), summary, actor: actor);
+
     /// <summary>
     /// Invites a new admin, or — if the email already belongs to a still-pending
     /// invite — resends it. Blocked only when the email belongs to an already-activated account.
@@ -30,6 +42,9 @@ public class AdminInviteService(
                 return InviteResult.BlockedActivated;
 
             await SendInviteEmailAsync(existing);
+            await RecordAccountAuditAsync(existing, AuditAction.AdminInviteResent,
+                $"Inbjudan skickades på nytt till: {email}.");
+            await db.SaveChangesAsync();
             return InviteResult.Sent;
         }
 
@@ -46,11 +61,20 @@ public class AdminInviteService(
             return InviteResult.CreateFailed(string.Join(" ", createResult.Errors.Select(e => e.Description)));
 
         await SendInviteEmailAsync(newUser);
+        await RecordAccountAuditAsync(newUser, AuditAction.AdminInvited,
+            $"Administratör bjöds in: {email}.");
+        await db.SaveChangesAsync();
         return InviteResult.Sent;
     }
 
     /// <summary>Regenerates and resends the setup link for an already-known pending user.</summary>
-    public async Task ResendInviteAsync(ApplicationUser user) => await SendInviteEmailAsync(user);
+    public async Task ResendInviteAsync(ApplicationUser user)
+    {
+        await SendInviteEmailAsync(user);
+        await RecordAccountAuditAsync(user, AuditAction.AdminInviteResent,
+            $"Inbjudan skickades på nytt till: {user.Email}.");
+        await db.SaveChangesAsync();
+    }
 
     /// <summary>
     /// Hard-deletes a never-completed invite (safe pre-activation — Identity users are
@@ -62,7 +86,12 @@ public class AdminInviteService(
         if (user is null) return HardDeleteResult.NotFound;
         if (user.SetupCompletedAt is not null) return HardDeleteResult.Blocked;
 
+        var email = user.Email;
         await userManager.DeleteAsync(user);
+        // Audit references the (now-deleted) user id — EntityId is a plain Guid, not an FK.
+        await RecordAccountAuditAsync(user, AuditAction.AdminInviteRemoved,
+            $"Väntande inbjudan togs bort: {email}.");
+        await db.SaveChangesAsync();
         return HardDeleteResult.Deleted;
     }
 
@@ -87,7 +116,25 @@ public class AdminInviteService(
         user.LastName = lastName.Trim();
         user.PhoneNumber = phone.Trim();
         user.SetupCompletedAt ??= DateTime.UtcNow;
+        // Actor is the invitee activating their own account (no admin session yet) — attribute it to
+        // them. The audit row is added to the shared context and saved by UpdateAsync below.
+        await RecordAccountAuditAsync(user, AuditAction.AdminAccountSetupCompleted,
+            $"Kontot aktiverades av användaren: {user.Email}.",
+            AuditActor.Admin(Guid.Parse(user.Id), user.Email, user.DisplayName));
         return await userManager.UpdateAsync(user);
+    }
+
+    /// <summary>
+    /// Activates or deactivates an existing admin account (FR-74). Audited (FR-96); the audit row
+    /// is saved together with the account update.
+    /// </summary>
+    public async Task SetAccountActiveAsync(ApplicationUser user, bool isActive)
+    {
+        user.IsActive = isActive;
+        await RecordAccountAuditAsync(user,
+            isActive ? AuditAction.AdminAccountActivated : AuditAction.AdminAccountDeactivated,
+            $"Administratörskonto {(isActive ? "aktiverades" : "inaktiverades")}: {user.Email}.");
+        await userManager.UpdateAsync(user);
     }
 
     /// <summary>

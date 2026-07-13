@@ -142,15 +142,13 @@ else
 
     private async Task Deactivate(ApplicationUser user)
     {
-        user.IsActive = false;
-        await UserManager.UpdateAsync(user);
+        await InviteService.SetAccountActiveAsync(user, false); // audited (FR-96)
         _message = $"{user.Email} har inaktiverats.";
     }
 
     private async Task Activate(ApplicationUser user)
     {
-        user.IsActive = true;
-        await UserManager.UpdateAsync(user);
+        await InviteService.SetAccountActiveAsync(user, true); // audited (FR-96)
         _message = $"{user.Email} har aktiverats.";
     }
 

@@ -22,4 +22,19 @@ public enum AuditAction
     PaymentStatusChanged,
     AdminNotesEdited,
     GuestChoosesRoomsChanged,
+
+    // ── Reference data (FR-96) — EntityType disambiguates which kind ────────────
+    ReferenceDataCreated,
+    ReferenceDataUpdated,
+    ReferenceDataActivated,
+    ReferenceDataDeactivated,
+    ReferenceDataDeleted,
+
+    // ── Admin accounts / invitations (FR-96, FR-74) ─────────────────────────────
+    AdminInvited,
+    AdminInviteResent,
+    AdminInviteRemoved,
+    AdminAccountActivated,
+    AdminAccountDeactivated,
+    AdminAccountSetupCompleted,
 }

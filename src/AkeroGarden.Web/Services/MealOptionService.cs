@@ -8,7 +8,7 @@ namespace AkeroGarden.Web.Services;
 /// CRUD and lifecycle rules for <see cref="MealOption"/> reference data
 /// (FR-22–26, NFR-14). Business rules live here, not in the Razor component (NFR-26/27).
 /// </summary>
-public class MealOptionService(ApplicationDbContext db)
+public class MealOptionService(ApplicationDbContext db, IAuditWriter audit)
 {
     /// <summary>All meal options, active and inactive, in admin display order.</summary>
     public async Task<List<MealOption>> GetAllAsync() =>
@@ -34,6 +34,8 @@ public class MealOptionService(ApplicationDbContext db)
     {
         mealOption.Id = Guid.NewGuid();
         db.MealOptions.Add(mealOption);
+        await audit.RecordAsync(AuditAction.ReferenceDataCreated, nameof(MealOption), mealOption.Id,
+            $"Matalternativ skapades: \"{mealOption.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -48,6 +50,8 @@ public class MealOptionService(ApplicationDbContext db)
         existing.MealType = input.MealType;
         existing.IsVegetarian = input.IsVegetarian;
         existing.DisplayOrder = input.DisplayOrder;
+        await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(MealOption), existing.Id,
+            $"Matalternativ uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -61,6 +65,10 @@ public class MealOptionService(ApplicationDbContext db)
         if (mealOption is null) return;
 
         mealOption.IsActive = isActive;
+        await audit.RecordAsync(
+            isActive ? AuditAction.ReferenceDataActivated : AuditAction.ReferenceDataDeactivated,
+            nameof(MealOption), mealOption.Id,
+            $"Matalternativ {(isActive ? "aktiverades" : "inaktiverades")}: \"{mealOption.Name}\".");
         await db.SaveChangesAsync();
     }
 
@@ -76,6 +84,8 @@ public class MealOptionService(ApplicationDbContext db)
             return HardDeleteResult.Blocked;
 
         db.MealOptions.Remove(mealOption);
+        await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(MealOption), mealOption.Id,
+            $"Matalternativ togs bort: \"{mealOption.Name}\".");
         await db.SaveChangesAsync();
         return HardDeleteResult.Deleted;
     }

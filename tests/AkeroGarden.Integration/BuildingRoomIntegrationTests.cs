@@ -147,4 +147,28 @@ public class BuildingRoomIntegrationTests : IClassFixture<DbFixture>
         Assert.Equal("A", list[0].Name);
         Assert.Equal("B", list[1].Name);
     }
+
+    /// <summary>GetAllAsync backs the unified Byggnader tree, which loads every room across every
+    /// building in one call and groups them in-memory rather than one round-trip per building.</summary>
+    [Fact]
+    public async Task GetAll_ReturnsRoomsAcrossDifferentBuildings()
+    {
+        var (buildings, rooms, db) = NewScope(out var scope);
+        using var _s = scope;
+        var pb = await SeedPhysicalBuildingAsync(db);
+
+        var buildingA = new Building { Name = $"Blidö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id };
+        var buildingB = new Building { Name = $"Ljusterö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id };
+        await buildings.TryCreateAsync(buildingA);
+        await buildings.TryCreateAsync(buildingB);
+        var roomA = new Room { BuildingId = buildingA.Id, Name = $"Rum A-{Guid.NewGuid():N}", BedCount = 2 };
+        var roomB = new Room { BuildingId = buildingB.Id, Name = $"Rum B-{Guid.NewGuid():N}", BedCount = 3 };
+        await rooms.CreateAsync(roomA);
+        await rooms.CreateAsync(roomB);
+
+        var all = await rooms.GetAllAsync();
+
+        Assert.Contains(all, r => r.Id == roomA.Id && r.BuildingId == buildingA.Id);
+        Assert.Contains(all, r => r.Id == roomB.Id && r.BuildingId == buildingB.Id);
+    }
 }

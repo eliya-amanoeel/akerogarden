@@ -1,0 +1,39 @@
+@* Reusable slide-in edit panel for admin reference-data pages (scrim + header + scrollable body +
+   footer). Every reference-data CRUD page (Buildings, MealOptions, Facilities, PriceRules,
+   CleaningZones, Blocks) uses this instead of its own copy of the panel chrome, so the
+   create/edit surface looks and behaves identically everywhere. Put this INSIDE the page's
+   <EditForm> — ChildContent/Footer are just render fragments, so a type="submit" button in
+   Footer still submits the surrounding form regardless of this component boundary. *@
+
+<div class="admin-scrim @(Visible ? "is-open" : "")" @onclick="OnClose"></div>
+@* inert (not just aria-hidden) actually removes focusability of descendants while closed — the
+   panel stays in the DOM (translated off-screen) so the slide transition can play, but without
+   this its Spara/close/input elements remain tabbable, which axe correctly flags as
+   aria-hidden-focus (a focusable element inside an aria-hidden container). *@
+<aside class="admin-panel @(Visible ? "is-open" : "")" aria-hidden="@(Visible ? "false" : "true")" inert="@(!Visible)">
+    <div class="admin-panel__head">
+        <div>
+            @if (Kicker is not null)
+            {
+                <div class="admin-panel__kicker">@Kicker</div>
+            }
+            <h2 class="admin-panel__title">@Title</h2>
+        </div>
+        <button type="button" class="admin-panel__close" aria-label="Stäng" @onclick="OnClose">×</button>
+    </div>
+    <div class="admin-panel__body">
+        @ChildContent
+    </div>
+    <div class="admin-panel__foot">
+        @Footer
+    </div>
+</aside>
+
+@code {
+    [Parameter] public bool Visible { get; set; }
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public RenderFragment? Kicker { get; set; }
+    [Parameter] public EventCallback OnClose { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+    [Parameter] public RenderFragment? Footer { get; set; }
+}

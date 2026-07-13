@@ -13,10 +13,11 @@
 <AdminHeader Title="Blockeringar" />
 <p class="section-note">Blockera tillgänglighet för hela anläggningen, en byggnad eller ett rum (t.ex. vid renovering).</p>
 
-@if (!string.IsNullOrEmpty(_message))
-{
-    <p role="status" class="form-status">@_message</p>
-}
+<Toast @bind-Message="_message" />
+
+<div class="admin-toolbar">
+    <button type="button" class="btn" @onclick="OpenCreate">+ Lägg till blockering</button>
+</div>
 
 @if (_blocks is null)
 {
@@ -36,15 +37,14 @@ else
             <tbody>
                 @foreach (var p in _blocks)
                 {
-                    <tr>
+                    <tr @onclick="() => OpenEdit(p)">
                         <td class="mono">@p.StartDate.ToString("yyyy-MM-dd")</td>
                         <td class="mono">@p.EndDate.ToString("yyyy-MM-dd")</td>
                         <td>@BookingDisplay.ScopeLabel(p.Scope)</td>
                         <td>@TargetLabel(p)</td>
                         <td>@(p.Reason ?? "—")</td>
                         <td class="rowactions">
-                            <button class="btn-ghost" @onclick="() => Edit(p)">Redigera</button>
-                            <button class="btn-ghost" @onclick="() => RequestDelete(p)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => OpenEdit(p)" @onclick:stopPropagation="true">Redigera</button>
                         </td>
                     </tr>
                 }
@@ -53,73 +53,74 @@ else
     </div>
 }
 
-<section class="card admin-editcard">
-<h2>@(_editingId is null ? "Lägg till blockering" : "Redigera blockering")</h2>
-
-<EditForm Model="_form" OnValidSubmit="Save" FormName="block">
+<EditForm Model="_form" OnValidSubmit="Save">
     <DataAnnotationsValidator />
+    <AdminPanel Visible="_panelOpen" Title="@(_isCreating ? "Ny blockering" : $"{_form.StartDate:yyyy-MM-dd} – {_form.EndDate:yyyy-MM-dd}")" OnClose="ClosePanel">
+        <ChildContent>
+            <Toast @bind-Message="_panelError" />
+            <div class="form-group">
+                <label for="scope">Omfattning</label>
+                <select id="scope" @bind="_form.Scope" @bind:after="OnScopeChanged">
+                    @foreach (var s in Enum.GetValues<BlockScope>())
+                    {
+                        <option value="@s">@BookingDisplay.ScopeLabel(s)</option>
+                    }
+                </select>
+            </div>
 
-    <div class="form-group">
-        <label for="scope">Omfattning</label>
-        <select id="scope" @bind="_form.Scope" @bind:after="OnScopeChanged">
-            @foreach (var s in Enum.GetValues<BlockScope>())
+            @if (_form.Scope is BlockScope.Building or BlockScope.Room)
             {
-                <option value="@s">@BookingDisplay.ScopeLabel(s)</option>
+                <div class="form-group">
+                    <label for="building">Byggnad</label>
+                    <select id="building" @bind="_form.BuildingId" @bind:after="OnBuildingChanged">
+                        <option value="">Välj byggnad...</option>
+                        @foreach (var b in _buildings)
+                        {
+                            <option value="@b.Id">@b.Name</option>
+                        }
+                    </select>
+                </div>
             }
-        </select>
-    </div>
 
-    @if (_form.Scope is BlockScope.Building or BlockScope.Room)
-    {
-        <div class="form-group">
-            <label for="building">Byggnad</label>
-            <select id="building" @bind="_form.BuildingId" @bind:after="OnBuildingChanged">
-                <option value="">Välj byggnad...</option>
-                @foreach (var b in _buildings)
-                {
-                    <option value="@b.Id">@b.Name</option>
-                }
-            </select>
-        </div>
-    }
+            @if (_form.Scope == BlockScope.Room)
+            {
+                <div class="form-group">
+                    <label for="room">Rum</label>
+                    <select id="room" @bind="_form.RoomId">
+                        <option value="">Välj rum...</option>
+                        @foreach (var r in _rooms)
+                        {
+                            <option value="@r.Id">@r.Name</option>
+                        }
+                    </select>
+                </div>
+            }
 
-    @if (_form.Scope == BlockScope.Room)
-    {
-        <div class="form-group">
-            <label for="room">Rum</label>
-            <select id="room" @bind="_form.RoomId">
-                <option value="">Välj rum...</option>
-                @foreach (var r in _rooms)
-                {
-                    <option value="@r.Id">@r.Name</option>
-                }
-            </select>
-        </div>
-    }
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="start">Från</label>
+                    <InputDate id="start" @bind-Value="_form.StartDate" />
+                </div>
+                <div class="form-group">
+                    <label for="end">Till</label>
+                    <InputDate id="end" @bind-Value="_form.EndDate" />
+                </div>
+            </div>
 
-    <div class="form-row">
-        <div class="form-group">
-            <label for="start">Från</label>
-            <InputDate id="start" @bind-Value="_form.StartDate" />
-        </div>
-        <div class="form-group">
-            <label for="end">Till</label>
-            <InputDate id="end" @bind-Value="_form.EndDate" />
-        </div>
-    </div>
-
-    <div class="form-group">
-        <label for="reason">Orsak (intern)</label>
-        <InputText id="reason" @bind-Value="_form.Reason" />
-    </div>
-
-    <button type="submit" class="btn">Spara</button>
-    @if (_editingId is not null)
-    {
-        <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
-    }
+            <div class="form-group">
+                <label for="reason">Orsak (intern)</label>
+                <InputText id="reason" @bind-Value="_form.Reason" />
+            </div>
+        </ChildContent>
+        <Footer>
+            <button type="submit" class="btn">Spara</button>
+            @if (!_isCreating)
+            {
+                <button type="button" class="btn-outline btn-danger" @onclick="RequestDeleteCurrent">Ta bort</button>
+            }
+        </Footer>
+    </AdminPanel>
 </EditForm>
-</section>
 
 <ConfirmDialog Visible="_pendingDelete is not null"
                Title="Ta bort blockering"
@@ -131,11 +132,14 @@ else
     private List<BlockedPeriod>? _blocks;
     private BlockedPeriod _form = NewForm();
     private Guid? _editingId;
+    private bool _isCreating;
+    private bool _panelOpen;
     private List<Building> _buildings = [];
     private List<Room> _rooms = [];
     private readonly Dictionary<Guid, string> _buildingNames = [];
     private readonly Dictionary<Guid, string> _roomNames = [];
     private string? _message;
+    private string? _panelError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -162,11 +166,22 @@ else
         EndDate = DateOnly.FromDateTime(DateTime.UtcNow)
     };
 
-    private void New()
+    private void OpenCreate()
     {
+        _panelOpen = true;
+        _isCreating = true;
         _editingId = null;
+        _panelError = null;
         _form = NewForm();
         _rooms = [];
+    }
+
+    private void ClosePanel()
+    {
+        _panelOpen = false;
+        _isCreating = false;
+        _editingId = null;
+        _panelError = null;
     }
 
     private async Task OnScopeChanged()
@@ -187,9 +202,12 @@ else
     private async Task LoadRooms() =>
         _rooms = _form.BuildingId is null ? [] : await RoomService.GetForBuildingAsync(_form.BuildingId.Value);
 
-    private async Task Edit(BlockedPeriod p)
+    private async Task OpenEdit(BlockedPeriod p)
     {
+        _panelOpen = true;
+        _isCreating = false;
         _editingId = p.Id;
+        _panelError = null;
         _form = new BlockedPeriod
         {
             Id = p.Id,
@@ -205,20 +223,28 @@ else
 
     private async Task Save()
     {
-        var result = _editingId is null
+        var result = _isCreating
             ? await BlockedPeriodService.TryCreateAsync(_form)
             : await BlockedPeriodService.TryUpdateAsync(_form);
 
-        _message = result.Succeeded
-            ? (_editingId is null ? "Blockeringen har lagts till." : "Blockeringen har uppdaterats.")
-            : result.Error;
+        if (!result.Succeeded)
+        {
+            _panelError = result.Error;
+            return;
+        }
 
-        if (result.Succeeded) { New(); await Load(); }
+        _message = _isCreating ? "Blockeringen har lagts till." : "Blockeringen har uppdaterats.";
+        ClosePanel();
+        await Load();
     }
 
     private BlockedPeriod? _pendingDelete;
 
-    private void RequestDelete(BlockedPeriod p) => _pendingDelete = p;
+    private void RequestDeleteCurrent()
+    {
+        if (_editingId is not null)
+            _pendingDelete = _blocks!.First(x => x.Id == _editingId);
+    }
 
     private void CancelDelete() => _pendingDelete = null;
 
@@ -232,7 +258,7 @@ else
 
         await BlockedPeriodService.DeleteAsync(p.Id);
         _message = "Blockeringen har tagits bort.";
-        if (_editingId == p.Id) New();
+        ClosePanel();
         await Load();
     }
 

@@ -257,7 +257,9 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
 
     /// <summary>Admin invite lifecycle (Phase 9, FR-74): a fresh invite shows the pending badge
     /// with resend/remove actions; resend keeps it pending; remove deletes the row. No SMTP
-    /// server in E2E (see E2EFixture), so this only asserts the UI state, not email delivery.</summary>
+    /// server in E2E (see E2EFixture), so this only asserts the UI state, not email delivery.
+    /// Phase 11: the invite form moved from an always-visible card into the same slide-in panel
+    /// pattern as every other reference-data page — "+ Bjud in administratör" opens it.</summary>
     [Fact]
     public async Task Admin_can_resend_and_remove_a_pending_invite()
     {
@@ -267,8 +269,11 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         await Page.GotoAsync("/admin/konton");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
+        await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in administratör" }).ClickAsync();
+        var panel = Page.Locator(".admin-panel");
+        await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
         await Page.FillAsync("#invite-email", email);
-        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka inbjudan" }).ClickAsync();
+        await panel.GetByRole(AriaRole.Button, new() { Name = "Skicka inbjudan" }).ClickAsync();
 
         var row = Page.Locator("tr", new() { HasText = email });
         await Assertions.Expect(row.Locator(".badge")).ToHaveTextAsync("Väntar på aktivering");
@@ -285,10 +290,12 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         await Assertions.Expect(Page.Locator("tr", new() { HasText = email })).Not.ToBeVisibleAsync();
     }
 
-    /// <summary>Phase 11: irreversible "Ta bort" now opens a confirmation dialog. Seed an
-    /// unreferenced facility, prove Avbryt keeps the row, and that confirming actually removes it
-    /// (reaches the "har tagits bort" toast and the row disappears) — the real outcome, not merely
-    /// that a dialog renders.</summary>
+    /// <summary>Phase 11: irreversible "Ta bort" opens a confirmation dialog. Reference-data pages
+    /// were reworked to the same row+slide-in-panel pattern as Byggnader (Aktivera/Ta bort moved
+    /// off the row and into the panel footer, row keeps only Redigera) — Ta bort now lives inside
+    /// the panel, not inline in the row. Seed an unreferenced facility, prove Avbryt keeps the
+    /// row, and that confirming actually removes it (reaches the "har tagits bort" toast and the
+    /// row disappears) — the real outcome, not merely that a dialog renders.</summary>
     [Fact]
     public async Task Delete_facility_asks_for_confirmation_then_removes_the_row()
     {
@@ -310,8 +317,12 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
             var row = Page.Locator("tr", new() { HasText = name });
             await Assertions.Expect(row).ToBeVisibleAsync();
 
+            await row.GetByRole(AriaRole.Button, new() { Name = "Redigera" }).ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
+
             // Open the dialog, then cancel — the row must survive (nothing deleted).
-            await row.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
             var dialog = Page.GetByRole(AriaRole.Dialog);
             await Assertions.Expect(dialog).ToBeVisibleAsync();
             await dialog.GetByRole(AriaRole.Button, new() { Name = "Avbryt" }).ClickAsync();
@@ -319,7 +330,7 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
             await Assertions.Expect(row).ToBeVisibleAsync();
 
             // Open again and confirm — the facility is actually deleted.
-            await row.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
             await Page.GetByRole(AriaRole.Dialog)
                 .GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
             await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har tagits bort");
@@ -329,6 +340,240 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         {
             await using var db = Fixture.NewDbContext();
             await db.Facilities.Where(f => f.Id == id).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>Phase 11: the Byggnader tree rework (PhysicalBuilding → Building → Room in one
+    /// page instead of two disconnected flat-table pages). Drives the real hierarchy end to end
+    /// through the UI: expand an empty physical building, add a building under it via the
+    /// contextual "+ Lägg till" row, add a room under that building, then edit the room — each
+    /// step re-opens the tree state to prove the new node actually landed in the right place,
+    /// not just that a toast appeared.</summary>
+    [Fact]
+    public async Task Byggnader_tree_builds_out_and_edits_the_full_hierarchy_through_the_panel()
+    {
+        var pbName = $"E2E Fysisk {Guid.NewGuid():N}";
+        var pbId = Guid.NewGuid();
+        var buildingName = $"E2E Byggnad {Guid.NewGuid():N}";
+        var roomName = $"E2E Rum {Guid.NewGuid():N}";
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.PhysicalBuildings.Add(new PhysicalBuilding { Id = pbId, Name = pbName, IsActive = true });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/admin/byggnader");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var pbRow = Page.Locator(".bldg-row--l0", new() { HasText = pbName });
+            await Assertions.Expect(pbRow).ToBeVisibleAsync();
+
+            // .bldg-children is a sibling of the row, not a descendant — and the empty-state text and
+            // "+ Lägg till" wording are generic, so on the shared E2E database other physical
+            // buildings/rooms created by other tests can carry the exact same text. Scope to this
+            // row's own children container (its immediate following sibling) rather than a page-wide
+            // text search, or the assertion is ambiguous the moment more than one exists.
+            ILocator ChildrenOf(ILocator row) =>
+                row.Locator("xpath=following-sibling::div[contains(concat(' ', normalize-space(@class), ' '), ' bldg-children ')][1]");
+
+            // Expand the (empty) physical building — its own empty state + nested add-row appear.
+            await pbRow.Locator(".bldg-twist").ClickAsync();
+            var pbChildren = ChildrenOf(pbRow);
+            await Assertions.Expect(pbChildren).ToContainTextAsync("Inga boendeenheter i denna fysiska byggnad ännu.");
+            var addBuildingRow = pbChildren.GetByText($"+ Lägg till byggnad i {pbName}");
+            await Assertions.Expect(addBuildingRow).ToBeVisibleAsync();
+
+            // Create the building — the panel pre-scopes it to this physical building.
+            await addBuildingRow.ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
+            await Page.FillAsync("#b-name", buildingName);
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Spara" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har lagts till");
+
+            var buildingRow = Page.Locator(".bldg-row--l1", new() { HasText = buildingName });
+            await Assertions.Expect(buildingRow).ToBeVisibleAsync();
+
+            // The new building is auto-expanded (empty-room state + nested add-row visible without an extra click).
+            var buildingChildren = ChildrenOf(buildingRow);
+            await Assertions.Expect(buildingChildren).ToContainTextAsync("Inga rum i denna byggnad ännu.");
+            await buildingChildren.GetByText($"+ Lägg till rum i {buildingName}").ClickAsync();
+            await Page.FillAsync("#r-name", roomName);
+            await Page.FillAsync("#r-beds", "3");
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Spara" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har lagts till");
+
+            var roomRow = Page.Locator(".bldg-row--l2", new() { HasText = roomName });
+            await Assertions.Expect(roomRow).ToBeVisibleAsync();
+            await Assertions.Expect(roomRow).ToContainTextAsync("3 bäddar");
+
+            // Edit the room — the panel reopens pre-filled and the change reaches the row, not just the toast.
+            await roomRow.ClickAsync();
+            await Assertions.Expect(Page.Locator("#r-beds")).ToHaveValueAsync("3");
+            await Page.FillAsync("#r-beds", "5");
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Spara" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har uppdaterats");
+            await Assertions.Expect(roomRow).ToContainTextAsync("5 bäddar");
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Rooms.Where(r => r.Name == roomName).ExecuteDeleteAsync();
+            await db.Buildings.Where(b => b.Name == buildingName).ExecuteDeleteAsync();
+            await db.PhysicalBuildings.Where(p => p.Id == pbId).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>Phase 11: the no-hard-delete-when-referenced rule (FR-16/20 pattern), driven through
+    /// the new tree/panel UI rather than the service layer directly (that's already covered by
+    /// PhysicalBuildingIntegrationTests/BuildingRoomIntegrationTests) — proves the panel's "Ta bort"
+    /// honestly reflects the same guard: blocked while a child exists, and only actually deletes
+    /// bottom-up once each level is empty.</summary>
+    [Fact]
+    public async Task Byggnader_hard_delete_is_blocked_while_referenced_then_succeeds_bottom_up()
+    {
+        var pbName = $"E2E Radera fysisk {Guid.NewGuid():N}";
+        var pbId = Guid.NewGuid();
+        var buildingName = $"E2E Radera byggnad {Guid.NewGuid():N}";
+        var buildingId = Guid.NewGuid();
+        var roomName = $"E2E Radera rum {Guid.NewGuid():N}";
+        var roomId = Guid.NewGuid();
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.PhysicalBuildings.Add(new PhysicalBuilding { Id = pbId, Name = pbName, IsActive = true });
+            db.Buildings.Add(new Building { Id = buildingId, Name = buildingName, PhysicalBuildingId = pbId, IsActive = true });
+            db.Rooms.Add(new Room { Id = roomId, BuildingId = buildingId, Name = roomName, BedCount = 2, IsActive = true });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/admin/byggnader");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            // Both levels start collapsed — expand the physical building, then the building, so the
+            // nested rows are actually visible (not just present in the DOM behind display:none).
+            var pbRowInitial = Page.Locator(".bldg-row--l0", new() { HasText = pbName });
+            await pbRowInitial.Locator(".bldg-twist").ClickAsync();
+            var buildingRow = Page.Locator(".bldg-row--l1", new() { HasText = buildingName });
+            await Assertions.Expect(buildingRow).ToBeVisibleAsync();
+            await buildingRow.Locator(".bldg-twist").ClickAsync();
+
+            // Blocked: the building still has a room. The panel's own "Ta bort" reaches the same
+            // service-layer guard as the service tests — this proves the UI path honestly reflects it.
+            await buildingRow.ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Page.GetByRole(AriaRole.Dialog).GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("kan inte tas bort");
+            await Assertions.Expect(buildingRow).ToBeVisibleAsync();
+
+            // Delete the room first — now the building is actually deletable.
+            var roomRow = Page.Locator(".bldg-row--l2", new() { HasText = roomName });
+            await Assertions.Expect(roomRow).ToBeVisibleAsync();
+            await roomRow.ClickAsync();
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Page.GetByRole(AriaRole.Dialog).GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har tagits bort");
+            await Assertions.Expect(roomRow).Not.ToBeVisibleAsync();
+
+            await buildingRow.ClickAsync();
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Page.GetByRole(AriaRole.Dialog).GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har tagits bort");
+            await Assertions.Expect(buildingRow).Not.ToBeVisibleAsync();
+
+            await pbRowInitial.ClickAsync();
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Page.GetByRole(AriaRole.Dialog).GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har tagits bort");
+            await Assertions.Expect(pbRowInitial).Not.ToBeVisibleAsync();
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Rooms.Where(r => r.Id == roomId).ExecuteDeleteAsync();
+            await db.Buildings.Where(b => b.Id == buildingId).ExecuteDeleteAsync();
+            await db.PhysicalBuildings.Where(p => p.Id == pbId).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>Phase 11: the mobile-first rework of the Byggnader tree — rows stack, the numeric
+    /// columns fold into one summary line, and the whole row (not just the explicit Redigera
+    /// button) opens the edit panel, which itself goes full-screen. Asserts the actual behaviour
+    /// (values reach the row, the panel is reachable and operable) at 360px, not just that some
+    /// mobile CSS class is present.</summary>
+    [Fact]
+    public async Task Byggnader_tree_stacks_and_stays_operable_on_mobile()
+    {
+        var pbName = $"E2E Mobil {Guid.NewGuid():N}";
+        var pbId = Guid.NewGuid();
+        var buildingName = $"E2E Mobil byggnad {Guid.NewGuid():N}";
+        var buildingId = Guid.NewGuid();
+        var roomName = $"E2E Mobil rum {Guid.NewGuid():N}";
+        var roomId = Guid.NewGuid();
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.PhysicalBuildings.Add(new PhysicalBuilding { Id = pbId, Name = pbName, IsActive = true });
+            db.Buildings.Add(new Building { Id = buildingId, Name = buildingName, PhysicalBuildingId = pbId, IsActive = true });
+            db.Rooms.Add(new Room { Id = roomId, BuildingId = buildingId, Name = roomName, BedCount = 4, IsActive = true });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
+            await Page.GotoAsync("/admin/byggnader");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var pbRow = Page.Locator(".bldg-row--l0", new() { HasText = pbName });
+            await Assertions.Expect(pbRow).ToBeVisibleAsync();
+
+            // The numeric columns are hidden on mobile; the same counts fold into the summary line instead.
+            await Assertions.Expect(pbRow.Locator(".bldg-row__stats .num").First).Not.ToBeVisibleAsync();
+            await Assertions.Expect(pbRow.Locator(".bldg-row__summary")).ToContainTextAsync("byggnad");
+
+            // Expand via the chevron (its hit area is enlarged on mobile, but the element itself is unchanged).
+            await pbRow.Locator(".bldg-twist").ClickAsync();
+            var buildingRow = Page.Locator(".bldg-row--l1", new() { HasText = buildingName });
+            await Assertions.Expect(buildingRow).ToBeVisibleAsync();
+            await buildingRow.Locator(".bldg-twist").ClickAsync();
+            var roomRow = Page.Locator(".bldg-row--l2", new() { HasText = roomName });
+            await Assertions.Expect(roomRow).ToBeVisibleAsync();
+
+            // Tapping the row body (not a button) still opens the panel — the forgiving mobile hit area.
+            await roomRow.Locator(".bldg-row__summary").ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
+
+            // The panel goes full-screen and actually saves an edit on mobile.
+            var panelBox = await panel.BoundingBoxAsync();
+            Assert.NotNull(panelBox);
+            Assert.True(panelBox!.Width >= Mobile.Width - 1, $"Panel should be full-width on mobile (width={panelBox.Width}).");
+
+            await Page.FillAsync("#r-beds", "6");
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Spara" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har uppdaterats");
+            await Assertions.Expect(roomRow).ToContainTextAsync("6 bäddar");
+
+            var docScrollWidth = await Page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
+            Assert.True(docScrollWidth <= Mobile.Width + 1,
+                $"Byggnader page overflows horizontally at {Mobile.Width}px: scrollWidth={docScrollWidth}.");
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Rooms.Where(r => r.Id == roomId).ExecuteDeleteAsync();
+            await db.Buildings.Where(b => b.Id == buildingId).ExecuteDeleteAsync();
+            await db.PhysicalBuildings.Where(p => p.Id == pbId).ExecuteDeleteAsync();
         }
     }
 
@@ -431,6 +676,7 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
     [InlineData("/admin", "Översikt")]
     [InlineData("/admin/bokningar", "Bokningar")]
     [InlineData("/admin/matalternativ", "Matalternativ")]
+    [InlineData("/admin/byggnader", "Byggnader")]
     public async Task Admin_pages_stay_reachable_across_breakpoints(string path, string title)
     {
         await LoginAsync();

@@ -16,9 +16,9 @@
            layout with the checkbox unchecked → the menu closes on navigate. *@
         <input type="checkbox" id="admin-nav-toggle" class="admin-nav__checkbox" aria-label="Öppna meny" />
         <div class="admin-nav__bar">
-            <div class="admin-nav__brand">
+            <a class="admin-nav__brand" href="/admin" aria-label="Till översikten">
                 <Logo Variant="LogoVariant.OnDark" />
-            </div>
+            </a>
             <label for="admin-nav-toggle" class="admin-nav__toggle">
                 <span class="admin-nav__toggle-icon" aria-hidden="true"></span>
                 <span>Meny</span>
@@ -35,8 +35,7 @@
 
             <div class="admin-nav__group">Referensdata</div>
             <ul>
-                <li>@NavLink("/admin/fysiska-byggnader", "Fysiska byggnader")</li>
-                <li>@NavLink("/admin/byggnader", "Byggnader & rum")</li>
+                <li>@NavLink("/admin/byggnader", "Byggnader")</li>
                 <li>@NavLink("/admin/matalternativ", "Matalternativ")</li>
                 <li>@NavLink("/admin/faciliteter", "Faciliteter")</li>
                 <li>@NavLink("/admin/priser", "Priser")</li>

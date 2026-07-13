@@ -82,6 +82,19 @@
         });
     });
 
+    // Show the organisation invoice fields only when "Fakturera en organisation" is checked
+    // (mirrors inquiry-form.js). The server ignores these fields unless the box is checked
+    // (SubmitCompletionAsync), so a JS-disabled submit with the panel always visible is still correct.
+    var isOrg = document.getElementById("is-org");
+    var orgFields = document.getElementById("org-invoice-fields");
+    if (isOrg && orgFields) {
+        function syncOrgFields() {
+            orgFields.style.display = isOrg.checked ? "" : "none";
+        }
+        syncOrgFields();
+        isOrg.addEventListener("change", syncOrgFields);
+    }
+
     // Live progress: how many overnight participants have a name filled in (presentation only;
     // hidden without JS so it never shows a misleading "0 av N").
     var progress = document.querySelector("[data-progress]");

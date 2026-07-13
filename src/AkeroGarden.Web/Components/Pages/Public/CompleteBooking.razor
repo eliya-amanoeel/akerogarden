@@ -409,18 +409,23 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                     <input type="hidden" name="Form.IsOrganisation" value="false" />
                     <label for="is-org">Fakturera en organisation</label>
                 </div>
-                <div class="form-group">
-                    <label for="org-name">Organisationsnamn</label>
-                    <input id="org-name" name="Form.OrgName" value="@_form.OrgName" maxlength="200" />
-                </div>
-                <div class="form-row">
+                @* Shown only when "Fakturera en organisation" is checked (completion-form.js). Without
+                   JS the panel stays visible; the server ignores these fields unless the box is
+                   checked (SubmitCompletionAsync), so a no-JS submit is still correct. *@
+                <div class="reveal-panel" id="org-invoice-fields">
                     <div class="form-group">
-                        <label for="org-number">Organisationsnummer</label>
-                        <input id="org-number" name="Form.OrgNumber" value="@_form.OrgNumber" maxlength="50" />
+                        <label for="org-name">Organisationsnamn</label>
+                        <input id="org-name" name="Form.OrgName" value="@_form.OrgName" maxlength="200" />
                     </div>
-                    <div class="form-group">
-                        <label for="invoice-address">Fakturaadress</label>
-                        <textarea id="invoice-address" name="Form.InvoiceAddress" maxlength="500">@_form.InvoiceAddress</textarea>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="org-number">Organisationsnummer</label>
+                            <input id="org-number" name="Form.OrgNumber" value="@_form.OrgNumber" maxlength="50" />
+                        </div>
+                        <div class="form-group">
+                            <label for="invoice-address">Fakturaadress</label>
+                            <textarea id="invoice-address" name="Form.InvoiceAddress" maxlength="500">@_form.InvoiceAddress</textarea>
+                        </div>
                     </div>
                 </div>
 

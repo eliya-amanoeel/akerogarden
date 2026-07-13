@@ -86,6 +86,24 @@ public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Organisation_invoice_fields_are_hidden_until_the_checkbox_is_ticked()
+    {
+        // Regression for the smoke-test bug: the org invoice fields rendered regardless of the
+        // "Fakturera en organisation" checkbox, and ticking it did nothing. They must start hidden
+        // and toggle with the checkbox (completion-form.js), mirroring the inquiry form.
+        await Page.GotoAsync(CompletionUrl);
+
+        var orgFields = Page.Locator("#org-invoice-fields");
+        await Assertions.Expect(orgFields).Not.ToBeVisibleAsync();
+
+        await Page.Locator("#is-org").CheckAsync();
+        await Assertions.Expect(orgFields).ToBeVisibleAsync();
+
+        await Page.Locator("#is-org").UncheckAsync();
+        await Assertions.Expect(orgFields).Not.ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task Group_default_value_survives_an_add_day_guest_postback()
     {
         // Regression for the "shortcut resets on postback" bug: the group-default controls are

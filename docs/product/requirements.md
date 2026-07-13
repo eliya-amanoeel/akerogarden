@@ -55,7 +55,7 @@
 **Changes from v0.33:**
 
 - Bicep adopted as the Azure infrastructure-as-code tool (§11): both production and staging are provisioned from `.bicep` templates with environment-specific parameter files. Click-through portal provisioning is not used. Azure provisioning in Phase 0 is deferred to the end of that phase — Bicep templates and CI pipeline are written first, Azure resources are actually provisioned only once there is a working deployable artifact (admin auth working locally). implementation-plan.md Phase 0 updated accordingly.
-- NFR-35 added (§7.6): fonts must be self-hosted; no external font CDN requests permitted (GDPR — loading Google Fonts sends user IPs to Google without a legal basis per Austrian DPA January 2022 ruling). UX/design.md updated with font hosting instructions.
+- NFR-35 added (§7.6): fonts must be self-hosted; no external font CDN requests permitted (GDPR — loading Google Fonts sends user IPs to Google without a legal basis per Austrian DPA January 2022 ruling). docs/ux/design.md updated with font hosting instructions.
 
 **Changes from v0.32:**
 - Environment strategy added (§11.1): the spec previously detailed only production. Now defines all four environments — local dev (Dockerised PostgreSQL/Redis/Azurite + a local SMTP catcher on the developer's Mac), automated test (ephemeral containers in CI), a separate minimal Azure **staging** environment (`staging.akerogarden.se`, mirrors prod on cheapest tiers, powered down when idle, synthetic data only — no real PII), and production (unchanged). Deploy flow: dev → CI → staging → production. implementation-plan.md Phase 0 and Phase 6 updated accordingly.

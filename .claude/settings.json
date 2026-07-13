@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "deny": [
+      "Read(**/bin/**)",
+      "Read(**/obj/**)",
+      "Read(.env)",
+      "Read(.env.local)",
+      "Read(**/.DS_Store)",
+      "Edit(**/bin/**)",
+      "Edit(**/obj/**)",
+      "Edit(.env)",
+      "Edit(.env.local)",
+      "Write(**/bin/**)",
+      "Write(**/obj/**)",
+      "Write(.env)",
+      "Write(.env.local)"
+    ]
+  }
+}

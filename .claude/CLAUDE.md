@@ -4,7 +4,7 @@
 
 A full-stack booking and admin system for Åkerögården, a rural retreat in Norrtälje, Sweden. Replaces a decommissioned Payload CMS. The old production database was dropped during decommission — all data must be rebuilt from scratch.
 
-**Single source of truth:** `REQUIREMENTS/requirements.md` (v0.33). If anything here conflicts with the SRS, the SRS wins — raise it, don't silently diverge.
+**Single source of truth:** `docs/product/requirements.md` (v0.33). If anything here conflicts with the SRS, the SRS wins — raise it, don't silently diverge.
 
 ## Tech stack (locked — do not change without explicit discussion)
 
@@ -29,14 +29,14 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 
 | File | Purpose |
 |---|---|
-| `REQUIREMENTS/requirements.md` | Main SRS — v0.33, single source of truth |
-| `REQUIREMENTS/erd.md` | Mermaid entity-relationship diagram (13 app entities) |
-| `REQUIREMENTS/implementation-plan.md` | 12-phase dependency-ordered build plan (0–9 done; 10 go-live; 11 post-production hardening & handover) |
-| `UX/design.md` | Visual design tokens, CSS classes, logo usage |
+| `docs/product/requirements.md` | Main SRS — v0.33, single source of truth |
+| `docs/product/erd.md` | Mermaid entity-relationship diagram (13 app entities) |
+| `docs/product/implementation-plan.md` | 12-phase dependency-ordered build plan (0–9 done; 10 go-live; 11 post-production hardening & handover) |
+| `docs/ux/design.md` | Visual design tokens, CSS classes, logo usage |
 
 ## Data model (EF Core entities)
 
-Defined in `REQUIREMENTS/requirements.md §8` and visualised in `REQUIREMENTS/erd.md`.
+Defined in `docs/product/requirements.md §8` and visualised in `docs/product/erd.md`.
 
 Entities: `Booking`, `PhysicalBuilding`, `Building`, `Room`, `Participant`, `MealPreference`, `MealOption`, `Facility`, `PriceRule`, `BlockedPeriod`, `CleaningZone`, `BookingCleaningSelection`, `BookingFacilitySelection`. (`PhysicalBuilding` = the physical building a lodging `Building` sits in; the level cleaning is priced at and a whole building is blocked at — see §8.14.)
 
@@ -83,7 +83,7 @@ A test must honestly verify the real behaviour it claims to. Never shape a test 
 
 ## Implementation phases
 
-Follow `REQUIREMENTS/implementation-plan.md` in order. Do not start a phase until the prior phase's exit criteria are met.
+Follow `docs/product/implementation-plan.md` in order. Do not start a phase until the prior phase's exit criteria are met.
 
 0. Foundation — scaffold, infra, auth, design system, CI/CD, local dev
 1. Reference data + admin CRUD — Building, Room, MealOption, Facility, PriceRule, CleaningZone
@@ -104,14 +104,14 @@ Follow `REQUIREMENTS/implementation-plan.md` in order. Do not start a phase unti
 - If you spot a conflict between this file and the SRS, raise it — don't silently pick one.
 - Tombstoned requirements (FR-12, FR-41, FR-43, FR-46) need no work — they exist only to keep numbering stable.
 - **Challenge the user when their instinct is wrong or under-thought.** Don't be agreeable. If a decision has a real downside, say so directly and explain why before offering alternatives.
-- Be extremely careful when updating any document under the REQUIREMENTS folder, all these are strongly integrated into eachother, when updating any of these files, all other files should be checked to be kept in sync with the change.
+- Be extremely careful when updating any document under `docs/product/`, all these are strongly integrated into eachother, when updating any of these files, all other files should be checked to be kept in sync with the change.
 - Before reading `project_akerogarden_history.md` (the archived-phase-history memory file), tell me first — say what you're about to look up and why, don't fetch it silently.
 
 ## Phase completion gate
 
 **Before merging any phase branch to main**, run a structured evaluation pass against all deliverables for that phase. The pass must check:
 
-1. **Phase exit criteria** (from `REQUIREMENTS/implementation-plan.md`) — list each criterion as pass / partial / fail with evidence.
+1. **Phase exit criteria** (from `docs/product/implementation-plan.md`) — list each criterion as pass / partial / fail with evidence.
 2. **Critical rules** in this file — Swedish-only UI, no PII in URLs, no monetary totals stored, self-hosted fonts, no hard-deletes of referenced data, booking state machine transitions, no personnummer, EU regions only.
 3. **NFR compliance** — specifically the NFRs listed in the phase's "Satisfies" row.
 4. **FR compliance** — every FR listed in the phase's "Satisfies" row implemented and correctly.

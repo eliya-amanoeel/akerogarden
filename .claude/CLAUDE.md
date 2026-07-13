@@ -4,7 +4,7 @@
 
 A full-stack booking and admin system for Åkerögården, a rural retreat in Norrtälje, Sweden. Replaces a decommissioned Payload CMS. The old production database was dropped during decommission — all data must be rebuilt from scratch.
 
-**Single source of truth:** `docs/product/requirements.md` (v0.33). If anything here conflicts with the SRS, the SRS wins — raise it, don't silently diverge.
+**Single source of truth:** `docs/product/requirements.md` (v0.46). If anything here conflicts with the SRS, the SRS wins — raise it, don't silently diverge.
 
 ## Tech stack (locked — do not change without explicit discussion)
 
@@ -30,7 +30,7 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 | File | Purpose |
 |---|---|
 | `docs/product/requirements.md` | Main SRS — v0.33, single source of truth |
-| `docs/product/erd.md` | Mermaid entity-relationship diagram (13 app entities) |
+| `docs/product/erd.md` | Mermaid entity-relationship diagram (14 app entities) |
 | `docs/product/implementation-plan.md` | 12-phase dependency-ordered build plan (0–9 done; 10 go-live; 11 post-production hardening & handover) |
 | `docs/ux/design.md` | Visual design tokens, CSS classes, logo usage |
 
@@ -38,11 +38,13 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 
 Defined in `docs/product/requirements.md §8` and visualised in `docs/product/erd.md`.
 
-Entities: `Booking`, `PhysicalBuilding`, `Building`, `Room`, `Participant`, `MealPreference`, `MealOption`, `Facility`, `PriceRule`, `BlockedPeriod`, `CleaningZone`, `BookingCleaningSelection`, `BookingFacilitySelection`. (`PhysicalBuilding` = the physical building a lodging `Building` sits in; the level cleaning is priced at and a whole building is blocked at — see §8.14.)
+Entities: `Booking`, `PhysicalBuilding`, `Building`, `Room`, `Participant`, `MealPreference`, `MealOption`, `Facility`, `PriceRule`, `BlockedPeriod`, `CleaningZone`, `BookingCleaningSelection`, `BookingFacilitySelection`, `AuditLog`. (`PhysicalBuilding` = the physical building a lodging `Building` sits in; the level cleaning is priced at and a whole building is blocked at — see §8.14. `AuditLog` = append-only who-did-what record, Phase 11; stores no guest PII — see §8.15, §6.9.)
 
 ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — excluded from the application data model.
 
 **Add EF Core migrations incrementally** — introduce each entity in the phase that first needs it (see implementation plan).
+
+> **Pre-go-live migration reset (Phase 11).** Because the system has not gone live and there is no production data to preserve, the accumulated per-phase migration history is being **wiped and regenerated as a single fresh consolidated baseline** before the production cutover. New entities added in this window (e.g. `AuditLog`, §8.15) land **in that baseline**, not as incremental migrations on top of it — the "incrementally / per phase" rule above describes how the schema was *designed*, not a requirement to keep the pre-launch migration files. Once production is live and holds real data, the incremental-per-change rule resumes and history is never rewritten again.
 
 ## Critical rules
 
@@ -96,7 +98,7 @@ Follow `docs/product/implementation-plan.md` in order. Do not start a phase unti
 8. Client feedback — demo the app to the client on staging (real UAT), then implement the agreed issues/changes/improvements
 9. Pre-go-live — small agreed pre-launch changes surfaced on staging after Phase 8 sign-off (e.g. admin invite-lifecycle resend/remove), done before the cutover
 10. Transition & go-live — production provisioning, DNS/SSL, one.com/WordPress cutover, production-SMTP email E2E, production deploy
-11. Post-production hardening & handover — cost/health alerts, logging/diagnostics, admin delete-confirmation dialogs, test-suite honesty audit, post-launch architecture/security review, technical SEO/social, client handover documentation
+11. Post-production hardening & handover — cost/health alerts, logging/diagnostics, admin delete-confirmation dialogs, test-suite honesty audit, audit trail (who-did-what — §6.9, backend now / admin view deferred), post-launch architecture/security review, technical SEO/social, client handover documentation
 
 ## Working style
 

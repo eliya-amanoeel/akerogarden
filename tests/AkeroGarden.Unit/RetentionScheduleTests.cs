@@ -57,4 +57,13 @@ public class RetentionScheduleTests
     {
         Assert.False(RetentionSchedule.IsWarningDue(null, null, Today));
     }
+
+    [Fact]
+    public void AuditPurgeCutoff_IsTwoYearsBeforeToday_AtUtcMidnight()
+    {
+        var cutoff = RetentionSchedule.AuditPurgeCutoffUtc(Today);
+
+        Assert.Equal(new DateTime(2024, 7, 5, 0, 0, 0, DateTimeKind.Utc), cutoff); // FR-98: 2 years
+        Assert.Equal(DateTimeKind.Utc, cutoff.Kind);
+    }
 }

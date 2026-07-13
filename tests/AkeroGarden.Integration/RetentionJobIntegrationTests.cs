@@ -91,6 +91,57 @@ public class RetentionJobIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
+    public async Task Purges_OldNonBookingAuditEntries_KeepsRecentAndBookingScoped_FR98()
+    {
+        var provider = NewProvider(out _);
+        var today = new DateOnly(2026, 7, 5);
+        var cutoff = RetentionSchedule.AuditPurgeCutoffUtc(today); // 2024-07-05 UTC (2 years back)
+
+        // A live booking (null DeleteAfter → never deleted) to anchor a booking-scoped audit row.
+        var liveBookingId = await SeedAsync(provider, BookingStatus.Approved, deleteAfter: null);
+
+        var oldNonBooking = Guid.NewGuid();
+        var recentNonBooking = Guid.NewGuid();
+        var oldBookingScoped = Guid.NewGuid();
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.AuditLogs.AddRange(
+                new AuditLog
+                {
+                    Id = oldNonBooking, Timestamp = cutoff.AddDays(-1), ActorType = AuditActorType.Admin,
+                    Action = AuditAction.ReferenceDataUpdated, EntityType = "PriceRule", EntityId = Guid.NewGuid(),
+                    Summary = "gammal referensdata",
+                },
+                new AuditLog
+                {
+                    Id = recentNonBooking, Timestamp = cutoff.AddDays(1), ActorType = AuditActorType.Admin,
+                    Action = AuditAction.ReferenceDataUpdated, EntityType = "PriceRule", EntityId = Guid.NewGuid(),
+                    Summary = "ny referensdata",
+                },
+                new AuditLog
+                {
+                    Id = oldBookingScoped, Timestamp = cutoff.AddDays(-1), ActorType = AuditActorType.Admin,
+                    Action = AuditAction.BookingApproved, EntityType = "Booking", EntityId = liveBookingId,
+                    BookingId = liveBookingId, Summary = "bokningsåtgärd",
+                });
+            await db.SaveChangesAsync();
+        }
+
+        var summary = await RunAsync(provider, today);
+
+        Assert.True(summary.AuditPurged >= 1);
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.False(await db.AuditLogs.AnyAsync(a => a.Id == oldNonBooking));   // purged (FR-98)
+            Assert.True(await db.AuditLogs.AnyAsync(a => a.Id == recentNonBooking)); // within retention window
+            Assert.True(await db.AuditLogs.AnyAsync(a => a.Id == oldBookingScoped)); // booking-scoped: exempt from age purge
+        }
+    }
+
+    [Fact]
     public async Task Deletes_RecordsPastDeleteAfter_CascadingParticipants()
     {
         var provider = NewProvider(out _);

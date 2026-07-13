@@ -9,10 +9,11 @@ namespace AkeroGarden.Web.Services;
 /// participants, meal preferences, and facility/cleaning selections (configured in
 /// <see cref="ApplicationDbContext"/>) — and (2) sends the admin a 30-day pre-deletion warning for
 /// records entering the warning window, de-duplicated via <c>DeletionWarningEmailSentAt</c> so each
-/// warning fires exactly once. "Today" is evaluated in Europe/Stockholm. The <c>DeleteAfter</c>
-/// values are set on the retention-relevant transitions (Pending/Denied/Cancelled/Closed/Completed)
-/// via <see cref="RetentionCalculator"/>; live in-progress states have a null date and are never
-/// touched (FR-91).
+/// warning fires exactly once, and (3) age-purges non-booking audit entries older than
+/// <see cref="RetentionSchedule.AuditRetentionYears"/> (FR-98). "Today" is evaluated in
+/// Europe/Stockholm. The <c>DeleteAfter</c> values are set on the retention-relevant transitions
+/// (Pending/Denied/Cancelled/Closed/Completed) via <see cref="RetentionCalculator"/>; live
+/// in-progress states have a null date and are never touched (FR-91).
 /// </summary>
 public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, TimeProvider clock)
     : IScheduledJob
@@ -54,7 +55,15 @@ public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, T
         }
         await db.SaveChangesAsync(cancellationToken);
 
-        return new RetentionRunSummary(due.Count, toWarn.Count);
+        // 3. Audit-log retention (FR-98): non-booking entries (reference-data / admin-account) are
+        //    age-purged 2 years after they were written. Booking-scoped entries carry no such age
+        //    limit here — they were already cascade-deleted with their booking in step 1 (§8.15).
+        var auditCutoff = RetentionSchedule.AuditPurgeCutoffUtc(today);
+        var auditPurged = await db.AuditLogs
+            .Where(a => a.BookingId == null && a.Timestamp < auditCutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
+        return new RetentionRunSummary(due.Count, toWarn.Count, auditPurged);
     }
 
     /// <summary>The current date in Europe/Stockholm — retention dates are civil dates, not UTC.</summary>
@@ -65,5 +74,6 @@ public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, T
     }
 }
 
-/// <summary>Outcome of one <see cref="RetentionJob"/> run — deleted-record and warning counts.</summary>
-public record RetentionRunSummary(int Deleted, int Warned);
+/// <summary>Outcome of one <see cref="RetentionJob"/> run — deleted-record, warning, and
+/// age-purged non-booking audit-entry counts (FR-98).</summary>
+public record RetentionRunSummary(int Deleted, int Warned, int AuditPurged = 0);

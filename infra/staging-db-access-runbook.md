@@ -51,6 +51,30 @@
 
 6. **Close the SSH session.** No Azure resource config was touched, so there's nothing to revert.
 
+## Alternative: reset the whole database via the control plane (no VNet, no SSH)
+
+**When to use:** you want to **drop/reset the entire database** (e.g. the pre-go-live migration wipe left staging's schema out of sync with a fresh EF baseline, so `MigrateAsync` crashes on boot trying to `CREATE TABLE` tables that already exist). This is destructive — staging holds synthetic data only, so that's fine.
+
+**Why this beats the SSH route here:** deleting/creating a database is an **Azure management-plane** operation (it hits the ARM API, not the database over the network), so the VNet-only restriction that blocks `psql` does **not** apply — it runs from a plain Azure Cloud Shell / any `az login`. Crucially, it also works when the **app container is crash-looping** (which the SSH route can't: the browser SSH needs a *running* container to attach to, and a boot-crashing app never gives you one — you get a red "SSH CONNECTION CLOSE").
+
+### Steps
+
+1. Open **Cloud Shell** (portal top bar, or the PostgreSQL resource's CLI/PS option) — no VNet integration needed.
+2. Drop and recreate the (empty) database. The database name is `akerogarden` (see the connection string in `infra/main.bicep`); the parameter is **`--name`/`-n`**, *not* `--database-name`:
+   ```bash
+   az postgres flexible-server db delete \
+     --resource-group akerogarden-staging --server-name akerogarden-staging-pg \
+     --name akerogarden --yes
+
+   az postgres flexible-server db create \
+     --resource-group akerogarden-staging --server-name akerogarden-staging-pg \
+     --name akerogarden
+   ```
+   (In PowerShell, drop the `\` line-continuations and put each command on one line.)
+3. **Restart the App Service.** On boot it runs `MigrateAsync` against the now-empty database and builds the fresh schema; `AdminSeeder` reseeds the admin account from the `Seed:AdminEmail/Password` app settings. First load is slow (~60–90 s: cold start + migrations).
+
+> This wipes **all** staging data. To reset only the *data* while keeping the schema/migrations intact, don't use this — use `DemoSeed:Reset=true` (the app's own reseed path) or the SSH route above for row-level SQL.
+
 ## A proper long-term fix (not done yet)
 
 If ad-hoc DB access becomes a regular need, the durable fix is VNet-integrating Cloud Shell (or standing up a small bastion/jumpbox inside `akerogarden-staging-vnet`) so a real terminal can reach the private endpoint directly, instead of borrowing the app's own container. Not built — flagged here for whoever needs this next.

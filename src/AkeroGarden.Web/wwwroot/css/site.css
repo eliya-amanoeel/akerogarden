@@ -787,6 +787,13 @@ select.inp {
     display: flex;
     flex-direction: column;
     padding: 1.1rem 0.75rem 1rem;
+    /* Stay in view while a long page (e.g. the expanded Byggnader tree) scrolls. Pinned to the top
+       and capped at the viewport height, with its own scroll if the nav itself is taller. */
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
 }
 /* Top bar of the sidebar: brand + (mobile-only) hamburger. Carries the divider under the logo. */
 .admin-nav__bar {
@@ -1163,7 +1170,10 @@ fieldset.participant legend {
 /* ── Responsive: collapse the sidebar to a top bar under 860px ─ */
 @media (max-width: 860px) {
     .admin-shell { grid-template-columns: 1fr; }
-    .admin-nav { padding: 0.55rem 0.9rem; }
+    /* Collapses to a top bar here — drop the desktop full-height sizing but keep it pinned to the
+       top so the hamburger stays reachable while the page scrolls. z-index sits above page content
+       but below the slide-in panel / dialog (1000+). */
+    .admin-nav { padding: 0.55rem 0.9rem; height: auto; overflow-y: visible; top: 0; z-index: 20; }
     .admin-nav__bar { border: 0; margin: 0; padding: 0; }
     .admin-nav__toggle { display: inline-flex; }
     /* Collapsible menu: hidden until the hamburger checkbox is checked; then drops down as full-width rows. */

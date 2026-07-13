@@ -11,10 +11,7 @@
 
 <AdminHeader Title="Faciliteter" />
 
-@if (!string.IsNullOrEmpty(_message))
-{
-    <p role="status" class="form-status">@_message</p>
-}
+<Toast @bind-Message="_message" />
 
 @if (_facilities is null)
 {
@@ -22,6 +19,10 @@
 }
 else
 {
+    <div class="admin-toolbar">
+        <button type="button" class="btn" @onclick="OpenCreate">+ Lägg till facilitet</button>
+    </div>
+
     <div class="admin-table-wrap">
         <table class="admin-table">
             <thead>
@@ -37,7 +38,7 @@ else
             <tbody>
                 @foreach (var f in _facilities)
                 {
-                    <tr>
+                    <tr @onclick="() => OpenEdit(f)">
                         <td class="num mono">@f.DisplayOrder</td>
                         <td><span class="rowlink">@f.Name</span></td>
                         <td>@(f.PhysicalBuildingId is null ? "—" : PhysicalBuildingName(f.PhysicalBuildingId.Value))</td>
@@ -53,93 +54,86 @@ else
                             }
                         </td>
                         <td class="rowactions">
-                            <button class="btn-ghost" @onclick="() => Edit(f)">Redigera</button>
-                            @if (f.IsActive)
-                            {
-                                <button class="btn-ghost" @onclick="() => SetActive(f, false)">Inaktivera</button>
-                            }
-                            else
-                            {
-                                <button class="btn-ghost" @onclick="() => SetActive(f, true)">Aktivera</button>
-                            }
-                            <button class="btn-ghost" @onclick="() => RequestDelete(f)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => OpenEdit(f)" @onclick:stopPropagation="true">Redigera</button>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
-
-    <section class="card admin-editcard">
-    <h2>@(_editingId is null ? "Lägg till facilitet" : "Redigera facilitet")</h2>
-
-    <EditForm Model="_form" OnValidSubmit="Save" FormName="facility">
-        <DataAnnotationsValidator />
-
-        <div class="form-group">
-            <label for="f-name">Namn</label>
-            <InputText id="f-name" @bind-Value="_form.Name" />
-            <ValidationMessage For="() => _form.Name" />
-        </div>
-
-        <div class="form-group">
-            <label for="f-description">Beskrivning</label>
-            <InputTextArea id="f-description" @bind-Value="_form.Description" />
-            <ValidationMessage For="() => _form.Description" />
-        </div>
-
-        <div class="form-group">
-            <label for="f-amount">Pris (exkl. moms, kr)</label>
-            <InputNumber id="f-amount" min="0" @bind-Value="_form.AmountExVat" />
-            <ValidationMessage For="() => _form.AmountExVat" />
-        </div>
-
-        <div class="form-group">
-            <label for="f-vat">Momssats (andel, t.ex. 0,25 för 25 %)</label>
-            <InputNumber id="f-vat" min="0" @bind-Value="_form.VatRate" step="0.0001" />
-            <ValidationMessage For="() => _form.VatRate" />
-        </div>
-
-        <div class="form-group">
-            <label for="f-order">Visningsordning</label>
-            <InputNumber id="f-order" min="0" @bind-Value="_form.DisplayOrder" />
-            <ValidationMessage For="() => _form.DisplayOrder" />
-        </div>
-
-        <div class="form-group">
-            <label for="f-physical">Fysisk byggnad (valfritt)</label>
-            <InputSelect id="f-physical" @bind-Value="_form.PhysicalBuildingId">
-                <option value="">Ingen — påverkar ingen städzon</option>
-                @foreach (var pb in _physicalBuildings.Where(p => p.IsActive))
-                {
-                    <option value="@pb.Id">@pb.Name</option>
-                }
-            </InputSelect>
-            <p class="form-hint">Sätts bara om att boka faciliteten gör en fysisk byggnads städning aktuell (t.ex. Konferensrum → Konferensbyggnad).</p>
-        </div>
-
-        <div class="form-group">
-            <label for="f-image">Bild (JPEG, PNG eller WebP, max 5 MB)</label>
-            <InputFile id="f-image" OnChange="OnImageSelected" accept="image/jpeg,image/png,image/webp" />
-            @if (_imageError is not null)
-            {
-                <p role="alert">@_imageError</p>
-            }
-            @if (!string.IsNullOrEmpty(_form.ImageUrl))
-            {
-                <p>Uppladdad bild:</p>
-                <img src="@_form.ImageUrl" alt="Förhandsvisning av @_form.Name" width="200" />
-            }
-        </div>
-
-        <button type="submit" class="btn" disabled="@_uploading">Spara</button>
-        @if (_editingId is not null)
-        {
-            <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
-        }
-    </EditForm>
-    </section>
 }
+
+<EditForm Model="_form" OnValidSubmit="Save">
+    <DataAnnotationsValidator />
+    <AdminPanel Visible="_panelOpen" Title="@(_isCreating ? "Ny facilitet" : (string.IsNullOrEmpty(_form.Name) ? "Namnlös" : _form.Name))" OnClose="ClosePanel">
+        <ChildContent>
+            <Toast @bind-Message="_panelError" />
+            <div class="form-group">
+                <label for="f-name">Namn</label>
+                <InputText id="f-name" @bind-Value="_form.Name" />
+                <ValidationMessage For="() => _form.Name" />
+            </div>
+
+            <div class="form-group">
+                <label for="f-description">Beskrivning</label>
+                <InputTextArea id="f-description" @bind-Value="_form.Description" />
+                <ValidationMessage For="() => _form.Description" />
+            </div>
+
+            <div class="form-group">
+                <label for="f-amount">Pris (exkl. moms, kr)</label>
+                <InputNumber id="f-amount" min="0" @bind-Value="_form.AmountExVat" />
+                <ValidationMessage For="() => _form.AmountExVat" />
+            </div>
+
+            <div class="form-group">
+                <label for="f-vat">Momssats (andel, t.ex. 0,25 för 25 %)</label>
+                <InputNumber id="f-vat" min="0" @bind-Value="_form.VatRate" step="0.0001" />
+                <ValidationMessage For="() => _form.VatRate" />
+            </div>
+
+            <div class="form-group">
+                <label for="f-order">Visningsordning</label>
+                <InputNumber id="f-order" min="0" @bind-Value="_form.DisplayOrder" />
+                <ValidationMessage For="() => _form.DisplayOrder" />
+            </div>
+
+            <div class="form-group">
+                <label for="f-physical">Fysisk byggnad (valfritt)</label>
+                <InputSelect id="f-physical" @bind-Value="_form.PhysicalBuildingId">
+                    <option value="">Ingen — påverkar ingen städzon</option>
+                    @foreach (var pb in _physicalBuildings.Where(p => p.IsActive))
+                    {
+                        <option value="@pb.Id">@pb.Name</option>
+                    }
+                </InputSelect>
+                <p class="form-hint">Sätts bara om att boka faciliteten gör en fysisk byggnads städning aktuell (t.ex. Konferensrum → Konferensbyggnad).</p>
+            </div>
+
+            <div class="form-group">
+                <label for="f-image">Bild (JPEG, PNG eller WebP, max 5 MB)</label>
+                <InputFile id="f-image" OnChange="OnImageSelected" accept="image/jpeg,image/png,image/webp" />
+                @if (_imageError is not null)
+                {
+                    <p role="alert">@_imageError</p>
+                }
+                @if (!string.IsNullOrEmpty(_form.ImageUrl))
+                {
+                    <p>Uppladdad bild:</p>
+                    <img src="@_form.ImageUrl" alt="Förhandsvisning av @_form.Name" width="200" />
+                }
+            </div>
+        </ChildContent>
+        <Footer>
+            <button type="submit" class="btn" disabled="@_uploading">Spara</button>
+            @if (!_isCreating)
+            {
+                <button type="button" class="btn-outline" @onclick="ToggleActive">@(CurrentIsActive ? "Inaktivera" : "Aktivera")</button>
+                <button type="button" class="btn-outline btn-danger" @onclick="RequestDeleteCurrent">Ta bort</button>
+            }
+        </Footer>
+    </AdminPanel>
+</EditForm>
 
 <ConfirmDialog Visible="_pendingDelete is not null"
                Title="Ta bort facilitet"
@@ -152,9 +146,14 @@ else
     private List<PhysicalBuilding> _physicalBuildings = [];
     private Facility _form = new();
     private Guid? _editingId;
+    private bool _isCreating;
+    private bool _panelOpen;
     private string? _message;
+    private string? _panelError;
     private string? _imageError;
     private bool _uploading;
+
+    private bool CurrentIsActive => _editingId is not null && (_facilities?.FirstOrDefault(f => f.Id == _editingId)?.IsActive ?? false);
 
     protected override async Task OnInitializedAsync()
     {
@@ -200,16 +199,22 @@ else
         }
     }
 
-    private void New()
+    private void OpenCreate()
     {
+        _panelOpen = true;
+        _isCreating = true;
         _editingId = null;
-        _form = new();
+        _panelError = null;
         _imageError = null;
+        _form = new();
     }
 
-    private void Edit(Facility f)
+    private void OpenEdit(Facility f)
     {
+        _panelOpen = true;
+        _isCreating = false;
         _editingId = f.Id;
+        _panelError = null;
         _imageError = null;
         _form = new Facility
         {
@@ -224,9 +229,18 @@ else
         };
     }
 
+    private void ClosePanel()
+    {
+        _panelOpen = false;
+        _isCreating = false;
+        _editingId = null;
+        _panelError = null;
+        _imageError = null;
+    }
+
     private async Task Save()
     {
-        if (_editingId is null)
+        if (_isCreating)
         {
             await FacilityService.CreateAsync(_form);
             _message = $"Faciliteten \"{_form.Name}\" har lagts till.";
@@ -237,22 +251,30 @@ else
             _message = $"Faciliteten \"{_form.Name}\" har uppdaterats.";
         }
 
-        New();
+        ClosePanel();
         await Load();
     }
 
-    private async Task SetActive(Facility f, bool isActive)
+    private async Task ToggleActive()
     {
-        await FacilityService.SetActiveAsync(f.Id, isActive);
-        _message = isActive
+        if (_editingId is null) return;
+        var f = _facilities!.First(x => x.Id == _editingId);
+        var next = !f.IsActive;
+        await FacilityService.SetActiveAsync(f.Id, next);
+        _message = next
             ? $"Faciliteten \"{f.Name}\" har aktiverats."
             : $"Faciliteten \"{f.Name}\" har inaktiverats.";
+        ClosePanel();
         await Load();
     }
 
     private Facility? _pendingDelete;
 
-    private void RequestDelete(Facility f) => _pendingDelete = f;
+    private void RequestDeleteCurrent()
+    {
+        if (_editingId is not null)
+            _pendingDelete = _facilities!.First(x => x.Id == _editingId);
+    }
 
     private void CancelDelete() => _pendingDelete = null;
 
@@ -271,6 +293,7 @@ else
             HardDeleteResult.Blocked => $"Faciliteten \"{f.Name}\" kan inte tas bort eftersom den används av en bokning. Inaktivera den i stället.",
             _ => $"Faciliteten \"{f.Name}\" kunde inte hittas."
         };
+        ClosePanel();
         await Load();
     }
 }

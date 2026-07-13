@@ -18,6 +18,15 @@ public class RoomService(ApplicationDbContext db)
             .ThenBy(r => r.Name)
             .ToListAsync();
 
+    /// <summary>All rooms across every building, active and inactive, in admin display order —
+    /// for the unified Byggnader tree (grouped in-memory by BuildingId rather than one round-trip
+    /// per building, since the whole hierarchy renders on a single page load).</summary>
+    public async Task<List<Room>> GetAllAsync() =>
+        await db.Rooms
+            .OrderBy(r => r.DisplayOrder)
+            .ThenBy(r => r.Name)
+            .ToListAsync();
+
     public async Task<Room?> GetAsync(Guid id) =>
         await db.Rooms.FindAsync(id);
 

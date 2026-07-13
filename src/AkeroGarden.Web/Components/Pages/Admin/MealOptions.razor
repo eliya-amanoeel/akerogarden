@@ -9,10 +9,7 @@
 
 <AdminHeader Title="Matalternativ" />
 
-@if (!string.IsNullOrEmpty(_message))
-{
-    <p role="status" class="form-status">@_message</p>
-}
+<Toast @bind-Message="_message" />
 
 @if (_mealOptions is null)
 {
@@ -20,6 +17,10 @@
 }
 else
 {
+    <div class="admin-toolbar">
+        <button type="button" class="btn" @onclick="OpenCreate">+ Lägg till matalternativ</button>
+    </div>
+
     <div class="admin-table-wrap">
         <table class="admin-table">
             <thead>
@@ -35,7 +36,7 @@ else
             <tbody>
                 @foreach (var m in _mealOptions)
                 {
-                    <tr>
+                    <tr @onclick="() => OpenEdit(m)">
                         <td class="num mono">@m.DisplayOrder</td>
                         <td><span class="rowlink">@m.Name</span></td>
                         <td>@MealTypeLabel(m.MealType)</td>
@@ -51,71 +52,64 @@ else
                             }
                         </td>
                         <td class="rowactions">
-                            <button class="btn-ghost" @onclick="() => Edit(m)">Redigera</button>
-                            @if (m.IsActive)
-                            {
-                                <button class="btn-ghost" @onclick="() => SetActive(m, false)">Inaktivera</button>
-                            }
-                            else
-                            {
-                                <button class="btn-ghost" @onclick="() => SetActive(m, true)">Aktivera</button>
-                            }
-                            <button class="btn-ghost" @onclick="() => RequestDelete(m)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => OpenEdit(m)" @onclick:stopPropagation="true">Redigera</button>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
-
-    <section class="card admin-editcard">
-    <h2>@(_editingId is null ? "Lägg till matalternativ" : "Redigera matalternativ")</h2>
-
-    <EditForm Model="_form" OnValidSubmit="Save" FormName="mealOption">
-        <DataAnnotationsValidator />
-
-        <div class="form-group">
-            <label for="m-name">Namn</label>
-            <InputText id="m-name" @bind-Value="_form.Name" />
-            <ValidationMessage For="() => _form.Name" />
-        </div>
-
-        <div class="form-group">
-            <label for="m-description">Beskrivning</label>
-            <InputTextArea id="m-description" @bind-Value="_form.Description" />
-            <ValidationMessage For="() => _form.Description" />
-        </div>
-
-        <div class="form-group">
-            <label for="m-type">Måltid</label>
-            <InputSelect id="m-type" @bind-Value="_form.MealType">
-                <option value="@MealType.Lunch">@MealTypeLabel(MealType.Lunch)</option>
-                <option value="@MealType.Dinner">@MealTypeLabel(MealType.Dinner)</option>
-            </InputSelect>
-            <ValidationMessage For="() => _form.MealType" />
-        </div>
-
-        <div class="form-group">
-            <label>
-                <InputCheckbox @bind-Value="_form.IsVegetarian" />
-                Vegetariskt
-            </label>
-        </div>
-
-        <div class="form-group">
-            <label for="m-order">Visningsordning</label>
-            <InputNumber id="m-order" min="0" @bind-Value="_form.DisplayOrder" />
-            <ValidationMessage For="() => _form.DisplayOrder" />
-        </div>
-
-        <button type="submit" class="btn">Spara</button>
-        @if (_editingId is not null)
-        {
-            <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
-        }
-    </EditForm>
-    </section>
 }
+
+<EditForm Model="_form" OnValidSubmit="Save">
+    <DataAnnotationsValidator />
+    <AdminPanel Visible="_panelOpen" Title="@(_isCreating ? "Nytt matalternativ" : (string.IsNullOrEmpty(_form.Name) ? "Namnlös" : _form.Name))" OnClose="ClosePanel">
+        <ChildContent>
+            <Toast @bind-Message="_panelError" />
+            <div class="form-group">
+                <label for="m-name">Namn</label>
+                <InputText id="m-name" @bind-Value="_form.Name" />
+                <ValidationMessage For="() => _form.Name" />
+            </div>
+
+            <div class="form-group">
+                <label for="m-description">Beskrivning</label>
+                <InputTextArea id="m-description" @bind-Value="_form.Description" />
+                <ValidationMessage For="() => _form.Description" />
+            </div>
+
+            <div class="form-group">
+                <label for="m-type">Måltid</label>
+                <InputSelect id="m-type" @bind-Value="_form.MealType">
+                    <option value="@MealType.Lunch">@MealTypeLabel(MealType.Lunch)</option>
+                    <option value="@MealType.Dinner">@MealTypeLabel(MealType.Dinner)</option>
+                </InputSelect>
+                <ValidationMessage For="() => _form.MealType" />
+            </div>
+
+            <div class="form-group">
+                <label>
+                    <InputCheckbox @bind-Value="_form.IsVegetarian" />
+                    Vegetariskt
+                </label>
+            </div>
+
+            <div class="form-group">
+                <label for="m-order">Visningsordning</label>
+                <InputNumber id="m-order" min="0" @bind-Value="_form.DisplayOrder" />
+                <ValidationMessage For="() => _form.DisplayOrder" />
+            </div>
+        </ChildContent>
+        <Footer>
+            <button type="submit" class="btn">Spara</button>
+            @if (!_isCreating)
+            {
+                <button type="button" class="btn-outline" @onclick="ToggleActive">@(CurrentIsActive ? "Inaktivera" : "Aktivera")</button>
+                <button type="button" class="btn-outline btn-danger" @onclick="RequestDeleteCurrent">Ta bort</button>
+            }
+        </Footer>
+    </AdminPanel>
+</EditForm>
 
 <ConfirmDialog Visible="_pendingDelete is not null"
                Title="Ta bort matalternativ"
@@ -127,7 +121,12 @@ else
     private List<MealOption>? _mealOptions;
     private MealOption _form = new();
     private Guid? _editingId;
+    private bool _isCreating;
+    private bool _panelOpen;
     private string? _message;
+    private string? _panelError;
+
+    private bool CurrentIsActive => _editingId is not null && (_mealOptions?.FirstOrDefault(m => m.Id == _editingId)?.IsActive ?? false);
 
     protected override async Task OnInitializedAsync() => await Load();
 
@@ -140,15 +139,21 @@ else
         _ => type.ToString()
     };
 
-    private void New()
+    private void OpenCreate()
     {
+        _panelOpen = true;
+        _isCreating = true;
         _editingId = null;
+        _panelError = null;
         _form = new();
     }
 
-    private void Edit(MealOption m)
+    private void OpenEdit(MealOption m)
     {
+        _panelOpen = true;
+        _isCreating = false;
         _editingId = m.Id;
+        _panelError = null;
         _form = new MealOption
         {
             Id = m.Id,
@@ -160,9 +165,17 @@ else
         };
     }
 
+    private void ClosePanel()
+    {
+        _panelOpen = false;
+        _isCreating = false;
+        _editingId = null;
+        _panelError = null;
+    }
+
     private async Task Save()
     {
-        if (_editingId is null)
+        if (_isCreating)
         {
             await MealOptionService.CreateAsync(_form);
             _message = $"Matalternativet \"{_form.Name}\" har lagts till.";
@@ -173,22 +186,30 @@ else
             _message = $"Matalternativet \"{_form.Name}\" har uppdaterats.";
         }
 
-        New();
+        ClosePanel();
         await Load();
     }
 
-    private async Task SetActive(MealOption m, bool isActive)
+    private async Task ToggleActive()
     {
-        await MealOptionService.SetActiveAsync(m.Id, isActive);
-        _message = isActive
+        if (_editingId is null) return;
+        var m = _mealOptions!.First(x => x.Id == _editingId);
+        var next = !m.IsActive;
+        await MealOptionService.SetActiveAsync(m.Id, next);
+        _message = next
             ? $"Matalternativet \"{m.Name}\" har aktiverats."
             : $"Matalternativet \"{m.Name}\" har inaktiverats.";
+        ClosePanel();
         await Load();
     }
 
     private MealOption? _pendingDelete;
 
-    private void RequestDelete(MealOption m) => _pendingDelete = m;
+    private void RequestDeleteCurrent()
+    {
+        if (_editingId is not null)
+            _pendingDelete = _mealOptions!.First(x => x.Id == _editingId);
+    }
 
     private void CancelDelete() => _pendingDelete = null;
 
@@ -207,6 +228,7 @@ else
             HardDeleteResult.Blocked => $"Matalternativet \"{m.Name}\" kan inte tas bort eftersom det används av en bokning. Inaktivera det i stället.",
             _ => $"Matalternativet \"{m.Name}\" kunde inte hittas."
         };
+        ClosePanel();
         await Load();
     }
 }

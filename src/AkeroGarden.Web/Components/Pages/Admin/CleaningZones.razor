@@ -10,10 +10,7 @@
 
 <AdminHeader Title="Städzoner" />
 
-@if (!string.IsNullOrEmpty(_message))
-{
-    <p role="status" class="form-status">@_message</p>
-}
+<Toast @bind-Message="_message" />
 
 @if (_zones is null)
 {
@@ -21,6 +18,10 @@
 }
 else
 {
+    <div class="admin-toolbar">
+        <button type="button" class="btn" @onclick="OpenCreate">+ Lägg till städzon</button>
+    </div>
+
     @* No total incl. VAT column — the system stores and computes no monetary totals (C8). *@
     <div class="admin-table-wrap">
         <table class="admin-table">
@@ -40,7 +41,7 @@ else
             <tbody>
                 @foreach (var z in _zones)
                 {
-                    <tr>
+                    <tr @onclick="() => OpenEdit(z)">
                         <td class="num mono">@z.DisplayOrder</td>
                         <td><span class="rowlink">@z.Name</span></td>
                         <td class="num mono">@z.AmountExVat.ToString("0.00") kr</td>
@@ -59,114 +60,107 @@ else
                             }
                         </td>
                         <td class="rowactions">
-                            <button class="btn-ghost" @onclick="() => Edit(z)">Redigera</button>
-                            @if (z.IsActive)
-                            {
-                                <button class="btn-ghost" @onclick="() => SetActive(z, false)">Inaktivera</button>
-                            }
-                            else
-                            {
-                                <button class="btn-ghost" @onclick="() => SetActive(z, true)">Aktivera</button>
-                            }
-                            <button class="btn-ghost" @onclick="() => RequestDelete(z)">Ta bort</button>
+                            <button class="btn-ghost" @onclick="() => OpenEdit(z)" @onclick:stopPropagation="true">Redigera</button>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
+}
 
-    <section class="card admin-editcard">
-    <h2>@(_editingId is null ? "Lägg till städzon" : "Redigera städzon")</h2>
-
-    <EditForm Model="_form" OnValidSubmit="Save" FormName="cleaningZone">
-        <DataAnnotationsValidator />
-
-        <div class="form-group">
-            <label for="z-name">Namn</label>
-            <InputText id="z-name" @bind-Value="_form.Name" />
-            <ValidationMessage For="() => _form.Name" />
-        </div>
-
-        <div class="form-group">
-            <label for="z-description">Beskrivning</label>
-            <InputTextArea id="z-description" @bind-Value="_form.Description" />
-            <ValidationMessage For="() => _form.Description" />
-        </div>
-
-        <div class="form-group">
-            <label for="z-amount">Belopp exkl. moms (kr)</label>
-            <InputNumber id="z-amount" min="0" @bind-Value="_form.AmountExVat" />
-            <ValidationMessage For="() => _form.AmountExVat" />
-        </div>
-
-        <div class="form-group">
-            <label for="z-vat">Momssats (andel, t.ex. 0.12 för 12 %)</label>
-            <InputNumber id="z-vat" min="0" @bind-Value="_form.VatRate" step="0.01" />
-            <ValidationMessage For="() => _form.VatRate" />
-        </div>
-
-        <div class="form-group">
-            <label for="z-order">Visningsordning</label>
-            <InputNumber id="z-order" min="0" @bind-Value="_form.DisplayOrder" />
-            <ValidationMessage For="() => _form.DisplayOrder" />
-        </div>
-
-        <div class="form-group">
-            <label for="z-kind">Kategori</label>
-            <InputSelect id="z-kind" @bind-Value="_form.Kind">
-                @foreach (var kind in Enum.GetValues<CleaningZoneKind>())
-                {
-                    <option value="@kind">@KindLabel(kind)</option>
-                }
-            </InputSelect>
-            <p class="form-hint">Styr när zonen erbjuds på slutförandeformuläret och vilken städknapp den hör till (§8.11).</p>
-        </div>
-
-        @if (_form.Kind != CleaningZoneKind.Everything)
-        {
+<EditForm Model="_form" OnValidSubmit="Save">
+    <DataAnnotationsValidator />
+    <AdminPanel Visible="_panelOpen" Title="@(_isCreating ? "Ny städzon" : (string.IsNullOrEmpty(_form.Name) ? "Namnlös" : _form.Name))" OnClose="ClosePanel">
+        <ChildContent>
+            <Toast @bind-Message="_panelError" />
             <div class="form-group">
-                <label for="z-physical">Fysisk byggnad</label>
-                <InputSelect id="z-physical" @bind-Value="_form.PhysicalBuildingId">
-                    <option value="">Välj fysisk byggnad…</option>
-                    @foreach (var pb in _physicalBuildings.Where(p => p.IsActive))
+                <label for="z-name">Namn</label>
+                <InputText id="z-name" @bind-Value="_form.Name" />
+                <ValidationMessage For="() => _form.Name" />
+            </div>
+
+            <div class="form-group">
+                <label for="z-description">Beskrivning</label>
+                <InputTextArea id="z-description" @bind-Value="_form.Description" />
+                <ValidationMessage For="() => _form.Description" />
+            </div>
+
+            <div class="form-group">
+                <label for="z-amount">Belopp exkl. moms (kr)</label>
+                <InputNumber id="z-amount" min="0" @bind-Value="_form.AmountExVat" />
+                <ValidationMessage For="() => _form.AmountExVat" />
+            </div>
+
+            <div class="form-group">
+                <label for="z-vat">Momssats (andel, t.ex. 0.12 för 12 %)</label>
+                <InputNumber id="z-vat" min="0" @bind-Value="_form.VatRate" step="0.01" />
+                <ValidationMessage For="() => _form.VatRate" />
+            </div>
+
+            <div class="form-group">
+                <label for="z-order">Visningsordning</label>
+                <InputNumber id="z-order" min="0" @bind-Value="_form.DisplayOrder" />
+                <ValidationMessage For="() => _form.DisplayOrder" />
+            </div>
+
+            <div class="form-group">
+                <label for="z-kind">Kategori</label>
+                <InputSelect id="z-kind" @bind-Value="_form.Kind">
+                    @foreach (var kind in Enum.GetValues<CleaningZoneKind>())
                     {
-                        <option value="@pb.Id">@pb.Name</option>
+                        <option value="@kind">@KindLabel(kind)</option>
                     }
                 </InputSelect>
+                <p class="form-hint">Styr när zonen erbjuds på slutförandeformuläret och vilken städknapp den hör till (§8.11).</p>
             </div>
-        }
 
-        <fieldset class="form-group">
-            <legend>Bunt — inkluderade zoner (valfritt)</legend>
-            <p>Kryssa i de zoner som denna zon paketerar (t.ex. Hela lägret). Lämna tomt för en vanlig zon.</p>
-            @if (_bundleCandidates.Count == 0)
+            @if (_form.Kind != CleaningZoneKind.Everything)
             {
-                <p>Inga tillgängliga zoner att inkludera.</p>
+                <div class="form-group">
+                    <label for="z-physical">Fysisk byggnad</label>
+                    <InputSelect id="z-physical" @bind-Value="_form.PhysicalBuildingId">
+                        <option value="">Välj fysisk byggnad…</option>
+                        @foreach (var pb in _physicalBuildings.Where(p => p.IsActive))
+                        {
+                            <option value="@pb.Id">@pb.Name</option>
+                        }
+                    </InputSelect>
+                </div>
             }
-            else
-            {
-                @foreach (var candidate in _bundleCandidates)
+
+            <fieldset class="form-group">
+                <legend>Bunt — inkluderade zoner (valfritt)</legend>
+                <p>Kryssa i de zoner som denna zon paketerar (t.ex. Hela lägret). Lämna tomt för en vanlig zon.</p>
+                @if (_bundleCandidates.Count == 0)
                 {
-                    <label>
-                        <input type="checkbox"
-                               checked="@_form.IncludesZoneIds.Contains(candidate.Id)"
-                               @onchange="e => ToggleInclude(candidate.Id, (bool)e.Value!)" />
-                        @candidate.Name
-                    </label>
-                    <br />
+                    <p>Inga tillgängliga zoner att inkludera.</p>
                 }
+                else
+                {
+                    @foreach (var candidate in _bundleCandidates)
+                    {
+                        <label>
+                            <input type="checkbox"
+                                   checked="@_form.IncludesZoneIds.Contains(candidate.Id)"
+                                   @onchange="e => ToggleInclude(candidate.Id, (bool)e.Value!)" />
+                            @candidate.Name
+                        </label>
+                        <br />
+                    }
+                }
+            </fieldset>
+        </ChildContent>
+        <Footer>
+            <button type="submit" class="btn">Spara</button>
+            @if (!_isCreating)
+            {
+                <button type="button" class="btn-outline" @onclick="ToggleActive">@(CurrentIsActive ? "Inaktivera" : "Aktivera")</button>
+                <button type="button" class="btn-outline btn-danger" @onclick="RequestDeleteCurrent">Ta bort</button>
             }
-        </fieldset>
-
-        <button type="submit" class="btn">Spara</button>
-        @if (_editingId is not null)
-        {
-            <button type="button" class="btn-ghost" @onclick="New">Avbryt</button>
-        }
-    </EditForm>
-    </section>
-}
+        </Footer>
+    </AdminPanel>
+</EditForm>
 
 <ConfirmDialog Visible="_pendingDelete is not null"
                Title="Ta bort städzon"
@@ -179,7 +173,12 @@ else
     private List<PhysicalBuilding> _physicalBuildings = [];
     private CleaningZone _form = new();
     private Guid? _editingId;
+    private bool _isCreating;
+    private bool _panelOpen;
     private string? _message;
+    private string? _panelError;
+
+    private bool CurrentIsActive => _editingId is not null && (_zones?.FirstOrDefault(z => z.Id == _editingId)?.IsActive ?? false);
 
     // Zones eligible to be included in a bundle: active, not the zone being edited,
     // and not themselves bundles (no nested bundles).
@@ -235,16 +234,22 @@ else
         }
     }
 
-    private void New()
+    private void OpenCreate()
     {
+        _panelOpen = true;
+        _isCreating = true;
         _editingId = null;
+        _panelError = null;
         _form = new();
         RefreshCandidates();
     }
 
-    private void Edit(CleaningZone z)
+    private void OpenEdit(CleaningZone z)
     {
+        _panelOpen = true;
+        _isCreating = false;
         _editingId = z.Id;
+        _panelError = null;
         _form = new CleaningZone
         {
             Id = z.Id,
@@ -260,38 +265,54 @@ else
         RefreshCandidates();
     }
 
+    private void ClosePanel()
+    {
+        _panelOpen = false;
+        _isCreating = false;
+        _editingId = null;
+        _panelError = null;
+    }
+
     private async Task Save()
     {
-        var result = _editingId is null
+        var result = _isCreating
             ? await CleaningZoneService.TryCreateAsync(_form)
             : await CleaningZoneService.TryUpdateAsync(_form);
 
         if (!result.Succeeded)
         {
-            _message = result.Error;
+            _panelError = result.Error;
             return;
         }
 
-        _message = _editingId is null
+        _message = _isCreating
             ? $"Städzonen \"{_form.Name}\" har lagts till."
             : $"Städzonen \"{_form.Name}\" har uppdaterats.";
 
-        New();
+        ClosePanel();
         await Load();
     }
 
-    private async Task SetActive(CleaningZone z, bool isActive)
+    private async Task ToggleActive()
     {
-        await CleaningZoneService.SetActiveAsync(z.Id, isActive);
-        _message = isActive
+        if (_editingId is null) return;
+        var z = _zones!.First(x => x.Id == _editingId);
+        var next = !z.IsActive;
+        await CleaningZoneService.SetActiveAsync(z.Id, next);
+        _message = next
             ? $"Städzonen \"{z.Name}\" har aktiverats."
             : $"Städzonen \"{z.Name}\" har inaktiverats.";
+        ClosePanel();
         await Load();
     }
 
     private CleaningZone? _pendingDelete;
 
-    private void RequestDelete(CleaningZone z) => _pendingDelete = z;
+    private void RequestDeleteCurrent()
+    {
+        if (_editingId is not null)
+            _pendingDelete = _zones!.First(x => x.Id == _editingId);
+    }
 
     private void CancelDelete() => _pendingDelete = null;
 
@@ -310,6 +331,7 @@ else
             HardDeleteResult.Blocked => $"Städzonen \"{z.Name}\" kan inte tas bort eftersom den används av en bokning. Inaktivera den i stället.",
             _ => $"Städzonen \"{z.Name}\" kunde inte hittas."
         };
+        ClosePanel();
         await Load();
     }
 }

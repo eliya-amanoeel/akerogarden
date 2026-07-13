@@ -904,7 +904,9 @@ select.inp {
 
 /* ── Modal / confirmation dialog ─────────────────────────── */
 .modal-overlay {
-    position: fixed; inset: 0; z-index: 100;
+    /* Above .form-status (1000) and .admin-panel (1001): a confirmation dialog is a true blocking
+       modal and must always render on top of whatever triggered it, panel or plain page alike. */
+    position: fixed; inset: 0; z-index: 1002;
     display: flex; align-items: center; justify-content: center; padding: 1rem;
     background: rgba(26, 23, 20, 0.45);
 }
@@ -950,7 +952,12 @@ table.admin-table tbody tr:hover { background: var(--color-bg-warm); }
 table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .admin-table .mono { font-variant-numeric: tabular-nums; }
 .admin-table .rowlink { font-weight: 600; color: var(--color-heading); text-decoration: none; }
-.admin-table .rowlink:hover { color: var(--color-primary-ink); text-decoration: underline; }
+/* Only a real <a> (Bookings/Dashboard/AdminCalendar, genuine navigation to booking detail) gets
+   the link-hover-underline. The <span class="rowlink"> used on reference-data pages (Buildings,
+   MealOptions, Facilities, PriceRules, CleaningZones) is plain label text — those rows already
+   open edit on a click anywhere in the row plus an explicit Redigera button, so underlining the
+   title on hover falsely implied only that text was clickable. */
+.admin-table a.rowlink:hover { color: var(--color-primary-ink); text-decoration: underline; }
 .admin-table .sub { display: block; font-size: 0.78rem; color: var(--color-muted); }
 .admin-table .rowactions { text-align: right; white-space: nowrap; }
 .admin-table .rowactions .btn-ghost { padding: 0.2rem 0.5rem; }
@@ -961,6 +968,145 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .admin-editcard h2, .admin-editcard h3 { font-family: var(--font-body); font-weight: 700; font-size: 1.05rem; margin: 0 0 1rem; }
 .admin-editcard .form-group:last-of-type { margin-bottom: 1.2rem; }
 .admin-subsection { font-family: var(--font-body); font-weight: 700; font-size: 1.15rem; margin: 2rem 0 1rem; }
+
+/* ── Byggnader hierarchy tree (PhysicalBuilding → Building → Room, Phase 11) ─
+   Replaces the old two-page flat-table pattern with one indented tree + a slide-in edit
+   panel. "bldg-" prefixed since .tree/.row/.panel are too generic for this shared stylesheet. */
+.bldg-tree { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; background: #fff; }
+.bldg-tree__toolbar { display: flex; align-items: center; justify-content: space-between; padding: 0.7rem 0.9rem; border-bottom: 1px solid var(--color-line); background: var(--color-bg-warm); }
+.bldg-tree__toolbar .cols { display: flex; gap: 2.1rem; font-size: 0.68rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-muted); margin-left: auto; padding-right: 6.5rem; }
+.bldg-tree__expandall { font-size: 0.78rem; color: var(--color-primary-ink); background: none; border: 0; cursor: pointer; font-weight: 700; padding: 0.2rem 0.3rem; }
+.bldg-tree__expandall:hover { text-decoration: underline; }
+
+.bldg-row {
+    display: grid; grid-template-columns: 1fr auto; grid-template-areas: "main stats"; align-items: center;
+    padding: 0.6rem 0.9rem; border-bottom: 1px solid var(--color-line); gap: 0.75rem; cursor: pointer;
+}
+.bldg-row:last-child { border-bottom: 0; }
+.bldg-row:hover { background: var(--color-bg-warm); }
+.bldg-row.is-selected { box-shadow: inset 3px 0 0 var(--color-primary); background: var(--color-ok-bg); }
+.bldg-row--l0 { background: #fff; font-weight: 700; }
+.bldg-row--l1 { background: #fbf9f6; }
+.bldg-row--l2 { background: #f6f3ee; font-size: 0.88rem; }
+
+.bldg-row__main { grid-area: main; display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
+.bldg-row--l1 .bldg-row__main { padding-left: 1.6rem; }
+.bldg-row--l2 .bldg-row__main { padding-left: 3.2rem; }
+
+.bldg-twist {
+    width: 1.1rem; height: 1.1rem; flex: none; display: inline-flex; align-items: center; justify-content: center;
+    background: none; border: 0; color: var(--color-muted); cursor: pointer; padding: 0; transition: transform var(--transition);
+}
+.bldg-twist svg { width: 0.6rem; height: 0.6rem; }
+.bldg-row.is-open > .bldg-row__main > .bldg-twist { transform: rotate(90deg); }
+.bldg-twist--spacer { visibility: hidden; }
+
+.bldg-row__name {
+    color: var(--color-heading); background: none; border: 0; padding: 0; text-align: left; font: inherit;
+    cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bldg-row--l0 .bldg-row__name { font-family: var(--font-heading); font-size: 1.02rem; font-weight: 400; }
+.bldg-row__meta { color: var(--color-muted); font-size: 0.78rem; font-weight: 400; white-space: nowrap; }
+.bldg-row__summary { display: none; color: var(--color-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+
+.bldg-row__stats { grid-area: stats; display: flex; align-items: center; gap: 1.6rem; font-size: 0.82rem; color: var(--color-muted); font-variant-numeric: tabular-nums; }
+.bldg-row__stats .num { min-width: 3.2rem; text-align: right; }
+.bldg-row__actions { display: flex; gap: 0.15rem; }
+
+.bldg-children { display: none; }
+.bldg-children.is-open { display: block; }
+
+.bldg-addrow {
+    display: flex; align-items: center; gap: 0.4rem;
+    padding: 0.5rem 0.9rem 0.5rem 3.2rem; font-size: 0.82rem; color: var(--color-primary-ink);
+    background: #f6f3ee; border-bottom: 1px solid var(--color-line); cursor: pointer; font-weight: 700;
+}
+.bldg-addrow:hover { text-decoration: underline; }
+.bldg-addrow--l1 { padding-left: 1.6rem; background: #fbf9f6; }
+.bldg-addrow--l2 { padding-left: 3.2rem; background: #f6f3ee; }
+.bldg-addrow--l0 { padding-left: 0.9rem; background: #fff; border-bottom: 0; border-top: 1px solid var(--color-line); }
+
+.bldg-emptychild { padding: 0.55rem 0.9rem 0.7rem 3.2rem; font-size: 0.82rem; color: var(--color-muted); font-style: italic; background: #fbf9f6; border-bottom: 1px solid var(--color-line); }
+
+/* Shared slide-in edit panel (AdminPanel.razor) — used by every reference-data CRUD page
+   (Buildings, MealOptions, Facilities, PriceRules, CleaningZones, Blocks) for its create/edit
+   form, replacing the old below-the-table admin-editcard everywhere. One shared surface means
+   one place to fix spacing/behaviour instead of N near-identical copies. */
+.admin-scrim {
+    position: fixed; inset: 0; background: rgba(20, 18, 16, 0.28); opacity: 0; pointer-events: none;
+    transition: opacity var(--transition); z-index: 40;
+}
+.admin-scrim.is-open { opacity: 1; pointer-events: auto; }
+
+.admin-panel {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 92vw);
+    background: var(--color-bg); border-left: 1px solid var(--color-line);
+    box-shadow: 0 12px 40px rgba(26, 23, 20, 0.16);
+    transform: translateX(100%); transition: transform 220ms ease;
+    /* Stacking order (highest wins): .modal-overlay 1002 > .admin-panel 1001 > .form-status 1000.
+       This panel sits above the toast (also fixed bottom-right) so its own Spara/Ta bort buttons
+       don't end up under a lingering toast and unclickable — the panel is an active surface the
+       admin is mid-task in, so it should win over a passive notification. But ConfirmDialog's
+       .modal-overlay must win over THIS panel, since "Ta bort" inside the panel opens a
+       ConfirmDialog on top of it — if you touch either z-index, keep this order intact. */
+    z-index: 1001;
+    display: flex; flex-direction: column;
+}
+.admin-panel.is-open { transform: translateX(0); }
+.admin-panel > form { display: flex; flex-direction: column; flex: 1; min-height: 0; } /* the EditForm's rendered <form> must flex its body/foot children */
+.admin-panel__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; padding: 1.1rem 1.3rem 0.9rem; border-bottom: 1px solid var(--color-line); }
+.admin-panel__kicker { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-muted); font-weight: 700; margin-bottom: 0.25rem; }
+.admin-panel__title { font-size: 1.2rem; font-weight: 400; }
+.admin-panel__close { background: none; border: 0; font-size: 1.3rem; line-height: 1; color: var(--color-muted); cursor: pointer; padding: 0.15rem 0.3rem; }
+.admin-panel__close:hover { color: var(--color-heading); }
+.admin-panel__body { padding: 1.1rem 1.3rem; overflow-y: auto; flex: 1; }
+.admin-panel__body .form-group:last-of-type { margin-bottom: 1.2rem; }
+/* flex-wrap as a defensive fallback at any width (not just below the mobile breakpoint) — three
+   buttons (Spara/Aktivera-Inaktivera/Ta bort) in the fixed 380px desktop drawer is already tight;
+   wrapping to a second line beats overflowing or squeezing each label onto two lines. */
+.admin-panel__foot { padding: 1rem 1.3rem 1.3rem; border-top: 1px solid var(--color-line); display: flex; flex-wrap: wrap; gap: 0.6rem; }
+
+.admin-crumbtrail { display: flex; align-items: center; gap: 0.35rem; font-size: 0.78rem; color: var(--color-muted); flex-wrap: wrap; }
+.admin-crumbtrail b { color: var(--color-heading); font-weight: 700; }
+
+/* Mobile (≤640px): rows stack, the two numeric columns fold into one summary line, the whole
+   row becomes a forgiving tap target, and the edit panel goes full-screen (NFR-17 admin-mobile,
+   extended here beyond the "tables may stay horizontally scrollable" floor since this admin
+   works mostly from a phone). */
+@media (max-width: 640px) {
+    .bldg-tree__toolbar .cols { display: none; }
+
+    .bldg-row {
+        grid-template-columns: 1fr; grid-template-areas: "main" "stats";
+        row-gap: 0.3rem; padding: 0.7rem 0.85rem;
+    }
+    .bldg-row--l1 .bldg-row__main { padding-left: 0.85rem; }
+    .bldg-row--l2 .bldg-row__main { padding-left: 1.7rem; }
+    .bldg-row__main { flex-wrap: wrap; row-gap: 0.15rem; }
+    .bldg-row__meta { display: none; } /* folded into .bldg-row__summary to avoid repeating the same info twice */
+    .bldg-row__summary { display: block; flex-basis: 100%; padding-left: 1.65rem; }
+    .bldg-row--l1 .bldg-row__summary { padding-left: 2.5rem; }
+    .bldg-row--l2 .bldg-row__summary { padding-left: 3.35rem; }
+
+    .bldg-row__stats { justify-content: flex-start; padding-left: 1.65rem; }
+    .bldg-row--l1 .bldg-row__stats { padding-left: 2.5rem; }
+    .bldg-row--l2 .bldg-row__stats { padding-left: 3.35rem; }
+    .bldg-row__stats .num { display: none; }
+    .bldg-row__actions { display: none; } /* the whole row already opens edit — no need for a second button */
+
+    /* Touch target: keep the visual chevron small but grow its hit area to ~44px (WCAG 2.5.5). */
+    .bldg-twist { width: 2.6rem; height: 2.6rem; margin: -0.75rem 0 -0.75rem -0.85rem; }
+
+    .bldg-addrow--l0 { padding-left: 0.85rem; }
+    .bldg-addrow--l1 { padding-left: 2.5rem; }
+    .bldg-addrow--l2 { padding-left: 3.35rem; }
+    .bldg-emptychild { padding-left: 1.7rem; }
+
+    /* Shared with every other reference-data page — not Buildings-specific, unlike the rules above. */
+    .admin-panel { width: 100%; }
+    .admin-panel__foot { flex-direction: column; }
+    .admin-panel__foot .btn, .admin-panel__foot .btn-outline { width: 100%; }
+}
 
 /* ── Filters + toolbar row ───────────────────────────────── */
 .admin-toolbar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; margin-bottom: 1.1rem; }

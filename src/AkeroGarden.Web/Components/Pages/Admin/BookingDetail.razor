@@ -31,10 +31,7 @@ else
         <span class="chip">@BookingDisplay.TypeLabel(_booking.BookingType)</span>
     </div>
 
-    @if (!string.IsNullOrEmpty(_message))
-    {
-        <p role="status" class="form-status">@_message</p>
-    }
+    <Toast @bind-Message="_message" />
 
     <div class="detail-grid">
         <div>

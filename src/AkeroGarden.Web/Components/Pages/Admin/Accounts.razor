@@ -16,10 +16,11 @@
 }
 else
 {
-    @if (!string.IsNullOrEmpty(_message))
-    {
-        <p role="status" class="form-status">@_message</p>
-    }
+    <Toast @bind-Message="_message" />
+
+    <div class="admin-toolbar">
+        <button type="button" class="btn" @onclick="OpenInvitePanel">+ Bjud in administratör</button>
+    </div>
 
     <div class="admin-table-wrap">
         <table class="admin-table">
@@ -77,21 +78,22 @@ else
         </table>
     </div>
 
-    <section class="card admin-editcard">
-    <h2>Bjud in ny administratör</h2>
-
-    <EditForm Model="_invite" OnValidSubmit="SendInvite" FormName="invite">
+    <EditForm Model="_invite" OnValidSubmit="SendInvite">
         <DataAnnotationsValidator />
-
-        <div class="form-group">
-            <label for="invite-email">E-postadress</label>
-            <InputText id="invite-email" @bind-Value="_invite.Email" type="email" />
-            <ValidationMessage For="() => _invite.Email" />
-        </div>
-
-        <button type="submit" class="btn">Skicka inbjudan</button>
+        <AdminPanel Visible="_invitePanelOpen" Title="Bjud in administratör" OnClose="CloseInvitePanel">
+            <ChildContent>
+                <Toast @bind-Message="_panelError" />
+                <div class="form-group">
+                    <label for="invite-email">E-postadress</label>
+                    <InputText id="invite-email" @bind-Value="_invite.Email" type="email" />
+                    <ValidationMessage For="() => _invite.Email" />
+                </div>
+            </ChildContent>
+            <Footer>
+                <button type="submit" class="btn">Skicka inbjudan</button>
+            </Footer>
+        </AdminPanel>
     </EditForm>
-    </section>
 }
 
 <ConfirmDialog Visible="_pendingRemove is not null"
@@ -105,6 +107,21 @@ else
     private string? _currentUserId;
     private string? _message;
     private InviteModel _invite = new();
+    private bool _invitePanelOpen;
+    private string? _panelError;
+
+    private void OpenInvitePanel()
+    {
+        _invitePanelOpen = true;
+        _panelError = null;
+        _invite = new();
+    }
+
+    private void CloseInvitePanel()
+    {
+        _invitePanelOpen = false;
+        _panelError = null;
+    }
 
     [CascadingParameter]
     private Task<AuthenticationState> AuthState { get; set; } = default!;
@@ -134,18 +151,22 @@ else
     {
         var result = await InviteService.InviteAsync(_invite.Email);
 
-        _message = result.Outcome switch
+        // CreateFailed keeps the panel open so the admin can fix it — shown via the panel-scoped
+        // Toast, not the page-level one, since the panel (z-index 1001) would otherwise sit on
+        // top of and hide the page toast (z-index 1000; both are bottom-right).
+        if (result.Outcome == InviteOutcome.CreateFailed)
         {
-            InviteOutcome.BlockedActivated => "Det finns redan ett konto med den e-postadressen.",
-            InviteOutcome.CreateFailed => result.Error,
-            _ => $"Inbjudan skickad till {_invite.Email}."
-        };
-
-        if (result.Outcome != InviteOutcome.CreateFailed)
-        {
-            _invite = new();
-            _users = UserManager.Users.OrderBy(u => u.Email).ToList();
+            _panelError = result.Error;
+            return;
         }
+
+        _message = result.Outcome == InviteOutcome.BlockedActivated
+            ? "Det finns redan ett konto med den e-postadressen."
+            : $"Inbjudan skickad till {_invite.Email}.";
+
+        CloseInvitePanel();
+        _invite = new();
+        _users = UserManager.Users.OrderBy(u => u.Email).ToList();
     }
 
     private async Task ResendInvite(ApplicationUser user)

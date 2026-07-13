@@ -1,0 +1,55 @@
+@* Reusable admin save/action toast (the .form-status pattern used across every reference-data
+   page). Two-way bound so a page only changes <p role="status" class="form-status">@_message</p>
+   to <Toast @bind-Message="_message" /> — no other code changes needed. Auto-dismisses after 5s:
+   previously the toast had no way to disappear on its own and could linger from a stale action,
+   sitting on top of later UI (this is what caused the Byggnader panel/toast z-index bug). *@
+@implements IDisposable
+
+@if (!string.IsNullOrEmpty(Message))
+{
+    <p role="status" class="form-status">@Message</p>
+}
+
+@code {
+    private static readonly TimeSpan Duration = TimeSpan.FromSeconds(5);
+
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public EventCallback<string?> MessageChanged { get; set; }
+
+    private string? _shownMessage;
+    private CancellationTokenSource? _cts;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (Message == _shownMessage)
+            return;
+
+        _shownMessage = Message;
+        _cts?.Cancel();
+        _cts?.Dispose();
+        _cts = null;
+
+        if (string.IsNullOrEmpty(Message))
+            return;
+
+        var cts = new CancellationTokenSource();
+        _cts = cts;
+
+        try
+        {
+            await Task.Delay(Duration, cts.Token);
+            _shownMessage = null;
+            await MessageChanged.InvokeAsync(null);
+        }
+        catch (TaskCanceledException)
+        {
+            // Superseded by a newer message (or the component was torn down) before the timeout elapsed.
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+}

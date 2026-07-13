@@ -105,6 +105,7 @@ Follow `REQUIREMENTS/implementation-plan.md` in order. Do not start a phase unti
 - Tombstoned requirements (FR-12, FR-41, FR-43, FR-46) need no work — they exist only to keep numbering stable.
 - **Challenge the user when their instinct is wrong or under-thought.** Don't be agreeable. If a decision has a real downside, say so directly and explain why before offering alternatives.
 - Be extremely careful when updating any document under the REQUIREMENTS folder, all these are strongly integrated into eachother, when updating any of these files, all other files should be checked to be kept in sync with the change.
+- Before reading `project_akerogarden_history.md` (the archived-phase-history memory file), tell me first — say what you're about to look up and why, don't fetch it silently.
 
 ## Phase completion gate
 

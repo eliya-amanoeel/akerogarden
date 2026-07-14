@@ -57,6 +57,7 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 - **No personnummer** — never collect or store Swedish national ID numbers (NFR-23).
 - **No personal data outside EU regions** — all Azure resources in North Europe or Sweden Central (NFR-06/24).
 - **Self-hosted fonts only** — no Google Fonts CDN or any external font requests. Loading Google Fonts sends user IPs to Google without a legal basis (Austrian DPA ruling, Jan 2022; enforced in Germany too). Font files go in `wwwroot/fonts/` with `@font-face` declarations in `site.css` (NFR-35).
+- **Code style is enforced** — `.editorconfig` + `Directory.Build.props` (`EnforceCodeStyleInBuild`, `IDE0055` = error). Match existing conventions; formatting violations fail the build. Generated EF migrations are excluded.
 
 ## Environments (§11.1)
 

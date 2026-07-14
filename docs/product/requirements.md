@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.48 — Working Draft  
+**Version:** 0.49 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.48:**
+
+- **Whole-physical-building blocking removed from Phase 11 and deferred to a future release.** The `BlockedPeriod` `PhysicalBuilding` scope (block all lodging units of a physical building — e.g. all of Stora bostadslängan — in one action) was carried as an open Phase 11 item. Reassessed and dropped from committed scope: it is not a capability gap (the admin can already block each lodging building separately), only an ergonomic shortcut for a low-frequency operation, and it would add a permanent fourth `BlockScope` value to every blocking switch/validator/calculator for little routine benefit. Now listed in §10 "Deferred to future releases" — to be built only if the client confirms it is a recurring real need. No code, data-model, or ERD change (the scope was never implemented); `implementation-plan.md` Phase 11 updated in step (item and Satisfies row). The `PhysicalBuilding` entity's design rationale (§8.14, changelog v0.32) is unchanged — it still exists for cleaning pricing and still *permits* this future scope.
 
 **Changes from v0.47:**
 
@@ -1212,6 +1216,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 
 **Deferred to future releases:**
 - **Audit-trail admin view (FR-97)** — the backend audit capture + retention (FR-95/96/98, §6.9, §8.15) ships in Phase 11; the admin-facing UI (a per-booking "Aktivitetslogg" panel and a global, filterable audit-log page — by actor, action, and date range) is deferred to a future release. Until it is built, the trail is queryable directly against the database. FR-97 remains a live numbered requirement (§6.9); this entry tracks its deferral, it is not a removal
+- **Whole-physical-building blocking (`BlockedPeriod` `PhysicalBuilding` scope)** — a fourth blocking scope that would block every lodging unit of a physical building (e.g. all of Stora bostadslängan, which holds Vätö 1 + Vätö 2) in a single action, reducing effective calendar capacity (FR-10) and excluding those rooms from selection (FR-56). The `PhysicalBuilding` entity (§8.14) already permits it. Deferred because it is only an ergonomic shortcut over blocking each lodging building separately, for a low-frequency operation, and adds a permanent fourth `BlockScope` value to every blocking path. To be built only on confirmation from the client that it is a recurring real need; if built, sync §8.10 (`Scope` enum + `PhysicalBuildingId`), §3.3, and FR-21/FR-40 in step.
 - Automated invoice generation
 - Dedicated GDPR contact address (dataskydd@akerogarden.se)
 - Role-based admin permissions (multiple admin accounts are supported in v1 — role differentiation and per-admin access control are deferred)

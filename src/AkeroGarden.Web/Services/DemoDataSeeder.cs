@@ -521,24 +521,24 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         Booking StayRequest(
             string name, string email, string? phone, DateOnly checkIn, DateOnly checkOut,
             int overnight, int dayGuests, MealPlan plan, DateTime createdAt) => new()
-        {
-            Id = Guid.NewGuid(),
-            // Placeholder — all 8 demo bookings insert in one batch below, so each needs a distinct
-            // value up front to satisfy the unique index; overwritten with the real AG-YYYY-NNNN
-            // form (from the DB-assigned SequenceNumber) after that first save.
-            BookingReference = $"AG-SEED-{Guid.NewGuid():N}"[..20],
-            BookingType = BookingType.StayRequest,
-            ContactName = name,
-            ContactEmail = email,
-            ContactPhone = phone,
-            CheckIn = checkIn,
-            CheckOut = checkOut,
-            OvernightGuestCount = overnight,
-            DayGuestCount = dayGuests,
-            MealPlan = plan,
-            CreatedAt = createdAt,
-            UpdatedAt = createdAt,
-        };
+            {
+                Id = Guid.NewGuid(),
+                // Placeholder — all 8 demo bookings insert in one batch below, so each needs a distinct
+                // value up front to satisfy the unique index; overwritten with the real AG-YYYY-NNNN
+                // form (from the DB-assigned SequenceNumber) after that first save.
+                BookingReference = $"AG-SEED-{Guid.NewGuid():N}"[..20],
+                BookingType = BookingType.StayRequest,
+                ContactName = name,
+                ContactEmail = email,
+                ContactPhone = phone,
+                CheckIn = checkIn,
+                CheckOut = checkOut,
+                OvernightGuestCount = overnight,
+                DayGuestCount = dayGuests,
+                MealPlan = plan,
+                CreatedAt = createdAt,
+                UpdatedAt = createdAt,
+            };
     }
 
     private static void AddFacility(Booking b, Facility f) =>

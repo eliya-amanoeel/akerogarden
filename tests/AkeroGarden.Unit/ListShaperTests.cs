@@ -39,13 +39,17 @@ public class ListShaperTests
         var data = ListShaper.Shape(Booking(
             new Participant
             {
-                FullName = "Anna", ParticipantType = ParticipantType.Overnight,
-                AgeCategory = AgeCategory.Adult, RoomAssignmentSnapshot = "Rum 1 — Blidö",
+                FullName = "Anna",
+                ParticipantType = ParticipantType.Overnight,
+                AgeCategory = AgeCategory.Adult,
+                RoomAssignmentSnapshot = "Rum 1 — Blidö",
             },
             new Participant
             {
-                FullName = "Bo", ParticipantType = ParticipantType.DayGuest,
-                AgeCategory = AgeCategory.Child, AttendanceDate = new DateOnly(2026, 8, 2),
+                FullName = "Bo",
+                ParticipantType = ParticipantType.DayGuest,
+                AgeCategory = AgeCategory.Child,
+                AttendanceDate = new DateOnly(2026, 8, 2),
             }));
 
         var anna = data.Participants[0];
@@ -107,8 +111,10 @@ public class ListShaperTests
         var overnight = FullBoard("Anna"); // present the whole stay, attends breakfast on 08-02 and 08-03
         var dayGuest = new Participant
         {
-            FullName = "Gäst", ParticipantType = ParticipantType.DayGuest,
-            AttendanceDate = D2, AttendsBreakfast = true,
+            FullName = "Gäst",
+            ParticipantType = ParticipantType.DayGuest,
+            AttendanceDate = D2,
+            AttendsBreakfast = true,
         };
 
         var prep = ListShaper.Shape(Booking(overnight, dayGuest)).Prep;
@@ -153,8 +159,10 @@ public class ListShaperTests
 
     private static Participant FullBoard(string name) => new()
     {
-        FullName = name, ParticipantType = ParticipantType.Overnight,
-        IsFullBoard = true, AttendsBreakfast = true,
+        FullName = name,
+        ParticipantType = ParticipantType.Overnight,
+        IsFullBoard = true,
+        AttendsBreakfast = true,
     };
 
     private static (string, string, string, int)[] Tuples(IEnumerable<PrepRow> prep) =>
@@ -168,7 +176,8 @@ public class ListShaperTests
     {
         var p = new Participant
         {
-            FullName = "Anna", ParticipantType = ParticipantType.Overnight,
+            FullName = "Anna",
+            ParticipantType = ParticipantType.Overnight,
             DietaryRequirements = [DietaryRequirement.Vegetarian, DietaryRequirement.Other],
             DietaryNotes = "Selleri",
         };

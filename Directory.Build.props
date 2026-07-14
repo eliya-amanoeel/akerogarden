@@ -1,0 +1,9 @@
+<Project>
+  <PropertyGroup>
+    <!-- Run the IDExxxx style analyzers in build so violations at the severities set in
+         .editorconfig (e.g. IDE0055 formatting = error) fail the build, not just show in
+         the IDE. Scoped to the rules the .editorconfig promotes — TreatWarningsAsErrors is
+         deliberately NOT set, so unrelated compiler/CA warnings stay warnings. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+</Project>

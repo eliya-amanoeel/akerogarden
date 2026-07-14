@@ -66,8 +66,8 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
         var socketOptions = _opts.Port switch
         {
             1025 => SecureSocketOptions.None,        // Mailpit — no TLS
-            465  => SecureSocketOptions.SslOnConnect, // One.com SSL
-            _    => SecureSocketOptions.StartTls     // standard STARTTLS (587)
+            465 => SecureSocketOptions.SslOnConnect, // One.com SSL
+            _ => SecureSocketOptions.StartTls     // standard STARTTLS (587)
         };
         await client.ConnectAsync(_opts.Host, _opts.Port, socketOptions);
 

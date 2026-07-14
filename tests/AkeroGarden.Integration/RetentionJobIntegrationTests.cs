@@ -110,21 +110,34 @@ public class RetentionJobIntegrationTests : IClassFixture<DbFixture>
             db.AuditLogs.AddRange(
                 new AuditLog
                 {
-                    Id = oldNonBooking, Timestamp = cutoff.AddDays(-1), ActorType = AuditActorType.Admin,
-                    Action = AuditAction.ReferenceDataUpdated, EntityType = "PriceRule", EntityId = Guid.NewGuid(),
+                    Id = oldNonBooking,
+                    Timestamp = cutoff.AddDays(-1),
+                    ActorType = AuditActorType.Admin,
+                    Action = AuditAction.ReferenceDataUpdated,
+                    EntityType = "PriceRule",
+                    EntityId = Guid.NewGuid(),
                     Summary = "gammal referensdata",
                 },
                 new AuditLog
                 {
-                    Id = recentNonBooking, Timestamp = cutoff.AddDays(1), ActorType = AuditActorType.Admin,
-                    Action = AuditAction.ReferenceDataUpdated, EntityType = "PriceRule", EntityId = Guid.NewGuid(),
+                    Id = recentNonBooking,
+                    Timestamp = cutoff.AddDays(1),
+                    ActorType = AuditActorType.Admin,
+                    Action = AuditAction.ReferenceDataUpdated,
+                    EntityType = "PriceRule",
+                    EntityId = Guid.NewGuid(),
                     Summary = "ny referensdata",
                 },
                 new AuditLog
                 {
-                    Id = oldBookingScoped, Timestamp = cutoff.AddDays(-1), ActorType = AuditActorType.Admin,
-                    Action = AuditAction.BookingApproved, EntityType = "Booking", EntityId = liveBookingId,
-                    BookingId = liveBookingId, Summary = "bokningsåtgärd",
+                    Id = oldBookingScoped,
+                    Timestamp = cutoff.AddDays(-1),
+                    ActorType = AuditActorType.Admin,
+                    Action = AuditAction.BookingApproved,
+                    EntityType = "Booking",
+                    EntityId = liveBookingId,
+                    BookingId = liveBookingId,
+                    Summary = "bokningsåtgärd",
                 });
             await db.SaveChangesAsync();
         }

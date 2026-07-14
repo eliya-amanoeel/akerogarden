@@ -159,21 +159,35 @@ public sealed class E2EFixture : IAsyncLifetime
 
         var konferensrum = new Facility
         {
-            Id = Guid.NewGuid(), Name = "Konferensrum", PhysicalBuildingId = konferensPb.Id,
-            AmountExVat = 1200m, VatRate = 0.25m, IsActive = true,
+            Id = Guid.NewGuid(),
+            Name = "Konferensrum",
+            PhysicalBuildingId = konferensPb.Id,
+            AmountExVat = 1200m,
+            VatRate = 0.25m,
+            IsActive = true,
         };
         ctx.Facilities.Add(konferensrum);
 
         ctx.CleaningZones.AddRange(
             new CleaningZone
             {
-                Id = Guid.NewGuid(), Name = "Huvudbyggnad", Kind = CleaningZoneKind.MainBuilding,
-                PhysicalBuildingId = huvudPb.Id, AmountExVat = 2000m, VatRate = 0.25m, IsActive = true,
+                Id = Guid.NewGuid(),
+                Name = "Huvudbyggnad",
+                Kind = CleaningZoneKind.MainBuilding,
+                PhysicalBuildingId = huvudPb.Id,
+                AmountExVat = 2000m,
+                VatRate = 0.25m,
+                IsActive = true,
             },
             new CleaningZone
             {
-                Id = Guid.NewGuid(), Name = "Konferensbyggnad", Kind = CleaningZoneKind.Conference,
-                PhysicalBuildingId = konferensPb.Id, AmountExVat = 2000m, VatRate = 0.25m, IsActive = true,
+                Id = Guid.NewGuid(),
+                Name = "Konferensbyggnad",
+                Kind = CleaningZoneKind.Conference,
+                PhysicalBuildingId = konferensPb.Id,
+                AmountExVat = 2000m,
+                VatRate = 0.25m,
+                IsActive = true,
             });
 
         Booking ConferenceCompletionBooking(string token)

@@ -73,23 +73,43 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
 
         var huvudZone = new CleaningZone
         {
-            Id = Guid.NewGuid(), Name = "Huvudbyggnad", Kind = CleaningZoneKind.MainBuilding,
-            PhysicalBuildingId = huvud.Id, AmountExVat = 2000m, VatRate = 0.25m, IsActive = true,
+            Id = Guid.NewGuid(),
+            Name = "Huvudbyggnad",
+            Kind = CleaningZoneKind.MainBuilding,
+            PhysicalBuildingId = huvud.Id,
+            AmountExVat = 2000m,
+            VatRate = 0.25m,
+            IsActive = true,
         };
         var lillaZone = new CleaningZone
         {
-            Id = Guid.NewGuid(), Name = "Lilla bostadslängan", Kind = CleaningZoneKind.SleepingBuilding,
-            PhysicalBuildingId = lilla.Id, AmountExVat = 2000m, VatRate = 0.25m, IsActive = true,
+            Id = Guid.NewGuid(),
+            Name = "Lilla bostadslängan",
+            Kind = CleaningZoneKind.SleepingBuilding,
+            PhysicalBuildingId = lilla.Id,
+            AmountExVat = 2000m,
+            VatRate = 0.25m,
+            IsActive = true,
         };
         var storaZone = new CleaningZone
         {
-            Id = Guid.NewGuid(), Name = "Stora bostadslängan", Kind = CleaningZoneKind.SleepingBuilding,
-            PhysicalBuildingId = stora.Id, AmountExVat = 2000m, VatRate = 0.25m, IsActive = true,
+            Id = Guid.NewGuid(),
+            Name = "Stora bostadslängan",
+            Kind = CleaningZoneKind.SleepingBuilding,
+            PhysicalBuildingId = stora.Id,
+            AmountExVat = 2000m,
+            VatRate = 0.25m,
+            IsActive = true,
         };
         var konferensZone = new CleaningZone
         {
-            Id = Guid.NewGuid(), Name = "Konferensbyggnad", Kind = CleaningZoneKind.Conference,
-            PhysicalBuildingId = konferens.Id, AmountExVat = 2000m, VatRate = 0.25m, IsActive = true,
+            Id = Guid.NewGuid(),
+            Name = "Konferensbyggnad",
+            Kind = CleaningZoneKind.Conference,
+            PhysicalBuildingId = konferens.Id,
+            AmountExVat = 2000m,
+            VatRate = 0.25m,
+            IsActive = true,
         };
         db.CleaningZones.AddRange(huvudZone, lillaZone, storaZone, konferensZone);
 
@@ -105,8 +125,12 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
 
         var konferensrum = new Facility
         {
-            Id = Guid.NewGuid(), Name = "Konferensrum", PhysicalBuildingId = konferens.Id,
-            AmountExVat = 1200m, VatRate = 0.25m, IsActive = true,
+            Id = Guid.NewGuid(),
+            Name = "Konferensrum",
+            PhysicalBuildingId = konferens.Id,
+            AmountExVat = 1200m,
+            VatRate = 0.25m,
+            IsActive = true,
         };
         db.Facilities.Add(konferensrum);
 

@@ -49,7 +49,7 @@ jobs:
       - name: Setup .NET 10
         uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: "10.x"
+          global-json-file: global.json
 
       - name: Restore
         run: dotnet restore

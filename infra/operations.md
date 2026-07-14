@@ -81,3 +81,24 @@ This shows stdout/stderr directly (including the one pre-DI-container bootstrap 
 the Redis fail-open warning in `Program.cs` — which happens before the logging pipeline, and
 before OpenTelemetry, are wired up, and so is deliberately still `Console.Error.WriteLine`,
 not `ILogger`).
+
+## .NET runtime targeting (why the app boots even when the platform patch moves)
+
+The app is published **framework-dependent** onto App Service's `DOTNETCORE|10.0` platform, so
+the platform — not our build — owns the runtime and its security patches. That's the right trade
+for an app that goes quiet between releases: it keeps getting runtime CVE fixes without a redeploy.
+
+Two guards keep a build from ever targeting a runtime the platform doesn't have (which would fail
+to start, since .NET rolls a runtime *forward* but never backward):
+
+- **`global.json`** (repo root) pins the SDK feature band (`10.0.100`, `rollForward: latestPatch`)
+  so CI builds are reproducible and can't silently jump a minor/major band. The workflows
+  (`ci.yml`, `deploy-staging.yml`, `deploy-prod.yml`) select the SDK from it via
+  `global-json-file: global.json` — this is the single source of the build SDK version.
+- **`<TargetLatestRuntimePatch>false</TargetLatestRuntimePatch>`** in `AkeroGarden.Web.csproj`
+  makes the published app request the **baseline** 10.0 patch and roll *forward* to whatever
+  the platform has installed, instead of baking in the build SDK's newest patch.
+
+Net effect: no re-pinning is needed when Azure bumps the platform patch. To move to a new .NET
+**minor/major**, bump `TargetFramework` and `global.json` together, and update `linuxFxVersion`
+in `infra/main.bicep` in the same change.

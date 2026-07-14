@@ -2,6 +2,12 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- Publish a framework-dependent app that requests the baseline 10.0 patch and rolls
+         *forward* to whatever runtime the App Service platform (DOTNETCORE|10.0) has installed,
+         rather than baking in the build SDK's latest patch (which can't roll backward if the
+         platform is behind). Locks the runtime-drift guard explicitly instead of relying on the
+         framework-dependent default. See infra/operations.md. -->
+    <TargetLatestRuntimePatch>false</TargetLatestRuntimePatch>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>

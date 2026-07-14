@@ -485,3 +485,6 @@ $RECYCLE.BIN/
 *.swp
 # Local dev secrets
 .env.local
+
+#intentionally non-tracked files by me.
+/docs/temp/findings.md

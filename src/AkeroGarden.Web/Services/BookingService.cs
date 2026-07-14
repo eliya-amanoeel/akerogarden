@@ -402,7 +402,7 @@ public class BookingService(
         if (from is not null) query = query.Where(b => b.CheckIn != null && b.CheckIn >= from);
         if (to is not null) query = query.Where(b => b.CheckIn != null && b.CheckIn <= to);
         if (!string.IsNullOrWhiteSpace(reference))
-            query = query.Where(b => b.BookingReference.Contains(reference.Trim()));
+            query = query.Where(b => EF.Functions.ILike(b.BookingReference, $"%{reference.Trim()}%"));
 
         return await query.OrderByDescending(b => b.CreatedAt).ToListAsync();
     }

@@ -21,8 +21,7 @@ namespace AkeroGarden.E2E.Infrastructure;
 /// </summary>
 public sealed class E2EFixture : IAsyncLifetime
 {
-    private readonly PostgreSqlContainer _db = new PostgreSqlBuilder()
-        .WithImage("postgres:16")
+    private readonly PostgreSqlContainer _db = new PostgreSqlBuilder("postgres:16")
         .Build();
 
     private readonly StringBuilder _appLog = new();

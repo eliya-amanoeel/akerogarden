@@ -8,8 +8,7 @@ namespace AkeroGarden.Integration.Infrastructure;
 /// </summary>
 public sealed class RedisFixture : IAsyncLifetime
 {
-    private readonly RedisContainer _container = new RedisBuilder()
-        .WithImage("redis:7")
+    private readonly RedisContainer _container = new RedisBuilder("redis:7")
         .Build();
 
     public string ConnectionString => _container.GetConnectionString();

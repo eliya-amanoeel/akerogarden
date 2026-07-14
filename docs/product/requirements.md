@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.47 — Working Draft  
+**Version:** 0.48 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.47:**
+
+- **FR-97 (audit-trail admin view) now tracked in §10 "Deferred to future releases."** The audit-trail backend — capture + retention (FR-95/96/98, §6.9, §8.15) — ships in Phase 11, but its admin-facing UI (a per-booking "Aktivitetslogg" panel and a global, filterable audit-log page) has no committed delivery, and Phase 11 is the final phase. FR-97 stays a numbered requirement in §6.9 (wording unchanged — it already reads "UI deferred") but is now **also** listed as explicit deferred scope in §10, alongside the other future-release items, rather than an open-ended in-phase "deferred" note with nowhere to land. Until it is built, the trail is read directly from the database. No data-model, email, or ERD impact; `implementation-plan.md` Phase 11 (Slice D) updated in step to point at the §10 deferral.
 
 **Changes from v0.46:**
 
@@ -1207,6 +1211,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 - Room-based pricing (pricing is per person per night in phase 1 — room-based pricing deferred to a future release)
 
 **Deferred to future releases:**
+- **Audit-trail admin view (FR-97)** — the backend audit capture + retention (FR-95/96/98, §6.9, §8.15) ships in Phase 11; the admin-facing UI (a per-booking "Aktivitetslogg" panel and a global, filterable audit-log page — by actor, action, and date range) is deferred to a future release. Until it is built, the trail is queryable directly against the database. FR-97 remains a live numbered requirement (§6.9); this entry tracks its deferral, it is not a removal
 - Automated invoice generation
 - Dedicated GDPR contact address (dataskydd@akerogarden.se)
 - Role-based admin permissions (multiple admin accounts are supported in v1 — role differentiation and per-admin access control are deferred)
@@ -1257,5 +1262,5 @@ All known open questions have been resolved. This section will be updated if new
 
 ---
 
-*End of document — Version 0.37 Working Draft*  
+*End of document — Version 0.48 Working Draft*  
 *Åkerögården Booking System — Software Requirements Specification*

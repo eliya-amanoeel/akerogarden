@@ -11,12 +11,13 @@
 |  | Staging | Production |
 |---|---|---|
 | Data in the restored copy | Synthetic | **Real guest PII** |
-| **Path 1 (temporary public endpoint)** | ✅ Allowed (throwaway, synthetic) | ❌ **FORBIDDEN** — exposes real PII to the internet, breaks NFR-25 + GDPR. Use **Path 2 only**. |
-| Verification | Path 1 or Path 2 | **Path 2 only** (stay inside the VNet) |
+| Verification | **Path 2 only** (inside the VNet) | **Path 2 only** (inside the VNet) |
 | Part D power-down of the *source* server | Yes (staging idles) | **No** — never stop the live prod server |
 | Delete the throwaway restore | Yes | **Yes, promptly** — it holds a full copy of real PII |
 
 The restore always creates a **new, independent** server — it never touches the source. The risk is not the restore; it's how you *reach* the restored copy to verify it.
+
+> **Path 2 (inside the VNet) is now the only verification path — for staging as well as production.** The former "Path 1" (temporarily enable a public endpoint on the throwaway server) **does not work**: a point-in-time restore of a VNet-injected server produces another **VNet-injected, private-only** server, and that networking mode is fixed at creation — `az postgres flexible-server update --public-network-access Enabled` silently no-ops on it (same immutability confirmed in `staging-db-access-runbook.md`). So there is no public-endpoint shortcut even on staging.
 
 ---
 
@@ -67,26 +68,20 @@ az postgres flexible-server restore \
 
 Restore takes ~5–15 min. When it returns, the drill server exists and is private-only (same as the source).
 
-### Verify the restored data — pick the path allowed for your environment
+### Verify the restored data — Path 2 (inside the VNet), staging and production alike
 
-**Path 1 — temporary public endpoint. STAGING ONLY. Never on production (see the safety box).**
-```bash
-MYIP=$(curl -s https://api.ipify.org)
+The drill server is private-only (see the safety box), so verify it from **inside the VNet**, via the App Service SSH console — the same mechanism as `staging-db-access-runbook.md` (SSH into the running app container, install `psql` if missing, connect over the private FQDN).
 
-# Temporarily allow public access + your IP on the THROWAWAY server only.
-az postgres flexible-server update -g $RG -n $DRILL --public-network-access Enabled
-az postgres flexible-server firewall-rule create -g $RG -n $DRILL \
-  --rule-name drill-myip --start-ip-address $MYIP --end-ip-address $MYIP
-
-PGPASSWORD='<postgresAdminPassword>' psql \
-  "host=$DRILL.postgres.database.azure.com port=5432 dbname=$DB user=akerogarden_admin sslmode=require" \
-  -c "select count(*) as bookings from \"Bookings\";" \
-  -c "select max(\"CreatedAt\") as latest_booking from \"Bookings\";" \
-  -c "select count(*) as participants from \"Participants\";"
-```
-
-**Path 2 — stay inside the VNet (keeps NFR-25 posture; the ONLY allowed path on production).**
-From the App Service SSH console (Portal → the app in the same VNet → SSH) run `psql` against `$DRILL.private.postgres.database.azure.com` with the same queries as above. Requires `psql` in the container (`apt-get update && apt-get install -y postgresql-client`), or run a one-off `mcr.microsoft.com/azure-cli` container joined to the VNet's app-subnet.
+1. Portal → the app in the same VNet (`akerogarden-staging-app` / prod equivalent) → **Development Tools → SSH**.
+2. `psql --version` — if missing: `apt-get update && apt-get install -y postgresql-client`.
+3. Connect to the **drill** server on its private endpoint and run the row-count checks:
+   ```bash
+   psql "host=$DRILL.private.postgres.database.azure.com dbname=akerogarden user=akerogarden_admin password='<postgresAdminPassword>' sslmode=require" \
+     -c "select count(*) as bookings from \"Bookings\";" \
+     -c "select max(\"CreatedAt\") as latest_booking from \"Bookings\";" \
+     -c "select count(*) as participants from \"Participants\";"
+   ```
+   (Alternatively, a one-off `mcr.microsoft.com/azure-cli` container joined to the VNet's app-subnet.)
 
 **PASS (NFR-29) when:** the restored server accepts a connection and the row counts / latest `CreatedAt` match what the source held at `RESTORE_TIME` (i.e. real data came back, not an empty schema).
 
@@ -94,7 +89,7 @@ From the App Service SSH console (Portal → the app in the same VNet → SSH) r
 
 ## Part C — (optional) app-level smoke against the restore
 
-Only for extra confidence: temporarily point the app's `ConnectionStrings__Postgres` at `$DRILL` (private FQDN), restart, load `/admin/bokningar`, confirm bookings render — then **revert the connection string** to `$SRC` and restart. Skip unless Path 1/2 leaves doubt. *(On production, weigh the disruption — usually Path 2's row counts are enough.)*
+Only for extra confidence: temporarily point the app's `ConnectionStrings__Postgres` at `$DRILL` (private FQDN), restart, load `/admin/bokningar`, confirm bookings render — then **revert the connection string** to `$SRC` and restart. Skip unless the Path 2 row counts leave doubt. *(On production, weigh the disruption — usually the row counts are enough.)*
 
 ---
 
@@ -104,8 +99,8 @@ Only for extra confidence: temporarily point the app's `ConnectionStrings__Postg
 # Delete the throwaway restored server (mandatory — on prod it holds real PII).
 az postgres flexible-server delete -g $RG -n $DRILL --yes
 
-# If you used Path 1 (staging), the firewall rule dies with the server — nothing else to undo.
-# Never leave public access enabled on any server that held real data.
+# The drill is VNet-only (no public endpoint was ever opened), so it dies with this one command —
+# nothing else to undo.
 ```
 
 **Staging only:** if idle, power down (PG last): `az webapp stop ...` then `az postgres flexible-server stop -g $RG -n $SRC`.

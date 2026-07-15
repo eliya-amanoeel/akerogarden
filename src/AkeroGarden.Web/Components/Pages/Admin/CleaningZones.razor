@@ -69,6 +69,32 @@ else
             </tbody>
         </table>
     </div>
+
+    <div class="data-cards">
+        @foreach (var z in _zones)
+        {
+            <AdminDataCard Title="@z.Name" OnClick="() => OpenEdit(z)">
+                <Badge>
+                    @if (z.IsActive)
+                    {
+                        <span class="badge badge--approved">Aktiv</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge--neutral">Inaktiv</span>
+                    }
+                </Badge>
+                <Fields>
+                    <div><dt>Ordning</dt><dd>@z.DisplayOrder</dd></div>
+                    <div><dt>Belopp exkl. moms</dt><dd>@z.AmountExVat.ToString("0.00") kr</dd></div>
+                    <div><dt>Momssats</dt><dd>@z.VatRate.ToString("0.##%")</dd></div>
+                    <div><dt>Kategori</dt><dd>@KindLabel(z.Kind)</dd></div>
+                    <div><dt>Fysisk byggnad</dt><dd>@(z.PhysicalBuildingId is null ? "—" : PhysicalBuildingName(z.PhysicalBuildingId.Value))</dd></div>
+                    <div><dt>Typ</dt><dd>@BundleText(z)</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
 }
 
 <EditForm Model="_form" OnValidSubmit="Save">

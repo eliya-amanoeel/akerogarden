@@ -84,6 +84,60 @@ else
         </table>
     </div>
 
+    <div class="data-cards">
+        @foreach (var user in _users)
+        {
+            <AdminDataCard Title="@user.Email">
+                <Badge>
+                    @if (user.SetupCompletedAt is null)
+                    {
+                        <span class="badge badge--pending">Väntar på aktivering</span>
+                    }
+                    else if (user.IsActive)
+                    {
+                        <span class="badge badge--approved">Aktiv</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge--neutral">Inaktiv</span>
+                    }
+                </Badge>
+                <Sub>
+                    @(HasName(user) ? $"{user.FirstName} {user.LastName}".Trim() : "—")
+                    @if (user.Id == _currentUserId)
+                    {
+                        <span class="chip" style="margin-left:0.5rem">Du</span>
+                    }
+                </Sub>
+                <Fields>
+                    <div><dt>Telefon</dt><dd>@(string.IsNullOrWhiteSpace(user.PhoneNumber) ? "—" : user.PhoneNumber)</dd></div>
+                </Fields>
+                <Actions>
+                    @if (user.SetupCompletedAt is null)
+                    {
+                        <button class="btn-ghost btn-sm" @onclick="() => ResendInvite(user)">Skicka ny inbjudan</button>
+                        <button class="btn-ghost btn-sm" @onclick="() => RequestRemoveInvite(user)">Ta bort</button>
+                    }
+                    else if (user.Id != _currentUserId)
+                    {
+                        @if (user.IsActive)
+                        {
+                            <button class="btn-ghost btn-sm" @onclick="() => Deactivate(user)">Inaktivera</button>
+                        }
+                        else
+                        {
+                            <button class="btn-ghost btn-sm" @onclick="() => Activate(user)">Aktivera</button>
+                        }
+                    }
+                    else
+                    {
+                        <span class="admin-empty">—</span>
+                    }
+                </Actions>
+            </AdminDataCard>
+        }
+    </div>
+
     <EditForm Model="_invite" OnValidSubmit="SendInvite">
         <DataAnnotationsValidator />
         <AdminPanel Visible="_invitePanelOpen" Title="Bjud in administratör" OnClose="CloseInvitePanel">

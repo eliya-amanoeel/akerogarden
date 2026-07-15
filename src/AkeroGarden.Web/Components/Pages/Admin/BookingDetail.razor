@@ -36,207 +36,290 @@ else
     <div class="detail-grid">
         <div>
             @* ── Contact ─────────────────────────────────────────────── *@
-            <section class="detail-sec">
-                <h2>Kontaktuppgifter</h2>
-                <dl class="kv">
-                    <dt>Namn</dt><dd>@_booking.ContactName</dd>
-                    <dt>E-post</dt><dd>@_booking.ContactEmail</dd>
-                    <dt>Telefon</dt><dd>@(_booking.ContactPhone ?? "—")</dd>
-                    @if (_booking.IsOrganisation)
-                    {
-                        <dt>Organisation</dt><dd>@_booking.OrgName (@_booking.OrgNumber)</dd>
-                        <dt>Fakturaadress</dt><dd>@_booking.InvoiceAddress</dd>
-                    }
-                </dl>
-            </section>
+            <details class="detail-acc" open>
+                <summary class="detail-acc__head">
+                    <h2 class="detail-acc__title">Kontaktuppgifter</h2>
+                    <span class="detail-acc__meta">@_booking.ContactEmail</span>
+                    <span class="detail-acc__chev" aria-hidden="true">▾</span>
+                </summary>
+                <div class="detail-acc__body">
+                    <dl class="kv">
+                        <dt>Namn</dt><dd>@_booking.ContactName</dd>
+                        <dt>E-post</dt><dd>@_booking.ContactEmail</dd>
+                        <dt>Telefon</dt><dd>@(_booking.ContactPhone ?? "—")</dd>
+                        @if (_booking.IsOrganisation)
+                        {
+                            <dt>Organisation</dt><dd>@_booking.OrgName (@_booking.OrgNumber)</dd>
+                            <dt>Fakturaadress</dt><dd>@_booking.InvoiceAddress</dd>
+                        }
+                    </dl>
+                </div>
+            </details>
 
             @if (_booking.BookingType == BookingType.StayRequest)
             {
                 @* ── Stay ────────────────────────────────────────────── *@
-                <section class="detail-sec">
-                    <h2>Vistelse</h2>
-                    <dl class="kv">
-                        <dt>Incheckning</dt><dd>@(_booking.CheckIn?.ToString("yyyy-MM-dd") ?? "—")</dd>
-                        <dt>Utcheckning</dt><dd>@(_booking.CheckOut?.ToString("yyyy-MM-dd") ?? "—")</dd>
-                        <dt>Övernattande</dt><dd>@(_booking.OvernightGuestCount?.ToString() ?? "—")</dd>
-                        <dt>Dagsgäster</dt><dd>@(_booking.DayGuestCount?.ToString() ?? "—")</dd>
-                        <dt>Måltidsplan</dt><dd>@BookingDisplay.MealPlanLabel(_booking.MealPlan)</dd>
-                    </dl>
-
-                    @if (_booking.FacilitySelections.Count > 0)
-                    {
-                        <h3>Faciliteter</h3>
+                <details class="detail-acc" open>
+                    <summary class="detail-acc__head">
+                        <h2 class="detail-acc__title">Vistelse</h2>
+                        <span class="detail-acc__meta">@(_booking.CheckIn?.ToString("yyyy-MM-dd") ?? "—") – @(_booking.CheckOut?.ToString("yyyy-MM-dd") ?? "—")</span>
+                        <span class="detail-acc__chev" aria-hidden="true">▾</span>
+                    </summary>
+                    <div class="detail-acc__body">
                         <dl class="kv">
-                            @foreach (var f in _booking.FacilitySelections)
-                            {
-                                <dt>@f.FacilityNameSnapshot</dt><dd>@f.AmountExVatSnapshot.ToString("0.##") kr <span class="sub">exkl. moms</span></dd>
-                            }
+                            <dt>Incheckning</dt><dd>@(_booking.CheckIn?.ToString("yyyy-MM-dd") ?? "—")</dd>
+                            <dt>Utcheckning</dt><dd>@(_booking.CheckOut?.ToString("yyyy-MM-dd") ?? "—")</dd>
+                            <dt>Övernattande</dt><dd>@(_booking.OvernightGuestCount?.ToString() ?? "—")</dd>
+                            <dt>Dagsgäster</dt><dd>@(_booking.DayGuestCount?.ToString() ?? "—")</dd>
+                            <dt>Måltidsplan</dt><dd>@BookingDisplay.MealPlanLabel(_booking.MealPlan)</dd>
                         </dl>
-                    }
 
-                    @if (_booking.CleaningSelections.Count > 0)
-                    {
-                        <h3>Städning</h3>
-                        <dl class="kv">
-                            @foreach (var c in _booking.CleaningSelections)
-                            {
-                                <dt>@c.ZoneNameSnapshot</dt><dd>@c.AmountExVatSnapshot.ToString("0.##") kr <span class="sub">exkl. moms</span></dd>
-                            }
-                        </dl>
-                    }
-                </section>
+                        @if (_booking.FacilitySelections.Count > 0)
+                        {
+                            <h3>Faciliteter</h3>
+                            <dl class="kv">
+                                @foreach (var f in _booking.FacilitySelections)
+                                {
+                                    <dt>@f.FacilityNameSnapshot</dt><dd>@f.AmountExVatSnapshot.ToString("0.##") kr <span class="sub">exkl. moms</span></dd>
+                                }
+                            </dl>
+                        }
+
+                        @if (_booking.CleaningSelections.Count > 0)
+                        {
+                            <h3>Städning</h3>
+                            <dl class="kv">
+                                @foreach (var c in _booking.CleaningSelections)
+                                {
+                                    <dt>@c.ZoneNameSnapshot</dt><dd>@c.AmountExVatSnapshot.ToString("0.##") kr <span class="sub">exkl. moms</span></dd>
+                                }
+                            </dl>
+                        }
+                    </div>
+                </details>
 
                 @* Room-choice mode (FR-56) — set by the admin before the guest completes. *@
-                <section class="detail-sec">
-                    <h2>Rumsval</h2>
-                    <label class="paycheck">
-                        <input type="checkbox" @bind="_guestChoosesRooms" />
-                        Gästen väljer rum själv på slutförandeformuläret
-                    </label>
-                    <p class="action-note">Av: administratören tilldelar rummen nedan.</p>
-                    <button class="btn btn-sm" style="margin-top:0.6rem" @onclick="SaveGuestChoosesRooms">Spara rumsval-inställning</button>
-                </section>
+                <details class="detail-acc" open>
+                    <summary class="detail-acc__head">
+                        <h2 class="detail-acc__title">Rumsval</h2>
+                        <span class="detail-acc__meta">@(_guestChoosesRooms ? "Gästen väljer själv" : "Admin tilldelar")</span>
+                        <span class="detail-acc__chev" aria-hidden="true">▾</span>
+                    </summary>
+                    <div class="detail-acc__body">
+                        <label class="paycheck">
+                            <input type="checkbox" @bind="_guestChoosesRooms" />
+                            Gästen väljer rum själv på slutförandeformuläret
+                        </label>
+                        <p class="action-note">Av: administratören tilldelar rummen nedan.</p>
+                        <button class="btn btn-sm" style="margin-top:0.6rem" @onclick="SaveGuestChoosesRooms">Spara rumsval-inställning</button>
+                    </div>
+                </details>
             }
 
             @* ── Participants (after guest submission — FR-48) ────────── *@
             @if (_edits.Count > 0)
             {
-                <section class="detail-sec">
-                    <h2>Deltagare</h2>
-
-                    @if (_conflicts.Count > 0)
-                    {
-                        <div class="form-error" role="alert">
-                            <p>Rumskonflikter (fler tilldelade än bäddar):</p>
-                            <ul>
-                                @foreach (var c in _conflicts)
-                                {
-                                    <li>@c.RoomName (@c.BuildingName): @c.AssignedBeds tilldelade av @c.BedCount bäddar</li>
-                                }
-                            </ul>
-                        </div>
-                    }
-
-                    @foreach (var edit in _edits)
-                    {
-                        var participant = _participants.First(p => p.Id == edit.Id);
-                        var isOvernight = participant.ParticipantType == ParticipantType.Overnight;
-                        <fieldset class="participant">
-                            <legend>@(isOvernight ? "Övernattande gäst" : $"Dagsgäst ({participant.AttendanceDate:yyyy-MM-dd})")</legend>
-
-                            <div class="form-group">
-                                <label>Namn</label>
-                                <input @bind="edit.FullName" maxlength="200" />
-                            </div>
-
-                            <div class="form-group">
-                                <label>Ålderskategori</label>
-                                <select @bind="edit.AgeCategory">
-                                    @foreach (var age in AgeCategories)
+                <details class="detail-acc" open>
+                    <summary class="detail-acc__head">
+                        <h2 class="detail-acc__title">Deltagare</h2>
+                        <span class="detail-acc__meta">@_edits.Count st@(DietCount > 0 ? $" · {DietCount} specialkost" : "")</span>
+                        <span class="detail-acc__chev" aria-hidden="true">▾</span>
+                    </summary>
+                    <div class="detail-acc__body">
+                        @if (_conflicts.Count > 0)
+                        {
+                            <div class="form-error" role="alert">
+                                <p>Rumskonflikter (fler tilldelade än bäddar):</p>
+                                <ul>
+                                    @foreach (var c in _conflicts)
                                     {
-                                        <option value="@age">@AgeLabel(age)</option>
+                                        <li>@c.RoomName (@c.BuildingName): @c.AssignedBeds tilldelade av @c.BedCount bäddar</li>
                                     }
-                                </select>
+                                </ul>
                             </div>
+                        }
 
-                            @if (isOvernight)
-                            {
-                                <div class="form-group">
-                                    <label>Rum</label>
-                                    <select @bind="edit.RoomId">
-                                        <option value="">– ej tilldelat –</option>
-                                        @foreach (var group in _rooms.GroupBy(r => r.BuildingName))
+                        @foreach (var edit in _edits)
+                        {
+                            var participant = _participants.First(p => p.Id == edit.Id);
+                            var isOvernight = participant.ParticipantType == ParticipantType.Overnight;
+                            var editing = _editingParticipants.Contains(edit.Id);
+                            <fieldset class="participant" data-participant="@edit.Id">
+                                <legend>@(isOvernight ? "Övernattande gäst" : $"Dagsgäst ({participant.AttendanceDate:yyyy-MM-dd})")</legend>
+
+                                @if (!editing)
+                                {
+                                    @* Read view — opens on arrival instead of live inputs, so looking someone up on a
+                                       large booking doesn't render every field for every guest as editable by default. *@
+                                    <div class="participant-view">
+                                        <div class="participant-view__row">
+                                            <span class="participant-view__name">@edit.FullName</span>
+                                            <button type="button" class="edit-pencil" @onclick="() => ToggleParticipantEdit(edit.Id)">✎ Redigera</button>
+                                        </div>
+                                        <div class="participant-view__meta">
+                                            @AgeLabel(edit.AgeCategory)
+                                            @if (isOvernight)
+                                            {
+                                                @:· @(RoomName(edit.RoomId) ?? "ej tilldelat rum")
+                                            }
+                                            else if (edit.AttendsBreakfast)
+                                            {
+                                                @:· Deltar på frukost
+                                            }
+                                            @if (edit.Meals.Count > 0)
+                                            {
+                                                @:· @edit.Meals.Count måltidsval
+                                            }
+                                        </div>
+                                        @if (edit.Dietary.Count > 0 || !string.IsNullOrWhiteSpace(edit.DietaryNotes))
                                         {
-                                            <optgroup label="@group.Key">
-                                                @foreach (var room in group)
+                                            <div class="participant-view__diet">
+                                                @foreach (var diet in edit.Dietary)
                                                 {
-                                                    <option value="@room.Id">@room.Name (@room.BedCount bäddar)</option>
+                                                    <span class="chip">@DietaryLabel(diet)</span>
                                                 }
-                                            </optgroup>
-                                        }
-                                    </select>
-                                </div>
-                            }
-                            else
-                            {
-                                <div class="form-group">
-                                    <label><input type="checkbox" @bind="edit.AttendsBreakfast" /> Deltar på frukost</label>
-                                </div>
-                            }
-
-                            @if (edit.Meals.Count > 0)
-                            {
-                                <div class="form-group">
-                                    <span class="label">Måltider</span>
-                                    @foreach (var mealEdit in edit.Meals)
-                                    {
-                                        var meal = participant.MealPreferences.First(m => m.Id == mealEdit.Id);
-                                        var options = meal.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
-                                        <div class="form-row">
-                                            <label>@meal.Date.ToString("yyyy-MM-dd") @(meal.MealType == MealType.Lunch ? "lunch" : "middag")</label>
-                                            <select @bind="mealEdit.MealOptionId">
-                                                @foreach (var o in options)
+                                                @if (!string.IsNullOrWhiteSpace(edit.DietaryNotes))
                                                 {
-                                                    <option value="@o.Id">@o.Name</option>
+                                                    <span class="chip">@edit.DietaryNotes</span>
+                                                }
+                                            </div>
+                                        }
+                                    </div>
+                                }
+                                else
+                                {
+                                    <div class="form-group">
+                                        <label>Namn</label>
+                                        <input @bind="edit.FullName" maxlength="200" />
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Ålderskategori</label>
+                                        <select @bind="edit.AgeCategory">
+                                            @foreach (var age in AgeCategories)
+                                            {
+                                                <option value="@age">@AgeLabel(age)</option>
+                                            }
+                                        </select>
+                                    </div>
+
+                                    @if (isOvernight)
+                                    {
+                                        <div class="form-group">
+                                            <label>Rum</label>
+                                            <select @bind="edit.RoomId">
+                                                <option value="">– ej tilldelat –</option>
+                                                @foreach (var group in _rooms.GroupBy(r => r.BuildingName))
+                                                {
+                                                    <optgroup label="@group.Key">
+                                                        @foreach (var room in group)
+                                                        {
+                                                            <option value="@room.Id">@room.Name (@room.BedCount bäddar)</option>
+                                                        }
+                                                    </optgroup>
                                                 }
                                             </select>
                                         </div>
                                     }
-                                </div>
-                            }
+                                    else
+                                    {
+                                        <div class="form-group">
+                                            <label><input type="checkbox" @bind="edit.AttendsBreakfast" /> Deltar på frukost</label>
+                                        </div>
+                                    }
 
-                            <div class="form-group">
-                                <span class="label">Kostbehov</span>
-                                @foreach (var diet in DietaryOptions)
-                                {
-                                    <label class="form-check">
-                                        <input type="checkbox" checked="@edit.Dietary.Contains(diet)"
-                                               @onchange="e => ToggleDietary(edit, diet, (bool)(e.Value ?? false))" />
-                                        @DietaryLabel(diet)
-                                    </label>
+                                    @if (edit.Meals.Count > 0)
+                                    {
+                                        <div class="form-group">
+                                            <span class="label">Måltider</span>
+                                            @foreach (var mealEdit in edit.Meals)
+                                            {
+                                                var meal = participant.MealPreferences.First(m => m.Id == mealEdit.Id);
+                                                var options = meal.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
+                                                <div class="form-row">
+                                                    <label>@meal.Date.ToString("yyyy-MM-dd") @(meal.MealType == MealType.Lunch ? "lunch" : "middag")</label>
+                                                    <select @bind="mealEdit.MealOptionId">
+                                                        @foreach (var o in options)
+                                                        {
+                                                            <option value="@o.Id">@o.Name</option>
+                                                        }
+                                                    </select>
+                                                </div>
+                                            }
+                                        </div>
+                                    }
+
+                                    <div class="form-group">
+                                        <span class="label">Kostbehov</span>
+                                        @foreach (var diet in DietaryOptions)
+                                        {
+                                            <label class="form-check">
+                                                <input type="checkbox" checked="@edit.Dietary.Contains(diet)"
+                                                       @onchange="e => ToggleDietary(edit, diet, (bool)(e.Value ?? false))" />
+                                                @DietaryLabel(diet)
+                                            </label>
+                                        }
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label>Kostanteckning</label>
+                                        <input @bind="edit.DietaryNotes" maxlength="200" />
+                                    </div>
+
+                                    <button type="button" class="btn-outline btn-sm" @onclick="() => ToggleParticipantEdit(edit.Id)">Klar</button>
                                 }
-                            </div>
+                            </fieldset>
+                        }
 
-                            <div class="form-group">
-                                <label>Kostanteckning</label>
-                                <input @bind="edit.DietaryNotes" maxlength="200" />
-                            </div>
-                        </fieldset>
-                    }
-
-                    <button class="btn" @onclick="SaveParticipants">Spara deltagaruppgifter</button>
-                </section>
+                        <button class="btn" @onclick="SaveParticipants">Spara deltagaruppgifter</button>
+                    </div>
+                </details>
             }
 
             @* ── Guest message / denial / cancellation ────────────────── *@
             @if (!string.IsNullOrWhiteSpace(_booking.Message))
             {
-                <section class="detail-sec">
-                    <h2>Meddelande</h2>
-                    <p style="white-space:pre-wrap">@_booking.Message</p>
-                </section>
+                <details class="detail-acc" open>
+                    <summary class="detail-acc__head">
+                        <h2 class="detail-acc__title">Meddelande</h2>
+                        <span class="detail-acc__chev" aria-hidden="true">▾</span>
+                    </summary>
+                    <div class="detail-acc__body">
+                        <p style="white-space:pre-wrap">@_booking.Message</p>
+                    </div>
+                </details>
             }
 
             @if (_booking.Status == BookingStatus.Denied && !string.IsNullOrWhiteSpace(_booking.DenialReason))
             {
-                <section class="detail-sec">
-                    <h2>Avslagsmotivering</h2>
-                    <p style="white-space:pre-wrap">@_booking.DenialReason</p>
-                </section>
+                <details class="detail-acc" open>
+                    <summary class="detail-acc__head">
+                        <h2 class="detail-acc__title">Avslagsmotivering</h2>
+                        <span class="detail-acc__chev" aria-hidden="true">▾</span>
+                    </summary>
+                    <div class="detail-acc__body">
+                        <p style="white-space:pre-wrap">@_booking.DenialReason</p>
+                    </div>
+                </details>
             }
 
             @if (_booking.Status == BookingStatus.Cancelled)
             {
-                <section class="detail-sec">
-                    <h2>Avbokning</h2>
-                    <dl class="kv">
-                        <dt>Initiativtagare</dt><dd>@(_booking.CancellationInitiator == CancellationInitiator.GuestInitiated ? "Gäst" : "Anläggning")</dd>
-                        @if (!string.IsNullOrWhiteSpace(_booking.CancellationReason))
-                        {
-                            <dt>Orsak</dt><dd>@_booking.CancellationReason</dd>
-                        }
-                    </dl>
-                </section>
+                <details class="detail-acc" open>
+                    <summary class="detail-acc__head">
+                        <h2 class="detail-acc__title">Avbokning</h2>
+                        <span class="detail-acc__chev" aria-hidden="true">▾</span>
+                    </summary>
+                    <div class="detail-acc__body">
+                        <dl class="kv">
+                            <dt>Initiativtagare</dt><dd>@(_booking.CancellationInitiator == CancellationInitiator.GuestInitiated ? "Gäst" : "Anläggning")</dd>
+                            @if (!string.IsNullOrWhiteSpace(_booking.CancellationReason))
+                            {
+                                <dt>Orsak</dt><dd>@_booking.CancellationReason</dd>
+                            }
+                        </dl>
+                    </div>
+                </details>
             }
         </div>
 
@@ -462,6 +545,9 @@ else
     private IReadOnlyList<RoomConflict> _conflicts = [];
     private List<MealOption> _lunchOptions = [];
     private List<MealOption> _dinnerOptions = [];
+    private readonly HashSet<Guid> _editingParticipants = [];
+
+    private int DietCount => _edits.Count(e => e.Dietary.Count > 0);
 
     private static readonly AgeCategory[] AgeCategories =
         [AgeCategory.Adult, AgeCategory.Child, AgeCategory.Infant];
@@ -539,6 +625,16 @@ else
         else edit.Dietary.Remove(diet);
     }
 
+    private void ToggleParticipantEdit(Guid participantId)
+    {
+        if (!_editingParticipants.Add(participantId)) _editingParticipants.Remove(participantId);
+    }
+
+    // RoomInfo is a readonly record struct (not a reference type), so FirstOrDefault can't be
+    // null-conditioned with ?. — project through Select first so the lookup itself yields string?.
+    private string? RoomName(Guid? roomId) =>
+        roomId is null ? null : _rooms.Where(r => r.Id == roomId).Select(r => r.Name).FirstOrDefault();
+
     private static string AgeLabel(AgeCategory age) => age switch
     {
         AgeCategory.Adult => "Vuxen (13+)",
@@ -569,6 +665,7 @@ else
     {
         await BookingService.SaveParticipantEditsAsync(Id, _edits);
         _message = "Deltagaruppgifterna är sparade.";
+        _editingParticipants.Clear();
         await Load();
     }
 

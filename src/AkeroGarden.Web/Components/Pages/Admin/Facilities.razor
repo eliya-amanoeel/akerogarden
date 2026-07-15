@@ -63,6 +63,29 @@ else
             </tbody>
         </table>
     </div>
+
+    <div class="data-cards">
+        @foreach (var f in _facilities)
+        {
+            <AdminDataCard Title="@f.Name" OnClick="() => OpenEdit(f)">
+                <Badge>
+                    @if (f.IsActive)
+                    {
+                        <span class="badge badge--approved">Aktiv</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge--neutral">Inaktiv</span>
+                    }
+                </Badge>
+                <Fields>
+                    <div><dt>Ordning</dt><dd>@f.DisplayOrder</dd></div>
+                    <div><dt>Fysisk byggnad</dt><dd>@(f.PhysicalBuildingId is null ? "—" : PhysicalBuildingName(f.PhysicalBuildingId.Value))</dd></div>
+                    <div><dt>Bild</dt><dd>@(string.IsNullOrEmpty(f.ImageUrl) ? "—" : "Ja")</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
 }
 
 <EditForm Model="_form" OnValidSubmit="Save">

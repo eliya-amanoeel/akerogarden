@@ -828,4 +828,130 @@ public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
         Assert.True(docScrollWidth <= Mobile.Width + 1,
             $"Page overflows horizontally at {Mobile.Width}px: scrollWidth={docScrollWidth}.");
     }
+
+    /// <summary>Admin panel mobile polish: below 640px every list page swaps its .admin-table for a
+    /// .data-cards list instead of scrolling sideways. Checks the actual swap (table hidden, card
+    /// visible with the same data) and that the card is still a working link to the detail page,
+    /// not just that some mobile class exists.</summary>
+    [Fact]
+    public async Task Bookings_list_swaps_the_table_for_cards_on_mobile()
+    {
+        await LoginAsync();
+        await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
+        await Page.GotoAsync("/admin/bokningar");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await Assertions.Expect(Page.Locator(".admin-table-wrap")).Not.ToBeVisibleAsync();
+        var cards = Page.Locator(".data-cards .data-card");
+        await Assertions.Expect(cards.First).ToBeVisibleAsync();
+
+        var pendlarCard = cards.Filter(new() { HasText = "Familjen Pendlar" }).First;
+        await Assertions.Expect(pendlarCard.Locator(".badge")).ToBeVisibleAsync();
+
+        // The card itself is the tap target — same navigation the desktop row link offers.
+        await pendlarCard.ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/admin/bokningar/[0-9a-fA-F-]+$"));
+
+        var docScrollWidth = await Page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
+        Assert.True(docScrollWidth <= Mobile.Width + 1,
+            $"Bookings list overflows horizontally at {Mobile.Width}px: scrollWidth={docScrollWidth}.");
+    }
+
+    /// <summary>Admin panel polish: a completed booking's participants no longer load as N fully
+    /// expanded edit forms. Each participant starts as a compact read-only summary; only clicking
+    /// "Redigera" reveals the actual input fields for that one person, and saving reaches the
+    /// database (not just a UI-only toggle).</summary>
+    [Fact]
+    public async Task Participant_starts_read_only_and_toggles_into_edit_mode_on_its_own()
+    {
+        var bookingId = Guid.NewGuid();
+        var keptParticipantId = Guid.NewGuid();
+        var editedParticipantId = Guid.NewGuid();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Bookings.Add(new Booking
+            {
+                Id = bookingId,
+                BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
+                BookingType = BookingType.StayRequest,
+                Status = BookingStatus.DetailsComplete,
+                ContactName = "Familjen Radhus",
+                ContactEmail = "radhus@example.se",
+                CheckIn = today.AddDays(60),
+                CheckOut = today.AddDays(62),
+                OvernightGuestCount = 2,
+                MealPlan = MealPlan.FullBoardAll,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                DeleteAfter = today.AddYears(1),
+            });
+            db.Participants.Add(new Participant
+            {
+                Id = keptParticipantId,
+                BookingId = bookingId,
+                FullName = "Karin Radhus",
+                ParticipantType = ParticipantType.Overnight,
+                AgeCategory = AgeCategory.Adult,
+                DietaryRequirements = [DietaryRequirement.Vegetarian],
+            });
+            db.Participants.Add(new Participant
+            {
+                Id = editedParticipantId,
+                BookingId = bookingId,
+                FullName = "Olle Radhus",
+                ParticipantType = ParticipantType.Overnight,
+                AgeCategory = AgeCategory.Adult,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync($"/admin/bokningar/{bookingId}");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var section = Page.Locator(".detail-acc", new() { HasText = "Deltagare" });
+            await Assertions.Expect(section).ToContainTextAsync("2 st");
+
+            // Selector keys off the stable participant ID (data-participant), not visible text — the
+            // name only exists as text in read view and becomes an <input value> once editing, so a
+            // HasText-based locator would stop matching its own fieldset the moment it toggles.
+            var olleCard = Page.Locator($"fieldset.participant[data-participant='{editedParticipantId}']");
+            var karinCard = Page.Locator($"fieldset.participant[data-participant='{keptParticipantId}']");
+
+            // Read view first: the name is plain text and no input for it exists yet.
+            await Assertions.Expect(olleCard.Locator(".participant-view__name")).ToHaveTextAsync("Olle Radhus");
+            await Assertions.Expect(olleCard.Locator("input")).Not.ToBeVisibleAsync();
+
+            // The other participant's dietary chip is visible from the summary alone, unedited.
+            await Assertions.Expect(karinCard.Locator(".chip")).ToContainTextAsync("Vegetarian");
+
+            // Opening edit on Olle reveals the real bound input, prefilled with the current name.
+            await olleCard.Locator(".edit-pencil").ClickAsync();
+            var nameInput = olleCard.Locator("input").First;
+            await Assertions.Expect(nameInput).ToHaveValueAsync("Olle Radhus");
+
+            await nameInput.FillAsync("Olle Radhusson");
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Spara deltagaruppgifter" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("Deltagaruppgifterna är sparade.");
+
+            // Honest cross-check: the edit actually reached the database, not just the DOM.
+            await using var db = Fixture.NewDbContext();
+            var reloaded = await db.Participants.FindAsync(editedParticipantId);
+            Assert.Equal("Olle Radhusson", reloaded!.FullName);
+
+            // Saving returns every row to its read view (closed, not left mid-edit).
+            await Assertions.Expect(olleCard.Locator("input")).Not.ToBeVisibleAsync();
+            await Assertions.Expect(olleCard.Locator(".participant-view__name")).ToHaveTextAsync("Olle Radhusson");
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Participants.Where(p => p.BookingId == bookingId).ExecuteDeleteAsync();
+            await db.Bookings.Where(b => b.Id == bookingId).ExecuteDeleteAsync();
+        }
+    }
 }

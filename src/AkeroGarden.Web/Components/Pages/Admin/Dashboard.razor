@@ -5,6 +5,7 @@
 @using AkeroGarden.Web.Data.Entities
 @using AkeroGarden.Web.Services
 @inject BookingService BookingService
+@inject NavigationManager Nav
 @attribute [Authorize]
 
 <PageTitle>Översikt — Åkerögården Admin</PageTitle>
@@ -53,6 +54,18 @@ else
                         </tbody>
                     </table>
                 </div>
+                <div class="data-cards">
+                    @foreach (var b in _pending.Take(6))
+                    {
+                        <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
+                            <Badge>@Badge(b.Status)</Badge>
+                            <Sub>@BookingDisplay.TypeLabel(b.BookingType)@GuestSuffix(b)</Sub>
+                            <Fields>
+                                <div><dt>Datum</dt><dd>@DateRange(b)</dd></div>
+                            </Fields>
+                        </AdminDataCard>
+                    }
+                </div>
             }
         </section>
 
@@ -83,6 +96,15 @@ else
                             }
                         </tbody>
                     </table>
+                </div>
+                <div class="data-cards">
+                    @foreach (var b in _awaitingCompletion.Take(6))
+                    {
+                        <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
+                            <Badge>@ExpiryBadge(b)</Badge>
+                            <Sub>Godkänd@(GuestSuffix(b))</Sub>
+                        </AdminDataCard>
+                    }
                 </div>
             }
         </section>
@@ -125,6 +147,19 @@ else
                     </tbody>
                 </table>
             </div>
+            <div class="data-cards">
+                @foreach (var b in _upcoming.Take(12))
+                {
+                    <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
+                        <Badge>@Badge(b.Status)</Badge>
+                        <Fields>
+                            <div><dt>Datum</dt><dd>@b.CheckIn?.ToString("d MMM", Sv)</dd></div>
+                            <div><dt>Gäster</dt><dd>@(b.OvernightGuestCount?.ToString() ?? "—")</dd></div>
+                            <div><dt>Måltider</dt><dd>@BookingDisplay.MealPlanLabel(b.MealPlan)</dd></div>
+                        </Fields>
+                    </AdminDataCard>
+                }
+            </div>
         }
     </section>
 }
@@ -136,6 +171,8 @@ else
     private List<Booking> _pending = [];
     private List<Booking> _awaitingCompletion = [];
     private List<Booking> _upcoming = [];
+
+    private void GoToBooking(Guid id) => Nav.NavigateTo($"/admin/bokningar/{id}");
 
     protected override async Task OnInitializedAsync()
     {

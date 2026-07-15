@@ -51,6 +51,18 @@ else
             </tbody>
         </table>
     </div>
+
+    <div class="data-cards">
+        @foreach (var p in _blocks)
+        {
+            <AdminDataCard Title="@($"{p.StartDate:yyyy-MM-dd} – {p.EndDate:yyyy-MM-dd}")" OnClick="() => OpenEdit(p)">
+                <Sub>@BookingDisplay.ScopeLabel(p.Scope) · @TargetLabel(p)</Sub>
+                <Fields>
+                    <div><dt>Orsak</dt><dd>@(p.Reason ?? "—")</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
 }
 
 <EditForm Model="_form" OnValidSubmit="Save">

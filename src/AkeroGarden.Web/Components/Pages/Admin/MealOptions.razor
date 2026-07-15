@@ -61,6 +61,29 @@ else
             </tbody>
         </table>
     </div>
+
+    <div class="data-cards">
+        @foreach (var m in _mealOptions)
+        {
+            <AdminDataCard Title="@m.Name" OnClick="() => OpenEdit(m)">
+                <Badge>
+                    @if (m.IsActive)
+                    {
+                        <span class="badge badge--approved">Aktiv</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge--neutral">Inaktiv</span>
+                    }
+                </Badge>
+                <Fields>
+                    <div><dt>Ordning</dt><dd>@m.DisplayOrder</dd></div>
+                    <div><dt>Måltid</dt><dd>@MealTypeLabel(m.MealType)</dd></div>
+                    <div><dt>Vegetariskt</dt><dd>@(m.IsVegetarian ? "Ja" : "Nej")</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
 }
 
 <EditForm Model="_form" OnValidSubmit="Save">

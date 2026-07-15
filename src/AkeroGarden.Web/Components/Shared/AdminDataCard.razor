@@ -1,0 +1,36 @@
+@* Mobile card counterpart to a single <tr> in an .admin-table (see .data-cards / .data-card in
+   site.css). Every reference-data/list admin page renders one of these per row, alongside the
+   table, so the same data reads as a stacked card below the 640px breakpoint instead of forcing
+   sideways scrolling. Fields mirrors the table's <td>s as label/value rows. *@
+
+<div class="data-card @(OnClick.HasDelegate ? "data-card--clickable" : "")" @onclick="OnClick">
+    <div class="data-card__head">
+        <span class="data-card__title">@Title</span>
+        @Badge
+    </div>
+    @if (Sub is not null)
+    {
+        <div class="data-card__sub">@Sub</div>
+    }
+    @if (Fields is not null)
+    {
+        <dl class="data-card__fields">
+            @Fields
+        </dl>
+    }
+    @if (Actions is not null)
+    {
+        <div class="data-card__actions" @onclick:stopPropagation="true">
+            @Actions
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? Title { get; set; }
+    [Parameter] public RenderFragment? Badge { get; set; }
+    [Parameter] public RenderFragment? Sub { get; set; }
+    [Parameter] public RenderFragment? Fields { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+    [Parameter] public EventCallback OnClick { get; set; }
+}

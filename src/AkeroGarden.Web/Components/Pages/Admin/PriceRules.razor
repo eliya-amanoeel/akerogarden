@@ -64,6 +64,30 @@ else
             </tbody>
         </table>
     </div>
+
+    <div class="data-cards">
+        @foreach (var p in _priceRules)
+        {
+            <AdminDataCard Title="@p.Label" OnClick="() => OpenEdit(p)">
+                <Badge>
+                    @if (p.IsActive)
+                    {
+                        <span class="badge badge--approved">Aktiv</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge--neutral">Inaktiv</span>
+                    }
+                </Badge>
+                <Fields>
+                    <div><dt>Belopp exkl. moms</dt><dd>@p.AmountExVat.ToString("0.00") kr</dd></div>
+                    <div><dt>Momssats</dt><dd>@p.VatRate.ToString("0.##%")</dd></div>
+                    <div><dt>Enhet</dt><dd>@p.Unit</dd></div>
+                    <div><dt>Säsong</dt><dd>@SeasonText(p)</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
 }
 
 <EditForm Model="_form" OnValidSubmit="Save">

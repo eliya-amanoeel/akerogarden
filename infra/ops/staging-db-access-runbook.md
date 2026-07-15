@@ -60,7 +60,7 @@
 ### Steps
 
 1. Open **Cloud Shell** (portal top bar, or the PostgreSQL resource's CLI/PS option) — no VNet integration needed.
-2. Drop and recreate the (empty) database. The database name is `akerogarden` (see the connection string in `infra/main.bicep`); the parameter is **`--name`/`-n`**, *not* `--database-name`:
+2. Drop and recreate the (empty) database. The database name is `akerogarden` (see the connection string in `infra/azure/main.bicep`); the parameter is **`--name`/`-n`**, *not* `--database-name`:
    ```bash
    az postgres flexible-server db delete \
      --resource-group akerogarden-staging --server-name akerogarden-staging-pg \

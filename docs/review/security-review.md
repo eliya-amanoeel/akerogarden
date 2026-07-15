@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-08
 **Scope:** Phase 7 hardening security pass over the security NFRs — **NFR-01–07, NFR-25, NFR-30** — plus authentication/session hardening, antiforgery, rate limiting, secrets management, and the parked hardening items (ForwardedHeaders real-client-IP, DataProtection key durability).
-**Method:** static review of `src/AkeroGarden.Web/Program.cs`, the Identity/cookie/antiforgery config, the public/admin routing, the Bicep infrastructure (`infra/main.bicep` + parameter files), and the test suite. Items whose behaviour is only observable in a real Azure environment (HTTPS/HSTS at the edge, VNet isolation, DataProtection keys surviving a platform recycle) are **code/config-verified here and flagged for live verification in Phase 10** when production/staging Azure is exercised.
+**Method:** static review of `src/AkeroGarden.Web/Program.cs`, the Identity/cookie/antiforgery config, the public/admin routing, the Bicep infrastructure (`infra/azure/main.bicep` + parameter files), and the test suite. Items whose behaviour is only observable in a real Azure environment (HTTPS/HSTS at the edge, VNet isolation, DataProtection keys surviving a platform recycle) are **code/config-verified here and flagged for live verification in Phase 10** when production/staging Azure is exercised.
 
 > This is the Phase 7 gate deliverable required by `.claude/CLAUDE.md` → "Phase completion gate" §5 (Security). Blunt by design.
 

@@ -11,7 +11,7 @@ Redis, Blob) to an **Application Insights** resource, via the OpenTelemetry .NET
 `APPLICATIONINSIGHTS_CONNECTION_STRING` is set — Bicep sets it in staging/prod; local dev has
 no connection string, so nothing is exported there (console logging only, same as before).
 
-Resource names (from `infra/main.bicep`, output `appInsightsName`):
+Resource names (from `infra/azure/main.bicep`, output `appInsightsName`):
 - Production: `akerogarden-prod-appinsights`
 - Staging: `akerogarden-staging-appinsights`
 
@@ -101,4 +101,4 @@ to start, since .NET rolls a runtime *forward* but never backward):
 
 Net effect: no re-pinning is needed when Azure bumps the platform patch. To move to a new .NET
 **minor/major**, bump `TargetFramework` and `global.json` together, and update `linuxFxVersion`
-in `infra/main.bicep` in the same change.
+in `infra/azure/main.bicep` in the same change.

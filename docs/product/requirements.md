@@ -54,7 +54,7 @@
 
 **Changes from v0.37:**
 
-- **§11 hosting cost table corrected against live Azure retail prices (North Europe, July 2026).** The Azure Managed Redis (Balanced B0) line was overstated at **~$45/month**; the actual retail price is **$0.018/hour ≈ ~$13/month** (single consumption meter, verified via the Azure Retail Prices API — the ~$45 figure in the v0.35 changelog below was an unvalidated estimate made during the Azure Cache → Managed Redis migration). The Postgres row now shows its 32 GB storage (~$4/month) separately from compute (~$13/month). Corrected **production total: ~$72–73 → ~$45/month.** §11.1 staging estimate and `infra/README.md` updated to match. No infrastructure or SKU change — figures only.
+- **§11 hosting cost table corrected against live Azure retail prices (North Europe, July 2026).** The Azure Managed Redis (Balanced B0) line was overstated at **~$45/month**; the actual retail price is **$0.018/hour ≈ ~$13/month** (single consumption meter, verified via the Azure Retail Prices API — the ~$45 figure in the v0.35 changelog below was an unvalidated estimate made during the Azure Cache → Managed Redis migration). The Postgres row now shows its 32 GB storage (~$4/month) separately from compute (~$13/month). Corrected **production total: ~$72–73 → ~$45/month.** §11.1 staging estimate and `infra/azure/README.md` updated to match. No infrastructure or SKU change — figures only.
 
 **Changes from v0.36:**
 

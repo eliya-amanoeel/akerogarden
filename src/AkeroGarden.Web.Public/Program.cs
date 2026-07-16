@@ -1,4 +1,4 @@
-using AkeroGarden.Web.Components;
+using AkeroGarden.Web.Public.Components;
 using AkeroGarden.Web.Core.Data;
 using AkeroGarden.Web.Core.Services;
 using Azure.Monitor.OpenTelemetry.AspNetCore;

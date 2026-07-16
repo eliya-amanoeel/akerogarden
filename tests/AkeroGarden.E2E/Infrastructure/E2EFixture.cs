@@ -330,7 +330,7 @@ public sealed class E2EFixture : IAsyncLifetime
         if (dir is null)
             throw new InvalidOperationException("Could not locate the repository root (AkeroGarden.slnx).");
 
-        var csproj = Path.Combine(dir.FullName, "src", "AkeroGarden.Web", "AkeroGarden.Web.csproj");
+        var csproj = Path.Combine(dir.FullName, "src", "AkeroGarden.Web.Public", "AkeroGarden.Web.Public.csproj");
         if (!File.Exists(csproj))
             throw new InvalidOperationException($"Web project not found at {csproj}.");
 

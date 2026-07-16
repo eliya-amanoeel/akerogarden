@@ -23,7 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\AkeroGarden.Web\AkeroGarden.Web.csproj" />
+    <ProjectReference Include="..\..\src\AkeroGarden.Web.Public\AkeroGarden.Web.Public.csproj" />
   </ItemGroup>
 
 </Project>

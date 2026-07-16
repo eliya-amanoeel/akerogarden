@@ -26,7 +26,7 @@
        DbContext/services directly in later slices). The app itself is launched out-of-process
        against a real Kestrel port — see E2EFixture. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\AkeroGarden.Web\AkeroGarden.Web.csproj" />
+    <ProjectReference Include="..\..\src\AkeroGarden.Web.Public\AkeroGarden.Web.Public.csproj" />
   </ItemGroup>
 
 </Project>

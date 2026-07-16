@@ -8,15 +8,15 @@
     "postgresAdminLogin": { "value": "akerogarden_admin" },
     "postgresAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
     "smtpPort": { "value": 465 },
-    "smtpFromAddress": { "value": "temp@amaeli.se" },
+    "smtpFromAddress": { "value": "staging@akerogarden.se" },
     "smtpUsername": { "value": "REPLACE_VIA_CI_SECRET" },
     "smtpPassword": { "value": "REPLACE_VIA_CI_SECRET" },
     "seedAdminEmail": { "value": "REPLACE_AT_DEPLOY" },
     "seedAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
-    "customHostnames": { "value": [] },
-    "publicBaseUrl": { "value": "https://akerogarden-staging-app.azurewebsites.net" },
-    "adminBaseUrl": { "value": "https://akerogarden-staging-app.azurewebsites.net" },
-    "adminNotificationEmail": { "value": "temp@amaeli.se" },
-    "contactEmail": { "value": "temp@amaeli.se" }
+    "customHostnames": { "value": ["staging.akerogarden.se", "admin.staging.akerogarden.se"] },
+    "publicBaseUrl": { "value": "https://staging.akerogarden.se" },
+    "adminBaseUrl": { "value": "https://admin.staging.akerogarden.se" },
+    "adminNotificationEmail": { "value": "staging@akerogarden.se" },
+    "contactEmail": { "value": "staging@akerogarden.se" }
   }
 }

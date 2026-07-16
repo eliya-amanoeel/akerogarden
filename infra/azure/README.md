@@ -4,8 +4,9 @@ Bicep templates for Åkerögården. Both production and staging deploy from the 
 `main.bicep` with different parameter files (`staging.parameters.json`,
 `prod.parameters.json`).
 
-> **Status:** staging is provisioned in **Sweden Central** (`akerogarden-staging`).
-> Production is deferred to Phase 6.
+> **Status:** staging is provisioned in **Sweden Central** (`akerogarden-staging`), currently in the developer's personal (MSDN) subscription.
+> **Phase 10a** recreates staging fresh in the **client's own Azure subscription/tenant** (a new PAYG subscription) with a real subdomain split — `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin) — instead of today's Azure default hostname; the old MSDN-hosted copy is deleted once the new one is verified. This is a redeploy from these same Bicep templates, not a migration — Azure's resource-move feature doesn't work across tenants.
+> Production is provisioned directly in the client's tenant in **Phase 10b**.
 
 ## What `main.bicep` creates
 
@@ -17,6 +18,17 @@ delegated app/db subnets, private DNS zone for Postgres, and Blob storage.
 Redis (Azure Managed Redis, Balanced B0 — the successor to the retired classic Azure
 Cache for Redis) backs the inquiry rate limiter (NFR-04); its connection string is stored
 in Key Vault and read by the app via managed identity.
+
+## Naming
+
+The resource-group name stays `akerogarden-staging` / `akerogarden-prod`, but every resource
+*inside* it is named from a `jmk-ag-<environmentName>` prefix (`jmk-ag-staging-app`,
+`jmk-ag-staging-kv`, etc. — `jmk` = Jungfru Maria Kyrkan, the church that owns the project;
+`ag` = Åkerögården), not `akerogarden-<environmentName>-*`. This was changed during Phase 10a:
+several of these names are globally unique across **all** of Azure, not just this subscription
+(App Service hostname, Storage Account, Key Vault, Azure Managed Redis, Postgres Flexible
+Server), and the plain `akerogarden-staging-*` names collided with unrelated resources —
+see the gotchas below.
 
 ## Prerequisites
 
@@ -49,70 +61,91 @@ az deployment group create \
 Verify the DB is not publicly reachable:
 
 ```bash
-az postgres flexible-server show -g akerogarden-staging -n akerogarden-staging-pg \
+az postgres flexible-server show -g akerogarden-staging -n jmk-ag-staging-pg \
   --query "network.publicNetworkAccess" -o tsv   # expect: Disabled
 ```
 
-## 2. Wire the GitHub deploy pipeline (one-time, manual)
+## 2. Wire the Azure DevOps deploy pipeline (one-time, manual)
 
-The `Deploy — Staging` workflow deploys on CI success on `main`. It needs a GitHub
-**environment** named `staging` with one variable and one secret:
-
-```bash
-# Create the 'staging' environment first (GitHub UI: Settings → Environments → New),
-# or via API:
-gh api -X PUT repos/<owner>/<repo>/environments/staging --silent
-
-# App name (variable)
-gh variable set AZURE_APP_NAME --env staging --body "akerogarden-staging-app"
-
-# Publish profile (secret) — piped straight from Azure, never written to disk
-az webapp deployment list-publishing-profiles \
-  --resource-group akerogarden-staging \
-  --name akerogarden-staging-app \
-  --xml | gh secret set AZURE_PUBLISH_PROFILE --env staging
-```
-
-Publish-profile (basic-auth) deploys must be allowed on the App Service — they are by
-default; confirm with:
+CI/CD moved from GitHub Actions to Azure DevOps (`dev.azure.com/akerogarden/akerogarden`)
+during Phase 10a. Deploys authenticate via a **service connection** backed by a service
+principal (`akerogarden-devops-deploy`) — not a publish-profile secret — so there is no
+per-environment credential to regenerate on every re-provision:
 
 ```bash
-az resource show -g akerogarden-staging --namespace Microsoft.Web \
-  --resource-type basicPublishingCredentialsPolicies --name scm \
-  --parent sites/akerogarden-staging-app --query "properties.allow" -o tsv  # expect: true
+# One-time: service principal scoped to the resource group, then wired as a
+# service connection named "akerogarden-azure-connection" in the Azure DevOps project.
+az ad sp create-for-rbac --name "akerogarden-devops-deploy" \
+  --role Contributor \
+  --scopes "/subscriptions/<sub-id>/resourceGroups/akerogarden-staging"
+
+az devops service-endpoint azurerm create \
+  --azure-rm-service-principal-id <appId> \
+  --azure-rm-subscription-id <sub-id> \
+  --azure-rm-subscription-name "Åkerögården" \
+  --azure-rm-tenant-id <tenant-id> \
+  --name "akerogarden-azure-connection" \
+  --org https://dev.azure.com/akerogarden --project akerogarden
 ```
+
+When re-provisioning (a new resource group, e.g. a future tenant move), add a role
+assignment for the *same* service principal scoped to the new resource group — the
+service connection itself doesn't need to change.
+
+The `Deploy - Staging` pipeline (`azure-pipelines-deploy-staging.yml`) is manual-only
+(`trigger: none`) — run it from Pipelines → Deploy - Staging → Run pipeline. The first
+run against a fresh service connection prompts "This pipeline needs permission to
+access resources" — click Authorize once.
 
 ## 3. First deploy
 
-Merging to `main` triggers CI → `Deploy — Staging`. The app applies EF migrations and
+Run `Deploy - Staging` manually from Azure Pipelines. The app applies EF migrations and
 seeds the admin **on startup, inside the VNet** (the VNet-only DB is unreachable from
-CI runners, so migrations cannot run from the pipeline — only from the running app).
+hosted agents, so migrations cannot run from the pipeline — only from the running app).
 
-## Deploy production (Phase 6)
+## Recreate staging in the client's tenant (Phase 10a)
 
-Same as staging with `prod.parameters.json` and a `akerogarden-prod` resource group.
-Production also binds the custom domains (`akerogarden.se`, `admin.akerogarden.se`) and
-the staging custom subdomain (`staging.akerogarden.se`) + managed SSL via `ssl.bicep`,
-after DNS is configured. See `ssl.bicep` and the Phase 6 plan.
+Same steps as "Provision staging" above, but targeting the client's subscription: switch
+context first (`az login --tenant <client-tenant-id>`, `az account set --subscription
+<client-sub-id>`), then deploy with `staging.parameters.json` updated so `customHostnames`
+binds `staging.akerogarden.se` + `admin.staging.akerogarden.se`, and re-run steps 2–3
+(add a role assignment for `akerogarden-devops-deploy` scoped to the new resource group,
+re-verify the first deploy). Once verified, delete the old `akerogarden-staging` resource
+group in the MSDN subscription.
+
+## Deploy production (Phase 10b)
+
+Same as staging with `prod.parameters.json` and a `akerogarden-prod` resource group, in the
+client's tenant. Production also binds the custom domains (`akerogarden.se`,
+`admin.akerogarden.se`) + managed SSL via `ssl.bicep`, after DNS is configured. Staging's own
+custom subdomains are bound separately in Phase 10a. See `ssl.bicep` and the Phase 10a/10b plan.
 
 ## Power staging down (save cost)
 
 ```bash
-az webapp stop --resource-group akerogarden-staging --name akerogarden-staging-app
-az postgres flexible-server stop --resource-group akerogarden-staging --name akerogarden-staging-pg
+az webapp stop --resource-group akerogarden-staging --name jmk-ag-staging-app
+az postgres flexible-server stop --resource-group akerogarden-staging --name jmk-ag-staging-pg
 ```
 
 > **Redis cannot be stopped.** Azure Managed Redis has no start/stop — Balanced B0 (~$13/mo)
 > keeps billing even while the App Service and Postgres are stopped. To fully zero staging
-> cost when idle, delete the cache (`az redisenterprise delete -g akerogarden-staging -n akerogarden-staging-redis`)
+> cost when idle, delete the cache (`az redisenterprise delete -g akerogarden-staging -n jmk-ag-staging-redis`)
 > and let the next `main.bicep` deploy recreate it (~15 min); otherwise leave it running.
 
 ## Gotchas hit during Phase 0 provisioning
 
 - **Key Vault soft-delete.** Deleting a resource group soft-deletes its Key Vault for 7
   days and holds the name globally. Before redeploying after a teardown:
-  `az keyvault purge --name akerogarden-staging-kv --location swedencentral`.
+  `az keyvault purge --name jmk-ag-staging-kv --location swedencentral`.
   (If the vault still exists inside an intact RG, there is nothing to purge.)
+- **Global-uniqueness naming collisions (Phase 10a).** App Service hostnames, Storage
+  Account names, Key Vault names, Azure Managed Redis names, and Postgres Flexible Server
+  names are unique across **all of Azure**, not just this subscription. The original
+  `akerogarden-staging-*` names collided both with the old MSDN-hosted staging environment
+  itself (App Service name reservations can outlive resource-group deletion by longer than
+  DNS propagation) and, in the storage account's case, with an unrelated third party's
+  account entirely. Fixed by moving every resource name onto the `jmk-ag-<environmentName>`
+  prefix (see "Naming" above) instead of `akerogarden-<environmentName>`.
 - **Region capacity / quota (MSDN).** North Europe had 0 App Service vCPU quota; West
   Europe restricted PostgreSQL; Sweden Central had transient PostgreSQL
   `CapacityNotAvailable`. Postgres is pinned to `availabilityZone: '1'`; if it fails,
@@ -122,4 +155,20 @@ az postgres flexible-server stop --resource-group akerogarden-staging --name ake
   vault, and `keyVaultReferenceIdentity` must point at that identity so
   `@Microsoft.KeyVault(...)` app settings resolve.
 - **Custom hostname binding** fails until the `asuid.<host>` TXT + CNAME DNS records
-  exist; `customHostnames` is empty for staging until then (deferred to Phase 6).
+  exist; `customHostnames` is empty for staging until then (deferred to Phase 10a).
+- **ARM `for`-loop conflict on multi-hostname deploys (hit during Phase 10a's DNS/SSL
+  binding).** Deploying `main.bicep`'s `hostNameBindings` array (or `ssl.bicep`'s
+  `certificates`/`hostNameBindings` arrays) with 2+ hostnames against the same App Service
+  in one `az deployment group create` intermittently fails one of the array elements with
+  `Conflict — Cannot modify this site because another operation is in progress` (a fresh
+  operation ID on every retry, so it isn't a transient blip — ARM's parallel `for`-loop
+  resource writes appear to race each other on the same underlying site resource). One
+  element in the array typically succeeds; the other doesn't. **Workaround:** bind the
+  failed hostname/cert directly, bypassing the Bicep loop —
+  `az webapp config hostname add -g <rg> --webapp-name <app> --hostname <host>` for
+  hostname bindings, or `az webapp config ssl bind -g <rg> -n <app> --certificate-thumbprint
+  <thumb> --ssl-type SNI` for SSL (get the thumbprint via `az resource show -g <rg> -n
+  <cert-name> --resource-type Microsoft.Web/certificates --query properties.thumbprint -o
+  tsv`). End state matches what the Bicep template declares — only the deploy mechanism
+  differs. Expect this again in Phase 10b (`akerogarden.se` + `admin.akerogarden.se`, same
+  templates, same two-hostname shape).

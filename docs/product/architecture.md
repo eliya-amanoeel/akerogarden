@@ -1,7 +1,7 @@
 # Åkerögården — App-Level Architecture
 
 **Derived from:** requirements.md v0.47, §1.3 (Scope), §1.5 (Technology Decisions), §2.5 (Booking Status Transitions), §2.6 (Magic Link Rules), §6.4 (Admin Auth), §6.7/FR-63–66 (Automated Notifications), §6.9 (Audit Trail), §10 (Out of Scope), §11/§11.1 (Hosting & Environments).
-**Status:** Pre-go-live artefact — reflects the target production topology (Phase 10), not the current local-dev-only state.
+**Status:** Pre-go-live artefact — reflects the target production topology (Phase 10b), not the current local-dev-only state.
 
 This is a system/component view — how the public site, admin panel, background jobs, and external Azure services fit together. For the data model see [erd.md](erd.md); for infra-as-code see the `.bicep` templates under `infra/`.
 
@@ -19,7 +19,7 @@ This is a system/component view — how the public site, admin panel, background
 | Rate limiting | Azure Managed Redis (Balanced B0) |
 | File/image storage | Azure Blob Storage (Hot tier, LRS) |
 | Email | MailKit over One.com SMTP |
-| CI/CD | GitHub Actions |
+| CI/CD | Azure DevOps Pipelines (migrated from GitHub Actions, Phase 10a) |
 | Infra-as-code | Bicep (prod + staging from the same templates, different parameter files) |
 
 This stack is locked per the project's CLAUDE.md — changes require explicit discussion, not silent substitution.
@@ -67,7 +67,7 @@ flowchart TB
 
     Guest -.->|"magic-link token\n(single-use, ≤30d, no login)"| Public
 
-    GH["GitHub Actions CI/CD"] -->|"deploy"| AppService
+    GH["Azure DevOps Pipelines CI/CD"] -->|"deploy"| AppService
     Bicep["Bicep templates\n(infra/)"] -->|"provision"| AppService
     Bicep -->|"provision"| Data
 

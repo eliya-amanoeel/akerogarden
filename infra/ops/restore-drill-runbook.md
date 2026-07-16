@@ -25,10 +25,10 @@ The restore always creates a **new, independent** server — it never touches th
 
 ```bash
 # ── STAGING ──
-RG=akerogarden-staging;  SRC=akerogarden-staging-pg;  VNET=akerogarden-staging-vnet
+RG=akerogarden-staging;  SRC=jmk-ag-staging-pg;  VNET=jmk-ag-staging-vnet
 
 # ── PRODUCTION (uncomment; do NOT use Path 1 below) ──
-# RG=akerogarden-prod;   SRC=akerogarden-prod-pg;     VNET=akerogarden-prod-vnet
+# RG=akerogarden-prod;   SRC=jmk-ag-prod-pg;     VNET=jmk-ag-prod-vnet
 
 DB=akerogarden
 DRILL=${SRC}-drill        # throwaway restored server — deleted in Part D
@@ -72,7 +72,7 @@ Restore takes ~5–15 min. When it returns, the drill server exists and is priva
 
 The drill server is private-only (see the safety box), so verify it from **inside the VNet**, via the App Service SSH console — the same mechanism as `staging-db-access-runbook.md` (SSH into the running app container, install `psql` if missing, connect over the private FQDN).
 
-1. Portal → the app in the same VNet (`akerogarden-staging-app` / prod equivalent) → **Development Tools → SSH**.
+1. Portal → the app in the same VNet (`jmk-ag-staging-app` / prod equivalent) → **Development Tools → SSH**.
 2. `psql --version` — if missing: `apt-get update && apt-get install -y postgresql-client`.
 3. Connect to the **drill** server on its private endpoint and run the row-count checks:
    ```bash

@@ -39,19 +39,19 @@ The seeder ships on `main` (merged since Phase 8), so no special branch is neede
 just remember the `gh workflow run deploy-staging.yml` dropdown defaults to `main` anyway, so this is a
 non-issue now; it only mattered while the seeder lived on an unmerged branch.
 
-Resource group `akerogarden-staging`, app `akerogarden-staging-app` (az CLI logged in; mgmt-plane).
+Resource group `akerogarden-staging`, app `jmk-ag-staging-app` (az CLI logged in; mgmt-plane).
 
 ```bash
 # 1. Turn the flag on — this AUTO-RESTARTS the app, which wipes + reseeds on boot.
-az webapp config appsettings set -g akerogarden-staging -n akerogarden-staging-app \
+az webapp config appsettings set -g akerogarden-staging -n jmk-ag-staging-app \
   --settings DemoSeed__Reset=true
 
 # 2. Wait ~1 min, then VERIFY AGAINST THE DATA (not just health — see gotcha below):
 #    the public facilities page should list the seeded facilities.
-curl -s https://akerogarden-staging-app.azurewebsites.net/faciliteter | grep -o "Bastu"
+curl -s https://jmk-ag-staging-app.azurewebsites.net/faciliteter | grep -o "Bastu"
 
 # 3. Remove the flag so no future restart re-wipes.
-az webapp config appsettings delete -g akerogarden-staging -n akerogarden-staging-app \
+az webapp config appsettings delete -g akerogarden-staging -n jmk-ag-staging-app \
   --setting-names DemoSeed__Reset
 ```
 
@@ -98,8 +98,8 @@ it worked.
 Start **PostgreSQL first**, wait until Ready, **then** the app (it runs EF migrations on boot):
 
 ```bash
-az postgres flexible-server start -g akerogarden-staging -n akerogarden-staging-pg   # wait until Ready
-az webapp start -g akerogarden-staging -n akerogarden-staging-app
+az postgres flexible-server start -g akerogarden-staging -n jmk-ag-staging-pg   # wait until Ready
+az webapp start -g akerogarden-staging -n jmk-ag-staging-app
 ```
 
 Power down when idle: `az webapp stop …` + `az postgres flexible-server stop …`.

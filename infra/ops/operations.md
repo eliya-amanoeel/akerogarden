@@ -12,10 +12,10 @@ Redis, Blob) to an **Application Insights** resource, via the OpenTelemetry .NET
 no connection string, so nothing is exported there (console logging only, same as before).
 
 Resource names (from `infra/azure/main.bicep`, output `appInsightsName`):
-- Production: `akerogarden-prod-appinsights`
-- Staging: `akerogarden-staging-appinsights`
+- Production: `jmk-ag-prod-appinsights`
+- Staging: `jmk-ag-staging-appinsights`
 
-Backed by a Log Analytics workspace (`akerogarden-<env>-logs`) with:
+Backed by a Log Analytics workspace (`jmk-ag-<env>-logs`) with:
 - **Retention: 30 days.** Older data is gone — don't expect to investigate anything older.
 - **Daily ingestion cap: 100 MB/day**, to bound cost. If telemetry unexpectedly stops
   appearing mid-day, check the workspace's `workspaceCapping` state in the Portal before

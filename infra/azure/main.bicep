@@ -57,7 +57,7 @@ param adminNotificationEmail string
 param contactEmail string
 
 // ── Naming ────────────────────────────────────────────────────────────────────
-var prefix = 'akerogarden-${environmentName}'
+var prefix = 'jmk-ag-${environmentName}'
 
 // ── User-Assigned Managed Identity ───────────────────────────────────────────
 // Created before Key Vault and App Service so the principalId is available for

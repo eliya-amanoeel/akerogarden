@@ -27,10 +27,10 @@ The app sends every guest/admin email through One.com SMTP (`send.one.com`) auth
 
 ```
 RG              = akerogarden-prod
-APP_NAME        = akerogarden-prod-app
+APP_NAME        = jmk-ag-prod-app
 APEX            = akerogarden.se
 ADMIN_HOST      = admin.akerogarden.se
-DEFAULT_HOST    = akerogarden-prod-app.azurewebsites.net   # App Service default hostname
+DEFAULT_HOST    = jmk-ag-prod-app.azurewebsites.net   # App Service default hostname
 ```
 
 `staging.akerogarden.se` / `admin.staging.akerogarden.se` are **handled in Phase 10a, not here** — see "Staging DNS (Phase 10a)" below. This runbook's Parts A–F are production-only.
@@ -67,7 +67,7 @@ An apex domain cannot use `CNAME` (DNS spec restriction), so apex and subdomain 
 |---|---|---|---|
 | `@` (apex, `akerogarden.se`) | `A` | *(inbound IP from Part B)* | Points the bare domain at App Service |
 | `asuid` | `TXT` | *(verification ID from Part B)* | Proves apex domain ownership to Azure |
-| `admin` | `CNAME` | `akerogarden-prod-app.azurewebsites.net` | Points `admin.akerogarden.se` at App Service |
+| `admin` | `CNAME` | `jmk-ag-prod-app.azurewebsites.net` | Points `admin.akerogarden.se` at App Service |
 | `asuid.admin` | `TXT` | *(same verification ID)* | Proves `admin` subdomain ownership to Azure |
 
 Leave existing `MX`/`SPF`/`DKIM`/`DMARC`/mailbox records untouched.
@@ -123,7 +123,7 @@ Simpler than the production cutover above — no WordPress to retire, just new r
 
 ```
 RG              = akerogarden-staging   # in the client's tenant, after Phase 10a recreation
-APP_NAME        = akerogarden-staging-app
+APP_NAME        = jmk-ag-staging-app
 PUBLIC_HOST     = staging.akerogarden.se
 ADMIN_HOST      = admin.staging.akerogarden.se
 ```
@@ -137,9 +137,9 @@ ADMIN_HOST      = admin.staging.akerogarden.se
 
    | Host | Type | Value | Purpose |
    |---|---|---|---|
-   | `staging` | `A` or `CNAME`* | *(inbound IP, or `akerogarden-staging-app.azurewebsites.net`)* | Points `staging.akerogarden.se` at App Service |
+   | `staging` | `A` or `CNAME`* | *(inbound IP, or `jmk-ag-staging-app.azurewebsites.net`)* | Points `staging.akerogarden.se` at App Service |
    | `asuid.staging` | `TXT` | *(verification ID)* | Proves `staging` subdomain ownership to Azure |
-   | `admin.staging` | `CNAME` | `akerogarden-staging-app.azurewebsites.net` | Points `admin.staging.akerogarden.se` at App Service |
+   | `admin.staging` | `CNAME` | `jmk-ag-staging-app.azurewebsites.net` | Points `admin.staging.akerogarden.se` at App Service |
    | `asuid.admin.staging` | `TXT` | *(same verification ID)* | Proves `admin.staging` subdomain ownership to Azure |
 
    *Unlike the apex, `staging` is itself a subdomain, so it can use `CNAME` — prefer that over `A` for consistency with `admin.staging`, unless one.com's panel requires otherwise.

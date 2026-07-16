@@ -58,7 +58,7 @@ public class DataProtectionSetupTests
         var options = new DataProtectionOptions
         {
             KeysBlobConnectionString = "DefaultEndpointsProtocol=https;AccountName=x;AccountKey=y;EndpointSuffix=core.windows.net",
-            KeyVaultKeyId = "https://akerogarden-prod-kv.vault.azure.net/keys/dataprotection-key",
+            KeyVaultKeyId = "https://jmk-ag-prod-kv.vault.azure.net/keys/dataprotection-key",
         };
         Assert.Equal(DataProtectionMode.BlobWithKeyVault, DataProtectionSetup.ResolveMode(options));
     }

@@ -19,6 +19,17 @@ Redis (Azure Managed Redis, Balanced B0 — the successor to the retired classic
 Cache for Redis) backs the inquiry rate limiter (NFR-04); its connection string is stored
 in Key Vault and read by the app via managed identity.
 
+## Naming
+
+The resource-group name stays `akerogarden-staging` / `akerogarden-prod`, but every resource
+*inside* it is named from a `jmk-ag-<environmentName>` prefix (`jmk-ag-staging-app`,
+`jmk-ag-staging-kv`, etc. — `jmk` = Jungfru Maria Kyrkan, the church that owns the project;
+`ag` = Åkerögården), not `akerogarden-<environmentName>-*`. This was changed during Phase 10a:
+several of these names are globally unique across **all** of Azure, not just this subscription
+(App Service hostname, Storage Account, Key Vault, Azure Managed Redis, Postgres Flexible
+Server), and the plain `akerogarden-staging-*` names collided with unrelated resources —
+see the gotchas below.
+
 ## Prerequisites
 
 - Azure CLI logged in: `az login`
@@ -50,7 +61,7 @@ az deployment group create \
 Verify the DB is not publicly reachable:
 
 ```bash
-az postgres flexible-server show -g akerogarden-staging -n akerogarden-staging-pg \
+az postgres flexible-server show -g akerogarden-staging -n jmk-ag-staging-pg \
   --query "network.publicNetworkAccess" -o tsv   # expect: Disabled
 ```
 
@@ -65,12 +76,12 @@ The `Deploy — Staging` workflow deploys on CI success on `main`. It needs a Gi
 gh api -X PUT repos/<owner>/<repo>/environments/staging --silent
 
 # App name (variable)
-gh variable set AZURE_APP_NAME --env staging --body "akerogarden-staging-app"
+gh variable set AZURE_APP_NAME --env staging --body "jmk-ag-staging-app"
 
 # Publish profile (secret) — piped straight from Azure, never written to disk
 az webapp deployment list-publishing-profiles \
   --resource-group akerogarden-staging \
-  --name akerogarden-staging-app \
+  --name jmk-ag-staging-app \
   --xml | gh secret set AZURE_PUBLISH_PROFILE --env staging
 ```
 
@@ -80,7 +91,7 @@ default; confirm with:
 ```bash
 az resource show -g akerogarden-staging --namespace Microsoft.Web \
   --resource-type basicPublishingCredentialsPolicies --name scm \
-  --parent sites/akerogarden-staging-app --query "properties.allow" -o tsv  # expect: true
+  --parent sites/jmk-ag-staging-app --query "properties.allow" -o tsv  # expect: true
 ```
 
 ## 3. First deploy
@@ -108,21 +119,29 @@ custom subdomains are bound separately in Phase 10a. See `ssl.bicep` and the Pha
 ## Power staging down (save cost)
 
 ```bash
-az webapp stop --resource-group akerogarden-staging --name akerogarden-staging-app
-az postgres flexible-server stop --resource-group akerogarden-staging --name akerogarden-staging-pg
+az webapp stop --resource-group akerogarden-staging --name jmk-ag-staging-app
+az postgres flexible-server stop --resource-group akerogarden-staging --name jmk-ag-staging-pg
 ```
 
 > **Redis cannot be stopped.** Azure Managed Redis has no start/stop — Balanced B0 (~$13/mo)
 > keeps billing even while the App Service and Postgres are stopped. To fully zero staging
-> cost when idle, delete the cache (`az redisenterprise delete -g akerogarden-staging -n akerogarden-staging-redis`)
+> cost when idle, delete the cache (`az redisenterprise delete -g akerogarden-staging -n jmk-ag-staging-redis`)
 > and let the next `main.bicep` deploy recreate it (~15 min); otherwise leave it running.
 
 ## Gotchas hit during Phase 0 provisioning
 
 - **Key Vault soft-delete.** Deleting a resource group soft-deletes its Key Vault for 7
   days and holds the name globally. Before redeploying after a teardown:
-  `az keyvault purge --name akerogarden-staging-kv --location swedencentral`.
+  `az keyvault purge --name jmk-ag-staging-kv --location swedencentral`.
   (If the vault still exists inside an intact RG, there is nothing to purge.)
+- **Global-uniqueness naming collisions (Phase 10a).** App Service hostnames, Storage
+  Account names, Key Vault names, Azure Managed Redis names, and Postgres Flexible Server
+  names are unique across **all of Azure**, not just this subscription. The original
+  `akerogarden-staging-*` names collided both with the old MSDN-hosted staging environment
+  itself (App Service name reservations can outlive resource-group deletion by longer than
+  DNS propagation) and, in the storage account's case, with an unrelated third party's
+  account entirely. Fixed by moving every resource name onto the `jmk-ag-<environmentName>`
+  prefix (see "Naming" above) instead of `akerogarden-<environmentName>`.
 - **Region capacity / quota (MSDN).** North Europe had 0 App Service vCPU quota; West
   Europe restricted PostgreSQL; Sweden Central had transient PostgreSQL
   `CapacityNotAvailable`. Postgres is pinned to `availabilityZone: '1'`; if it fails,

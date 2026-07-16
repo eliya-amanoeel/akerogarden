@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
-using AkeroGarden.Web.Data.Entities;
-using AkeroGarden.Web.Models;
+using AkeroGarden.Web.Core.Data.Entities;
+using AkeroGarden.Web.Core.Models;
 
 namespace AkeroGarden.Unit;
 

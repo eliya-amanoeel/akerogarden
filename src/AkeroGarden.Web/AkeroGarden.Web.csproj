@@ -15,18 +15,14 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.3" />
+    <!-- App-host telemetry wiring lives with the host (Program.cs UseAzureMonitor), not Core.
+         All data/service/EF/Identity/Redis/Blob/mail packages moved to AkeroGarden.Web.Core
+         (Phase 10b Slice 1) and flow transitively through the project reference below. -->
     <PackageReference Include="Azure.Monitor.OpenTelemetry.AspNetCore" Version="1.5.0" />
-    <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.3" />
-    <PackageReference Include="Azure.Identity" Version="1.21.0" />
-    <PackageReference Include="Azure.Storage.Blobs" Version="12.29.1" />
-    <PackageReference Include="ClosedXML" Version="0.105.0" />
-    <PackageReference Include="MailKit" Version="4.17.0" />
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
-    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
-    <PackageReference Include="QuestPDF" Version="2026.7.1" />
-    <PackageReference Include="StackExchange.Redis" Version="3.0.17" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AkeroGarden.Web.Core\AkeroGarden.Web.Core.csproj" />
   </ItemGroup>
 
 </Project>

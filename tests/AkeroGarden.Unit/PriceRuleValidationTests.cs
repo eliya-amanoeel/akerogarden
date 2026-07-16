@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using AkeroGarden.Web.Data.Entities;
+using AkeroGarden.Web.Core.Data.Entities;
 
 namespace AkeroGarden.Unit;
 

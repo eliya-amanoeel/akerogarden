@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using AkeroGarden.Web.Services;
+using AkeroGarden.Web.Core.Services;
 
 namespace AkeroGarden.Integration.Infrastructure;
 

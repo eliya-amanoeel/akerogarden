@@ -1,5 +1,5 @@
-using AkeroGarden.Web.Data;
-using AkeroGarden.Web.Services;
+using AkeroGarden.Web.Core.Data;
+using AkeroGarden.Web.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;

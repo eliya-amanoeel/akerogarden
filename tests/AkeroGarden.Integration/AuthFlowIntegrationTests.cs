@@ -1,5 +1,5 @@
 using AkeroGarden.Integration.Infrastructure;
-using AkeroGarden.Web.Data;
+using AkeroGarden.Web.Core.Data;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 

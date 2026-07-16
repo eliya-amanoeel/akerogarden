@@ -1,5 +1,5 @@
 using AkeroGarden.E2E.Infrastructure;
-using AkeroGarden.Web.Data.Entities;
+using AkeroGarden.Web.Core.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 

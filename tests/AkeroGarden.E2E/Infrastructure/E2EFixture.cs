@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
-using AkeroGarden.Web.Data;
-using AkeroGarden.Web.Data.Entities;
-using AkeroGarden.Web.Models;
+using AkeroGarden.Web.Core.Data;
+using AkeroGarden.Web.Core.Data.Entities;
+using AkeroGarden.Web.Core.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Testcontainers.PostgreSql;

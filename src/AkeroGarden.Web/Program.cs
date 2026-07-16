@@ -1,6 +1,6 @@
 using AkeroGarden.Web.Components;
-using AkeroGarden.Web.Data;
-using AkeroGarden.Web.Services;
+using AkeroGarden.Web.Core.Data;
+using AkeroGarden.Web.Core.Services;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.HttpOverrides;

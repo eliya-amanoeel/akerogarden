@@ -1,4 +1,4 @@
-using AkeroGarden.Web.Models;
+using AkeroGarden.Web.Core.Models;
 
 namespace AkeroGarden.Unit;
 

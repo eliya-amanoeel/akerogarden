@@ -1,7 +1,7 @@
 using AkeroGarden.Integration.Infrastructure;
-using AkeroGarden.Web.Data;
-using AkeroGarden.Web.Data.Entities;
-using AkeroGarden.Web.Services;
+using AkeroGarden.Web.Core.Data;
+using AkeroGarden.Web.Core.Data.Entities;
+using AkeroGarden.Web.Core.Services;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;

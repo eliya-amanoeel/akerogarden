@@ -9,7 +9,7 @@ namespace AkeroGarden.E2E;
 /// The booking funnel — the primary KPI. Covers the full journey home → kalender → boka → tack,
 /// the two-track toggle, date pre-fill from the calendar, and accessibility of the funnel pages.
 /// </summary>
-public class FunnelTests(E2EFixture fixture) : E2ETestBase(fixture)
+public class FunnelTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 {
     [Fact]
     public async Task Full_funnel_home_to_calendar_to_inquiry_to_thanks()
@@ -96,7 +96,7 @@ public class FunnelTests(E2EFixture fixture) : E2ETestBase(fixture)
         // renders. The server is always authoritative (belt-and-suspenders).
         await using var context = await Fixture.Browser.NewContextAsync(new BrowserNewContextOptions
         {
-            BaseURL = Fixture.BaseUrl,
+            BaseURL = Fixture.PublicBaseUrl,
             JavaScriptEnabled = false,
         });
         var page = await context.NewPageAsync();

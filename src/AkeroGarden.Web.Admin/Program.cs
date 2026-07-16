@@ -211,3 +211,7 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
+
+// Exposed (public) so the host-separation integration tests can boot this host in-memory via
+// WebApplicationFactory<Program>. Referenced under the `AdminApp` extern alias from the test project.
+public partial class Program;

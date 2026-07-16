@@ -9,7 +9,7 @@ namespace AkeroGarden.E2E;
 /// tokens seeded by the fixture. Drives the real behaviours: collapse, the group-default cascade,
 /// the single-option fixed meal, and a full submit to the acknowledgement.
 /// </summary>
-public class CompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
+public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 {
     private static string Url(string token) => $"/slutfor/{token}";
     private string CompletionUrl => Url(E2EFixture.CompletionToken);

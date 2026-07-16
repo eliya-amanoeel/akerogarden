@@ -22,8 +22,14 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- Core is referenced directly (global namespace) so the service-layer tests keep using its
+       DbContext/services unqualified. The two host apps are referenced with extern aliases so the
+       host-separation tests can boot each with WebApplicationFactory<T> — both expose a public
+       Program, which would otherwise collide in the global namespace. -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\AkeroGarden.Web.Public\AkeroGarden.Web.Public.csproj" />
+    <ProjectReference Include="..\..\src\AkeroGarden.Web.Core\AkeroGarden.Web.Core.csproj" />
+    <ProjectReference Include="..\..\src\AkeroGarden.Web.Public\AkeroGarden.Web.Public.csproj" Aliases="PublicApp" />
+    <ProjectReference Include="..\..\src\AkeroGarden.Web.Admin\AkeroGarden.Web.Admin.csproj" Aliases="AdminApp" />
   </ItemGroup>
 
 </Project>

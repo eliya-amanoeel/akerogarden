@@ -22,9 +22,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
-  <!-- Referenced so the Web app is built with the solution (and so seeding helpers can use its
-       DbContext/services directly in later slices). The app itself is launched out-of-process
-       against a real Kestrel port — see E2EFixture. -->
+  <!-- Both host apps (Public + Admin) are launched out-of-process against their own Kestrel ports —
+       see E2EFixture (admin boots first: it migrates + seeds the schema the public host reads).
+       The public project is referenced so the fixture's seeding helpers can use Core's DbContext;
+       the admin app is built and run on demand by the fixture's `dotnet run` invocation. -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\AkeroGarden.Web.Public\AkeroGarden.Web.Public.csproj" />
   </ItemGroup>

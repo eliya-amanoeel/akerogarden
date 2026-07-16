@@ -9,7 +9,7 @@ namespace AkeroGarden.E2E;
 /// Slice-3 trust pages. The E2E database is a fresh container (no seeded reference data), so
 /// these assert structure + accessibility, not seeded content.
 /// </summary>
-public class TrustPagesTests(E2EFixture fixture) : E2ETestBase(fixture)
+public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 {
     [Theory]
     [InlineData("/om-oss")]

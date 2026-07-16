@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.50 — Working Draft  
+**Version:** 0.51 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.50:**
+
+- **CI/CD platform changed from GitHub Actions to Azure DevOps (Phase 10a, mid-phase).** The client's Azure DevOps access (via their subscription, no GitHub presence) made this preferable once actually assessed — the repo (all branches, full history) is mirrored to Azure Repos (`dev.azure.com/akerogarden/akerogarden`); deploys authenticate via a service-principal-backed service connection instead of a publish-profile secret; the three GitHub Actions workflows are ported to Azure Pipelines YAML. §2 (tech-stack decision table) and §11.1 updated; `infra/azure/README.md` and `implementation-plan.md` updated to match. The GitHub repository itself is left as-is for now (fate — delete vs. read-only archive — undecided).
 
 **Changes from v0.49:**
 
@@ -304,12 +308,12 @@ It serves as the single source of truth for all design, development, and testing
 | Blazor rendering mode | Static SSR for all public-facing pages; Interactive Server for the admin panel | Static SSR produces plain server-rendered HTML for SEO and fast first load; Interactive Server is appropriate for the admin panel where SEO is irrelevant and rich interactivity is needed |
 | Admin authentication | ASP.NET Core Identity | Single-library solution for credential storage, password hashing, cookie auth, and password reset — no external auth dependency |
 | Database | PostgreSQL on Azure | Managed backups; familiar query model |
-| Hosting | Azure App Service (Linux, B1) | Managed SSL; CI/CD from GitHub Actions |
+| Hosting | Azure App Service (Linux, B1) | Managed SSL; CI/CD from Azure DevOps Pipelines |
 | File storage | Azure Blob Storage | List downloads and media uploads |
 | Rate limiting store | Azure Managed Redis | Distributed rate-limit counters; correct under multi-instance scale-out (NFR-04). Successor to the retired Azure Cache for Redis |
 | Email | MailKit (SMTP via One.com) | Robust .NET email library |
 | ORM | Entity Framework Core | Standard .NET data access layer |
-| CI/CD | GitHub Actions | Existing pipeline muscle memory |
+| CI/CD | Azure DevOps Pipelines | Migrated from GitHub Actions in Phase 10a — client has Azure DevOps access via their subscription, no GitHub presence |
 
 ---
 
@@ -1254,7 +1258,7 @@ The system uses four environments. Production is the table above; the others:
 | Environment | Where | Make-up | Purpose |
 |---|---|---|---|
 | **Local dev** | Developer's machine (macOS) | .NET 10 SDK; PostgreSQL, Redis, and Azurite (Blob emulator) via Docker; a local SMTP catcher (e.g. Mailpit) so dev mail never sends; `dotnet user-secrets` for config | Day-to-day development. No Azure cost |
-| **Automated test** | GitHub Actions CI | Ephemeral PostgreSQL/Redis service containers per run | Runs the unit + integration suite (NFR-26–28) on every push; gates the build. No standing infra |
+| **Automated test** | Azure Pipelines (Azure DevOps) CI | Ephemeral PostgreSQL/Redis service containers per run | Runs the unit + integration suite (NFR-26–28) on every push; gates the build. No standing infra |
 | **Staging** | Azure — separate resource group, `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin), in the client's Azure tenant (Phase 10a) | Mirrors production's shape on minimal tiers: App Service B1, PostgreSQL Flexible Server Burstable B1ms, Blob (small), Azure Managed Redis Balanced B0. Can be powered down when idle (Redis has no stop — delete + recreate via Bicep to zero its cost between sessions) | Pre-go-live verification and admin UAT (NFR-18/19); migrations and config validated here before promotion. Deploy flow: dev → CI → staging → production |
 | **Production** | Azure (§11 table) | As specified above | Live system |
 

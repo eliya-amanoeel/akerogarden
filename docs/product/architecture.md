@@ -19,7 +19,7 @@ This is a system/component view — how the public site, admin panel, background
 | Rate limiting | Azure Managed Redis (Balanced B0) |
 | File/image storage | Azure Blob Storage (Hot tier, LRS) |
 | Email | MailKit over One.com SMTP |
-| CI/CD | GitHub Actions |
+| CI/CD | Azure DevOps Pipelines (migrated from GitHub Actions, Phase 10a) |
 | Infra-as-code | Bicep (prod + staging from the same templates, different parameter files) |
 
 This stack is locked per the project's CLAUDE.md — changes require explicit discussion, not silent substitution.
@@ -67,7 +67,7 @@ flowchart TB
 
     Guest -.->|"magic-link token\n(single-use, ≤30d, no login)"| Public
 
-    GH["GitHub Actions CI/CD"] -->|"deploy"| AppService
+    GH["Azure DevOps Pipelines CI/CD"] -->|"deploy"| AppService
     Bicep["Bicep templates\n(infra/)"] -->|"provision"| AppService
     Bicep -->|"provision"| Data
 

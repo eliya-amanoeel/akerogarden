@@ -15,7 +15,7 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 - **Azure Managed Redis** — distributed rate limiting (successor to the retired Azure Cache for Redis)
 - **Azure Blob Storage** — images and list downloads
 - **MailKit** over One.com SMTP
-- **GitHub Actions** CI/CD
+- **Azure DevOps Pipelines** CI/CD (migrated from GitHub Actions in Phase 10a — repo lives in Azure Repos, `dev.azure.com/akerogarden/akerogarden`; deploys authenticate via a service-principal-backed service connection, not a publish-profile secret)
 - **Bicep** — Azure infrastructure-as-code. Both production and staging are provisioned from the same `.bicep` templates with different parameter files. Never click-through portal provisioning — if it's not in code, it doesn't exist.
 
 ## Architecture
@@ -66,7 +66,7 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 | Environment | Where | Notes |
 |---|---|---|
 | Local dev | Mac + Docker | PostgreSQL, Redis, Azurite (Blob emulator), Mailpit (SMTP catcher); `dotnet user-secrets` for config |
-| Automated test | Ephemeral GitHub Actions containers | Ephemeral DBs; CI fails on any test failure |
+| Automated test | Ephemeral Azure Pipelines containers | Ephemeral DBs; CI fails on any test failure |
 | Staging | Separate Azure resource group | `staging.akerogarden.se`; synthetic data only; test SMTP inbox; power down when idle |
 | Production | Azure (North Europe or Sweden Central) | See requirements.md §11 |
 

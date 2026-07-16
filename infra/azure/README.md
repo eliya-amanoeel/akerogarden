@@ -65,40 +65,43 @@ az postgres flexible-server show -g akerogarden-staging -n jmk-ag-staging-pg \
   --query "network.publicNetworkAccess" -o tsv   # expect: Disabled
 ```
 
-## 2. Wire the GitHub deploy pipeline (one-time, manual)
+## 2. Wire the Azure DevOps deploy pipeline (one-time, manual)
 
-The `Deploy — Staging` workflow deploys on CI success on `main`. It needs a GitHub
-**environment** named `staging` with one variable and one secret:
-
-```bash
-# Create the 'staging' environment first (GitHub UI: Settings → Environments → New),
-# or via API:
-gh api -X PUT repos/<owner>/<repo>/environments/staging --silent
-
-# App name (variable)
-gh variable set AZURE_APP_NAME --env staging --body "jmk-ag-staging-app"
-
-# Publish profile (secret) — piped straight from Azure, never written to disk
-az webapp deployment list-publishing-profiles \
-  --resource-group akerogarden-staging \
-  --name jmk-ag-staging-app \
-  --xml | gh secret set AZURE_PUBLISH_PROFILE --env staging
-```
-
-Publish-profile (basic-auth) deploys must be allowed on the App Service — they are by
-default; confirm with:
+CI/CD moved from GitHub Actions to Azure DevOps (`dev.azure.com/akerogarden/akerogarden`)
+during Phase 10a. Deploys authenticate via a **service connection** backed by a service
+principal (`akerogarden-devops-deploy`) — not a publish-profile secret — so there is no
+per-environment credential to regenerate on every re-provision:
 
 ```bash
-az resource show -g akerogarden-staging --namespace Microsoft.Web \
-  --resource-type basicPublishingCredentialsPolicies --name scm \
-  --parent sites/jmk-ag-staging-app --query "properties.allow" -o tsv  # expect: true
+# One-time: service principal scoped to the resource group, then wired as a
+# service connection named "akerogarden-azure-connection" in the Azure DevOps project.
+az ad sp create-for-rbac --name "akerogarden-devops-deploy" \
+  --role Contributor \
+  --scopes "/subscriptions/<sub-id>/resourceGroups/akerogarden-staging"
+
+az devops service-endpoint azurerm create \
+  --azure-rm-service-principal-id <appId> \
+  --azure-rm-subscription-id <sub-id> \
+  --azure-rm-subscription-name "Åkerögården" \
+  --azure-rm-tenant-id <tenant-id> \
+  --name "akerogarden-azure-connection" \
+  --org https://dev.azure.com/akerogarden --project akerogarden
 ```
+
+When re-provisioning (a new resource group, e.g. a future tenant move), add a role
+assignment for the *same* service principal scoped to the new resource group — the
+service connection itself doesn't need to change.
+
+The `Deploy - Staging` pipeline (`azure-pipelines-deploy-staging.yml`) is manual-only
+(`trigger: none`) — run it from Pipelines → Deploy - Staging → Run pipeline. The first
+run against a fresh service connection prompts "This pipeline needs permission to
+access resources" — click Authorize once.
 
 ## 3. First deploy
 
-Merging to `main` triggers CI → `Deploy — Staging`. The app applies EF migrations and
+Run `Deploy - Staging` manually from Azure Pipelines. The app applies EF migrations and
 seeds the admin **on startup, inside the VNet** (the VNet-only DB is unreachable from
-CI runners, so migrations cannot run from the pipeline — only from the running app).
+hosted agents, so migrations cannot run from the pipeline — only from the running app).
 
 ## Recreate staging in the client's tenant (Phase 10a)
 
@@ -106,8 +109,9 @@ Same steps as "Provision staging" above, but targeting the client's subscription
 context first (`az login --tenant <client-tenant-id>`, `az account set --subscription
 <client-sub-id>`), then deploy with `staging.parameters.json` updated so `customHostnames`
 binds `staging.akerogarden.se` + `admin.staging.akerogarden.se`, and re-run steps 2–3
-(regenerate `AZURE_PUBLISH_PROFILE` from the new App Service, re-verify the first deploy).
-Once verified, delete the old `akerogarden-staging` resource group in the MSDN subscription.
+(add a role assignment for `akerogarden-devops-deploy` scoped to the new resource group,
+re-verify the first deploy). Once verified, delete the old `akerogarden-staging` resource
+group in the MSDN subscription.
 
 ## Deploy production (Phase 10b)
 

@@ -370,6 +370,38 @@ Unlike the feature phases, this phase is **bookended by design discipline**: it 
 
 **Exit criteria: ✅ ALL MET (2026-07-16).** Staging is live, verified, and reachable on `staging.akerogarden.se` / `admin.staging.akerogarden.se` with valid managed SSL (`200` on both, re-verified after the deploy below), entirely within the client's Azure subscription/tenant; the old MSDN-hosted staging resource group is deleted; the Azure DevOps `Deploy - Staging` pipeline is wired and **green** — first real run (`20260716.1`, branch `phase_10`) triggered and completed `succeeded`, closing the "wired but never actually run" gap found during the phase-completion-gate check.
 
+### 🔴 OPEN FOLLOW-UP — FR-70 host separation not implemented (found 2026-07-17, deferred for a proper rework)
+
+**The problem.** Binding two real subdomains in Phase 10a surfaced a latent architecture gap: **the app does not separate the public and admin surfaces by hostname at all.** `Program.cs` calls `MapRazorComponents<App>()` once with no host restriction, so every `@page` route is served on **both** hostnames:
+
+- `https://admin.staging.akerogarden.se/` serves the **public** homepage.
+- `https://staging.akerogarden.se/admin` serves the **admin** login/panel.
+
+This **violates FR-70** ("The admin panel shall be hosted at the subdomain `admin.akerogarden.se`, fully separated from the public site") and contradicts `architecture.md`'s current claim that "separation between the two surfaces is enforced in routing/auth, not infrastructure" — that separation was never actually built. It is **not a data-exposure hole** (every admin page is `[Authorize]`-gated, so the public host renders the login redirect, not admin data), but it is a real spec violation and a surface-hygiene issue.
+
+**Why it stayed invisible until now.** Staging (and dev) only ever had a **single** hostname before Phase 10a bound two real subdomains — with one host, the gap is unobservable. The Phase 7 security review didn't check it either.
+
+**Rejected first attempt (do not resurrect).** Host-sniffing middleware in `Program.cs` with two hand-maintained path lists (admin route prefixes + a brittle "shared infra" static-asset exclusion list). It works, but it is a workaround: it re-encodes routing knowledge that already lives in the `@page` directives as a parallel lookup table that will silently drift when routes/assets change. **Root cause of the ugliness:** Blazor discovers routable pages by scanning an *assembly* for `@page`; public and admin pages share one assembly today, so **any** single-assembly guard degenerates into a runtime classifier. This attempt was reverted; the branch `phase_10a_host_separation` was deleted.
+
+**Chosen direction (approved, NOT yet built) — structural 3-project split:**
+
+- `AkeroGarden.Web.Core` — shared: `DbContext`, services, `site.css`/fonts, layout primitives, the HTML document shell.
+- `AkeroGarden.Web.Public` — public pages only. **No auth, no Interactive Server, no SignalR** — pure Static SSR (smaller, cheaper, smaller attack surface).
+- `AkeroGarden.Web.Admin` — admin pages, ASP.NET Core Identity, Interactive Server.
+
+With the split, a page's surface is **compiler-enforced** (which project it lives in) and cannot drift — no classification code left to maintain.
+
+**Topology — Option 1 chosen; Option 2 logged as a future alternative:**
+
+- **Option 1 (chosen): one App Service, both hostnames, framework-native host gating.** Operationally simplest — one deploy, one site, one cert story. Separation is real because the *assemblies* are split; the host binding is done at the routing layer, no middleware, no static-asset list.
+- **Option 2 (future, if ever needed): two App Services on the *same* B1 plan.** Hard process isolation (the public process never loads admin code). **No extra Azure cost** — the App Service *Plan* is the billing unit, not the app; managed SSL + custom domains are free too. Rejected *for now* because its only real cost over Option 1 is operational surface (2nd deploy target/config/SSL binding, two processes sharing one 1.75 GB B1), not money. **Not a one-way door** — Option 1 → Option 2 is a small later step (same artifacts, deploy Admin to its own site).
+
+**⚠️ Framework caveat already verified (saves rework).** The naive Option-1 mechanism — two `MapRazorComponents<T>()` root components in one app, each with `RequireHost(...)` — **does not work**: both roots try to serve `/_framework/*` and it throws `AmbiguousMatchException` (dotnet/aspnetcore#52216, #52631; still only a backlog feature request, no shipped first-class API as of .NET 10). The viable single-app mechanisms are therefore either **(a)** `app.MapWhen(ctx => ctx.Request.Host.Host == adminHost, branch => { branch.UseStaticFiles/MapStaticAssets; branch.MapRazorComponents<AdminApp>()... })` with a mirror branch for the public host — two **isolated sub-pipelines**, host decided once at the branch, each with its own static assets + root component + render mode; or **(b)** a single root component whose `Router` scopes its `AppAssembly`/`AdditionalAssemblies` to the public-vs-admin set based on `Request.Host` (admin routes simply aren't in the public host's route table → natural 404). **Still to verify before building:** whether `MapWhen` sub-pipelines each get a clean `MapStaticAssets` in .NET 10 (known sharp edge — dotnet/aspnetcore#62249), and how the Interactive-Server render-mode endpoint behaves inside a `MapWhen` branch.
+
+**Sequencing & safety.** This is its own branch and effectively a small phase — it touches **code** (the project split), **infra** (`main.bicep` — unchanged for Option 1 beyond confirming both hostnames stay on the one site), and potentially the **Azure DevOps pipeline** (still a single deploy under Option 1). **Do it BEFORE Phase 10b provisions production**, so prod is born correctly separated rather than retrofitted. The 504-test suite (319 unit + 119 integration + 66 E2E) is the refactor safety net; add HTTP-level tests asserting each hostname only serves its own surface (the rejected attempt's `HostSeparationIntegrationTests.cs` captured that intent but was written against the single-app shape and was discarded — rewrite against the split).
+
+> Cross-doc note for whoever picks this up: `architecture.md`'s "One App Service, two hostnames … separation enforced in routing/auth" narrative and diagram describe the *intended* end state, which this rework finally makes true. Reconcile `architecture.md` (and add a `requirements.md` changelog entry if the FR text is touched) **as part of** the rework, not piecemeal before it.
+
 ---
 
 ## Phase 10b — Production go-live

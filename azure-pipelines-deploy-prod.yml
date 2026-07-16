@@ -1,0 +1,40 @@
+# Manual-only. Production deploys require an approval on the "production" Environment
+# (Azure DevOps → Environments → production → Approvals and checks) — configure that
+# approval in the UI before this pipeline's first real run; it replaces the old
+# GitHub Actions "type YES to confirm" input with a proper gate.
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  - deployment: deploy_production
+    displayName: Deploy to Azure App Service (production)
+    environment: production
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - task: UseDotNet@2
+              displayName: Setup .NET 10
+              inputs:
+                packageType: sdk
+                useGlobalJson: true
+
+            - script: dotnet publish src/AkeroGarden.Web --configuration Release --output $(Build.ArtifactStagingDirectory)/publish
+              displayName: Publish
+
+            - task: AzureWebApp@1
+              displayName: Deploy to Azure App Service (production)
+              inputs:
+                azureSubscription: "akerogarden-azure-connection"
+                appType: webAppLinux
+                appName: "jmk-ag-prod-app"
+                package: "$(Build.ArtifactStagingDirectory)/publish"

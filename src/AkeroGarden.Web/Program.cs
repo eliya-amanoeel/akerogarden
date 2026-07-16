@@ -6,7 +6,6 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
-using StackExchange.Redis;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -40,9 +39,10 @@ builder.Services.Configure<ForwardedHeadersOptions>(options =>
     options.KnownProxies.Clear();
 });
 
-// ── Database ─────────────────────────────────────────────────────────────────
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Postgres")));
+// ── Core services (Phase 10b — grouped composition-root extensions in AkeroGarden.Web.Core) ──
+// This single web app still composes every group; Slice 2b/2c split them across the two hosts.
+builder.Services.AddAkeroCommon();
+builder.Services.AddAkeroDatabase(builder.Configuration);
 
 // ── Identity ─────────────────────────────────────────────────────────────────
 builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
@@ -96,78 +96,23 @@ builder.Services.ConfigureApplicationCookie(options =>
     options.SlidingExpiration = true;
 });
 
-// ── Email ─────────────────────────────────────────────────────────────────────
-builder.Services.Configure<SmtpOptions>(builder.Configuration.GetSection("Smtp"));
-builder.Services.AddScoped<IEmailService, SmtpEmailService>();
-
-// Booking-lifecycle emails (§9) — composes Swedish templates and dispatches via IEmailService.
-builder.Services.Configure<BookingEmailOptions>(builder.Configuration.GetSection("BookingEmail"));
-builder.Services.AddScoped<BookingEmailService>();
-
-// ── Redis (distributed rate limiting — NFR-04) ────────────────────────────────
-// The Redis multiplexer is built at startup so a bad/unresolved connection string (e.g. an
-// unresolved Key Vault reference) degrades to "no rate limiting" (fail open, logged) rather than
-// crashing the public inquiry page at request time. AbortOnConnectFail=false means a valid string
-// with Redis merely unreachable still yields a real multiplexer that reconnects — only an
-// unparseable string falls back to the no-op limiter.
-builder.Services.Configure<RateLimitOptions>(builder.Configuration.GetSection("RateLimit"));
-var redisConnectionString = builder.Configuration.GetConnectionString("Redis")
-    ?? builder.Configuration["Redis:ConnectionString"]
-    ?? "localhost:6379";
-try
-{
-    var redisConfig = ConfigurationOptions.Parse(redisConnectionString);
-    redisConfig.AbortOnConnectFail = false;
-    builder.Services.AddSingleton<IConnectionMultiplexer>(ConnectionMultiplexer.Connect(redisConfig));
-    builder.Services.AddScoped<IInquiryRateLimiter, RedisInquiryRateLimiter>();
-}
-catch (Exception ex)
-{
-    // Console at bootstrap (the logging pipeline isn't built yet); surfaces in the container log stream.
-    Console.Error.WriteLine(
-        $"[RateLimit] Redis could not be initialised — rate limiting disabled (fail open): {ex.Message}");
-    builder.Services.AddSingleton<IInquiryRateLimiter, NoOpInquiryRateLimiter>();
-}
-
-// ── Booking engine (Phase 3) ──────────────────────────────────────────────────
-builder.Services.AddScoped<BookingService>();
-builder.Services.AddScoped<BlockedPeriodService>();
-builder.Services.AddScoped<OccupancyProvider>();
-builder.Services.AddScoped<RoomAvailabilityService>();
-
-// ── Audit trail (Phase 11, §6.9 / §8.15) ──────────────────────────────────────
+// ── Reference data, booking engine, email, audit (shared across both future hosts) ────────────
+builder.Services.AddAkeroReferenceDataServices();
+builder.Services.AddAkeroBookingEngine();
+builder.Services.AddAkeroEmail(builder.Configuration);
+builder.Services.AddAkeroAudit();
+// Audit actor accessor is host-specific — admin resolves the signed-in admin from the auth state
+// (public will register a system/guest actor in Slice 2b).
 builder.Services.AddScoped<IAuditActorAccessor, AuditActorAccessor>();
-builder.Services.AddScoped<IAuditWriter, AuditWriter>();
 
-// ── Scheduled background jobs (Phase 5) ───────────────────────────────────────
-builder.Services.AddSingleton(TimeProvider.System);
-builder.Services.Configure<JobOptions>(builder.Configuration.GetSection("Jobs"));
-builder.Services.AddScoped<IScheduledJob, RetentionJob>();
-builder.Services.AddScoped<IScheduledJob, ReminderJob>();
-builder.Services.AddHostedService<DailyJobRunner>();
+// ── Public-only concern: distributed inquiry rate limiting (NFR-04) ───────────────────────────
+builder.Services.AddAkeroInquiryRateLimiting(builder.Configuration);
 
-// ── Reference data services (Phase 1) ─────────────────────────────────────────
-builder.Services.AddScoped<BuildingService>();
-builder.Services.AddScoped<RoomService>();
-builder.Services.AddScoped<MealOptionService>();
-builder.Services.AddScoped<PriceRuleService>();
-builder.Services.AddScoped<CleaningZoneService>();
-builder.Services.AddScoped<FacilityService>();
-
-// ── Reference data services (Phase 8: cleaning rework, §8.14) ────────────────
-builder.Services.AddScoped<PhysicalBuildingService>();
-
-// ── Admin invite lifecycle (Phase 9, FR-74) ───────────────────────────────────
-builder.Services.AddScoped<AdminInviteService>();
-
-// ── Blob storage (facility images, FR-27) ─────────────────────────────────────
-builder.Services.Configure<BlobOptions>(builder.Configuration.GetSection("Blob"));
-builder.Services.AddScoped<IImageStorage, BlobImageStorage>();
-
-// ── Seeding ───────────────────────────────────────────────────────────────────
-builder.Services.AddScoped<AdminSeeder>();
-// Demo/UAT tooling — only wipes + reseeds when DemoSeed:Reset=true (never set in prod).
-builder.Services.AddScoped<DemoDataSeeder>();
+// ── Admin-only concerns: image upload, invite lifecycle, background jobs, seeding ─────────────
+builder.Services.AddAkeroImageStorage(builder.Configuration);
+builder.Services.AddAkeroAdminInvites();
+builder.Services.AddAkeroScheduledJobs(builder.Configuration);
+builder.Services.AddAkeroSeeding();
 
 // ── Blazor ───────────────────────────────────────────────────────────────────
 builder.Services.AddRazorComponents()

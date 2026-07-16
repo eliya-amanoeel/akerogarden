@@ -24,7 +24,12 @@ public enum DataProtectionMode
 /// </summary>
 public static class DataProtectionSetup
 {
-    /// <summary>Stable application name so the key ring is shared, not per-deployment-path.</summary>
+    /// <summary>
+    /// Default stable application name so the key ring is shared, not per-deployment-path. Phase 10b
+    /// splits the app into two hosts that each own an isolated key ring (public: antiforgery on the
+    /// booking form; admin: the auth cookie — shared nothing); each passes its own application name to
+    /// <see cref="AddAkeroDataProtection"/> so one host can never unprotect the other's payloads.
+    /// </summary>
     public const string ApplicationName = "AkeroGarden";
 
     /// <summary>
@@ -45,9 +50,10 @@ public static class DataProtectionSetup
     /// Adds Data Protection and, when configured, persists the key ring to Blob storage (optionally
     /// wrapped by Key Vault). In <see cref="DataProtectionMode.Ephemeral"/> the default provider is used.
     /// </summary>
-    public static IServiceCollection AddAkeroDataProtection(this IServiceCollection services, DataProtectionOptions options)
+    public static IServiceCollection AddAkeroDataProtection(
+        this IServiceCollection services, DataProtectionOptions options, string applicationName = ApplicationName)
     {
-        var builder = services.AddDataProtection().SetApplicationName(ApplicationName);
+        var builder = services.AddDataProtection().SetApplicationName(applicationName);
         var mode = ResolveMode(options);
 
         if (mode == DataProtectionMode.Ephemeral)

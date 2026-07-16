@@ -1,7 +1,7 @@
 # Åkerögården — App-Level Architecture
 
 **Derived from:** requirements.md v0.47, §1.3 (Scope), §1.5 (Technology Decisions), §2.5 (Booking Status Transitions), §2.6 (Magic Link Rules), §6.4 (Admin Auth), §6.7/FR-63–66 (Automated Notifications), §6.9 (Audit Trail), §10 (Out of Scope), §11/§11.1 (Hosting & Environments).
-**Status:** Pre-go-live artefact — reflects the target production topology (Phase 10), not the current local-dev-only state.
+**Status:** Pre-go-live artefact — reflects the target production topology (Phase 10b), not the current local-dev-only state.
 
 This is a system/component view — how the public site, admin panel, background jobs, and external Azure services fit together. For the data model see [erd.md](erd.md); for infra-as-code see the `.bicep` templates under `infra/`.
 

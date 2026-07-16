@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.49 — Working Draft  
+**Version:** 0.50 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.49:**
+
+- **Phase 10 split into 10a (staging re-provisioning) and 10b (production go-live); staging moves to the client's Azure tenant.** The client now has their own Azure subscription (Pay-As-You-Go, new tenant) — both staging and production will be provisioned there instead of the developer's personal MSDN subscription that has hosted staging until now. Since Azure's resource-move feature does not work across tenants, staging is **recreated from the existing Bicep templates** in the client's tenant (not migrated), and the old MSDN-hosted copy is deleted once the new one is verified — tracked as the new **Phase 10a**. At the same time, staging's long-deferred custom-subdomain binding is no longer deferred: it gets the same public/admin split as production (`staging.akerogarden.se` + `admin.staging.akerogarden.se`, vs. today's single Azure default hostname). Production provisioning (previously all of "Phase 10") becomes **Phase 10b**, unchanged in scope but now explicitly sequenced after 10a and provisioned directly in the client's tenant from the start. §11/§11.1 (hosting tables) and `implementation-plan.md` updated in step; `infra/azure/README.md` and `infra/ops/dns-cutover-runbook.md` updated to match.
 
 **Changes from v0.48:**
 
@@ -1229,6 +1233,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 
 > The cost table below specifies the **production** environment. All four environments (local dev, CI test, staging, production) are described in §11.1 below.
 > **Infrastructure-as-code:** All Azure resources (production and staging) are provisioned via **Bicep** templates checked into the repository, with environment-specific parameter files. Click-through portal provisioning is not used — if a resource is not in the Bicep templates, it does not exist and cannot be reproduced.
+> **Subscription ownership:** both staging and production are provisioned in the **client's own Azure subscription/tenant** (Phase 10a/10b), not the developer's — the repository and CI/CD pipeline remain developer-owned, but the Azure resources themselves, and their cost, belong to the client.
 
 | Service | Azure tier | Est. monthly (USD) | Purpose |
 |---|---|---|---|
@@ -1250,7 +1255,7 @@ The system uses four environments. Production is the table above; the others:
 |---|---|---|---|
 | **Local dev** | Developer's machine (macOS) | .NET 10 SDK; PostgreSQL, Redis, and Azurite (Blob emulator) via Docker; a local SMTP catcher (e.g. Mailpit) so dev mail never sends; `dotnet user-secrets` for config | Day-to-day development. No Azure cost |
 | **Automated test** | GitHub Actions CI | Ephemeral PostgreSQL/Redis service containers per run | Runs the unit + integration suite (NFR-26–28) on every push; gates the build. No standing infra |
-| **Staging** | Azure — separate resource group, `staging.akerogarden.se` | Mirrors production's shape on minimal tiers: App Service B1, PostgreSQL Flexible Server Burstable B1ms, Blob (small), Azure Managed Redis Balanced B0. Can be powered down when idle (Redis has no stop — delete + recreate via Bicep to zero its cost between sessions) | Pre-go-live verification and admin UAT (NFR-18/19); migrations and config validated here before promotion. Deploy flow: dev → CI → staging → production |
+| **Staging** | Azure — separate resource group, `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin), in the client's Azure tenant (Phase 10a) | Mirrors production's shape on minimal tiers: App Service B1, PostgreSQL Flexible Server Burstable B1ms, Blob (small), Azure Managed Redis Balanced B0. Can be powered down when idle (Redis has no stop — delete + recreate via Bicep to zero its cost between sessions) | Pre-go-live verification and admin UAT (NFR-18/19); migrations and config validated here before promotion. Deploy flow: dev → CI → staging → production |
 | **Production** | Azure (§11 table) | As specified above | Live system |
 
 **Staging notes:**
@@ -1258,6 +1263,7 @@ The system uses four environments. Production is the table above; the others:
 - Staging uses its own SMTP configuration pointing to a **test inbox**, never real guest addresses.
 - Estimated staging cost ~$45/month while fully running (same shape as production); ~$17/month with App Service + Postgres stopped but Redis kept (Redis has no stop); ~$0 if Redis is also deleted between sessions and recreated via Bicep.
 - Staging is a **separate resource group**, not a deployment slot, because production runs on App Service B1 Basic, which does not support slots (slots require Standard tier or higher).
+- Staging was originally provisioned in the developer's personal (MSDN) Azure subscription, before the client had one of their own. **Phase 10a recreates staging fresh in the client's tenant** — Azure resource moves don't work across tenants, so this is a redeploy from the existing Bicep templates, not a migration; the old subscription's copy is deleted once the new one is verified.
 
 ---
 

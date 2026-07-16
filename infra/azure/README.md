@@ -4,8 +4,9 @@ Bicep templates for Åkerögården. Both production and staging deploy from the 
 `main.bicep` with different parameter files (`staging.parameters.json`,
 `prod.parameters.json`).
 
-> **Status:** staging is provisioned in **Sweden Central** (`akerogarden-staging`).
-> Production is deferred to Phase 6.
+> **Status:** staging is provisioned in **Sweden Central** (`akerogarden-staging`), currently in the developer's personal (MSDN) subscription.
+> **Phase 10a** recreates staging fresh in the **client's own Azure subscription/tenant** (a new PAYG subscription) with a real subdomain split — `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin) — instead of today's Azure default hostname; the old MSDN-hosted copy is deleted once the new one is verified. This is a redeploy from these same Bicep templates, not a migration — Azure's resource-move feature doesn't work across tenants.
+> Production is provisioned directly in the client's tenant in **Phase 10b**.
 
 ## What `main.bicep` creates
 
@@ -88,12 +89,21 @@ Merging to `main` triggers CI → `Deploy — Staging`. The app applies EF migra
 seeds the admin **on startup, inside the VNet** (the VNet-only DB is unreachable from
 CI runners, so migrations cannot run from the pipeline — only from the running app).
 
-## Deploy production (Phase 6)
+## Recreate staging in the client's tenant (Phase 10a)
 
-Same as staging with `prod.parameters.json` and a `akerogarden-prod` resource group.
-Production also binds the custom domains (`akerogarden.se`, `admin.akerogarden.se`) and
-the staging custom subdomain (`staging.akerogarden.se`) + managed SSL via `ssl.bicep`,
-after DNS is configured. See `ssl.bicep` and the Phase 6 plan.
+Same steps as "Provision staging" above, but targeting the client's subscription: switch
+context first (`az login --tenant <client-tenant-id>`, `az account set --subscription
+<client-sub-id>`), then deploy with `staging.parameters.json` updated so `customHostnames`
+binds `staging.akerogarden.se` + `admin.staging.akerogarden.se`, and re-run steps 2–3
+(regenerate `AZURE_PUBLISH_PROFILE` from the new App Service, re-verify the first deploy).
+Once verified, delete the old `akerogarden-staging` resource group in the MSDN subscription.
+
+## Deploy production (Phase 10b)
+
+Same as staging with `prod.parameters.json` and a `akerogarden-prod` resource group, in the
+client's tenant. Production also binds the custom domains (`akerogarden.se`,
+`admin.akerogarden.se`) + managed SSL via `ssl.bicep`, after DNS is configured. Staging's own
+custom subdomains are bound separately in Phase 10a. See `ssl.bicep` and the Phase 10a/10b plan.
 
 ## Power staging down (save cost)
 
@@ -122,4 +132,4 @@ az postgres flexible-server stop --resource-group akerogarden-staging --name ake
   vault, and `keyVaultReferenceIdentity` must point at that identity so
   `@Microsoft.KeyVault(...)` app settings resolve.
 - **Custom hostname binding** fails until the `asuid.<host>` TXT + CNAME DNS records
-  exist; `customHostnames` is empty for staging until then (deferred to Phase 6).
+  exist; `customHostnames` is empty for staging until then (deferred to Phase 10a).

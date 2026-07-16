@@ -1,7 +1,9 @@
-# DNS + one.com Cutover Runbook (Phase 10 — go-live)
+# DNS + one.com Cutover Runbook (Phase 10b — go-live)
 
 **Purpose:** move `akerogarden.se` and `admin.akerogarden.se` from the current one.com/WordPress hosting to the production App Service, without disrupting email or the domain registration.
-**Who runs it:** requires access to the one.com DNS control panel and Azure CLI logged in with rights on `akerogarden-prod`. (Claude drafted this; you execute the DNS edits and `az` commands.)
+**Who runs it:** requires access to the one.com DNS control panel and Azure CLI logged in with rights on `akerogarden-prod` (in the client's Azure tenant — see Phase 10a/10b). (Claude drafted this; you execute the DNS edits and `az` commands.)
+
+**Staging's own DNS (Phase 10a) is simpler and covered separately below** — it's new records only, no WordPress hosting to retire, since staging never had a custom domain.
 
 ---
 
@@ -31,7 +33,7 @@ ADMIN_HOST      = admin.akerogarden.se
 DEFAULT_HOST    = akerogarden-prod-app.azurewebsites.net   # App Service default hostname
 ```
 
-`staging.akerogarden.se` is **out of scope here** — Phase 0 deferred staging's custom subdomain and it still runs on its Azure default hostname (`akerogarden-staging-app.azurewebsites.net`, per `staging.parameters.json`). Only add a `staging` CNAME later if that deferral gets picked back up; it's not part of the prod go-live gate.
+`staging.akerogarden.se` / `admin.staging.akerogarden.se` are **handled in Phase 10a, not here** — see "Staging DNS (Phase 10a)" below. This runbook's Parts A–F are production-only.
 
 ---
 
@@ -111,4 +113,37 @@ Content parity is a non-issue here — implementation plan notes the live site t
 
 ## Record the result
 
-Log: date/time of cutover, DNS propagation confirmation method used, SSL binding confirmed (both hostnames), WordPress decommission date. This closes out the Phase 10 exit criterion "production reachable on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex."
+Log: date/time of cutover, DNS propagation confirmation method used, SSL binding confirmed (both hostnames), WordPress decommission date. This closes out the Phase 10b exit criterion "production reachable on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex."
+
+---
+
+## Staging DNS (Phase 10a)
+
+Simpler than the production cutover above — no WordPress to retire, just new records pointing at the recreated staging App Service in the client's tenant. Same rule applies: never touch `MX`/`SPF`/`DKIM`/`DMARC` or any mailbox (same one.com DNS zone as production).
+
+```
+RG              = akerogarden-staging   # in the client's tenant, after Phase 10a recreation
+APP_NAME        = akerogarden-staging-app
+PUBLIC_HOST     = staging.akerogarden.se
+ADMIN_HOST      = admin.staging.akerogarden.se
+```
+
+1. Get the target values (same commands as Part B, against the staging app/resource group):
+   ```bash
+   az webapp show -g $RG -n $APP_NAME --query inboundIpAddress -o tsv
+   az webapp show -g $RG -n $APP_NAME --query customDomainVerificationId -o tsv
+   ```
+2. Add the DNS records at one.com:
+
+   | Host | Type | Value | Purpose |
+   |---|---|---|---|
+   | `staging` | `A` or `CNAME`* | *(inbound IP, or `akerogarden-staging-app.azurewebsites.net`)* | Points `staging.akerogarden.se` at App Service |
+   | `asuid.staging` | `TXT` | *(verification ID)* | Proves `staging` subdomain ownership to Azure |
+   | `admin.staging` | `CNAME` | `akerogarden-staging-app.azurewebsites.net` | Points `admin.staging.akerogarden.se` at App Service |
+   | `asuid.admin.staging` | `TXT` | *(same verification ID)* | Proves `admin.staging` subdomain ownership to Azure |
+
+   *Unlike the apex, `staging` is itself a subdomain, so it can use `CNAME` — prefer that over `A` for consistency with `admin.staging`, unless one.com's panel requires otherwise.
+3. Once records resolve, bind hostnames (`main.bicep` with the updated `staging.parameters.json`) and run `ssl.bicep` with a new `staging.ssl-parameters.json`, same pattern as Part D.
+4. No soak/decommission step needed — there's no prior hosting on these subdomains to retire.
+
+Closes out the Phase 10a exit criterion: staging reachable on `staging.akerogarden.se` / `admin.staging.akerogarden.se` with valid managed SSL.

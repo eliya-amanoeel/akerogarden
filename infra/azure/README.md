@@ -156,3 +156,19 @@ az postgres flexible-server stop --resource-group akerogarden-staging --name jmk
   `@Microsoft.KeyVault(...)` app settings resolve.
 - **Custom hostname binding** fails until the `asuid.<host>` TXT + CNAME DNS records
   exist; `customHostnames` is empty for staging until then (deferred to Phase 10a).
+- **ARM `for`-loop conflict on multi-hostname deploys (hit during Phase 10a's DNS/SSL
+  binding).** Deploying `main.bicep`'s `hostNameBindings` array (or `ssl.bicep`'s
+  `certificates`/`hostNameBindings` arrays) with 2+ hostnames against the same App Service
+  in one `az deployment group create` intermittently fails one of the array elements with
+  `Conflict — Cannot modify this site because another operation is in progress` (a fresh
+  operation ID on every retry, so it isn't a transient blip — ARM's parallel `for`-loop
+  resource writes appear to race each other on the same underlying site resource). One
+  element in the array typically succeeds; the other doesn't. **Workaround:** bind the
+  failed hostname/cert directly, bypassing the Bicep loop —
+  `az webapp config hostname add -g <rg> --webapp-name <app> --hostname <host>` for
+  hostname bindings, or `az webapp config ssl bind -g <rg> -n <app> --certificate-thumbprint
+  <thumb> --ssl-type SNI` for SSL (get the thumbprint via `az resource show -g <rg> -n
+  <cert-name> --resource-type Microsoft.Web/certificates --query properties.thumbprint -o
+  tsv`). End state matches what the Bicep template declares — only the deploy mechanism
+  differs. Expect this again in Phase 10b (`akerogarden.se` + `admin.akerogarden.se`, same
+  templates, same two-hostname shape).

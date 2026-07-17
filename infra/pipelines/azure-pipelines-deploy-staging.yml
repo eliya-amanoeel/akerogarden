@@ -4,9 +4,10 @@
 # Ready), then the apps — so the on-boot EF migrations succeed.
 #
 # Build-once, deploy-that-artifact: this pipeline does NOT rebuild. It downloads the
-# admin/public artifacts produced by a *green* CI run (the `ci` pipeline resource below)
-# and deploys exactly those bits. When you run it manually, pick which CI run to deploy
-# (defaults to the latest successful) — so you can only ship a build that passed all tests.
+# admin/public artifacts produced by a *green* CI run's Publish stage (the `ci` pipeline
+# resource below) and deploys exactly those bits. When you run it manually, pick which run to
+# deploy (defaults to the latest successful) — so you can only ship a build that passed every
+# test tier against the actual commit on main.
 #
 # Two-app topology (Phase 10b): both host apps live on their own sites on the one plan. The
 # ADMIN app is the sole DB-migrating/seeding process, so it deploys FIRST (before the public
@@ -21,8 +22,8 @@ resources:
   pipelines:
     - pipeline: ci
       source: CI # the display name of the azure-pipelines.yml pipeline
-      branch: main # only main runs publish admin/public artifacts (see azure-pipelines.yml) —
-      # without this, "latest CI build" can resolve to a PR-validation run (refs/pull/*/merge),
+      branch: main # only main runs reach the Publish stage (see azure-pipelines.yml) —
+      # without this, "latest CI run" can resolve to a PR-validation run (no Publish stage ran),
       # which never has the artifact and fails download with "Artifact ... was not found"
       trigger: none # stay manual — do not auto-deploy on every CI completion
 

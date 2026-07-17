@@ -1,3 +1,8 @@
+# Two stages, one pipeline. Test always runs (PR validation and post-merge alike — main is
+# strictly PR-gated, but Publish still needs to test the *actual* merge commit, since a PR's
+# validation run only tests a preview of the merge and another PR could have landed on main in
+# between). Publish only runs on main, and only if Test passed on that exact commit — so a
+# deployable artifact only ever exists for a commit that was itself tested, never a stale preview.
 trigger:
   branches:
     include: [main]
@@ -40,88 +45,110 @@ resources:
         --health-timeout 3s
         --health-retries 10
 
-jobs:
-  - job: build_and_test
+stages:
+  - stage: Test
     displayName: Build and test
-    services:
-      postgres: postgres
-      redis: redis
-    variables:
-      DOTNET_NOLOGO: true
-      DOTNET_CLI_TELEMETRY_OPTOUT: true
-      PLAYWRIGHT_BROWSERS_PATH: $(Pipeline.Workspace)/.playwright
-    steps:
-      - checkout: self
+    jobs:
+      - job: build_and_test
+        displayName: Build and test
+        services:
+          postgres: postgres
+          redis: redis
+        variables:
+          DOTNET_NOLOGO: true
+          DOTNET_CLI_TELEMETRY_OPTOUT: true
+          PLAYWRIGHT_BROWSERS_PATH: $(Pipeline.Workspace)/.playwright
+        steps:
+          - checkout: self
 
-      - task: UseDotNet@2
-        displayName: Setup .NET 10
-        inputs:
-          packageType: sdk
-          useGlobalJson: true
+          - task: UseDotNet@2
+            displayName: Setup .NET 10
+            inputs:
+              packageType: sdk
+              useGlobalJson: true
 
-      - script: dotnet restore
-        displayName: Restore
+          - script: dotnet restore
+            displayName: Restore
 
-      - script: dotnet build --no-restore --configuration Release
-        displayName: Build
+          - script: dotnet build --no-restore --configuration Release
+            displayName: Build
 
-      - script: dotnet test tests/AkeroGarden.Unit --no-build --configuration Release --logger "console;verbosity=normal" --logger trx
-        displayName: Unit tests
+          - script: dotnet test tests/AkeroGarden.Unit --no-build --configuration Release --logger "console;verbosity=normal" --logger trx
+            displayName: Unit tests
 
-      - script: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "console;verbosity=normal" --logger trx
-        displayName: Integration tests
-        env:
-          ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=akerogarden_test;Username=akerogarden;Password=akerogarden_ci"
-          Redis__ConnectionString: "localhost:6379"
+          - script: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "console;verbosity=normal" --logger trx
+            displayName: Integration tests
+            env:
+              ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=akerogarden_test;Username=akerogarden;Password=akerogarden_ci"
+              Redis__ConnectionString: "localhost:6379"
 
-      # End-to-end / UI tests (Playwright). The E2E suite boots its own ephemeral Postgres
-      # (Testcontainers) and launches the app on a real Kestrel port, so it needs the browser
-      # + OS deps installed first. pwsh is preinstalled on the ubuntu-latest image.
-      #
-      # Cache keyed on the resolved playwright.ps1 (reflects the exact browser build the
-      # restored package requires — Microsoft.Playwright floats on "*"). A cache hit skips the
-      # Chromium download; --with-deps' apt-level OS dependency check still runs either way
-      # (cheap) since hosted agents don't persist those between runs.
-      - task: Cache@2
-        displayName: Cache Playwright browsers
-        inputs:
-          key: 'playwright | "$(Agent.OS)" | tests/AkeroGarden.E2E/bin/Release/net10.0/playwright.ps1'
-          path: $(PLAYWRIGHT_BROWSERS_PATH)
+          # End-to-end / UI tests (Playwright). The E2E suite boots its own ephemeral Postgres
+          # (Testcontainers) and launches the app on a real Kestrel port, so it needs the browser
+          # + OS deps installed first. pwsh is preinstalled on the ubuntu-latest image.
+          #
+          # Cache keyed on the resolved playwright.ps1 (reflects the exact browser build the
+          # restored package requires — Microsoft.Playwright floats on "*"). A cache hit skips the
+          # Chromium download; --with-deps' apt-level OS dependency check still runs either way
+          # (cheap) since hosted agents don't persist those between runs.
+          - task: Cache@2
+            displayName: Cache Playwright browsers
+            inputs:
+              key: 'playwright | "$(Agent.OS)" | tests/AkeroGarden.E2E/bin/Release/net10.0/playwright.ps1'
+              path: $(PLAYWRIGHT_BROWSERS_PATH)
 
-      - script: pwsh tests/AkeroGarden.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
-        displayName: Install Playwright browsers
+          - script: pwsh tests/AkeroGarden.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+            displayName: Install Playwright browsers
 
-      - script: dotnet test tests/AkeroGarden.E2E --no-build --configuration Release --logger "console;verbosity=normal" --logger trx
-        displayName: E2E tests
-        env:
-          E2E_WEB_CONFIG: Release
+          - script: dotnet test tests/AkeroGarden.E2E --no-build --configuration Release --logger "console;verbosity=normal" --logger trx
+            displayName: E2E tests
+            env:
+              E2E_WEB_CONFIG: Release
 
-      - task: PublishTestResults@2
-        displayName: Publish test results
-        condition: succeededOrFailed()
-        inputs:
-          testResultsFormat: VSTest
-          testResultsFiles: "**/*.trx"
+          - task: PublishTestResults@2
+            displayName: Publish test results
+            condition: succeededOrFailed()
+            inputs:
+              testResultsFormat: VSTest
+              testResultsFiles: "**/*.trx"
 
-      # Build-once, deploy-that-artifact: package the *tested* build here and publish it as a
-      # pipeline artifact. --no-build reuses the Release build above (no recompile). These steps
-      # only run when every prior step (build + all three test tiers) succeeded AND the build is
-      # on main, so a deployable artifact exists only for tested, merged code — the deploy
-      # pipelines consume it instead of rebuilding.
-      - script: dotnet publish src/AkeroGarden.Web.Admin --no-build --configuration Release --output $(Build.ArtifactStagingDirectory)/admin
-        displayName: Publish admin
-        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+  - stage: Publish
+    displayName: Publish admin/public artifacts
+    dependsOn: Test
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+    jobs:
+      - job: publish
+        displayName: Publish admin/public artifacts
+        variables:
+          DOTNET_NOLOGO: true
+          DOTNET_CLI_TELEMETRY_OPTOUT: true
+        steps:
+          - checkout: self
 
-      - script: dotnet publish src/AkeroGarden.Web.Public --no-build --configuration Release --output $(Build.ArtifactStagingDirectory)/public
-        displayName: Publish public
-        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+          - task: UseDotNet@2
+            displayName: Setup .NET 10
+            inputs:
+              packageType: sdk
+              useGlobalJson: true
 
-      - publish: $(Build.ArtifactStagingDirectory)/admin
-        artifact: admin
-        displayName: Upload admin artifact
-        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+          # Fresh stage, fresh agent — the Test stage's build output isn't available here, so
+          # this rebuilds. Cheap relative to the test suite; keeps stage boundaries simple
+          # instead of shuttling build output between stages as pipeline artifacts.
+          - script: dotnet restore
+            displayName: Restore
 
-      - publish: $(Build.ArtifactStagingDirectory)/public
-        artifact: public
-        displayName: Upload public artifact
-        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+          - script: dotnet build --no-restore --configuration Release
+            displayName: Build
+
+          - script: dotnet publish src/AkeroGarden.Web.Admin --no-build --configuration Release --output $(Build.ArtifactStagingDirectory)/admin
+            displayName: Publish admin
+
+          - script: dotnet publish src/AkeroGarden.Web.Public --no-build --configuration Release --output $(Build.ArtifactStagingDirectory)/public
+            displayName: Publish public
+
+          - publish: $(Build.ArtifactStagingDirectory)/admin
+            artifact: admin
+            displayName: Upload admin artifact
+
+          - publish: $(Build.ArtifactStagingDirectory)/public
+            artifact: public
+            displayName: Upload public artifact

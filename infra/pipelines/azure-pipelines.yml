@@ -90,3 +90,26 @@ jobs:
         inputs:
           testResultsFormat: VSTest
           testResultsFiles: "**/*.trx"
+
+      # Build-once, deploy-that-artifact: package the *tested* build here and publish it as a
+      # pipeline artifact. --no-build reuses the Release build above (no recompile). These steps
+      # only run when every prior step (build + all three test tiers) succeeded AND the build is
+      # on main, so a deployable artifact exists only for tested, merged code — the deploy
+      # pipelines consume it instead of rebuilding.
+      - script: dotnet publish src/AkeroGarden.Web.Admin --no-build --configuration Release --output $(Build.ArtifactStagingDirectory)/admin
+        displayName: Publish admin
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+      - script: dotnet publish src/AkeroGarden.Web.Public --no-build --configuration Release --output $(Build.ArtifactStagingDirectory)/public
+        displayName: Publish public
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+      - publish: $(Build.ArtifactStagingDirectory)/admin
+        artifact: admin
+        displayName: Upload admin artifact
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+
+      - publish: $(Build.ArtifactStagingDirectory)/public
+        artifact: public
+        displayName: Upload public artifact
+        condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))

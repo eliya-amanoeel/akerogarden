@@ -3,18 +3,25 @@
 # merge to main. Before running: start staging in order — PostgreSQL first (wait until
 # Ready), then the apps — so the on-boot EF migrations succeed.
 #
-# Two-app topology (Phase 10b): publishes and deploys both host apps to their own sites on
-# the one plan. The ADMIN app is the sole DB-migrating/seeding process, so it deploys FIRST
-# (before the public site, which reads the schema admin creates).
+# Build-once, deploy-that-artifact: this pipeline does NOT rebuild. It downloads the
+# admin/public artifacts produced by a *green* CI run (the `ci` pipeline resource below)
+# and deploys exactly those bits. When you run it manually, pick which CI run to deploy
+# (defaults to the latest successful) — so you can only ship a build that passed all tests.
+#
+# Two-app topology (Phase 10b): both host apps live on their own sites on the one plan. The
+# ADMIN app is the sole DB-migrating/seeding process, so it deploys FIRST (before the public
+# site, which reads the schema admin creates).
 trigger: none
 pr: none
 
 pool:
   vmImage: ubuntu-latest
 
-variables:
-  DOTNET_NOLOGO: true
-  DOTNET_CLI_TELEMETRY_OPTOUT: true
+resources:
+  pipelines:
+    - pipeline: ci
+      source: CI # the display name of the azure-pipelines.yml pipeline
+      trigger: none # stay manual — do not auto-deploy on every CI completion
 
 jobs:
   - deployment: deploy_staging
@@ -24,19 +31,13 @@ jobs:
       runOnce:
         deploy:
           steps:
-            - checkout: self
+            - download: ci
+              artifact: admin
+              displayName: Download admin artifact (CI-tested build)
 
-            - task: UseDotNet@2
-              displayName: Setup .NET 10
-              inputs:
-                packageType: sdk
-                useGlobalJson: true
-
-            - script: dotnet publish src/AkeroGarden.Web.Admin --configuration Release --output $(Build.ArtifactStagingDirectory)/admin
-              displayName: Publish admin
-
-            - script: dotnet publish src/AkeroGarden.Web.Public --configuration Release --output $(Build.ArtifactStagingDirectory)/public
-              displayName: Publish public
+            - download: ci
+              artifact: public
+              displayName: Download public artifact (CI-tested build)
 
             - task: AzureWebApp@1
               displayName: Deploy admin site (migrates the DB — deploy first)
@@ -44,7 +45,7 @@ jobs:
                 azureSubscription: "akerogarden-azure-connection"
                 appType: webAppLinux
                 appName: "jmk-ag-staging-admin"
-                package: "$(Build.ArtifactStagingDirectory)/admin"
+                package: "$(Pipeline.Workspace)/ci/admin"
 
             - task: AzureWebApp@1
               displayName: Deploy public site
@@ -52,4 +53,4 @@ jobs:
                 azureSubscription: "akerogarden-azure-connection"
                 appType: webAppLinux
                 appName: "jmk-ag-staging-public"
-                package: "$(Build.ArtifactStagingDirectory)/public"
+                package: "$(Pipeline.Workspace)/ci/public"

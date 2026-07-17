@@ -164,36 +164,45 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         foreach (var b in buildings)
             b.Rooms = rooms.Where(r => r.BuildingId == b.Id).ToList();
 
+        // Real Åkerögården menu (client-provided). "Vegetarisk meny" is a single standing
+        // alternative offered alongside every lunch/dinner, so it's seeded once per meal type.
         var lunches = new List<MealOption>
         {
-            Meal("Köttbullar med potatismos och lingon", MealType.Lunch, false, 1,
-                "Klassiska svenska köttbullar med krämigt potatismos, gräddsås och lingonsylt."),
-            Meal("Vegetarisk lasagne", MealType.Lunch, true, 2,
-                "Lasagne med grönsaker och ost, serveras med sallad."),
-            Meal("Fiskgratäng med kokt potatis", MealType.Lunch, false, 3,
-                "Gratinerad fisk i gräddsås med dill."),
+            Meal("Panerad fisk med dansk remouladsås", MealType.Lunch, false, 1,
+                "Panerad fisk med dansk remouladsås, kokta grönsaker och kokt potatis."),
+            Meal("Ugnsstekt kycklingklubba", MealType.Lunch, false, 2,
+                "Ugnsstekt kycklingklubba med tzatziki och bulgur."),
+            Meal("Spaghetti bolognese", MealType.Lunch, false, 3,
+                "Spaghetti bolognese."),
+            Meal("Köttbullar med potatismos och gräddsås", MealType.Lunch, false, 4,
+                "Köttbullar med potatismos och gräddsås."),
+            Meal("Wokade grönsaker med nudlar", MealType.Lunch, true, 5,
+                "Vegetarisk meny: wokade grönsaker med nudlar."),
         };
         var dinners = new List<MealOption>
         {
-            Meal("Fläskfilé med rostad potatis", MealType.Dinner, false, 1,
-                "Helstekt fläskfilé med rostad potatis och pepparsås."),
-            Meal("Halloumibiff med couscous", MealType.Dinner, true, 2,
-                "Stekt halloumi på örtcouscous med rostade grönsaker."),
-            Meal("Ugnsbakad laxfilé med dillslungad potatis", MealType.Dinner, false, 3,
-                "Laxfilé ur ugn med citron, serveras med färskpotatis och dillsås."),
+            Meal("Grillad kycklingfilé med champinjonsås", MealType.Dinner, false, 1,
+                "Grillad kycklingfilé med champinjonsås, stekta grönsaker och klyftpotatis."),
+            Meal("Hamburgare med pommes", MealType.Dinner, false, 2,
+                "Hamburgare med pommes."),
+            Meal("Korv med bröd eller potatismos", MealType.Dinner, false, 3,
+                "Korv med bröd eller potatismos."),
+            Meal("Pannkakor med sylt och grädde", MealType.Dinner, false, 4,
+                "Pannkakor med sylt och grädde."),
+            Meal("Wokade grönsaker med nudlar", MealType.Dinner, true, 5,
+                "Vegetarisk meny: wokade grönsaker med nudlar."),
         };
 
-        // Facility examples straight from the SRS (FR-03: "e.g. Kapellet, Spelrum"). Only
-        // Konferensrum carries a PhysicalBuildingId — it's the only facility that puts a
-        // building's cleaning in play (§8.8, §5.5).
+        // Facilities — the client's actual "Lokaler" price list. Only Konferensrum carries a
+        // PhysicalBuildingId — it's the only facility that puts a building's cleaning in play
+        // (§8.8, §5.5). Husvagn/Tält are per-pitch fees, also billed under Lokaler.
         var facilities = new List<Facility>
         {
-            Facility(null, "Kapellet", "Litet kapell för vigslar och andakt, plats för ca 30 personer.", 800m, VatService, 1),
-            Facility(null, "Bastu", "Vedeldad bastu vid sjön med plats för åtta personer.", 500m, VatService, 2),
-            Facility(konferensPb, "Konferensrum", "Ljust konferensrum för upp till 40 personer, med projektor och whiteboard.", 1200m, VatService, 3),
-            Facility(null, "Spelrum", "Biljard, bordtennis och pilkastning. Städning ingår i avgiften.", 300m, VatService, 4),
-            Facility(null, "Kanoter och kajaker", "Fem kanoter och tre kajaker med flytvästar ingår.", 300m, VatService, 5),
-            Facility(null, "Lekplats och bollplan", "Lekplats för barn samt gräsplan för fotboll och kubb.", 0m, VatService, 6),
+            Facility(null, "Kapellet", "Litet kapell för vigslar och andakt, plats för ca 30 personer.", 1000m, VatService, 1),
+            Facility(konferensPb, "Konferensrum", "Ljust konferensrum för upp till 40 personer, med projektor och whiteboard.", 1000m, VatService, 2),
+            Facility(null, "Utflykt - gården", "I utflykt ingår gården, lilla matsalen och toalett.", 2000m, VatService, 3),
+            Facility(null, "Husvagn", "Husvagnsplats på gården.", 300m, VatService, 4),
+            Facility(null, "Tält", "Tältplats på gården.", 250m, VatService, 5),
         };
 
         // Cleaning zones (§5.5) — one per physical building, priced per building never per room,
@@ -216,15 +225,15 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         var zones = new List<CleaningZone>
             { huvudZone, lillaZone, storaZone, smedjanZone, tallstuganZone, konferensZone, helaZone };
 
+        // Real Åkerögården rate card (client-provided). No age-tiered discount beyond the
+        // system's own Infant-free rule (0–3 år) — 4 år and over all bill at the standard rate.
         var prices = new List<PriceRule>
         {
-            Price("Övernattning vuxen", 450m, VatAccommodation, "per person och natt", null),
-            Price("Övernattning barn (4–12 år)", 250m, VatAccommodation, "per person och natt", null),
-            Price("Övernattning, sommarsäsong (vuxen)", 495m, VatAccommodation, "per person och natt",
-                (new DateOnly(2026, 6, 15), new DateOnly(2026, 8, 15))),
-            Price("Helpension (frukost, lunch, middag)", 350m, VatFood, "per person och dag", null),
-            Price("Dagbesökare med måltider", 195m, VatFood, "per person och dag", null),
-            Price("Konferenspaket", 595m, VatService, "per person och dag", null),
+            Price("Lägerlogi med mat (helpension)", 550m, VatAccommodation, "per person och dygn", null),
+            Price("Lägerlogi utan mat", 250m, VatAccommodation, "per person och dygn", null),
+            Price("Stuga självhushåll (Smedjan/Tallstugan)", 1500m, VatAccommodation, "per dygn", null),
+            Price("Stuga självhushåll (Smedjan/Tallstugan), hel vecka", 7000m, VatAccommodation, "per vecka", null),
+            Price("Köksanvändning vid logi utan mat", 100m, VatService, "per person och dag", null),
         };
 
         db.PhysicalBuildings.AddRange(physicalBuildings);
@@ -318,7 +327,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         var nowUtc = DateTime.UtcNow;
         var today = DateOnly.FromDateTime(nowUtc);
 
-        var bastu = r.Facilities.First(f => f.Name == "Bastu");
+        var utflykt = r.Facilities.First(f => f.Name == "Utflykt - gården");
         var konferensrum = r.Facilities.First(f => f.Name == "Konferensrum");
 
         var huvudZone = r.Zones.First(z => z.Name == "Huvudbyggnad");
@@ -337,13 +346,13 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             today.AddDays(45), today.AddDays(48), overnight: 18, dayGuests: 0,
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-2));
         pending.Status = BookingStatus.Pending;
-        pending.Message = "Vi är en syförening som vill boka en helg med helpension. Går det bra med bastun?";
+        pending.Message = "Vi är en syförening som vill boka en helg med helpension. Går det bra med en utflykt till gården?";
         pending.IsOrganisation = true;
         pending.OrgName = "Roslagens syförening";
         pending.OrgNumber = "802000-1234";
         pending.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Pending, today.AddDays(-2), pending.CheckOut, today);
-        AddFacility(pending, bastu);
+        AddFacility(pending, utflykt);
         db.Bookings.Add(pending);
 
         // 2. Approved — token issued, guest yet to complete details (valid magic link).
@@ -374,7 +383,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         details.DeleteAfter = null;
         details.MainBuildingCleaningPurchased = true;
         details.SleepingCleaningPurchased = true;
-        AddFacility(details, bastu);
+        AddFacility(details, r.Facilities.First(f => f.Name == "Kapellet"));
         AddZone(details, huvudZone);
         AddZone(details, lillaZone);
         var detailsRoom = r.Rooms.First(x => x.BuildingId == tjocko.Id && x.Name == "Rum 2"); // 2 beds
@@ -482,8 +491,8 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         };
         db.Bookings.Add(closed);
 
-        // Note: Kapellet is seeded but not used by any demo booking above — kept available for
-        // manual admin testing of facility selection on the inquiry form.
+        // Note: Husvagn and Tält are seeded but not used by any demo booking above — kept
+        // available for manual admin testing of facility selection on the inquiry form.
 
         // Blocks — make the public calendar and admin block views non-empty.
         db.BlockedPeriods.AddRange(

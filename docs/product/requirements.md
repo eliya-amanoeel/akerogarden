@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.52 — Working Draft  
+**Version:** 0.53 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.52:**
+
+- **§11 hosting cost table reconciled to the deployed shape (no cost change — still ~$45/month).** Reality-checked the table against the Bicep templates and the live 2026-07-17 staging deployment: every billed SKU still matches (App Service B1, PostgreSQL B1ms + 32 GB, Blob Hot/LRS, Redis Balanced B0). Corrected two stale/missing items that do not move the total: (1) the App Service and custom-domain rows said the two hostnames "point to the same App Service" — post-Phase-10b they are **two sites on one B1 plan** (the plan is the billing unit, so the second site is $0); (2) added rows for the **Application Insights + Log Analytics** telemetry (Phase 11; ingestion capped at 0.1 GB/day, 30-day retention — within the free grant, ~$0) and **Key Vault** (Standard, per-operation, negligible), neither of which was previously tabulated.
 
 **Changes from v0.51:**
 
@@ -1245,12 +1249,14 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 
 | Service | Azure tier | Est. monthly (USD) | Purpose |
 |---|---|---|---|
-| Azure App Service | Basic B1 (Linux) | ~$13 | Hosts the Blazor Server application |
+| Azure App Service | Basic B1 (Linux) | ~$13 | Hosts both the public and admin Blazor apps as two sites on one B1 plan (the plan, not the site, is the billing unit — the second site is $0) |
 | Azure Database for PostgreSQL Flexible Server | Burstable B1ms | ~$17 | Primary database — compute ~$13 + 32 GB storage ~$4; daily backups within the free allotment |
 | Azure Blob Storage | Hot tier, LRS | ~$1–2 | List downloads; facility images; uploaded media |
 | Azure Managed Redis | Balanced B0 | ~$13 | Distributed rate-limit counters (NFR-04); successor to the retired Azure Cache for Redis |
-| Azure-managed SSL | Included | $0 | HTTPS certificate management |
-| Custom domains | Included on Basic+ | $0 | akerogarden.se (public site) + admin.akerogarden.se (admin panel) — both point to the same App Service |
+| Azure-managed SSL | Included | $0 | HTTPS certificate management (per-site cert on each of the two sites) |
+| Custom domains | Included on Basic+ | $0 | akerogarden.se → public site, admin.akerogarden.se → admin site — two sites on the one shared B1 plan |
+| Application Insights + Log Analytics | Workspace (PerGB2018) | ~$0 | Telemetry/diagnostics (Phase 11); ingestion capped at 0.1 GB/day (~3 GB/mo) and 30-day retention — sits within the free ingestion grant, so effectively $0 |
+| Key Vault | Standard | ~$0 | Secret storage; per-operation pricing, negligible at this volume |
 | **Total** | | **~$45/month** | |
 
 > Prices are USD pay-as-you-go list prices verified against the Azure Retail Prices API for North Europe, July 2026. Traffic-driven costs (bandwidth egress, blob transactions, Redis ops) are negligible at this site's volume — the first 100 GB/month of egress is free. Re-verify at [azure.microsoft.com/pricing/calculator](https://azure.microsoft.com/pricing/calculator) before client sign-off.

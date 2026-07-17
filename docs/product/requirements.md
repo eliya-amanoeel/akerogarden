@@ -1,10 +1,14 @@
 # Åkerögården — Booking System
 ## Software Requirements Specification
-**Version:** 0.51 — Working Draft  
+**Version:** 0.52 — Working Draft  
 **Date:** July 2026  
 **Status:** In progress — subject to change  
 **Prepared by:** Developer & Claude (Anthropic)  
 **Client:** Åkerögården, Norrtälje, Sverige  
+
+**Changes from v0.51:**
+
+- **FR-70 (admin/public host separation) genuinely satisfied for the first time (Phase 10b).** FR-70 was nominally scoped in Phase 0 but never actually built — one web app served every route on both hostnames, with separation only nominal (admin pages were `[Authorize]`-gated, so `/admin` on the public host redirected to login rather than 404ing). Phase 10b makes it real, structurally: the code is split into three projects (`AkeroGarden.Web.Core` shared RCL + `.Public` pure Static SSR + `.Admin` Interactive Server + Identity), deployed as **two App Service sites on one Basic B1 plan** (`akerogarden.se` → public, `admin.akerogarden.se` → admin). The internet-facing public process loads no Identity, SignalR, or admin assemblies, so `/admin` on the public host is now a genuine 404 — process isolation, not edge gating. **No FR/NFR text change** (FR-70's wording already described the target); this is an implementation milestone. Zero added cost (the plan is the billing unit). `architecture.md` (note 1 + diagram), `infra/azure/README.md`, `infra/ops/dns-cutover-runbook.md`, and `implementation-plan.md` (Phase 10b) updated in step. Staging cut over to the two-app topology and verified live 2026-07-17.
 
 **Changes from v0.50:**
 

@@ -22,6 +22,9 @@ resources:
   pipelines:
     - pipeline: ci
       source: CI # the display name of the azure-pipelines.yml pipeline
+      branch: main # only main runs publish admin/public artifacts (see azure-pipelines.yml) —
+      # without this, "latest CI build" can resolve to a PR-validation run (refs/pull/*/merge),
+      # which never has the artifact and fails download with "Artifact ... was not found"
       trigger: none # stay manual — production is deployed on demand behind the environment approval
 
 jobs:

@@ -1,4 +1,4 @@
-@page "/admin"
+@page "/"
 @layout AdminLayout
 @rendermode InteractiveServer
 @using System.Globalization
@@ -29,7 +29,7 @@ else
                 {
                     <span class="n">@_pending.Count</span>
                 }
-                <a class="link" href="/admin/bokningar">Alla bokningar →</a>
+                <a class="link" href="/bokningar">Alla bokningar →</a>
             </div>
             @if (_pending.Count == 0)
             {
@@ -44,7 +44,7 @@ else
                             {
                                 <tr>
                                     <td>
-                                        <a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a>
+                                        <a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a>
                                         <span class="sub">@BookingDisplay.TypeLabel(b.BookingType)@GuestSuffix(b)</span>
                                     </td>
                                     <td class="num mono">@DateRange(b)</td>
@@ -73,7 +73,7 @@ else
         <section class="card">
             <div class="card__head">
                 <h2>Väntar på slutförande</h2>
-                <a class="link" href="/admin/bokningar">Alla →</a>
+                <a class="link" href="/bokningar">Alla →</a>
             </div>
             @if (_awaitingCompletion.Count == 0)
             {
@@ -88,7 +88,7 @@ else
                             {
                                 <tr>
                                     <td>
-                                        <a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a>
+                                        <a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a>
                                         <span class="sub">Godkänd@(GuestSuffix(b))</span>
                                     </td>
                                     <td style="text-align:right">@ExpiryBadge(b)</td>
@@ -114,7 +114,7 @@ else
     <section class="card">
         <div class="card__head">
             <h2>Kommande ankomster</h2>
-            <a class="link" href="/admin/kalender">Kalendervy →</a>
+            <a class="link" href="/kalender">Kalendervy →</a>
         </div>
         @if (_upcoming.Count == 0)
         {
@@ -138,7 +138,7 @@ else
                         {
                             <tr>
                                 <td class="mono">@b.CheckIn?.ToString("d MMM", Sv)</td>
-                                <td><a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a></td>
+                                <td><a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a></td>
                                 <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
                                 <td>@BookingDisplay.MealPlanLabel(b.MealPlan)</td>
                                 <td>@Badge(b.Status)</td>
@@ -172,7 +172,7 @@ else
     private List<Booking> _awaitingCompletion = [];
     private List<Booking> _upcoming = [];
 
-    private void GoToBooking(Guid id) => Nav.NavigateTo($"/admin/bokningar/{id}");
+    private void GoToBooking(Guid id) => Nav.NavigateTo($"/bokningar/{id}");
 
     protected override async Task OnInitializedAsync()
     {

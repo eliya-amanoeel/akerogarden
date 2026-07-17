@@ -50,7 +50,8 @@ public abstract class PublicE2ETestBase(E2EFixture fixture) : E2ETestBase(fixtur
     protected override string AppBaseUrl => Fixture.PublicBaseUrl;
 }
 
-/// <summary>Base for tests that drive the admin (Interactive Server + Identity) host — /login, /admin/*.</summary>
+/// <summary>Base for tests that drive the admin (Interactive Server + Identity) host — /login and the
+/// flattened admin routes (dashboard at "/", /bokningar, /konton, …).</summary>
 public abstract class AdminE2ETestBase(E2EFixture fixture) : E2ETestBase(fixture)
 {
     protected override string AppBaseUrl => Fixture.AdminBaseUrl;

@@ -19,7 +19,7 @@
 | NFR | Requirement (SRS §12) | Status | Evidence |
 |---|---|---|---|
 | **NFR-01** | All traffic over HTTPS; SSL managed by App Service | ✅ code-config, ⏳ live-verify P9 | `app.UseHttpsRedirection()` + `app.UseHsts()` (non-dev) in `Program.cs`. Managed cert via `ssl.bicep`. The redirect/HSTS response is only observable behind the App Service TLS edge → confirm live in Phase 10a/10b. |
-| **NFR-02** | Admin routes redirect unauthenticated requests to login | ✅ | `ConfigureApplicationCookie` sets `LoginPath`/`AccessDeniedPath = /login`; admin pages are `[Authorize]`-gated and the `/admin/bokningar/{id}/…` list endpoints use `.RequireAuthorization()`. Integration-tested (auth-redirect tests). |
+| **NFR-02** | Admin routes redirect unauthenticated requests to login | ✅ | `ConfigureApplicationCookie` sets `LoginPath`/`AccessDeniedPath = /login`; admin pages are `[Authorize]`-gated and the `/bokningar/{id}/…` list endpoints use `.RequireAuthorization()`. Integration-tested (auth-redirect tests). |
 | **NFR-03** | Completion tokens cryptographically random (≥128-bit), single-use, time-limited | ✅ | `CompletionTokenPolicy` (unit-tested); token generated on approval, invalidated on submit (FR-62), expiry per §2.6 with 48h floor. |
 | **NFR-04** | Inquiry rate limit 5/IP/10 min, distributed store | ✅ | `RedisInquiryRateLimiter` backed by Azure Managed Redis; verified live on staging (5 ok, 6th blocked). Real client IP now correct behind the load balancer via `ForwardedHeaders` (below). |
 | **NFR-05** | No personal data in URLs | ✅ | Admin detail routes key on `{Id:guid}`, not names/emails. Completion page keys on an opaque token, not guest identity. Password reset uses a DataProtection token, not PII. Calendar exposes only aggregate state. |

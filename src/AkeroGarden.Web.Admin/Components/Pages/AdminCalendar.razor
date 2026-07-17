@@ -1,4 +1,4 @@
-@page "/admin/kalender"
+@page "/kalender"
 @layout AdminLayout
 @rendermode InteractiveServer
 @using AkeroGarden.Web.Core.Data.Entities
@@ -34,10 +34,10 @@ else
                     <tr>
                         <td class="mono">@b.CheckIn?.ToString("yyyy-MM-dd")</td>
                         <td class="mono">@b.CheckOut?.ToString("yyyy-MM-dd")</td>
-                        <td><a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a></td>
+                        <td><a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a></td>
                         <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
                         <td><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></td>
-                        <td class="rowactions"><a class="btn-ghost" href="/admin/bokningar/@b.Id">Öppna →</a></td>
+                        <td class="rowactions"><a class="btn-ghost" href="/bokningar/@b.Id">Öppna →</a></td>
                     </tr>
                 }
             </tbody>
@@ -106,7 +106,7 @@ else
     private List<Booking>? _bookings;
     private List<BlockedPeriod>? _blocks;
 
-    private void GoToBooking(Guid id) => Nav.NavigateTo($"/admin/bokningar/{id}");
+    private void GoToBooking(Guid id) => Nav.NavigateTo($"/bokningar/{id}");
 
     protected override async Task OnInitializedAsync()
     {

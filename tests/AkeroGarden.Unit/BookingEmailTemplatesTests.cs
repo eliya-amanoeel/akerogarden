@@ -47,12 +47,12 @@ public class BookingEmailTemplatesTests
             MealPlan = MealPlan.FullBoardAll
         };
 
-        var c = BookingEmailTemplates.AdminNewInquiry(booking, "https://admin.akerogarden.se/admin/bokningar/x");
+        var c = BookingEmailTemplates.AdminNewInquiry(booking, "https://admin.akerogarden.se/bokningar/x");
 
         Assert.Equal($"Ny bokningsförfrågan ({Ref})", c.Subject);
         Assert.Contains("anna@test.se", c.HtmlBody);
         Assert.Contains("Helpension", c.HtmlBody);
-        Assert.Contains("https://admin.akerogarden.se/admin/bokningar/x", c.HtmlBody);
+        Assert.Contains("https://admin.akerogarden.se/bokningar/x", c.HtmlBody);
         Assert.Contains(Ref, c.HtmlBody);
     }
 
@@ -156,9 +156,9 @@ public class BookingEmailTemplatesTests
             ContactEmail = "anna@test.se",
             CheckIn = new DateOnly(2026, 7, 25),
         };
-        var c = BookingEmailTemplates.AdminGuestNotCompleted(booking, "https://admin.akerogarden.se/admin/bokningar/y", new DateTime(2026, 7, 20, 10, 0, 0, DateTimeKind.Utc));
+        var c = BookingEmailTemplates.AdminGuestNotCompleted(booking, "https://admin.akerogarden.se/bokningar/y", new DateTime(2026, 7, 20, 10, 0, 0, DateTimeKind.Utc));
         Assert.Contains("Anna", c.HtmlBody);
-        Assert.Contains("admin/bokningar/y", c.HtmlBody);
+        Assert.Contains("bokningar/y", c.HtmlBody);
         Assert.Contains("2026", c.HtmlBody);
         Assert.Contains(Ref, c.HtmlBody);
     }
@@ -175,10 +175,10 @@ public class BookingEmailTemplatesTests
             CheckIn = new DateOnly(2026, 6, 1),
             CheckOut = new DateOnly(2026, 6, 4),
         };
-        var c = BookingEmailTemplates.PreDeletionWarning(booking, "https://admin.akerogarden.se/admin/bokningar/x", new DateOnly(2028, 6, 4));
+        var c = BookingEmailTemplates.PreDeletionWarning(booking, "https://admin.akerogarden.se/bokningar/x", new DateOnly(2028, 6, 4));
         Assert.Contains("gallring", c.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("2028", c.HtmlBody); // the deletion date
-        Assert.Contains("admin/bokningar/x", c.HtmlBody);
+        Assert.Contains("bokningar/x", c.HtmlBody);
         Assert.Contains(Ref, c.HtmlBody);
     }
 

@@ -59,11 +59,15 @@ public sealed class HostSeparationIntegrationTests : IClassFixture<DbFixture>, I
         Assert.Equal(HttpStatusCode.OK, resp.StatusCode);
     }
 
+    // Probes are admin routes whose *string* does not also name a public route. After the admin route
+    // flatten, some admin paths collide by name with public ones across the two hosts (e.g. "/kalender"
+    // is the admin calendar here and the public availability calendar there; "/" is the admin dashboard
+    // and the public home) — those are useless as host-exclusive probes, so they are deliberately absent.
     [Theory]
-    [InlineData("/admin")]            // admin dashboard — absent from the public assembly
-    [InlineData("/admin/bokningar")]  // admin booking list
-    [InlineData("/admin/kalender")]   // admin calendar
-    [InlineData("/login")]            // Identity — admin-only
+    [InlineData("/bokningar")]     // admin booking list — absent from the public assembly
+    [InlineData("/blockeringar")]  // admin blocks page
+    [InlineData("/konton")]        // admin accounts page
+    [InlineData("/login")]         // Identity — admin-only
     public async Task Public_host_returns_404_for_admin_routes(string path)
     {
         // The core FR-70 claim: a real 404 (route not registered in the process), NOT a 302 redirect
@@ -93,19 +97,19 @@ public sealed class HostSeparationIntegrationTests : IClassFixture<DbFixture>, I
         // The admin route IS present here (unlike on the public host) — an unauthenticated request is
         // auth-gated to /login, proving the difference from the public host's 404 for the same path.
         using var client = NoRedirectClient(_admin);
-        var resp = await client.GetAsync("/admin");
+        var resp = await client.GetAsync("/bokningar");
 
         Assert.Equal(HttpStatusCode.Found, resp.StatusCode);
         Assert.Contains("/login", resp.Headers.Location?.OriginalString ?? "");
     }
 
-    // Note: "/" is deliberately NOT here — the admin host maps GET "/" to a redirect to /admin
-    // (it has no public home), so it is a 302, not a 404. The routes below are genuine public pages
-    // that must be absent from the admin assembly.
+    // Note: "/" and "/kalender" are deliberately NOT here — after the admin route flatten they name the
+    // admin dashboard and admin calendar too, both [Authorize]-gated, so an unauthenticated request is a
+    // 302 to /login, not a 404. The routes below are genuine public-only pages absent from the admin
+    // assembly.
     [Theory]
     [InlineData("/boka")]              // inquiry form
     [InlineData("/integritetspolicy")] // privacy policy
-    [InlineData("/kalender")]          // public availability calendar
     [InlineData("/om-oss")]            // about
     public async Task Admin_host_returns_404_for_public_routes(string path)
     {

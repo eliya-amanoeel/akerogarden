@@ -10,7 +10,7 @@ namespace AkeroGarden.E2E;
 /// accessibility (axe, no serious/critical violations), and responsive reachability across
 /// mobile/tablet/desktop. No pixel diffing — behaviour and structure only.
 /// </summary>
-public class HomePageTests(E2EFixture fixture) : E2ETestBase(fixture)
+public class HomePageTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 {
     [Fact]
     public async Task Loads_and_is_branded_Swedish()

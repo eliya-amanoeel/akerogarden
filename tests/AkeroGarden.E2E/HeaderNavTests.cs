@@ -5,7 +5,7 @@ using Microsoft.Playwright;
 namespace AkeroGarden.E2E;
 
 /// <summary>Public shell — the top nav. Current-page state + the primary CTA.</summary>
-public class HeaderNavTests(E2EFixture fixture) : E2ETestBase(fixture)
+public class HeaderNavTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 {
     [Fact]
     public async Task Current_page_is_marked_in_the_nav()

@@ -27,13 +27,17 @@ The app sends every guest/admin email through One.com SMTP (`send.one.com`) auth
 
 ```
 RG              = akerogarden-prod
-APP_NAME        = jmk-ag-prod-app
+PUBLIC_APP      = jmk-ag-prod-public                    # serves the apex akerogarden.se
+ADMIN_APP       = jmk-ag-prod-admin                     # serves admin.akerogarden.se
 APEX            = akerogarden.se
 ADMIN_HOST      = admin.akerogarden.se
-DEFAULT_HOST    = jmk-ag-prod-app.azurewebsites.net   # App Service default hostname
+PUBLIC_DEFAULT  = jmk-ag-prod-public.azurewebsites.net  # public site default hostname
+ADMIN_DEFAULT   = jmk-ag-prod-admin.azurewebsites.net   # admin site default hostname
 ```
 
-`staging.akerogarden.se` / `admin.staging.akerogarden.se` are **handled in Phase 10a, not here** — see "Staging DNS (Phase 10a)" below. This runbook's Parts A–F are production-only.
+**Two-app topology (Phase 10b, FR-70):** production is two App Service sites on one B1 plan — the apex binds to the **public** site, `admin` to the **admin** site. Both sites share the plan's inbound IP; App Service routes by `Host` header, so the apex `A` record and the `admin` `CNAME` both resolve to the same scale unit but land on different sites via their hostname bindings.
+
+`staging.akerogarden.se` / `admin.staging.akerogarden.se` are **handled separately** — see "Staging DNS" below. This runbook's Parts A–F are production-only.
 
 ---
 
@@ -48,11 +52,13 @@ In the one.com DNS panel, lower the TTL on the records you're about to change (a
 Prod must exist (Bicep deployed) before this step — these values come from the live resource.
 
 ```bash
-# App Service inbound IP (for the apex A record)
-az webapp show -g $RG -n $APP_NAME --query inboundIpAddress -o tsv
+# App Service inbound IP for the apex A record (both sites share the plan's inbound IP;
+# query the public site since the apex binds there)
+az webapp show -g $RG -n $PUBLIC_APP --query inboundIpAddress -o tsv
 
-# Custom Domain Verification ID (for both asuid TXT records — same value for apex and admin)
-az webapp show -g $RG -n $APP_NAME --query customDomainVerificationId -o tsv
+# Custom Domain Verification ID for both asuid TXT records. This is SUBSCRIPTION-scoped, so it is
+# the SAME value for apex, admin, and every site in the subscription — one value covers both records.
+az webapp show -g $RG -n $PUBLIC_APP --query customDomainVerificationId -o tsv
 ```
 
 Record both outputs — you'll paste them into one.com in Part C.
@@ -65,9 +71,9 @@ An apex domain cannot use `CNAME` (DNS spec restriction), so apex and subdomain 
 
 | Host | Type | Value | Purpose |
 |---|---|---|---|
-| `@` (apex, `akerogarden.se`) | `A` | *(inbound IP from Part B)* | Points the bare domain at App Service |
+| `@` (apex, `akerogarden.se`) | `A` | *(inbound IP from Part B)* | Points the bare domain at the **public** site |
 | `asuid` | `TXT` | *(verification ID from Part B)* | Proves apex domain ownership to Azure |
-| `admin` | `CNAME` | `jmk-ag-prod-app.azurewebsites.net` | Points `admin.akerogarden.se` at App Service |
+| `admin` | `CNAME` | `jmk-ag-prod-admin.azurewebsites.net` | Points `admin.akerogarden.se` at the **admin** site |
 | `asuid.admin` | `TXT` | *(same verification ID)* | Proves `admin` subdomain ownership to Azure |
 
 Leave existing `MX`/`SPF`/`DKIM`/`DMARC`/mailbox records untouched.
@@ -80,17 +86,32 @@ Leave existing `MX`/`SPF`/`DKIM`/`DMARC`/mailbox records untouched.
 
 Once the DNS records above have propagated (check with `dig akerogarden.se A` / `dig asuid.akerogarden.se TXT` until they resolve to the new values):
 
-```bash
-# Bind hostnames (main.bicep already declares hostNameBindings for customHostnames —
-# redeploying main.bicep with prod.parameters.json will create these, since
-# customHostnames = ["akerogarden.se", "admin.akerogarden.se"] there).
-az deployment group create -g $RG --template-file infra/azure/main.bicep --parameters @infra/azure/prod.parameters.json
+Bind each hostname to its own site, then issue the certs. `main.bicep` declares the per-site
+bindings (`publicHostnames` → public site, `adminHostnames` → admin site), so redeploying it with
+`prod.parameters.json` creates them — **but that needs the secret parameters again** (Postgres/SMTP/
+seed passwords are `REPLACE_VIA_CI_SECRET` placeholders in the param file; passing placeholders would
+reset them). To avoid re-handling secrets, bind via the CLI instead (the `asuid` TXT proves ownership,
+so binding succeeds as soon as the TXT resolves — the `A`/`CNAME` need not have propagated yet):
 
-# Then issue the managed certificates (must run AFTER hostnames resolve to Azure — see ssl.bicep header comment)
+```bash
+# Bind each custom hostname to its own site (secret-free)
+az webapp config hostname add -g $RG --webapp-name $PUBLIC_APP --hostname $APEX
+az webapp config hostname add -g $RG --webapp-name $ADMIN_APP  --hostname $ADMIN_HOST
+
+# Then issue + SNI-bind the managed certificates (must run AFTER the A/CNAME resolve to Azure —
+# managed-cert issuance validates against DNS; see ssl.bicep header comment). No secrets needed.
 az deployment group create -g $RG --template-file infra/azure/ssl.bicep --parameters @infra/azure/prod.ssl-parameters.json
 ```
 
-`infra/azure/prod.ssl-parameters.json` doesn't exist yet — create it before this step (mirrors `main.bicep`'s `customHostnames`, plus `appServiceName`/`appServicePlanId` — both available as `main.bicep` outputs).
+`infra/azure/prod.ssl-parameters.json` doesn't exist yet — create it before this step, mirroring
+`staging.ssl-parameters.json`: `appServicePlanId` (a `main.bicep` output) plus a `bindings` array of
+`{ siteName, hostname }` pairs — `{jmk-ag-prod-public, akerogarden.se}` and `{jmk-ag-prod-admin,
+admin.akerogarden.se}`.
+
+> **Gotcha (seen at the staging cutover):** if a hostname already has a managed cert on the plan
+> under a different site, `ssl.bicep` fails with `CanonicalName is invalid … duplicate certificate` —
+> `az resource delete … Microsoft.Web/certificates` the stale cert first. Not expected for a
+> born-fresh prod (no prior site owns these hostnames), but watch for it on any re-point.
 
 ---
 
@@ -113,37 +134,36 @@ Content parity is a non-issue here — implementation plan notes the live site t
 
 ## Record the result
 
-Log: date/time of cutover, DNS propagation confirmation method used, SSL binding confirmed (both hostnames), WordPress decommission date. This closes out the Phase 10b exit criterion "production reachable on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex."
+Log: date/time of cutover, DNS propagation confirmation method used, SSL binding confirmed (both hostnames), WordPress decommission date. This closes out the Phase 10c exit criterion "production reachable on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex."
 
 ---
 
-## Staging DNS (Phase 10a)
+## Staging DNS
 
-Simpler than the production cutover above — no WordPress to retire, just new records pointing at the recreated staging App Service in the client's tenant. Same rule applies: never touch `MX`/`SPF`/`DKIM`/`DMARC` or any mailbox (same one.com DNS zone as production).
+Simpler than the production cutover above — no WordPress to retire, just records pointing at the staging App Service sites in the client's tenant. Same rule applies: never touch `MX`/`SPF`/`DKIM`/`DMARC` or any mailbox (same one.com DNS zone as production).
+
+**Status: DONE.** Staging was first bound single-app in Phase 10a, then **re-pointed to the two-site topology in Phase 10b (2026-07-17)** and verified live on both subdomains with valid managed SSL. The two-site target state is below (for reference / re-provisioning).
 
 ```
-RG              = akerogarden-staging   # in the client's tenant, after Phase 10a recreation
-APP_NAME        = jmk-ag-staging-app
-PUBLIC_HOST     = staging.akerogarden.se
-ADMIN_HOST      = admin.staging.akerogarden.se
+RG              = akerogarden-staging   # in the client's tenant
+PUBLIC_APP      = jmk-ag-staging-public
+ADMIN_APP       = jmk-ag-staging-admin
+PUBLIC_HOST     = staging.akerogarden.se        # → public site
+ADMIN_HOST      = admin.staging.akerogarden.se  # → admin site
 ```
 
-1. Get the target values (same commands as Part B, against the staging app/resource group):
+1. Get the target values (verification ID is subscription-scoped — one value for all records):
    ```bash
-   az webapp show -g $RG -n $APP_NAME --query inboundIpAddress -o tsv
-   az webapp show -g $RG -n $APP_NAME --query customDomainVerificationId -o tsv
+   az webapp show -g $RG -n $PUBLIC_APP --query customDomainVerificationId -o tsv
    ```
-2. Add the DNS records at one.com:
+2. DNS records at one.com (both subdomains use `CNAME`, each pointing at its own site's default hostname):
 
    | Host | Type | Value | Purpose |
    |---|---|---|---|
-   | `staging` | `A` or `CNAME`* | *(inbound IP, or `jmk-ag-staging-app.azurewebsites.net`)* | Points `staging.akerogarden.se` at App Service |
+   | `staging` | `CNAME` | `jmk-ag-staging-public.azurewebsites.net` | Points `staging.akerogarden.se` at the **public** site |
    | `asuid.staging` | `TXT` | *(verification ID)* | Proves `staging` subdomain ownership to Azure |
-   | `admin.staging` | `CNAME` | `jmk-ag-staging-app.azurewebsites.net` | Points `admin.staging.akerogarden.se` at App Service |
+   | `admin.staging` | `CNAME` | `jmk-ag-staging-admin.azurewebsites.net` | Points `admin.staging.akerogarden.se` at the **admin** site |
    | `asuid.admin.staging` | `TXT` | *(same verification ID)* | Proves `admin.staging` subdomain ownership to Azure |
 
-   *Unlike the apex, `staging` is itself a subdomain, so it can use `CNAME` — prefer that over `A` for consistency with `admin.staging`, unless one.com's panel requires otherwise.
-3. Once records resolve, bind hostnames (`main.bicep` with the updated `staging.parameters.json`) and run `ssl.bicep` with a new `staging.ssl-parameters.json`, same pattern as Part D.
-4. No soak/decommission step needed — there's no prior hosting on these subdomains to retire.
-
-Closes out the Phase 10a exit criterion: staging reachable on `staging.akerogarden.se` / `admin.staging.akerogarden.se` with valid managed SSL.
+3. Bind each hostname to its own site (`az webapp config hostname add`, secret-free) and run `ssl.bicep` with `staging.ssl-parameters.json`, same pattern as Part D. (When re-pointing from a prior site — as the 10b cutover did — first remove the hostname from the old site and delete its stale managed cert; see Part D's gotcha.)
+4. No soak/decommission step needed — there's no prior WordPress hosting on these subdomains to retire.

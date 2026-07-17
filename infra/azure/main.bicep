@@ -34,8 +34,11 @@ param smtpUsername string
 @description('SMTP password — stored in Key Vault; App Service reads via managed identity')
 param smtpPassword string
 
-@description('Custom hostnames to bind to the App Service (e.g. ["akerogarden.se","admin.akerogarden.se"])')
-param customHostnames array = []
+@description('Custom hostnames bound to the PUBLIC site (e.g. ["akerogarden.se"] / ["staging.akerogarden.se"])')
+param publicHostnames array = []
+
+@description('Custom hostnames bound to the ADMIN site (e.g. ["admin.akerogarden.se"] / ["admin.staging.akerogarden.se"])')
+param adminHostnames array = []
 
 @description('Bootstrap admin email — seeds the first admin account on startup if none exists')
 param seedAdminEmail string
@@ -59,13 +62,37 @@ param contactEmail string
 // ── Naming ────────────────────────────────────────────────────────────────────
 var prefix = 'jmk-ag-${environmentName}'
 
-// ── User-Assigned Managed Identity ───────────────────────────────────────────
-// Created before Key Vault and App Service so the principalId is available for
-// the Key Vault access policy in the same deployment pass.
-resource appIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = {
-  name: '${prefix}-identity'
+// ── Two-app topology (Phase 10b / FR-70) ──────────────────────────────────────
+// The public and admin surfaces are two independent App Service *sites* on the one shared plan —
+// genuine process isolation (the internet-facing public process never loads Identity/SignalR/admin
+// code). Everything stateful below (Postgres, Redis, Blob, Key Vault, VNet, telemetry) is shared.
+// This array is the single source of per-site divergence; the identity, site, host-binding, DP
+// container and KV-access resources all loop over it. Order matters: index 0 = public, 1 = admin
+// (the host-binding resources reference sites[0]/sites[1] by that convention).
+var apps = [
+  {
+    role: 'public'
+    hostnames: publicHostnames
+  }
+  {
+    role: 'admin'
+    hostnames: adminHostnames
+  }
+]
+
+// Shared connection strings, defined once so both sites' app settings stay identical where they
+// overlap. The Blob string is used for the admin image store AND both sites' Data-Protection rings.
+var postgresConnectionString = 'Host=${postgresServer.properties.fullyQualifiedDomainName};Database=akerogarden;Username=${postgresAdminLogin};Password=${postgresAdminPassword};SslMode=Require'
+var blobConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=core.windows.net'
+
+// ── User-Assigned Managed Identities (one per site) ──────────────────────────
+// Created before Key Vault and the sites so each principalId is available for the Key Vault access
+// policy in the same deployment pass. Two identities (not one shared) so each site runs as its own
+// principal — process isolation extends to the identity boundary (Phase 10b).
+resource appIdentities 'Microsoft.ManagedIdentity/userAssignedIdentities@2023-01-31' = [for app in apps: {
+  name: '${prefix}-${app.role}-identity'
   location: location
-}
+}]
 
 // ── Key Vault ─────────────────────────────────────────────────────────────────
 resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
@@ -131,14 +158,20 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2023-12-01' = {
   }
 }
 
-// ── App Service ───────────────────────────────────────────────────────────────
-resource appService 'Microsoft.Web/sites@2023-12-01' = {
-  name: '${prefix}-app'
+// ── App Service sites (public + admin, on the one shared plan) ────────────────
+// One site per entry in `apps`. Settings that overlap are built once (the common block); the
+// per-role divergence is a single concat: Redis → public only (only the inquiry form is rate-
+// limited); seed-admin + image-store Blob → admin only (keeps the internet-facing public process
+// free of the seed-admin secret and the image-upload credential). Each site runs as its own
+// identity, resolves @Microsoft.KeyVault(...) references through it, and persists its Data-Protection
+// ring to its own private Blob container (shared nothing — public: antiforgery; admin: auth cookie).
+resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
+  name: '${prefix}-${app.role}'
   location: location
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${appIdentity.id}': {}
+      '${appIdentities[i].id}': {}
     }
   }
   properties: {
@@ -146,18 +179,19 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
     httpsOnly: true
     // App Service must use the user-assigned identity (not the absent system one)
     // to resolve @Microsoft.KeyVault(...) references in app settings.
-    keyVaultReferenceIdentity: appIdentity.id
+    keyVaultReferenceIdentity: appIdentities[i].id
+    virtualNetworkSubnetId: appSubnet.id
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
-      alwaysOn: true // Basic B1 supports Always On (only Free/Shared do not); required so the daily BackgroundService (Phase 5 — reminders, retention warning, GDPR deletion) is not unloaded on idle
-      appSettings: [
+      alwaysOn: true // Basic B1 supports Always On (only Free/Shared do not); required on the ADMIN site so the daily BackgroundService (Phase 5 — reminders, retention warning, GDPR deletion) is not unloaded on idle. Kept on for public too (free — the plan is billed whether awake or idle).
+      appSettings: concat([
         {
           name: 'ASPNETCORE_ENVIRONMENT'
           value: environmentName == 'prod' ? 'Production' : 'Staging'
         }
         {
           name: 'ConnectionStrings__Postgres'
-          value: 'Host=${postgresServer.properties.fullyQualifiedDomainName};Database=akerogarden;Username=${postgresAdminLogin};Password=${postgresAdminPassword};SslMode=Require'
+          value: postgresConnectionString
         }
         {
           name: 'Smtp__Host'
@@ -182,15 +216,15 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
           value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=smtp-password)'
         }
         {
-          name: 'Blob__ConnectionString'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=core.windows.net'
+          // Data Protection key ring persisted to Blob (Phase 7 — NFR-30). Its presence is what
+          // switches on persistence — absent in local dev, so dev keeps the default filesystem ring.
+          name: 'DataProtection__KeysBlobConnectionString'
+          value: blobConnectionString
         }
         {
-          // Data Protection key ring persisted to Blob (Phase 7 — NFR-30). Same storage account as
-          // images, separate private container. Its presence is what switches on persistence — absent
-          // in local dev, so dev keeps the default filesystem key ring.
-          name: 'DataProtection__KeysBlobConnectionString'
-          value: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=core.windows.net'
+          // Per-site private container so the two rings share no storage (Phase 10b — shared nothing).
+          name: 'DataProtection__KeysContainer'
+          value: 'dataprotection-keys-${app.role}'
         }
         {
           // Key Vault key wrapping the Data Protection master key (NFR-30)
@@ -201,21 +235,7 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
           // The app runs under a user-assigned identity, so DefaultAzureCredential must be told which
           // one to use when authenticating to Key Vault for key wrap/unwrap.
           name: 'DataProtection__ManagedIdentityClientId'
-          value: appIdentity.properties.clientId
-        }
-        {
-          // Bootstraps the first admin on startup if no users exist (AdminSeeder)
-          name: 'Seed__AdminEmail'
-          value: seedAdminEmail
-        }
-        {
-          name: 'Seed__AdminPassword'
-          value: seedAdminPassword
-        }
-        {
-          // Distributed rate-limit store (NFR-04) — read from Key Vault via managed identity (NFR-30)
-          name: 'Redis__ConnectionString'
-          value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=redis-connection)'
+          value: appIdentities[i].properties.clientId
         }
         {
           name: 'BookingEmail__PublicBaseUrl'
@@ -239,39 +259,73 @@ resource appService 'Microsoft.Web/sites@2023-12-01' = {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: appInsights.properties.ConnectionString
         }
-      ]
+      ], app.role == 'public' ? [
+        {
+          // Distributed rate-limit store (NFR-04) — public only (the inquiry form is the only rate-
+          // limited endpoint). Read from Key Vault via managed identity (NFR-30).
+          name: 'Redis__ConnectionString'
+          value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=redis-connection)'
+        }
+      ] : [
+        {
+          // Bootstraps the first admin on startup if no users exist (AdminSeeder) — admin site only.
+          name: 'Seed__AdminEmail'
+          value: seedAdminEmail
+        }
+        {
+          name: 'Seed__AdminPassword'
+          value: seedAdminPassword
+        }
+        {
+          // Facility image upload store (FR-27) — admin only. The public site renders images from
+          // their anonymous Blob URLs and needs no storage credential.
+          name: 'Blob__ConnectionString'
+          value: blobConnectionString
+        }
+      ])
     }
-    virtualNetworkSubnetId: appSubnet.id
   }
-}
+}]
 
-// ── Key Vault access policy — App Service managed identity reads secrets ──────
+// ── Key Vault access policy — both sites' managed identities read secrets ─────
+// One 'add' operation carrying a policy per site identity. The access-policy model is per-vault
+// (not per-secret), so both identities can read every secret; the Redis-vs-seed split is enforced by
+// which app SETTING each site carries, not by the vault ACL.
 resource kvAccessPolicy 'Microsoft.KeyVault/vaults/accessPolicies@2023-07-01' = {
   parent: keyVault
   name: 'add'
   properties: {
-    accessPolicies: [
-      {
-        tenantId: subscription().tenantId
-        objectId: appIdentity.properties.principalId
-        permissions: {
-          secrets: ['get', 'list']
-          // wrap/unwrap the Data Protection master key (Phase 7 — NFR-30); get lets the DP
-          // provider read the key's metadata/version.
-          keys: ['get', 'wrapKey', 'unwrapKey']
-        }
+    accessPolicies: [for (app, i) in apps: {
+      tenantId: subscription().tenantId
+      objectId: appIdentities[i].properties.principalId
+      permissions: {
+        secrets: ['get', 'list']
+        // wrap/unwrap the Data Protection master key (Phase 7 — NFR-30); get lets the DP
+        // provider read the key's metadata/version.
+        keys: ['get', 'wrapKey', 'unwrapKey']
       }
-    ]
+    }]
   }
 }
 
-// ── Custom hostname bindings ──────────────────────────────────────────────────
-// DNS must point to the App Service before running ssl.bicep to issue managed certs.
-resource hostNameBindings 'Microsoft.Web/sites/hostNameBindings@2023-12-01' = [for hostname in customHostnames: {
-  parent: appService
+// ── Custom hostname bindings (per site) ───────────────────────────────────────
+// DNS must point to the App Service before running ssl.bicep to issue managed certs. Public
+// hostnames bind to sites[0], admin hostnames to sites[1] (the `apps` array order).
+resource publicHostBindings 'Microsoft.Web/sites/hostNameBindings@2023-12-01' = [for hostname in publicHostnames: {
+  parent: sites[0]
   name: hostname
   properties: {
-    siteName: appService.name
+    siteName: sites[0].name
+    hostNameType: 'Verified'
+    customHostNameDnsRecordType: 'A'
+  }
+}]
+
+resource adminHostBindings 'Microsoft.Web/sites/hostNameBindings@2023-12-01' = [for hostname in adminHostnames: {
+  parent: sites[1]
+  name: hostname
+  properties: {
+    siteName: sites[1].name
     hostNameType: 'Verified'
     customHostNameDnsRecordType: 'A'
   }
@@ -414,16 +468,17 @@ resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices
   }
 }
 
-// Holds the Data Protection key ring (Phase 7 — NFR-30). PRIVATE (no public access): these are
-// secret keys, unlike the anonymously-read facility images. The master key is additionally wrapped
-// by the Key Vault key below.
-resource dataProtectionKeysContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+// Holds each site's Data Protection key ring (Phase 7 — NFR-30). One PRIVATE container per site
+// (Phase 10b — the public and admin rings share no storage). PRIVATE (no public access): these are
+// secret keys, unlike the anonymously-read facility images. Each ring's master key is additionally
+// wrapped by the Key Vault key above.
+resource dataProtectionKeysContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [for app in apps: {
   parent: blobService
-  name: 'dataprotection-keys'
+  name: 'dataprotection-keys-${app.role}'
   properties: {
     publicAccess: 'None'
   }
-}
+}]
 
 // ── Diagnostics (Phase 11 — structured logging, correlation IDs, failure diagnosis) ───────────
 // Workspace-based Application Insights (the AI-only "classic" resource is retired for new
@@ -480,8 +535,13 @@ resource redisDatabase 'Microsoft.Cache/redisEnterprise/databases@2024-10-01' = 
 }
 
 // ── Outputs ───────────────────────────────────────────────────────────────────
-output appServiceName string = appService.name
-output appServiceHostname string = appService.properties.defaultHostName
+output publicAppName string = sites[0].name
+output adminAppName string = sites[1].name
+output publicAppHostname string = sites[0].properties.defaultHostName
+output adminAppHostname string = sites[1].properties.defaultHostName
+// ssl.bicep needs the plan id to bind managed certs to; output it so the ssl-parameters file can
+// reference the deployed plan rather than hardcoding the subscription-scoped resource id.
+output appServicePlanId string = appServicePlan.id
 output postgresHostname string = postgresServer.properties.fullyQualifiedDomainName
 output keyVaultName string = keyVault.name
 output appInsightsName string = appInsights.name

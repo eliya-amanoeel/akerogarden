@@ -1,5 +1,5 @@
 using AkeroGarden.E2E.Infrastructure;
-using AkeroGarden.Web.Data.Entities;
+using AkeroGarden.Web.Core.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
@@ -12,7 +12,7 @@ namespace AkeroGarden.E2E;
 /// server-authoritative check honors Huvudbyggnad/Konferensbyggnad but the sleeping toggle's
 /// intent-only nature (no room assignment on this fixture) is exercised in the integration suite.
 /// </summary>
-public class CleaningCompletionTests(E2EFixture fixture) : E2ETestBase(fixture)
+public class CleaningCompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 {
     private static string Url(string token) => $"/slutfor/{token}";
 

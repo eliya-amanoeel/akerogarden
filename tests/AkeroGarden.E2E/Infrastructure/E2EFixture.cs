@@ -1,9 +1,9 @@
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
-using AkeroGarden.Web.Data;
-using AkeroGarden.Web.Data.Entities;
-using AkeroGarden.Web.Models;
+using AkeroGarden.Web.Core.Data;
+using AkeroGarden.Web.Core.Data.Entities;
+using AkeroGarden.Web.Core.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Testcontainers.PostgreSql;
@@ -26,9 +26,15 @@ public sealed class E2EFixture : IAsyncLifetime
 
     private readonly StringBuilder _appLog = new();
     private readonly object _logLock = new();
-    private Process? _app;
+    private Process? _adminApp;
+    private Process? _publicApp;
 
-    public string BaseUrl { get; private set; } = "";
+    /// <summary>Public host (Static SSR) base URL — the guest-facing surface (home, /boka, /slutfor).</summary>
+    public string PublicBaseUrl { get; private set; } = "";
+
+    /// <summary>Admin host (Interactive Server + Identity) base URL — /login and /admin/*.</summary>
+    public string AdminBaseUrl { get; private set; } = "";
+
     public IPlaywright Playwright { get; private set; } = null!;
     public IBrowser Browser { get; private set; } = null!;
 
@@ -40,10 +46,20 @@ public sealed class E2EFixture : IAsyncLifetime
     public async Task InitializeAsync()
     {
         await _db.StartAsync();
+        var postgres = _db.GetConnectionString();
 
-        BaseUrl = $"http://127.0.0.1:{GetFreePort()}";
-        StartApp(BaseUrl, _db.GetConnectionString());
-        await WaitUntilReadyAsync(BaseUrl);
+        // Two-app topology (Phase 10b): the admin host owns migration + admin seeding and MUST boot
+        // first — it creates the schema the public host reads (the public host never migrates). Start
+        // admin, wait until it has migrated/seeded and is listening, then start public against the
+        // now-ready schema. Both share the one Postgres container.
+        AdminBaseUrl = $"http://127.0.0.1:{GetFreePort()}";
+        _adminApp = StartApp("AkeroGarden.Web.Admin", AdminBaseUrl, postgres, admin: true);
+        await WaitUntilReadyAsync(_adminApp, AdminBaseUrl, "admin");
+
+        PublicBaseUrl = $"http://127.0.0.1:{GetFreePort()}";
+        _publicApp = StartApp("AkeroGarden.Web.Public", PublicBaseUrl, postgres, admin: false);
+        await WaitUntilReadyAsync(_publicApp, PublicBaseUrl, "public");
+
         await SeedReferenceDataAsync();
 
         // Ensure the Chromium build is present (no-op if CI already installed it with OS deps).
@@ -60,13 +76,19 @@ public sealed class E2EFixture : IAsyncLifetime
         if (Browser is not null) await Browser.DisposeAsync();
         Playwright?.Dispose();
 
-        if (_app is { HasExited: false })
-        {
-            try { _app.Kill(entireProcessTree: true); } catch { /* already gone */ }
-            _app.Dispose();
-        }
+        KillApp(_publicApp);
+        KillApp(_adminApp);
 
         await _db.DisposeAsync();
+    }
+
+    private static void KillApp(Process? app)
+    {
+        if (app is { HasExited: false })
+        {
+            try { app.Kill(entireProcessTree: true); } catch { /* already gone */ }
+        }
+        app?.Dispose();
     }
 
     /// <summary>Known, unexpired completion tokens seeded for the /slutfor E2E tests. The submit
@@ -227,10 +249,14 @@ public sealed class E2EFixture : IAsyncLifetime
         await ctx.SaveChangesAsync();
     }
 
-    private void StartApp(string baseUrl, string postgresConnectionString)
+    /// <summary>Launches one of the two host apps out-of-process on its own Kestrel port. The admin
+    /// host (<paramref name="admin"/> = true) additionally migrates the schema and seeds the first
+    /// admin, so it must be started and awaited before the public host.</summary>
+    private Process StartApp(string projectName, string baseUrl, string postgresConnectionString, bool admin)
     {
-        var webProject = LocateWebProject();
+        var webProject = LocateProject(projectName);
         var configuration = Environment.GetEnvironmentVariable("E2E_WEB_CONFIG") ?? "Debug";
+        var label = admin ? "admin" : "public";
 
         var psi = new ProcessStartInfo("dotnet")
         {
@@ -252,17 +278,23 @@ public sealed class E2EFixture : IAsyncLifetime
         psi.Environment["ASPNETCORE_URLS"] = baseUrl;
         psi.Environment["ConnectionStrings__Postgres"] = postgresConnectionString;
 
-        // Seed the first admin so the admin E2E tests can log in (AdminSeeder is a no-op without these).
-        psi.Environment["Seed__AdminEmail"] = AdminEmail;
-        psi.Environment["Seed__AdminPassword"] = AdminPassword;
+        if (admin)
+        {
+            // Admin-only concerns (Phase 10b: Identity, seeding, invite lifecycle all live on the
+            // admin host — the public process has none of them).
+            // Seed the first admin so the admin E2E tests can log in (AdminSeeder is a no-op without these).
+            psi.Environment["Seed__AdminEmail"] = AdminEmail;
+            psi.Environment["Seed__AdminPassword"] = AdminPassword;
 
-        // Enable the Development-only /e2e/setup-link seam so the invite-activation flow (normally
-        // reachable only via the emailed link) can be driven by the browser. Never set in prod.
-        psi.Environment["E2ETestHooks"] = "true";
+            // Enable the Development-only /e2e/setup-link seam so the invite-activation flow (normally
+            // reachable only via the emailed link) can be driven by the browser. Never set in prod.
+            psi.Environment["E2ETestHooks"] = "true";
+        }
 
         // No SMTP server in E2E. SmtpEmailService already swallows send failures (NFR-13), so a
         // submit still succeeds — but make it fail fast (1 attempt, no retry delay) and give it a
-        // valid From address so the MimeMessage builds. Keeps the funnel test quick.
+        // valid From address so the MimeMessage builds. Keeps the funnel test quick. Both hosts send
+        // email (public: guest acks; admin: notifications), so both get the config.
         psi.Environment["Smtp__Host"] = "127.0.0.1";
         psi.Environment["Smtp__Port"] = "587";
         psi.Environment["Smtp__FromAddress"] = "noreply@akerogarden.test";
@@ -270,18 +302,19 @@ public sealed class E2EFixture : IAsyncLifetime
         psi.Environment["Smtp__MaxSendAttempts"] = "1";
         psi.Environment["Smtp__RetryDelayMs"] = "0";
 
-        _app = new Process { StartInfo = psi, EnableRaisingEvents = true };
-        _app.OutputDataReceived += (_, e) => Capture(e.Data);
-        _app.ErrorDataReceived += (_, e) => Capture(e.Data);
-        _app.Start();
-        _app.BeginOutputReadLine();
-        _app.BeginErrorReadLine();
+        var app = new Process { StartInfo = psi, EnableRaisingEvents = true };
+        app.OutputDataReceived += (_, e) => Capture(label, e.Data);
+        app.ErrorDataReceived += (_, e) => Capture(label, e.Data);
+        app.Start();
+        app.BeginOutputReadLine();
+        app.BeginErrorReadLine();
+        return app;
     }
 
-    private void Capture(string? line)
+    private void Capture(string label, string? line)
     {
         if (line is null) return;
-        lock (_logLock) _appLog.AppendLine(line);
+        lock (_logLock) _appLog.AppendLine($"[{label}] {line}");
     }
 
     private string RecentLog()
@@ -293,7 +326,7 @@ public sealed class E2EFixture : IAsyncLifetime
         }
     }
 
-    private async Task WaitUntilReadyAsync(string baseUrl)
+    private async Task WaitUntilReadyAsync(Process app, string baseUrl, string label)
     {
         using var http = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
         {
@@ -303,12 +336,13 @@ public sealed class E2EFixture : IAsyncLifetime
         var deadline = DateTime.UtcNow.AddSeconds(120);
         while (DateTime.UtcNow < deadline)
         {
-            if (_app is { HasExited: true })
-                throw new InvalidOperationException($"Web app exited during startup.\n--- app log ---\n{RecentLog()}");
+            if (app.HasExited)
+                throw new InvalidOperationException($"The {label} app exited during startup.\n--- app log ---\n{RecentLog()}");
 
             try
             {
-                // Any HTTP response means Kestrel is listening (migrate + seed have completed).
+                // Any HTTP response means Kestrel is listening (for the admin host, migrate + seed
+                // have completed by the time it binds).
                 using var resp = await http.GetAsync(baseUrl + "/");
                 return;
             }
@@ -318,10 +352,10 @@ public sealed class E2EFixture : IAsyncLifetime
             }
         }
 
-        throw new TimeoutException($"Web app did not become ready within 120 s.\n--- app log ---\n{RecentLog()}");
+        throw new TimeoutException($"The {label} app did not become ready within 120 s.\n--- app log ---\n{RecentLog()}");
     }
 
-    private static string LocateWebProject()
+    private static string LocateProject(string projectName)
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "AkeroGarden.slnx")))
@@ -330,7 +364,7 @@ public sealed class E2EFixture : IAsyncLifetime
         if (dir is null)
             throw new InvalidOperationException("Could not locate the repository root (AkeroGarden.slnx).");
 
-        var csproj = Path.Combine(dir.FullName, "src", "AkeroGarden.Web", "AkeroGarden.Web.csproj");
+        var csproj = Path.Combine(dir.FullName, "src", projectName, $"{projectName}.csproj");
         if (!File.Exists(csproj))
             throw new InvalidOperationException($"Web project not found at {csproj}.");
 

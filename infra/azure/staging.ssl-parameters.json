@@ -2,8 +2,12 @@
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
   "parameters": {
-    "appServiceName": { "value": "jmk-ag-staging-app" },
     "appServicePlanId": { "value": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-staging/providers/Microsoft.Web/serverfarms/jmk-ag-staging-plan" },
-    "customHostnames": { "value": ["staging.akerogarden.se", "admin.staging.akerogarden.se"] }
+    "bindings": {
+      "value": [
+        { "siteName": "jmk-ag-staging-public", "hostname": "staging.akerogarden.se" },
+        { "siteName": "jmk-ag-staging-admin", "hostname": "admin.staging.akerogarden.se" }
+      ]
+    }
   }
 }

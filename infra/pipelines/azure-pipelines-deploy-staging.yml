@@ -1,0 +1,55 @@
+# Manual-only. Staging is powered down when idle, so deploys are triggered on demand
+# (Pipelines → "Deploy — Staging" → Run pipeline) rather than automatically on every
+# merge to main. Before running: start staging in order — PostgreSQL first (wait until
+# Ready), then the apps — so the on-boot EF migrations succeed.
+#
+# Two-app topology (Phase 10b): publishes and deploys both host apps to their own sites on
+# the one plan. The ADMIN app is the sole DB-migrating/seeding process, so it deploys FIRST
+# (before the public site, which reads the schema admin creates).
+trigger: none
+pr: none
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  - deployment: deploy_staging
+    displayName: Deploy both apps to Azure App Service (staging)
+    environment: staging
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+
+            - task: UseDotNet@2
+              displayName: Setup .NET 10
+              inputs:
+                packageType: sdk
+                useGlobalJson: true
+
+            - script: dotnet publish src/AkeroGarden.Web.Admin --configuration Release --output $(Build.ArtifactStagingDirectory)/admin
+              displayName: Publish admin
+
+            - script: dotnet publish src/AkeroGarden.Web.Public --configuration Release --output $(Build.ArtifactStagingDirectory)/public
+              displayName: Publish public
+
+            - task: AzureWebApp@1
+              displayName: Deploy admin site (migrates the DB — deploy first)
+              inputs:
+                azureSubscription: "akerogarden-azure-connection"
+                appType: webAppLinux
+                appName: "jmk-ag-staging-admin"
+                package: "$(Build.ArtifactStagingDirectory)/admin"
+
+            - task: AzureWebApp@1
+              displayName: Deploy public site
+              inputs:
+                azureSubscription: "akerogarden-azure-connection"
+                appType: webAppLinux
+                appName: "jmk-ag-staging-public"
+                package: "$(Build.ArtifactStagingDirectory)/public"

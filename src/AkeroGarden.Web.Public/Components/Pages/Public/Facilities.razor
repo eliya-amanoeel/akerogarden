@@ -1,0 +1,61 @@
+@page "/faciliteter"
+@layout MainLayout
+@using AkeroGarden.Web.Core.Data.Entities
+@inject FacilityService FacilityService
+
+<PageTitle>Faciliteter — Åkerögården</PageTitle>
+
+<section class="page-head">
+    <div class="container">
+        <span class="eyebrow">Faciliteter</span>
+        <h1>Åtta hus, en gård</h1>
+        <div class="page-head__rule"></div>
+        <p class="page-head__intro">
+            Lokaler och utrymmen för möten, måltider och gemenskap — omgivna av skog och natur
+            strax utanför Norrtälje.
+        </p>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        @if (facilities.Count == 0)
+        {
+            <p>Inga faciliteter finns för närvarande.</p>
+        }
+        else
+        {
+            <div class="fac-grid">
+                @foreach (var facility in facilities)
+                {
+                    <article class="fac-card">
+                        <div class="fac-card__img">
+                            @if (!string.IsNullOrEmpty(facility.ImageUrl))
+                            {
+                                <img src="@facility.ImageUrl" alt="@facility.Name" />
+                            }
+                            else
+                            {
+                                <span class="photo-tag">Foto</span>
+                            }
+                        </div>
+                        <div class="fac-card__body">
+                            <h2>@facility.Name</h2>
+                            @if (!string.IsNullOrEmpty(facility.Description))
+                            {
+                                <p>@facility.Description</p>
+                            }
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+@code {
+    private List<Facility> facilities = [];
+
+    protected override async Task OnInitializedAsync() =>
+        facilities = await FacilityService.GetActiveAsync();
+}

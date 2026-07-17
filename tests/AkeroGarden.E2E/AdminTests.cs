@@ -1,5 +1,5 @@
 using AkeroGarden.E2E.Infrastructure;
-using AkeroGarden.Web.Data.Entities;
+using AkeroGarden.Web.Core.Data.Entities;
 using Deque.AxeCore.Playwright;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -13,7 +13,7 @@ namespace AkeroGarden.E2E;
 /// reachability (sidebar collapses on mobile) are checked on the key screens. Behaviour/structure
 /// only — no pixel diffing.
 /// </summary>
-public class AdminTests(E2EFixture fixture) : E2ETestBase(fixture)
+public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 {
     /// <summary>
     /// Opens the collapsed (≤860px) admin menu via the hamburger. It's a CSS-only checkbox toggle

@@ -1,5 +1,5 @@
-using AkeroGarden.Web.Data.Entities;
-using AkeroGarden.Web.Services;
+using AkeroGarden.Web.Core.Data.Entities;
+using AkeroGarden.Web.Core.Services;
 
 namespace AkeroGarden.Unit;
 

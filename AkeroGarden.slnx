@@ -1,6 +1,8 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/AkeroGarden.Web/AkeroGarden.Web.csproj" />
+    <Project Path="src/AkeroGarden.Web.Core/AkeroGarden.Web.Core.csproj" />
+    <Project Path="src/AkeroGarden.Web.Admin/AkeroGarden.Web.Admin.csproj" />
+    <Project Path="src/AkeroGarden.Web.Public/AkeroGarden.Web.Public.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/AkeroGarden.E2E/AkeroGarden.E2E.csproj" />

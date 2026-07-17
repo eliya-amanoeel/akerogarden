@@ -1,0 +1,291 @@
+@page "/admin/blockeringar"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Core.Data.Entities
+@using AkeroGarden.Web.Core.Services
+@inject BlockedPeriodService BlockedPeriodService
+@inject BuildingService BuildingService
+@inject RoomService RoomService
+@attribute [Authorize]
+
+<PageTitle>Blockeringar — Åkerögården Admin</PageTitle>
+
+<AdminHeader Title="Blockeringar" />
+<p class="form-hint">Blockera tillgänglighet för hela anläggningen, en byggnad eller ett rum (t.ex. vid renovering).</p>
+
+<Toast @bind-Message="_message" />
+
+<div class="admin-toolbar">
+    <button type="button" class="btn" @onclick="OpenCreate">+ Lägg till blockering</button>
+</div>
+
+@if (_blocks is null)
+{
+    <p class="admin-empty">Laddar…</p>
+}
+else if (_blocks.Count == 0)
+{
+    <p class="admin-empty">Inga blockeringar.</p>
+}
+else
+{
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr><th>Från</th><th>Till</th><th>Omfattning</th><th>Mål</th><th>Orsak</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var p in _blocks)
+                {
+                    <tr @onclick="() => OpenEdit(p)">
+                        <td class="mono">@p.StartDate.ToString("yyyy-MM-dd")</td>
+                        <td class="mono">@p.EndDate.ToString("yyyy-MM-dd")</td>
+                        <td>@BookingDisplay.ScopeLabel(p.Scope)</td>
+                        <td>@TargetLabel(p)</td>
+                        <td>@(p.Reason ?? "—")</td>
+                        <td class="rowactions">
+                            <button class="btn-ghost" @onclick="() => OpenEdit(p)" @onclick:stopPropagation="true">Redigera</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="data-cards">
+        @foreach (var p in _blocks)
+        {
+            <AdminDataCard Title="@($"{p.StartDate:yyyy-MM-dd} – {p.EndDate:yyyy-MM-dd}")" OnClick="() => OpenEdit(p)">
+                <Sub>@BookingDisplay.ScopeLabel(p.Scope) · @TargetLabel(p)</Sub>
+                <Fields>
+                    <div><dt>Orsak</dt><dd>@(p.Reason ?? "—")</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
+}
+
+<EditForm Model="_form" OnValidSubmit="Save">
+    <DataAnnotationsValidator />
+    <AdminPanel Visible="_panelOpen" Title="@(_isCreating ? "Ny blockering" : $"{_form.StartDate:yyyy-MM-dd} – {_form.EndDate:yyyy-MM-dd}")" OnClose="ClosePanel">
+        <ChildContent>
+            <Toast @bind-Message="_panelError" />
+            <div class="form-group">
+                <label for="scope">Omfattning</label>
+                <select id="scope" @bind="_form.Scope" @bind:after="OnScopeChanged">
+                    @foreach (var s in Enum.GetValues<BlockScope>())
+                    {
+                        <option value="@s">@BookingDisplay.ScopeLabel(s)</option>
+                    }
+                </select>
+            </div>
+
+            @if (_form.Scope is BlockScope.Building or BlockScope.Room)
+            {
+                <div class="form-group">
+                    <label for="building">Byggnad</label>
+                    <select id="building" @bind="_form.BuildingId" @bind:after="OnBuildingChanged">
+                        <option value="">Välj byggnad...</option>
+                        @foreach (var b in _buildings)
+                        {
+                            <option value="@b.Id">@b.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            @if (_form.Scope == BlockScope.Room)
+            {
+                <div class="form-group">
+                    <label for="room">Rum</label>
+                    <select id="room" @bind="_form.RoomId">
+                        <option value="">Välj rum...</option>
+                        @foreach (var r in _rooms)
+                        {
+                            <option value="@r.Id">@r.Name</option>
+                        }
+                    </select>
+                </div>
+            }
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="start">Från</label>
+                    <InputDate id="start" @bind-Value="_form.StartDate" />
+                </div>
+                <div class="form-group">
+                    <label for="end">Till</label>
+                    <InputDate id="end" @bind-Value="_form.EndDate" />
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="reason">Orsak (intern)</label>
+                <InputText id="reason" @bind-Value="_form.Reason" />
+            </div>
+        </ChildContent>
+        <Footer>
+            <button type="submit" class="btn">Spara</button>
+            @if (!_isCreating)
+            {
+                <button type="button" class="btn-outline btn-danger" @onclick="RequestDeleteCurrent">Ta bort</button>
+            }
+        </Footer>
+    </AdminPanel>
+</EditForm>
+
+<ConfirmDialog Visible="_pendingDelete is not null"
+               Title="Ta bort blockering"
+               Message="@($"Vill du ta bort blockeringen {_pendingDelete?.StartDate:yyyy-MM-dd}–{_pendingDelete?.EndDate:yyyy-MM-dd}? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDelete"
+               OnCancel="CancelDelete" />
+
+@code {
+    private List<BlockedPeriod>? _blocks;
+    private BlockedPeriod _form = NewForm();
+    private Guid? _editingId;
+    private bool _isCreating;
+    private bool _panelOpen;
+    private List<Building> _buildings = [];
+    private List<Room> _rooms = [];
+    private readonly Dictionary<Guid, string> _buildingNames = [];
+    private readonly Dictionary<Guid, string> _roomNames = [];
+    private string? _message;
+    private string? _panelError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _buildings = await BuildingService.GetAllAsync();
+        foreach (var b in _buildings) _buildingNames[b.Id] = b.Name;
+        await Load();
+    }
+
+    private async Task Load()
+    {
+        _blocks = await BlockedPeriodService.GetAllAsync();
+        // Resolve room names for any room-scoped blocks (small set).
+        foreach (var p in _blocks.Where(p => p.RoomId is not null && !_roomNames.ContainsKey(p.RoomId!.Value)))
+        {
+            var room = await RoomService.GetAsync(p.RoomId!.Value);
+            if (room is not null) _roomNames[room.Id] = room.Name;
+        }
+    }
+
+    private static BlockedPeriod NewForm() => new()
+    {
+        Scope = BlockScope.WholeProperty,
+        StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
+        EndDate = DateOnly.FromDateTime(DateTime.UtcNow)
+    };
+
+    private void OpenCreate()
+    {
+        _panelOpen = true;
+        _isCreating = true;
+        _editingId = null;
+        _panelError = null;
+        _form = NewForm();
+        _rooms = [];
+    }
+
+    private void ClosePanel()
+    {
+        _panelOpen = false;
+        _isCreating = false;
+        _editingId = null;
+        _panelError = null;
+    }
+
+    private async Task OnScopeChanged()
+    {
+        // Clear now-irrelevant targets when the scope narrows/widens.
+        if (_form.Scope == BlockScope.WholeProperty) { _form.BuildingId = null; _form.RoomId = null; _rooms = []; }
+        else if (_form.Scope == BlockScope.Building) { _form.RoomId = null; _rooms = []; }
+        else if (_form.Scope == BlockScope.Room && _form.BuildingId is not null)
+            await LoadRooms();
+    }
+
+    private async Task OnBuildingChanged()
+    {
+        _form.RoomId = null;
+        await LoadRooms();
+    }
+
+    private async Task LoadRooms() =>
+        _rooms = _form.BuildingId is null ? [] : await RoomService.GetForBuildingAsync(_form.BuildingId.Value);
+
+    private async Task OpenEdit(BlockedPeriod p)
+    {
+        _panelOpen = true;
+        _isCreating = false;
+        _editingId = p.Id;
+        _panelError = null;
+        _form = new BlockedPeriod
+        {
+            Id = p.Id,
+            Scope = p.Scope,
+            BuildingId = p.BuildingId,
+            RoomId = p.RoomId,
+            StartDate = p.StartDate,
+            EndDate = p.EndDate,
+            Reason = p.Reason
+        };
+        if (p.Scope == BlockScope.Room) await LoadRooms();
+    }
+
+    private async Task Save()
+    {
+        var result = _isCreating
+            ? await BlockedPeriodService.TryCreateAsync(_form)
+            : await BlockedPeriodService.TryUpdateAsync(_form);
+
+        if (!result.Succeeded)
+        {
+            _panelError = result.Error;
+            return;
+        }
+
+        _message = _isCreating ? "Blockeringen har lagts till." : "Blockeringen har uppdaterats.";
+        ClosePanel();
+        await Load();
+    }
+
+    private BlockedPeriod? _pendingDelete;
+
+    private void RequestDeleteCurrent()
+    {
+        if (_editingId is not null)
+            _pendingDelete = _blocks!.First(x => x.Id == _editingId);
+    }
+
+    private void CancelDelete() => _pendingDelete = null;
+
+    private async Task ConfirmDelete()
+    {
+        if (_pendingDelete is null)
+            return;
+
+        var p = _pendingDelete;
+        _pendingDelete = null;
+
+        await BlockedPeriodService.DeleteAsync(p.Id);
+        _message = "Blockeringen har tagits bort.";
+        ClosePanel();
+        await Load();
+    }
+
+    private string TargetLabel(BlockedPeriod p) => p.Scope switch
+    {
+        BlockScope.WholeProperty => "Hela anläggningen",
+        BlockScope.Building => p.BuildingId is not null && _buildingNames.TryGetValue(p.BuildingId.Value, out var bn) ? bn : "—",
+        BlockScope.Room => BuildingRoomLabel(p),
+        _ => "—"
+    };
+
+    private string BuildingRoomLabel(BlockedPeriod p)
+    {
+        var b = p.BuildingId is not null && _buildingNames.TryGetValue(p.BuildingId.Value, out var bn) ? bn : "?";
+        var r = p.RoomId is not null && _roomNames.TryGetValue(p.RoomId.Value, out var rn) ? rn : "?";
+        return $"{b} / {r}";
+    }
+}

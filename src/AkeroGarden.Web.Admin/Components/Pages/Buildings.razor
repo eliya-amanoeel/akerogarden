@@ -1,0 +1,668 @@
+@page "/admin/byggnader"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Core.Data.Entities
+@inject PhysicalBuildingService PhysicalBuildingService
+@inject BuildingService BuildingService
+@inject RoomService RoomService
+@attribute [Authorize]
+
+<PageTitle>Byggnader — Åkerögården Admin</PageTitle>
+
+<AdminHeader Title="Byggnader" />
+
+<p class="form-hint">
+    Fysiska byggnader (nivån städning prissätts på, t.ex. Lilla bostadslängan) innehåller
+    boendeenheter, som i sin tur innehåller rum. Fäll ut en rad för att se vad den innehåller.
+    Klicka på en rad — eller Redigera — för att öppna redigeringspanelen.
+</p>
+
+<Toast @bind-Message="_message" />
+
+@if (_physicalBuildings is null)
+{
+    <p class="admin-empty">Laddar…</p>
+}
+else if (_physicalBuildings.Count == 0)
+{
+    <p class="admin-empty">Inga fysiska byggnader ännu.</p>
+    <div class="bldg-addrow bldg-addrow--l0" @onclick="OpenCreatePhysical">+ Lägg till fysisk byggnad</div>
+}
+else
+{
+    <div class="bldg-tree">
+        <div class="bldg-tree__toolbar">
+            <button type="button" class="bldg-tree__expandall" @onclick="ToggleExpandAll">
+                @(_allOpen ? "Fäll in allt" : "Fäll ut allt")
+            </button>
+            <span class="cols"><span>Enheter</span><span>Bäddar</span></span>
+        </div>
+
+        @foreach (var pb in _physicalBuildings)
+        {
+            var pbBuildings = BuildingsOf(pb.Id);
+            var pbOpen = IsOpen(pb.Id);
+            var pbBeds = pbBuildings.Sum(b => BedCountFor(b.Id));
+
+            <div class="bldg-row bldg-row--l0 @(pbOpen ? "is-open" : "") @(IsSelectedPhysical(pb.Id) ? "is-selected" : "")"
+                 @onclick="() => OpenEditPhysical(pb)">
+                <div class="bldg-row__main">
+                    <button type="button" class="bldg-twist" aria-label="Fäll ut/in" aria-expanded="@(pbOpen ? "true" : "false")"
+                            @onclick="() => ToggleOpen(pb.Id)" @onclick:stopPropagation="true">
+                        <svg viewBox="0 0 8 12" fill="none" aria-hidden="true"><path d="M1 1L6 6L1 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                    </button>
+                    <button type="button" class="bldg-row__name" @onclick="() => OpenEditPhysical(pb)" @onclick:stopPropagation="true">@pb.Name</button>
+                    <span class="bldg-row__summary">
+                        @(pbBuildings.Count > 0 ? $"{pbBuildings.Count} byggnad{(pbBuildings.Count == 1 ? "" : "er")} · {pbBeds} bäddar" : "Inga byggnader ännu")
+                    </span>
+                </div>
+                <div class="bldg-row__stats">
+                    <span class="num">@(pbBuildings.Count > 0 ? pbBuildings.Count.ToString() : "—")</span>
+                    <span class="num">@(pbBeds > 0 ? pbBeds.ToString() : "—")</span>
+                    @if (pb.IsActive)
+                    {
+                        <span class="badge badge--approved">Aktiv</span>
+                    }
+                    else
+                    {
+                        <span class="badge badge--neutral">Inaktiv</span>
+                    }
+                    <span class="bldg-row__actions">
+                        <button type="button" class="btn-ghost" @onclick="() => OpenEditPhysical(pb)" @onclick:stopPropagation="true">Redigera</button>
+                    </span>
+                </div>
+            </div>
+            <div class="bldg-children @(pbOpen ? "is-open" : "")">
+                @if (pbBuildings.Count == 0)
+                {
+                    <div class="bldg-emptychild">Inga boendeenheter i denna fysiska byggnad ännu.</div>
+                }
+                else
+                {
+                    @foreach (var b in pbBuildings)
+                    {
+                        var bRooms = RoomsOf(b.Id);
+                        var bOpen = IsOpen(b.Id);
+                        var bBeds = bRooms.Sum(r => r.BedCount);
+
+                        <div class="bldg-row bldg-row--l1 @(bOpen ? "is-open" : "") @(IsSelectedBuilding(b.Id) ? "is-selected" : "")"
+                             @onclick="() => OpenEditBuilding(b)">
+                            <div class="bldg-row__main">
+                                <button type="button" class="bldg-twist" aria-label="Fäll ut/in" aria-expanded="@(bOpen ? "true" : "false")"
+                                        @onclick="() => ToggleOpen(b.Id)" @onclick:stopPropagation="true">
+                                    <svg viewBox="0 0 8 12" fill="none" aria-hidden="true"><path d="M1 1L6 6L1 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                                </button>
+                                <button type="button" class="bldg-row__name" @onclick="() => OpenEditBuilding(b)" @onclick:stopPropagation="true">@b.Name</button>
+                                @if (b.IsAccessible)
+                                {
+                                    <span class="bldg-row__meta">· tillgänglighetsanpassad</span>
+                                }
+                                <span class="bldg-row__summary">
+                                    @(bRooms.Count > 0 ? $"{bRooms.Count} rum · {bBeds} bäddar" : "Inga rum ännu")@(b.IsAccessible ? " · tillgänglighetsanpassad" : "")
+                                </span>
+                            </div>
+                            <div class="bldg-row__stats">
+                                <span class="num">@(bRooms.Count > 0 ? bRooms.Count.ToString() : "—")</span>
+                                <span class="num">@(bBeds > 0 ? bBeds.ToString() : "—")</span>
+                                @if (b.IsActive)
+                                {
+                                    <span class="badge badge--approved">Aktiv</span>
+                                }
+                                else
+                                {
+                                    <span class="badge badge--neutral">Inaktiv</span>
+                                }
+                                <span class="bldg-row__actions">
+                                    <button type="button" class="btn-ghost" @onclick="() => OpenEditBuilding(b)" @onclick:stopPropagation="true">Redigera</button>
+                                </span>
+                            </div>
+                        </div>
+                        <div class="bldg-children @(bOpen ? "is-open" : "")">
+                            @if (bRooms.Count == 0)
+                            {
+                                <div class="bldg-emptychild">Inga rum i denna byggnad ännu.</div>
+                            }
+                            else
+                            {
+                                @foreach (var r in bRooms)
+                                {
+                                    <div class="bldg-row bldg-row--l2 @(IsSelectedRoom(r.Id) ? "is-selected" : "")"
+                                         @onclick="() => OpenEditRoom(r)">
+                                        <div class="bldg-row__main">
+                                            <span class="bldg-twist bldg-twist--spacer" aria-hidden="true">
+                                                <svg viewBox="0 0 8 12" fill="none"><path d="M1 1L6 6L1 11" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" /></svg>
+                                            </span>
+                                            <button type="button" class="bldg-row__name" @onclick="() => OpenEditRoom(r)" @onclick:stopPropagation="true">@r.Name</button>
+                                            <span class="bldg-row__meta">· @r.BedConfiguration</span>
+                                            <span class="bldg-row__summary">@r.BedCount bäddar · @r.BedConfiguration</span>
+                                        </div>
+                                        <div class="bldg-row__stats">
+                                            <span class="num">—</span>
+                                            <span class="num">@r.BedCount</span>
+                                            @if (r.IsActive)
+                                            {
+                                                <span class="badge badge--approved">Aktiv</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge badge--neutral">Inaktiv</span>
+                                            }
+                                            <span class="bldg-row__actions">
+                                                <button type="button" class="btn-ghost" @onclick="() => OpenEditRoom(r)" @onclick:stopPropagation="true">Redigera</button>
+                                            </span>
+                                        </div>
+                                    </div>
+                                }
+                            }
+                            <div class="bldg-addrow bldg-addrow--l2" @onclick="() => OpenCreateRoom(b.Id)">+ Lägg till rum i @b.Name</div>
+                        </div>
+                    }
+                }
+                <div class="bldg-addrow bldg-addrow--l1" @onclick="() => OpenCreateBuilding(pb.Id)">+ Lägg till byggnad i @pb.Name</div>
+            </div>
+        }
+
+        <div class="bldg-addrow bldg-addrow--l0" @onclick="OpenCreatePhysical">+ Lägg till fysisk byggnad</div>
+    </div>
+}
+
+@* One persistent EditForm + AdminPanel instance (never swapped out via @@if/@@else branches) so
+   Blazor keeps the same underlying DOM element across every open/close/kind-change — that's what
+   lets the slide in/out CSS transition actually play. Model/Title/Kicker are computed properties
+   that just point at whichever of the 3 forms is current; the per-kind fields live in @@switch
+   blocks inside the shared ChildContent/Footer instead of 3 separate panel instances. *@
+<EditForm Model="CurrentFormModel" OnValidSubmit="CurrentSave">
+    <DataAnnotationsValidator />
+    <AdminPanel Visible="@(_panelKind != PanelKind.None)" Title="@CurrentTitle" OnClose="ClosePanel">
+        <Kicker>
+            @switch (_panelKind)
+            {
+                case PanelKind.Physical:
+                    <text>Fysisk byggnad</text>
+                    break;
+                case PanelKind.Building:
+                    <span class="admin-crumbtrail">@PhysicalNameOf(_buildingForm.PhysicalBuildingId) <b>→ Byggnad</b></span>
+                    break;
+                case PanelKind.Room:
+                    <span class="admin-crumbtrail">@BuildingNameOf(_roomForm.BuildingId) <b>→ Rum</b></span>
+                    break;
+            }
+        </Kicker>
+        <ChildContent>
+            <Toast @bind-Message="_panelError" />
+            @switch (_panelKind)
+            {
+                case PanelKind.Physical:
+                    <div class="form-group">
+                        <label for="pb-name">Namn</label>
+                        <InputText id="pb-name" @bind-Value="_physicalForm.Name" />
+                        <ValidationMessage For="() => _physicalForm.Name" />
+                    </div>
+                    <div class="form-group">
+                        <label for="pb-description">Beskrivning</label>
+                        <InputTextArea id="pb-description" @bind-Value="_physicalForm.Description" />
+                        <ValidationMessage For="() => _physicalForm.Description" />
+                    </div>
+                    <div class="form-group">
+                        <label for="pb-order">Visningsordning</label>
+                        <InputNumber id="pb-order" min="0" @bind-Value="_physicalForm.DisplayOrder" />
+                        <ValidationMessage For="() => _physicalForm.DisplayOrder" />
+                    </div>
+                    @if (!_isCreating)
+                    {
+                        <p class="admin-crumbtrail">Innehåller @BuildingsOf(_editingPhysicalId!.Value).Count byggnad(er).</p>
+                    }
+                    break;
+
+                case PanelKind.Building:
+                    <div class="form-group">
+                        <label for="b-name">Namn</label>
+                        <InputText id="b-name" @bind-Value="_buildingForm.Name" />
+                        <ValidationMessage For="() => _buildingForm.Name" />
+                    </div>
+                    <div class="form-group">
+                        <label for="b-physical">Fysisk byggnad</label>
+                        <InputSelect id="b-physical" @bind-Value="_buildingForm.PhysicalBuildingId">
+                            <option value="">Välj fysisk byggnad…</option>
+                            @foreach (var pb in _physicalBuildings!.Where(p => p.IsActive || p.Id == _buildingForm.PhysicalBuildingId))
+                            {
+                                <option value="@pb.Id">@pb.Name</option>
+                            }
+                        </InputSelect>
+                        <ValidationMessage For="() => _buildingForm.PhysicalBuildingId" />
+                    </div>
+                    <div class="form-group">
+                        <label for="b-description">Beskrivning</label>
+                        <InputTextArea id="b-description" @bind-Value="_buildingForm.Description" />
+                        <ValidationMessage For="() => _buildingForm.Description" />
+                    </div>
+                    <div class="form-group">
+                        <label for="b-shared">Gemensamma utrymmen</label>
+                        <InputTextArea id="b-shared" @bind-Value="_buildingForm.SharedFacilities" />
+                        <ValidationMessage For="() => _buildingForm.SharedFacilities" />
+                    </div>
+                    <div class="form-group">
+                        <label>
+                            <InputCheckbox @bind-Value="_buildingForm.IsAccessible" />
+                            Tillgänglighetsanpassad
+                        </label>
+                    </div>
+                    <div class="form-group">
+                        <label for="b-order">Visningsordning</label>
+                        <InputNumber id="b-order" min="0" @bind-Value="_buildingForm.DisplayOrder" />
+                        <ValidationMessage For="() => _buildingForm.DisplayOrder" />
+                    </div>
+                    @if (!_isCreating)
+                    {
+                        <p class="admin-crumbtrail">Innehåller @RoomsOf(_editingBuildingId!.Value).Count rum.</p>
+                    }
+                    break;
+
+                case PanelKind.Room:
+                    <div class="form-group">
+                        <label for="r-name">Namn</label>
+                        <InputText id="r-name" @bind-Value="_roomForm.Name" />
+                        <ValidationMessage For="() => _roomForm.Name" />
+                    </div>
+                    <div class="form-group">
+                        <label for="r-beds">Antal bäddar</label>
+                        <InputNumber id="r-beds" min="1" @bind-Value="_roomForm.BedCount" />
+                        <ValidationMessage For="() => _roomForm.BedCount" />
+                    </div>
+                    <div class="form-group">
+                        <label for="r-config">Bäddkonfiguration</label>
+                        <InputText id="r-config" @bind-Value="_roomForm.BedConfiguration" />
+                        <ValidationMessage For="() => _roomForm.BedConfiguration" />
+                    </div>
+                    <div class="form-group">
+                        <label for="r-order">Visningsordning</label>
+                        <InputNumber id="r-order" min="0" @bind-Value="_roomForm.DisplayOrder" />
+                        <ValidationMessage For="() => _roomForm.DisplayOrder" />
+                    </div>
+                    break;
+            }
+        </ChildContent>
+        <Footer>
+            <button type="submit" class="btn">Spara</button>
+            @switch (_panelKind)
+            {
+                case PanelKind.Physical when !_isCreating:
+                {
+                    var pb = _physicalBuildings!.First(p => p.Id == _editingPhysicalId);
+                    <button type="button" class="btn-outline" @onclick="TogglePhysicalActive">@(pb.IsActive ? "Inaktivera" : "Aktivera")</button>
+                    <button type="button" class="btn-outline btn-danger" @onclick="() => RequestDeletePhysical(pb)">Ta bort</button>
+                    break;
+                }
+                case PanelKind.Building when !_isCreating:
+                {
+                    var b = _buildings!.First(x => x.Id == _editingBuildingId);
+                    <button type="button" class="btn-outline" @onclick="ToggleBuildingActive">@(b.IsActive ? "Inaktivera" : "Aktivera")</button>
+                    <button type="button" class="btn-outline btn-danger" @onclick="() => RequestDeleteBuilding(b)">Ta bort</button>
+                    break;
+                }
+                case PanelKind.Room when !_isCreating:
+                {
+                    var r = _rooms!.First(x => x.Id == _editingRoomId);
+                    <button type="button" class="btn-outline" @onclick="ToggleRoomActive">@(r.IsActive ? "Inaktivera" : "Aktivera")</button>
+                    <button type="button" class="btn-outline btn-danger" @onclick="() => RequestDeleteRoom(r)">Ta bort</button>
+                    break;
+                }
+            }
+        </Footer>
+    </AdminPanel>
+</EditForm>
+
+<ConfirmDialog Visible="_pendingDeletePhysical is not null"
+               Title="Ta bort fysisk byggnad"
+               Message="@($"Vill du ta bort byggnaden \"{_pendingDeletePhysical?.Name}\"? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDeletePhysical"
+               OnCancel="CancelDeletePhysical" />
+
+<ConfirmDialog Visible="_pendingDeleteBuilding is not null"
+               Title="Ta bort byggnad"
+               Message="@($"Vill du ta bort byggnaden \"{_pendingDeleteBuilding?.Name}\"? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDeleteBuilding"
+               OnCancel="CancelDeleteBuilding" />
+
+<ConfirmDialog Visible="_pendingDeleteRoom is not null"
+               Title="Ta bort rum"
+               Message="@($"Vill du ta bort rummet \"{_pendingDeleteRoom?.Name}\"? Detta går inte att ångra.")"
+               OnConfirm="ConfirmDeleteRoom"
+               OnCancel="CancelDeleteRoom" />
+
+@code {
+    private enum PanelKind { None, Physical, Building, Room }
+
+    private List<PhysicalBuilding>? _physicalBuildings;
+    private List<Building>? _buildings;
+    private List<Room>? _rooms;
+
+    private readonly HashSet<Guid> _open = [];
+    private bool _allOpen;
+    private string? _message;
+    private string? _panelError;
+
+    private PanelKind _panelKind = PanelKind.None;
+    private bool _isCreating;
+    private PhysicalBuilding _physicalForm = new();
+    private Building _buildingForm = new();
+    private Room _roomForm = new();
+    private Guid? _editingPhysicalId;
+    private Guid? _editingBuildingId;
+    private Guid? _editingRoomId;
+
+    private PhysicalBuilding? _pendingDeletePhysical;
+    private Building? _pendingDeleteBuilding;
+    private Room? _pendingDeleteRoom;
+
+    protected override async Task OnInitializedAsync() => await LoadAll();
+
+    private async Task LoadAll()
+    {
+        _physicalBuildings = await PhysicalBuildingService.GetAllAsync();
+        _buildings = await BuildingService.GetAllAsync();
+        _rooms = await RoomService.GetAllAsync();
+    }
+
+    // ── Tree helpers ─────────────────────────────────────────────────────────
+    private List<Building> BuildingsOf(Guid physicalBuildingId) =>
+        _buildings?.Where(b => b.PhysicalBuildingId == physicalBuildingId).ToList() ?? [];
+
+    private List<Room> RoomsOf(Guid buildingId) =>
+        _rooms?.Where(r => r.BuildingId == buildingId).ToList() ?? [];
+
+    private int BedCountFor(Guid buildingId) => RoomsOf(buildingId).Sum(r => r.BedCount);
+
+    private string PhysicalNameOf(Guid id) => _physicalBuildings?.FirstOrDefault(p => p.Id == id)?.Name ?? "—";
+    private string BuildingNameOf(Guid id) => _buildings?.FirstOrDefault(b => b.Id == id)?.Name ?? "—";
+
+    private bool IsOpen(Guid id) => _open.Contains(id);
+
+    private void ToggleOpen(Guid id)
+    {
+        if (!_open.Add(id)) _open.Remove(id);
+    }
+
+    private void ToggleExpandAll()
+    {
+        _allOpen = !_allOpen;
+        _open.Clear();
+        if (_allOpen)
+        {
+            foreach (var pb in _physicalBuildings ?? []) _open.Add(pb.Id);
+            foreach (var b in _buildings ?? []) _open.Add(b.Id);
+        }
+    }
+
+    private bool IsSelectedPhysical(Guid id) => _panelKind == PanelKind.Physical && !_isCreating && _editingPhysicalId == id;
+    private bool IsSelectedBuilding(Guid id) => _panelKind == PanelKind.Building && !_isCreating && _editingBuildingId == id;
+    private bool IsSelectedRoom(Guid id) => _panelKind == PanelKind.Room && !_isCreating && _editingRoomId == id;
+
+    // ── Panel open/close ─────────────────────────────────────────────────────
+    private void OpenCreatePhysical()
+    {
+        _panelKind = PanelKind.Physical;
+        _isCreating = true;
+        _editingPhysicalId = null;
+        _panelError = null;
+        _physicalForm = new();
+    }
+
+    private void OpenEditPhysical(PhysicalBuilding pb)
+    {
+        _panelKind = PanelKind.Physical;
+        _isCreating = false;
+        _editingPhysicalId = pb.Id;
+        _panelError = null;
+        _physicalForm = new PhysicalBuilding { Id = pb.Id, Name = pb.Name, Description = pb.Description, DisplayOrder = pb.DisplayOrder };
+    }
+
+    private void OpenCreateBuilding(Guid physicalBuildingId)
+    {
+        _panelKind = PanelKind.Building;
+        _isCreating = true;
+        _editingBuildingId = null;
+        _panelError = null;
+        _buildingForm = new() { PhysicalBuildingId = physicalBuildingId };
+        _open.Add(physicalBuildingId);
+    }
+
+    private void OpenEditBuilding(Building b)
+    {
+        _panelKind = PanelKind.Building;
+        _isCreating = false;
+        _editingBuildingId = b.Id;
+        _panelError = null;
+        _buildingForm = new Building
+        {
+            Id = b.Id,
+            Name = b.Name,
+            PhysicalBuildingId = b.PhysicalBuildingId,
+            Description = b.Description,
+            SharedFacilities = b.SharedFacilities,
+            IsAccessible = b.IsAccessible,
+            DisplayOrder = b.DisplayOrder
+        };
+    }
+
+    private void OpenCreateRoom(Guid buildingId)
+    {
+        _panelKind = PanelKind.Room;
+        _isCreating = true;
+        _editingRoomId = null;
+        _panelError = null;
+        _roomForm = new() { BuildingId = buildingId, BedCount = 1 };
+        _open.Add(buildingId);
+    }
+
+    private void OpenEditRoom(Room r)
+    {
+        _panelKind = PanelKind.Room;
+        _isCreating = false;
+        _editingRoomId = r.Id;
+        _panelError = null;
+        _roomForm = new Room
+        {
+            Id = r.Id,
+            BuildingId = r.BuildingId,
+            Name = r.Name,
+            BedCount = r.BedCount,
+            BedConfiguration = r.BedConfiguration,
+            DisplayOrder = r.DisplayOrder
+        };
+    }
+
+    private void ClosePanel()
+    {
+        _panelKind = PanelKind.None;
+        _isCreating = false;
+        _editingPhysicalId = null;
+        _editingBuildingId = null;
+        _editingRoomId = null;
+        _panelError = null;
+    }
+
+    // The single persistent EditForm (see markup) just points at whichever of the 3 forms is
+    // current — EditForm.Model accepts any object, so its EditContext is rebuilt each time this
+    // changes. Defaults to _physicalForm when closed only because EditForm requires a non-null
+    // Model; it's never actually submittable while the panel is hidden.
+    private object CurrentFormModel => _panelKind switch
+    {
+        PanelKind.Building => _buildingForm,
+        PanelKind.Room => _roomForm,
+        _ => _physicalForm,
+    };
+
+    private string CurrentTitle => _panelKind switch
+    {
+        PanelKind.Physical => string.IsNullOrEmpty(_physicalForm.Name) ? "Namnlös" : _physicalForm.Name,
+        PanelKind.Building => string.IsNullOrEmpty(_buildingForm.Name) ? "Namnlös" : _buildingForm.Name,
+        PanelKind.Room => string.IsNullOrEmpty(_roomForm.Name) ? "Namnlös" : _roomForm.Name,
+        _ => "",
+    };
+
+    private Task CurrentSave() => _panelKind switch
+    {
+        PanelKind.Building => SaveBuilding(),
+        PanelKind.Room => SaveRoom(),
+        PanelKind.Physical => SavePhysical(),
+        _ => Task.CompletedTask,
+    };
+
+    // ── Save ─────────────────────────────────────────────────────────────────
+    private async Task SavePhysical()
+    {
+        if (_isCreating)
+        {
+            await PhysicalBuildingService.CreateAsync(_physicalForm);
+            _open.Add(_physicalForm.Id); // reveal its (empty) children area right away, no extra click
+            _message = $"Byggnaden \"{_physicalForm.Name}\" har lagts till.";
+        }
+        else
+        {
+            await PhysicalBuildingService.UpdateAsync(_physicalForm);
+            _message = $"Byggnaden \"{_physicalForm.Name}\" har uppdaterats.";
+        }
+
+        ClosePanel();
+        await LoadAll();
+    }
+
+    private async Task SaveBuilding()
+    {
+        var result = _isCreating
+            ? await BuildingService.TryCreateAsync(_buildingForm)
+            : await BuildingService.TryUpdateAsync(_buildingForm);
+
+        if (!result.Succeeded)
+        {
+            _panelError = result.Error;
+            return;
+        }
+
+        if (_isCreating)
+            _open.Add(_buildingForm.Id); // reveal its (empty) children area right away, no extra click
+
+        _message = _isCreating
+            ? $"Byggnaden \"{_buildingForm.Name}\" har lagts till."
+            : $"Byggnaden \"{_buildingForm.Name}\" har uppdaterats.";
+
+        ClosePanel();
+        await LoadAll();
+    }
+
+    private async Task SaveRoom()
+    {
+        if (_isCreating)
+        {
+            await RoomService.CreateAsync(_roomForm);
+            _message = $"Rummet \"{_roomForm.Name}\" har lagts till.";
+        }
+        else
+        {
+            await RoomService.UpdateAsync(_roomForm);
+            _message = $"Rummet \"{_roomForm.Name}\" har uppdaterats.";
+        }
+
+        ClosePanel();
+        await LoadAll();
+    }
+
+    // ── Activate / deactivate ────────────────────────────────────────────────
+    private async Task TogglePhysicalActive()
+    {
+        if (_editingPhysicalId is null) return;
+        var pb = _physicalBuildings!.First(p => p.Id == _editingPhysicalId);
+        var next = !pb.IsActive;
+        await PhysicalBuildingService.SetActiveAsync(pb.Id, next);
+        _message = next ? $"Byggnaden \"{pb.Name}\" har aktiverats." : $"Byggnaden \"{pb.Name}\" har inaktiverats.";
+        ClosePanel();
+        await LoadAll();
+    }
+
+    private async Task ToggleBuildingActive()
+    {
+        if (_editingBuildingId is null) return;
+        var b = _buildings!.First(x => x.Id == _editingBuildingId);
+        var next = !b.IsActive;
+        await BuildingService.SetActiveAsync(b.Id, next);
+        _message = next ? $"Byggnaden \"{b.Name}\" har aktiverats." : $"Byggnaden \"{b.Name}\" har inaktiverats.";
+        ClosePanel();
+        await LoadAll();
+    }
+
+    private async Task ToggleRoomActive()
+    {
+        if (_editingRoomId is null) return;
+        var r = _rooms!.First(x => x.Id == _editingRoomId);
+        var next = !r.IsActive;
+        await RoomService.SetActiveAsync(r.Id, next);
+        _message = next ? $"Rummet \"{r.Name}\" har aktiverats." : $"Rummet \"{r.Name}\" har inaktiverats.";
+        ClosePanel();
+        await LoadAll();
+    }
+
+    // ── Delete ───────────────────────────────────────────────────────────────
+    private void RequestDeletePhysical(PhysicalBuilding pb) => _pendingDeletePhysical = pb;
+    private void CancelDeletePhysical() => _pendingDeletePhysical = null;
+
+    private async Task ConfirmDeletePhysical()
+    {
+        if (_pendingDeletePhysical is null) return;
+        var pb = _pendingDeletePhysical;
+        _pendingDeletePhysical = null;
+
+        var result = await PhysicalBuildingService.TryHardDeleteAsync(pb.Id);
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Byggnaden \"{pb.Name}\" har tagits bort.",
+            HardDeleteResult.Blocked => $"Byggnaden \"{pb.Name}\" kan inte tas bort eftersom den används av en byggnad, facilitet eller städzon. Inaktivera den i stället.",
+            _ => $"Byggnaden \"{pb.Name}\" kunde inte hittas."
+        };
+
+        ClosePanel();
+        await LoadAll();
+    }
+
+    private void RequestDeleteBuilding(Building b) => _pendingDeleteBuilding = b;
+    private void CancelDeleteBuilding() => _pendingDeleteBuilding = null;
+
+    private async Task ConfirmDeleteBuilding()
+    {
+        if (_pendingDeleteBuilding is null) return;
+        var b = _pendingDeleteBuilding;
+        _pendingDeleteBuilding = null;
+
+        var result = await BuildingService.TryHardDeleteAsync(b.Id);
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Byggnaden \"{b.Name}\" har tagits bort.",
+            HardDeleteResult.Blocked => $"Byggnaden \"{b.Name}\" kan inte tas bort eftersom den har rum. Inaktivera den i stället.",
+            _ => $"Byggnaden \"{b.Name}\" kunde inte hittas."
+        };
+
+        ClosePanel();
+        await LoadAll();
+    }
+
+    private void RequestDeleteRoom(Room r) => _pendingDeleteRoom = r;
+    private void CancelDeleteRoom() => _pendingDeleteRoom = null;
+
+    private async Task ConfirmDeleteRoom()
+    {
+        if (_pendingDeleteRoom is null) return;
+        var r = _pendingDeleteRoom;
+        _pendingDeleteRoom = null;
+
+        var result = await RoomService.TryHardDeleteAsync(r.Id);
+        _message = result switch
+        {
+            HardDeleteResult.Deleted => $"Rummet \"{r.Name}\" har tagits bort.",
+            HardDeleteResult.Blocked => $"Rummet \"{r.Name}\" kan inte tas bort eftersom det används av en bokning. Inaktivera det i stället.",
+            _ => $"Rummet \"{r.Name}\" kunde inte hittas."
+        };
+
+        ClosePanel();
+        await LoadAll();
+    }
+}

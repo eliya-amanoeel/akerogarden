@@ -1,5 +1,5 @@
 using AkeroGarden.Integration.Infrastructure;
-using AkeroGarden.Web.Services;
+using AkeroGarden.Web.Core.Services;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using StackExchange.Redis;

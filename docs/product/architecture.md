@@ -33,11 +33,15 @@ flowchart TB
     Guest["Guest browser"]
     Admin["Admin browser"]
 
-    subgraph AppService["Azure App Service (Linux, B1) — akerogarden.se + admin.akerogarden.se"]
+    subgraph Plan["Azure App Service Plan (Linux, B1) — one plan, two sites"]
         direction TB
-        Public["Public site\nBlazor Static SSR\n(home, priser, calendar, inquiry form)"]
-        AdminApp["Admin panel\nBlazor Interactive Server\nASP.NET Core Identity login"]
-        BgJob["In-process BackgroundService\n(Always On)\nreminders · GDPR retention · pre-deletion warnings"]
+        subgraph PublicSite["Public site — akerogarden.se"]
+            Public["Blazor Static SSR\n(home, priser, calendar, inquiry form,\nmagic-link completion)\nno Identity · no SignalR · no admin code"]
+        end
+        subgraph AdminSite["Admin site — admin.akerogarden.se"]
+            AdminApp["Admin panel\nBlazor Interactive Server\nASP.NET Core Identity login"]
+            BgJob["In-process BackgroundService\n(Always On)\nreminders · GDPR retention · pre-deletion warnings"]
+        end
     end
 
     subgraph Data["Data & storage (VNet-only, EU region)"]
@@ -57,7 +61,6 @@ flowchart TB
 
     AdminApp -->|"CRUD reference data,\nbooking lifecycle, audit writes"| Postgres
     AdminApp -->|"upload/read images"| Blob
-    AdminApp -->|"rate limit check"| Redis
 
     BgJob -->|"scan due bookings,\nwrite AuditLog (ActorType=System)"| Postgres
     BgJob -->|"send reminder/retention emails"| SMTP
@@ -67,11 +70,13 @@ flowchart TB
 
     Guest -.->|"magic-link token\n(single-use, ≤30d, no login)"| Public
 
-    GH["Azure DevOps Pipelines CI/CD"] -->|"deploy"| AppService
-    Bicep["Bicep templates\n(infra/)"] -->|"provision"| AppService
+    GH["Azure DevOps Pipelines CI/CD"] -->|"deploy both apps"| Plan
+    Bicep["Bicep templates\n(infra/)"] -->|"provision"| Plan
     Bicep -->|"provision"| Data
 
-    style AppService fill:#f5f0e6,stroke:#333
+    style Plan fill:#f5f0e6,stroke:#333
+    style PublicSite fill:#faf6ee,stroke:#999
+    style AdminSite fill:#faf6ee,stroke:#999
     style Data fill:#e8f0e8,stroke:#333
 ```
 
@@ -79,15 +84,15 @@ flowchart TB
 
 ## Notes
 
-1. **One App Service, two hostnames.** `akerogarden.se` (public) and `admin.akerogarden.se` (admin) are both bound to the same Azure App Service — not separate deployments or slots (B1 doesn't support slots). Separation between the two surfaces is enforced in routing/auth, not infrastructure (FR-70, §6.4).
+1. **Two App Service sites on one B1 plan** (Phase 10b, FR-70). `akerogarden.se` (public) and `admin.akerogarden.se` (admin) are **two independent App Service sites** sharing the one Basic B1 App Service **Plan** — not one app serving both hostnames, and not slots (B1 doesn't support slots). Separation is a property of the **assembly graph and the deployment**: the code is three projects (`AkeroGarden.Web.Core` shared RCL + `.Public` + `.Admin`), and the internet-facing public process loads no Identity, SignalR, or admin code at all — so `/admin` on the public host is a genuine 404, not an `[Authorize]` redirect. The Plan is the billing unit, so the second site (and its second managed SSL cert) add **zero cost**; the only trade-off is two .NET processes sharing the one B1 instance's 1.75 GB RAM (§6.4).
 
 2. **Rendering modes differ by surface.** Public pages are Blazor **Static SSR** — no persistent circuit, cheapest to serve, matches the read-mostly/inquiry-form nature of the public site. The admin panel is Blazor **Interactive Server** — a live SignalR circuit per session, justified by the admin panel's CRUD-heavy, stateful interactions (§1.5).
 
 3. **Guests never authenticate.** There is no guest account system. The only guest-facing "auth" is the magic-link token issued at booking approval: single-use, ≥128-bit entropy, expiring at the earliest of 30 days after issue or 14 days before check-in (floor 48h) — §2.6, FR-51–54, NFR-03. Admin auth is the only real login surface, via ASP.NET Core Identity (§6.4, FR-70–74).
 
-4. **The background job is in-process, not a separate service.** Scheduled work (14-day reminders, completion nudges, GDPR retention deletes, 30-day pre-deletion warnings) runs as an in-process hosted `BackgroundService` inside the same App Service process, kept alive by **Always On** (B1 supports it). An external scheduler (Azure Functions timer trigger or Logic App) was evaluated and deferred — §10, FR-69/91/98. It authors `AuditLog` rows with `ActorType = System`.
+4. **The background job is in-process, not a separate service.** Scheduled work (14-day reminders, completion nudges, GDPR retention deletes, 30-day pre-deletion warnings) runs as an in-process hosted `BackgroundService` inside the **admin** site's process (Phase 10b — it lives only on the admin host, so it runs in exactly one process; the public site is purely request-serving), kept alive by **Always On** (B1 supports it). An external scheduler (Azure Functions timer trigger or Logic App) was evaluated and deferred — §10, FR-69/91/98. It authors `AuditLog` rows with `ActorType = System`.
 
-5. **Redis is rate-limiting only.** Azure Managed Redis (successor to the retired Azure Cache for Redis) holds no application data — its sole job is distributed rate-limit counters shared across the single App Service instance (NFR-04).
+5. **Redis is rate-limiting only, and public-only.** Azure Managed Redis (successor to the retired Azure Cache for Redis) holds no application data — its sole job is distributed rate-limit counters for the inquiry form. Only the **public** site is rate-limited, so only the public site holds the Redis connection; the admin site never touches Redis (Phase 10b, NFR-04).
 
 6. **Postgres is VNet-only.** No public internet access to the database — reachable only via VNet integration from the App Service (NFR-25). This is also why staging is a fully separate resource group rather than a slot: network isolation and synthetic data can't leak into/from production this way (§11.1).
 

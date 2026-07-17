@@ -1,0 +1,33 @@
+@page "/Error"
+@layout AdminLoginLayout
+@using System.Diagnostics
+
+<PageTitle>Fel — Åkerögården</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <div class="utility">
+            <p class="utility__code">Oj då</p>
+            <h1>Ett fel inträffade</h1>
+            <p>Något gick fel. Försök igen om en stund.</p>
+            <div class="utility__actions">
+                <a href="/admin" class="btn">Till översikten</a>
+            </div>
+            @if (ShowRequestId)
+            {
+                <p class="cta-note" style="margin-top:1.6rem">Spårnings-ID: <code>@RequestId</code></p>
+            }
+        </div>
+    </div>
+</section>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

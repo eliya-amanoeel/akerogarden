@@ -1,0 +1,14 @@
+@if (Variant == LogoVariant.OnDark)
+{
+    <img src="/_content/AkeroGarden.Web.Core/logo/lockup-dark.svg" alt="Åkerögården" class="logo" />
+}
+else
+{
+    @* Transparent background (dark strokes) so the lockup blends into the warm off-white
+       header rather than showing a white box. lockup-light.svg bakes in a #fff rect. *@
+    <img src="/_content/AkeroGarden.Web.Core/logo/lockup-transparent.svg" alt="Åkerögården" class="logo" />
+}
+
+@code {
+    [Parameter] public LogoVariant Variant { get; set; } = LogoVariant.OnLight;
+}

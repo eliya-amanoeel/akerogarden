@@ -1,0 +1,155 @@
+@page "/admin/bokningar"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Core.Data.Entities
+@using AkeroGarden.Web.Core.Services
+@inject BookingService BookingService
+@inject NavigationManager Nav
+@attribute [Authorize]
+
+<PageTitle>Bokningar — Åkerögården Admin</PageTitle>
+
+<AdminHeader Title="Bokningar">
+    <a class="btn" href="/admin/bokningar/ny">+ Skapa bokning</a>
+</AdminHeader>
+
+<p class="form-hint">Alla förfrågningar och bokningar. Filtrera på status, typ och datum, eller sök på referensnummer.</p>
+
+<div class="admin-filters">
+    <div class="form-group">
+        <label for="f-status">Status</label>
+        <select id="f-status" @bind="_status" @bind:after="Load">
+            <option value="">Alla</option>
+            @foreach (var s in Enum.GetValues<BookingStatus>())
+            {
+                <option value="@s">@BookingDisplay.StatusLabel(s)</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="f-type">Typ</label>
+        <select id="f-type" @bind="_type" @bind:after="Load">
+            <option value="">Alla</option>
+            @foreach (var t in Enum.GetValues<BookingType>())
+            {
+                <option value="@t">@BookingDisplay.TypeLabel(t)</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="f-from">Incheckning fr.o.m.</label>
+        <input id="f-from" type="date" @bind="_from" @bind:after="Load" />
+    </div>
+    <div class="form-group">
+        <label for="f-to">Incheckning t.o.m.</label>
+        <input id="f-to" type="date" @bind="_to" @bind:after="Load" />
+    </div>
+    <div class="form-group">
+        <label for="f-ref">Referensnummer</label>
+        <input id="f-ref" type="search" placeholder="t.ex. AG-2026-0042" @bind="_reference" @bind:after="Load" />
+    </div>
+</div>
+
+@if (_bookings is null)
+{
+    <p class="admin-empty">Laddar…</p>
+}
+else if (_bookings.Count == 0)
+{
+    <p class="admin-empty">Inga bokningar matchar filtret.</p>
+}
+else
+{
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Referens</th>
+                    <th>Inkommen</th>
+                    <th>Sällskap</th>
+                    <th>Typ</th>
+                    <th>Datum</th>
+                    <th class="num">Gäster</th>
+                    <th>Status</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var b in _bookings)
+                {
+                    <tr>
+                        <td class="mono">@b.BookingReference</td>
+                        <td class="mono">@b.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                        <td>
+                            <a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a>
+                            <span class="sub">@b.ContactEmail</span>
+                        </td>
+                        <td>@BookingDisplay.TypeLabel(b.BookingType)</td>
+                        <td class="mono">
+                            @if (b.CheckIn is not null && b.CheckOut is not null)
+                            {
+                                @($"{b.CheckIn:yyyy-MM-dd} – {b.CheckOut:yyyy-MM-dd}")
+                            }
+                            else
+                            {
+                                <span>—</span>
+                            }
+                        </td>
+                        <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
+                        <td><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></td>
+                        <td class="rowactions"><a class="btn-ghost" href="/admin/bokningar/@b.Id">Öppna →</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="data-cards">
+        @foreach (var b in _bookings)
+        {
+            <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
+                <Badge><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></Badge>
+                <Sub>@b.ContactEmail</Sub>
+                <Fields>
+                    <div><dt>Referens</dt><dd>@b.BookingReference</dd></div>
+                    <div><dt>Typ</dt><dd>@BookingDisplay.TypeLabel(b.BookingType)</dd></div>
+                    <div>
+                        <dt>Datum</dt>
+                        <dd>
+                            @if (b.CheckIn is not null && b.CheckOut is not null)
+                            {
+                                @($"{b.CheckIn:yyyy-MM-dd} – {b.CheckOut:yyyy-MM-dd}")
+                            }
+                            else
+                            {
+                                @:—
+                            }
+                        </dd>
+                    </div>
+                    <div><dt>Gäster</dt><dd>@(b.OvernightGuestCount?.ToString() ?? "—")</dd></div>
+                    <div><dt>Inkommen</dt><dd>@b.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
+}
+
+@code {
+    private List<Booking>? _bookings;
+    private string _status = "";
+    private string _type = "";
+    private DateOnly? _from;
+    private DateOnly? _to;
+    private string _reference = "";
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private void GoToBooking(Guid id) => Nav.NavigateTo($"/admin/bokningar/{id}");
+
+    private async Task Load()
+    {
+        BookingStatus? status = Enum.TryParse<BookingStatus>(_status, out var s) ? s : null;
+        BookingType? type = Enum.TryParse<BookingType>(_type, out var t) ? t : null;
+        _bookings = await BookingService.GetBookingsAsync(status, type, _from, _to, _reference);
+    }
+}

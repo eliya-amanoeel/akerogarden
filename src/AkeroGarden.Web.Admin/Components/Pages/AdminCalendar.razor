@@ -1,0 +1,125 @@
+@page "/admin/kalender"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Core.Data.Entities
+@using AkeroGarden.Web.Core.Services
+@inject BookingService BookingService
+@inject NavigationManager Nav
+@attribute [Authorize]
+
+<PageTitle>Kalendervy — Åkerögården Admin</PageTitle>
+
+<AdminHeader Title="Kalendervy" />
+<p class="form-hint">Kommande bokningar och blockeringar. (Listvy — grafisk kalender är en framtida förbättring.)</p>
+
+<h2 class="admin-subsection">Bokningar</h2>
+@if (_bookings is null)
+{
+    <p class="admin-empty">Laddar…</p>
+}
+else if (_bookings.Count == 0)
+{
+    <p class="admin-empty">Inga kommande bokningar.</p>
+}
+else
+{
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr><th>Incheckning</th><th>Utcheckning</th><th>Sällskap</th><th class="num">Gäster</th><th>Status</th><th></th></tr>
+            </thead>
+            <tbody>
+                @foreach (var b in _bookings)
+                {
+                    <tr>
+                        <td class="mono">@b.CheckIn?.ToString("yyyy-MM-dd")</td>
+                        <td class="mono">@b.CheckOut?.ToString("yyyy-MM-dd")</td>
+                        <td><a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a></td>
+                        <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
+                        <td><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></td>
+                        <td class="rowactions"><a class="btn-ghost" href="/admin/bokningar/@b.Id">Öppna →</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="data-cards">
+        @foreach (var b in _bookings)
+        {
+            <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
+                <Badge><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></Badge>
+                <Fields>
+                    <div><dt>Incheckning</dt><dd>@b.CheckIn?.ToString("yyyy-MM-dd")</dd></div>
+                    <div><dt>Utcheckning</dt><dd>@b.CheckOut?.ToString("yyyy-MM-dd")</dd></div>
+                    <div><dt>Gäster</dt><dd>@(b.OvernightGuestCount?.ToString() ?? "—")</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
+}
+
+<h2 class="admin-subsection">Blockeringar</h2>
+@if (_blocks is null)
+{
+    <p class="admin-empty">Laddar…</p>
+}
+else if (_blocks.Count == 0)
+{
+    <p class="admin-empty">Inga blockeringar.</p>
+}
+else
+{
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr><th>Från</th><th>Till</th><th>Omfattning</th><th>Orsak</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var p in _blocks)
+                {
+                    <tr>
+                        <td class="mono">@p.StartDate.ToString("yyyy-MM-dd")</td>
+                        <td class="mono">@p.EndDate.ToString("yyyy-MM-dd")</td>
+                        <td>@BookingDisplay.ScopeLabel(p.Scope)</td>
+                        <td>@(p.Reason ?? "—")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="data-cards">
+        @foreach (var p in _blocks)
+        {
+            <AdminDataCard Title="@($"{p.StartDate:yyyy-MM-dd} – {p.EndDate:yyyy-MM-dd}")">
+                <Sub>@BookingDisplay.ScopeLabel(p.Scope)</Sub>
+                <Fields>
+                    <div><dt>Orsak</dt><dd>@(p.Reason ?? "—")</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
+}
+
+@code {
+    private List<Booking>? _bookings;
+    private List<BlockedPeriod>? _blocks;
+
+    private void GoToBooking(Guid id) => Nav.NavigateTo($"/admin/bokningar/{id}");
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var horizon = today.AddMonths(12);
+
+        // Upcoming stay bookings (those whose stay has not ended), newest-checkin first.
+        var stays = await BookingService.GetBookingsAsync(type: BookingType.StayRequest);
+        _bookings = stays
+            .Where(b => b.CheckOut is not null && b.CheckOut >= today)
+            .OrderBy(b => b.CheckIn)
+            .ToList();
+
+        _blocks = await BookingService.GetBlocksInRangeAsync(today, horizon);
+    }
+}

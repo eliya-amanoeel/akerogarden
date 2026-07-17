@@ -6,24 +6,52 @@ Bicep templates for Åkerögården. Both production and staging deploy from the 
 
 > **Status:** staging is provisioned in **Sweden Central** (`akerogarden-staging`), currently in the developer's personal (MSDN) subscription.
 > **Phase 10a** recreates staging fresh in the **client's own Azure subscription/tenant** (a new PAYG subscription) with a real subdomain split — `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin) — instead of today's Azure default hostname; the old MSDN-hosted copy is deleted once the new one is verified. This is a redeploy from these same Bicep templates, not a migration — Azure's resource-move feature doesn't work across tenants.
-> Production is provisioned directly in the client's tenant in **Phase 10b**.
+> **Phase 10b** splits the single web app into two App Service sites on the one shared plan (see below).
+> Production is provisioned directly in the client's tenant in **Phase 10c**, against that two-app topology.
 
 ## What `main.bicep` creates
 
-User-assigned managed identity, Key Vault (access-policy model, **not** RBAC) with
-the SMTP secrets, App Service Plan + App Service (Linux, .NET 10), PostgreSQL
-Flexible Server (VNet-only, `publicNetworkAccess: Disabled`, zone 1), VNet with
-delegated app/db subnets, private DNS zone for Postgres, and Blob storage.
+Two user-assigned managed identities (one per site), Key Vault (access-policy model, **not** RBAC)
+with the SMTP + Redis secrets, one App Service **Plan** (Linux, B1) hosting **two App Service sites**
+— `jmk-ag-<env>-public` and `jmk-ag-<env>-admin` (see "Two-app topology" below) — PostgreSQL
+Flexible Server (VNet-only, `publicNetworkAccess: Disabled`, zone 1), VNet with delegated app/db
+subnets, private DNS zone for Postgres, and Blob storage.
 
 Redis (Azure Managed Redis, Balanced B0 — the successor to the retired classic Azure
 Cache for Redis) backs the inquiry rate limiter (NFR-04); its connection string is stored
-in Key Vault and read by the app via managed identity.
+in Key Vault and read by the **public** site via its managed identity (the admin site has no
+rate limiting, so it never reads the Redis secret).
+
+## Two-app topology (Phase 10b / FR-70)
+
+The public and admin surfaces are **two independent App Service sites on the one B1 plan** —
+genuine process isolation: the internet-facing public process never loads Identity, SignalR, or
+admin code, so `/admin` on the public host is a real 404, not an `[Authorize]` redirect. The
+**App Service Plan is the billing unit**, so the second site (and its second managed SSL cert) add
+**zero cost**; the only trade-off is two .NET processes sharing the one B1 instance's 1.75 GB RAM.
+
+Everything stateful (Postgres, Redis, Blob, Key Vault, VNet, telemetry) is **shared**. `main.bicep`
+loops over an `apps` array (index 0 = public, 1 = admin) to emit the per-site resources; the only
+divergence is:
+
+| Concern | Public site | Admin site |
+|---|---|---|
+| Hostnames | `publicHostnames` param | `adminHostnames` param |
+| Render mode | Static SSR only | Interactive Server + Identity |
+| Redis rate limiter | ✅ (`Redis__ConnectionString`) | — |
+| Seed-admin + image-store Blob | — | ✅ (`Seed__*`, `Blob__ConnectionString`) |
+| Background jobs / DB migration | — | ✅ (admin is the sole migrating process) |
+| Data-Protection ring | `dataprotection-keys-public` container | `dataprotection-keys-admin` container |
+| Managed identity | `jmk-ag-<env>-public-identity` | `jmk-ag-<env>-admin-identity` |
+
+`ssl.bicep` issues one managed cert per `{ siteName, hostname }` pair (see `<env>.ssl-parameters.json`)
+and upgrades each hostname binding to SNI SSL, after DNS points each hostname at its site.
 
 ## Naming
 
 The resource-group name stays `akerogarden-staging` / `akerogarden-prod`, but every resource
-*inside* it is named from a `jmk-ag-<environmentName>` prefix (`jmk-ag-staging-app`,
-`jmk-ag-staging-kv`, etc. — `jmk` = Jungfru Maria Kyrkan, the church that owns the project;
+*inside* it is named from a `jmk-ag-<environmentName>` prefix (`jmk-ag-staging-public`,
+`jmk-ag-staging-admin`, `jmk-ag-staging-kv`, etc. — `jmk` = Jungfru Maria Kyrkan, the church that owns the project;
 `ag` = Åkerögården), not `akerogarden-<environmentName>-*`. This was changed during Phase 10a:
 several of these names are globally unique across **all** of Azure, not just this subscription
 (App Service hostname, Storage Account, Key Vault, Azure Managed Redis, Postgres Flexible
@@ -92,7 +120,7 @@ When re-provisioning (a new resource group, e.g. a future tenant move), add a ro
 assignment for the *same* service principal scoped to the new resource group — the
 service connection itself doesn't need to change.
 
-The `Deploy - Staging` pipeline (`azure-pipelines-deploy-staging.yml`) is manual-only
+The `Deploy - Staging` pipeline (`infra/pipelines/azure-pipelines-deploy-staging.yml`) is manual-only
 (`trigger: none`) — run it from Pipelines → Deploy - Staging → Run pipeline. The first
 run against a fresh service connection prompts "This pipeline needs permission to
 access resources" — click Authorize once.
@@ -107,23 +135,46 @@ hosted agents, so migrations cannot run from the pipeline — only from the runn
 
 Same steps as "Provision staging" above, but targeting the client's subscription: switch
 context first (`az login --tenant <client-tenant-id>`, `az account set --subscription
-<client-sub-id>`), then deploy with `staging.parameters.json` updated so `customHostnames`
-binds `staging.akerogarden.se` + `admin.staging.akerogarden.se`, and re-run steps 2–3
-(add a role assignment for `akerogarden-devops-deploy` scoped to the new resource group,
-re-verify the first deploy). Once verified, delete the old `akerogarden-staging` resource
-group in the MSDN subscription.
+<client-sub-id>`), then deploy with `staging.parameters.json` updated so `publicHostnames`
+binds `staging.akerogarden.se` and `adminHostnames` binds `admin.staging.akerogarden.se`, and
+re-run steps 2–3 (add a role assignment for `akerogarden-devops-deploy` scoped to the new
+resource group, re-verify the first deploy). Once verified, delete the old `akerogarden-staging`
+resource group in the MSDN subscription.
 
-## Deploy production (Phase 10b)
+## Re-point staging to the two-app topology (Phase 10b)
+
+Phase 10b turns the one `jmk-ag-staging-app` site into two sites (`-public` + `-admin`) on the
+**same** plan. Deploying the updated `main.bicep` **adds** the two new sites (it does not delete the
+old `-app` site — incremental mode). Procedure:
+
+1. `Deploy - Staging` with the updated `main.bicep` → creates `jmk-ag-staging-public` +
+   `jmk-ag-staging-admin`, each with its own identity and DP container. The old `-app` site is left
+   running but orphaned.
+2. Deploy the **public** artifact to `-public` and the **admin** artifact to `-admin` (Slice 5's
+   two-target pipeline). The admin site migrates the DB on startup; start it before relying on the
+   public site's DB-backed pages.
+3. Re-point DNS: `staging` CNAME → `jmk-ag-staging-public.azurewebsites.net`, `admin.staging` CNAME →
+   `jmk-ag-staging-admin.azurewebsites.net` (the `asuid.<host>` TXT records are unchanged). The
+   per-site `hostNameBindings` in `main.bicep` validate against these.
+4. Run `ssl.bicep` with `staging.ssl-parameters.json` (the `bindings` array pairs each hostname with
+   its site) to issue the two managed certs and SNI-bind them.
+5. Verify `200` on both hostnames, then **delete the orphaned old site**:
+   `az webapp delete -g akerogarden-staging -n jmk-ag-staging-app` (and remove its now-unused
+   `jmk-ag-staging-identity` if the pre-10b single-identity is still around).
+
+## Deploy production (Phase 10c)
 
 Same as staging with `prod.parameters.json` and a `akerogarden-prod` resource group, in the
-client's tenant. Production also binds the custom domains (`akerogarden.se`,
-`admin.akerogarden.se`) + managed SSL via `ssl.bicep`, after DNS is configured. Staging's own
-custom subdomains are bound separately in Phase 10a. See `ssl.bicep` and the Phase 10a/10b plan.
+client's tenant, and **born** in the two-app topology (no re-point step — production is provisioned
+as two sites from the start). Production binds the custom domains (`akerogarden.se` → public,
+`admin.akerogarden.se` → admin) + managed SSL via `ssl.bicep`, after DNS is configured. See
+`ssl.bicep` and the Phase 10c plan.
 
 ## Power staging down (save cost)
 
 ```bash
-az webapp stop --resource-group akerogarden-staging --name jmk-ag-staging-app
+az webapp stop --resource-group akerogarden-staging --name jmk-ag-staging-public
+az webapp stop --resource-group akerogarden-staging --name jmk-ag-staging-admin
 az postgres flexible-server stop --resource-group akerogarden-staging --name jmk-ag-staging-pg
 ```
 
@@ -155,20 +206,20 @@ az postgres flexible-server stop --resource-group akerogarden-staging --name jmk
   vault, and `keyVaultReferenceIdentity` must point at that identity so
   `@Microsoft.KeyVault(...)` app settings resolve.
 - **Custom hostname binding** fails until the `asuid.<host>` TXT + CNAME DNS records
-  exist; `customHostnames` is empty for staging until then (deferred to Phase 10a).
+  exist; `publicHostnames` / `adminHostnames` are empty until then. Each hostname's CNAME must
+  point at **its own** site (`*-public` vs `*-admin`), not the old single `*-app`.
 - **ARM `for`-loop conflict on multi-hostname deploys (hit during Phase 10a's DNS/SSL
-  binding).** Deploying `main.bicep`'s `hostNameBindings` array (or `ssl.bicep`'s
-  `certificates`/`hostNameBindings` arrays) with 2+ hostnames against the same App Service
-  in one `az deployment group create` intermittently fails one of the array elements with
+  binding).** Deploying a `hostNameBindings` / `certificates` array with **2+ hostnames against the
+  same site** in one `az deployment group create` intermittently fails one element with
   `Conflict — Cannot modify this site because another operation is in progress` (a fresh
   operation ID on every retry, so it isn't a transient blip — ARM's parallel `for`-loop
-  resource writes appear to race each other on the same underlying site resource). One
-  element in the array typically succeeds; the other doesn't. **Workaround:** bind the
-  failed hostname/cert directly, bypassing the Bicep loop —
-  `az webapp config hostname add -g <rg> --webapp-name <app> --hostname <host>` for
-  hostname bindings, or `az webapp config ssl bind -g <rg> -n <app> --certificate-thumbprint
-  <thumb> --ssl-type SNI` for SSL (get the thumbprint via `az resource show -g <rg> -n
-  <cert-name> --resource-type Microsoft.Web/certificates --query properties.thumbprint -o
-  tsv`). End state matches what the Bicep template declares — only the deploy mechanism
-  differs. Expect this again in Phase 10b (`akerogarden.se` + `admin.akerogarden.se`, same
-  templates, same two-hostname shape).
+  resource writes race each other on the same underlying site). **Phase 10b's two-app split largely
+  dissolves this** — each site now binds a **single** hostname (`publicHostBindings` → the public
+  site, `adminHostBindings` → the admin site), so the two bindings target *different* sites and no
+  longer race. It can still recur if one site is ever given 2+ hostnames (e.g. prod apex + `www` on
+  the public site). **Workaround if it does:** bind the failed hostname/cert directly, bypassing the
+  Bicep loop — `az webapp config hostname add -g <rg> --webapp-name <site> --hostname <host>`, or
+  `az webapp config ssl bind -g <rg> -n <site> --certificate-thumbprint <thumb> --ssl-type SNI`
+  (thumbprint via `az resource show -g <rg> -n <cert-name> --resource-type
+  Microsoft.Web/certificates --query properties.thumbprint -o tsv`). End state matches the template;
+  only the deploy mechanism differs.

@@ -1,0 +1,150 @@
+@page "/kalender"
+@layout MainLayout
+@using System.Globalization
+@using AkeroGarden.Web.Core.Services
+@inject OccupancyProvider OccupancyProvider
+
+<PageTitle>Tillgänglighet — Åkerögården</PageTitle>
+
+<section class="page-head">
+    <div class="container">
+        <span class="eyebrow">Tillgänglighet</span>
+        <h1>När är gården ledig?</h1>
+        <div class="page-head__rule"></div>
+        <p class="page-head__intro">
+            Kalendern visar de kommande 12 månaderna. Delvis bokade datum är preliminära — en
+            förfrågan garanterar inte tillgänglighet, utan bekräftas av oss.
+        </p>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+        <div class="cal-legend">
+            <span><span class="cal-swatch cal-free"></span> Ledigt</span>
+            <span><span class="cal-swatch cal-partial"></span> Delvis bokat</span>
+            <span><span class="cal-swatch cal-full"></span> Fullbokat</span>
+        </div>
+
+        <p id="cal-selection" class="cal-selection" hidden>
+            Valt: <span id="cal-range"></span>
+            <a id="cal-go" class="btn" href="/boka">Gå till förfrågan</a>
+            <button type="button" id="cal-clear" class="btn-ghost">Rensa</button>
+        </p>
+
+        <div class="cal-months">
+        @foreach (var month in _months)
+        {
+            <div class="cal-month">
+                <h2>@Capitalize(month.ToString("MMMM yyyy", Sv))</h2>
+                <table class="cal-grid">
+                    <thead>
+                        <tr>
+                            @foreach (var wd in WeekdayHeaders)
+                            {
+                                <th>@wd</th>
+                            }
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @{
+                            var first = new DateOnly(month.Year, month.Month, 1);
+                            var lead = ((int)first.DayOfWeek + 6) % 7; // Monday-start offset
+                            var daysInMonth = DateTime.DaysInMonth(month.Year, month.Month);
+                            var cell = 0;
+                        }
+                        @for (var week = 0; week < 6 && cell < lead + daysInMonth; week++)
+                        {
+                            <tr>
+                                @for (var dow = 0; dow < 7; dow++)
+                                {
+                                    var dayNumber = cell - lead + 1;
+                                    cell++;
+                                    if (dayNumber < 1 || dayNumber > daysInMonth)
+                                    {
+                                        <td class="cal-empty"></td>
+                                    }
+                                    else
+                                    {
+                                        var date = new DateOnly(month.Year, month.Month, dayNumber);
+                                        @RenderDay(date)
+                                    }
+                                }
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        </div>
+    </div>
+</section>
+
+<script src="/js/calendar.js"></script>
+
+@code {
+    private static readonly CultureInfo Sv = CultureInfo.GetCultureInfo("sv-SE");
+    private static readonly string[] WeekdayHeaders = ["Mån", "Tis", "Ons", "Tor", "Fre", "Lör", "Sön"];
+
+    private DateOnly _today;
+    private List<DateOnly> _months = [];
+    private IReadOnlyDictionary<DateOnly, AvailabilityState> _states =
+        new Dictionary<DateOnly, AvailabilityState>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var firstOfMonth = new DateOnly(_today.Year, _today.Month, 1);
+        _months = Enumerable.Range(0, 12).Select(firstOfMonth.AddMonths).ToList();
+
+        // 12 rolling months forward; no backward navigation (FR-84).
+        var to = _months[^1].AddMonths(1).AddDays(-1);
+        _states = await OccupancyProvider.GetStatesAsync(_today, to);
+    }
+
+    private RenderFragment RenderDay(DateOnly date) => builder =>
+    {
+        // Past days within the current month are shown but inert (no backward booking).
+        if (date < _today)
+        {
+            builder.OpenElement(0, "td");
+            builder.AddAttribute(1, "class", "cal-day cal-past");
+            builder.AddContent(2, date.Day);
+            builder.CloseElement();
+            return;
+        }
+
+        var state = _states.TryGetValue(date, out var s) ? s : AvailabilityState.Free;
+        var stateClass = state switch
+        {
+            AvailabilityState.Free => "cal-free",
+            AvailabilityState.PartiallyBooked => "cal-partial",
+            _ => "cal-full"
+        };
+        var iso = date.ToString("yyyy-MM-dd");
+
+        builder.OpenElement(0, "td");
+        builder.AddAttribute(1, "class", $"cal-day {stateClass}");
+
+        if (state == AvailabilityState.FullyBooked)
+        {
+            // Unavailable — not selectable, exposes only the aggregate state (NFR-07).
+            builder.AddAttribute(2, "aria-label", "Fullbokat");
+            builder.AddContent(3, date.Day);
+        }
+        else
+        {
+            // No-JS fallback: pre-fill check-in. calendar.js upgrades this to range selection (FR-11).
+            builder.OpenElement(4, "a");
+            builder.AddAttribute(5, "href", $"/boka?incheckning={iso}");
+            builder.AddAttribute(6, "data-date", iso);
+            builder.AddContent(7, date.Day);
+            builder.CloseElement();
+        }
+
+        builder.CloseElement();
+    };
+
+    private static string Capitalize(string value) =>
+        string.IsNullOrEmpty(value) ? value : char.ToUpper(value[0], Sv) + value[1..];
+}

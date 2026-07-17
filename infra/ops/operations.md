@@ -82,6 +82,59 @@ the Redis fail-open warning in `Program.cs` — which happens before the logging
 before OpenTelemetry, are wired up, and so is deliberately still `Console.Error.WriteLine`,
 not `ILogger`).
 
+## A corrected Key Vault secret doesn't reach the app on a restart
+
+The SMTP credentials (`Smtp__Username`, `Smtp__Password`), the Redis connection string, and the
+Data-Protection key are all delivered to the apps as `@Microsoft.KeyVault(...)` **references** in
+app settings (see `infra/azure/main.bicep`). App Service resolves each reference **once**, then
+**caches** the resolved value. The cache refreshes only when:
+
+- **an app setting changes** (any edit re-resolves *all* of that site's references), or
+- the periodic **~24h** auto-refresh fires.
+
+**A plain `az webapp restart` does NOT refresh Key Vault references** — it restarts the worker but
+keeps the cached value. So if you fix a secret *value* in the vault, restarting the app will *not*
+pick it up; the app keeps authenticating with the old value until you touch its config.
+
+Learned the hard way (staging, 2026-07): a `smtp-username` secret corrupted with Unicode smart
+quotes (`'staging@akerogarden.se'`, bytes `e2 80 98 … e2 80 99`) was corrected in the vault, and
+the app was restarted several times — yet it kept failing SMTP AUTH with `535 5.7.8 [A3]`, because
+every restart re-served the cached corrupted value. The vault held the clean value the whole time;
+the app never re-read it.
+
+### Force a refresh after fixing a secret value
+
+Re-apply the reference (or any app setting) to trigger re-resolution — do this on **every** app that
+carries the reference (both `jmk-ag-<env>-public` and `jmk-ag-<env>-admin` carry the SMTP one):
+
+```bash
+for APP in jmk-ag-<env>-public jmk-ag-<env>-admin; do
+  az webapp config appsettings set -g <rg> -n $APP \
+    --settings "Smtp__Username=@Microsoft.KeyVault(VaultName=jmk-ag-<env>-kv;SecretName=smtp-username)"
+done
+```
+
+### Verify what the app actually resolved (not what the vault holds)
+
+The vault value and the app's *cached* value can differ — always check the app side.
+
+- Reference resolution status (should say `Resolved`):
+  ```bash
+  az rest --method get --uri "https://management.azure.com<siteResourceId>/config/configreferences/appsettings?api-version=2022-03-01"
+  ```
+  Note: `Resolved` only means a value was fetched at some point — it can still be a **stale** one.
+- The value the app is really using (definitive), from inside the container via the Kudu command
+  API (`https://<app>.scm.azurewebsites.net/api/command`) — App Service exposes the resolved
+  secret to the app process as the env var, so dump its bytes:
+  ```bash
+  python3 -c "import os,sys; v=os.environ.get('Smtp__Username',''); print(repr(v), v.encode().hex(' '))"
+  ```
+  Clean = `staging@akerogarden.se`; corrupted smart-quote = leading `e2 80 98` / trailing `e2 80 99`.
+
+> **Production risk (Phase 10c):** the same gotcha applies in prod. When correcting any Key Vault
+> secret in production, bump an app setting on **both** apps (or wait 24h) — never trust a restart —
+> and confirm with the in-container check above before declaring it fixed.
+
 ## .NET runtime targeting (why the app boots even when the platform patch moves)
 
 The app is published **framework-dependent** onto App Service's `DOTNETCORE|10.0` platform, so

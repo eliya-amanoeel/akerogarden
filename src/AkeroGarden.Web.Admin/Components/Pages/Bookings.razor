@@ -1,4 +1,4 @@
-@page "/admin/bokningar"
+@page "/bokningar"
 @layout AdminLayout
 @rendermode InteractiveServer
 @using AkeroGarden.Web.Core.Data.Entities
@@ -10,7 +10,7 @@
 <PageTitle>Bokningar — Åkerögården Admin</PageTitle>
 
 <AdminHeader Title="Bokningar">
-    <a class="btn" href="/admin/bokningar/ny">+ Skapa bokning</a>
+    <a class="btn" href="/bokningar/ny">+ Skapa bokning</a>
 </AdminHeader>
 
 <p class="form-hint">Alla förfrågningar och bokningar. Filtrera på status, typ och datum, eller sök på referensnummer.</p>
@@ -81,7 +81,7 @@ else
                         <td class="mono">@b.BookingReference</td>
                         <td class="mono">@b.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
                         <td>
-                            <a class="rowlink" href="/admin/bokningar/@b.Id">@b.ContactName</a>
+                            <a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a>
                             <span class="sub">@b.ContactEmail</span>
                         </td>
                         <td>@BookingDisplay.TypeLabel(b.BookingType)</td>
@@ -97,7 +97,7 @@ else
                         </td>
                         <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
                         <td><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></td>
-                        <td class="rowactions"><a class="btn-ghost" href="/admin/bokningar/@b.Id">Öppna →</a></td>
+                        <td class="rowactions"><a class="btn-ghost" href="/bokningar/@b.Id">Öppna →</a></td>
                     </tr>
                 }
             </tbody>
@@ -144,7 +144,7 @@ else
 
     protected override async Task OnInitializedAsync() => await Load();
 
-    private void GoToBooking(Guid id) => Nav.NavigateTo($"/admin/bokningar/{id}");
+    private void GoToBooking(Guid id) => Nav.NavigateTo($"/bokningar/{id}");
 
     private async Task Load()
     {

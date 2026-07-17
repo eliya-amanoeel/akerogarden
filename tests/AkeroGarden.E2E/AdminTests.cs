@@ -26,14 +26,14 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await Assertions.Expect(Page.Locator("#admin-nav-links")).ToBeVisibleAsync();
     }
 
-    /// <summary>Logs in through the real /login form and lands on /admin.</summary>
+    /// <summary>Logs in through the real /login form and lands on the dashboard at "/".</summary>
     private async Task LoginAsync()
     {
         await Page.GotoAsync("/login");
         await Page.FillAsync("#email", E2EFixture.AdminEmail);
         await Page.FillAsync("#password", E2EFixture.AdminPassword);
         await Page.GetByRole(AriaRole.Button, new() { Name = "Logga in" }).ClickAsync();
-        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/admin$"));
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/$"));
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         // field — it mirrors ContactEmail → ConfirmEmail — so a manual booking must still submit
         // and land on the newly created booking's detail page.
         await LoginAsync();
-        await Page.GotoAsync("/admin/bokningar/ny");
+        await Page.GotoAsync("/bokningar/ny");
         // Admin is Interactive Server: wait for the SignalR circuit to connect before filling, else
         // the @bind onchange events fire before the circuit is live and never reach the server model.
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -88,7 +88,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         // Lands on the new booking's detail page — proving the form submitted despite the required
         // ConfirmEmail (mirrored from ContactEmail), i.e. the Phase 7 change didn't break admin.
         await Assertions.Expect(Page).ToHaveURLAsync(
-            new System.Text.RegularExpressions.Regex(@"/admin/bokningar/[0-9a-fA-F-]{36}$"));
+            new System.Text.RegularExpressions.Regex(@"/bokningar/[0-9a-fA-F-]{36}$"));
     }
 
     [Fact]
@@ -99,7 +99,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         // unlike the public form. With the message wired, [OptionalPhone] surfaces the same Swedish
         // error and the form does NOT navigate to a new booking's detail page.
         await LoginAsync();
-        await Page.GotoAsync("/admin/bokningar/ny");
+        await Page.GotoAsync("/bokningar/ny");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         await Page.FillAsync("#mb-name", "Testgrupp Telefon");
@@ -113,7 +113,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
         await Assertions.Expect(Page.GetByText("Ange ett giltigt telefonnummer.")).ToBeVisibleAsync();
         // Did not create a booking: still on the manual-booking form, not a detail page.
-        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/admin/bokningar/ny$"));
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/bokningar/ny$"));
     }
 
     [Fact]
@@ -145,7 +145,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         try
         {
             await LoginAsync();
-            await Page.GotoAsync("/admin/bokningar");
+            await Page.GotoAsync("/bokningar");
             await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
             await Assertions.Expect(
                 Page.GetByText("Datumen överlappar en eller flera blockeringar")).ToBeVisibleAsync();
@@ -163,8 +163,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await LoginAsync();
         // The sidebar "Bokningar" link points at the list…
         await Assertions.Expect(Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" }))
-            .ToHaveAttributeAsync("href", "/admin/bokningar");
-        await Page.GotoAsync("/admin/bokningar");
+            .ToHaveAttributeAsync("href", "/bokningar");
+        await Page.GotoAsync("/bokningar");
 
         await Assertions.Expect(Page.Locator("table.admin-table")).ToBeVisibleAsync();
         // The Pending booking carries the coloured status badge.
@@ -177,7 +177,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     public async Task Booking_detail_has_action_rail()
     {
         await LoginAsync();
-        await Page.GotoAsync("/admin/bokningar");
+        await Page.GotoAsync("/bokningar");
         await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
 
         // Two-column detail with the sticky action rail; a Pending stay offers Approve.
@@ -196,7 +196,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         // It is now a fixed toast — assert it both appears and sits within the viewport after a save
         // performed at the bottom of the page.
         await LoginAsync();
-        await Page.GotoAsync("/admin/bokningar");
+        await Page.GotoAsync("/bokningar");
         await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
         // Interactive Server: let the circuit connect before toggling @bind checkboxes / clicking.
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
@@ -222,17 +222,17 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     // bookings list + manual-booking form, the calendar and blocks, and all six reference-data
     // CRUD screens plus accounts. (Booking detail needs a real {id} and is covered separately.)
     [Theory]
-    [InlineData("/admin")]
-    [InlineData("/admin/bokningar")]
-    [InlineData("/admin/bokningar/ny")]
-    [InlineData("/admin/kalender")]
-    [InlineData("/admin/blockeringar")]
-    [InlineData("/admin/byggnader")]
-    [InlineData("/admin/matalternativ")]
-    [InlineData("/admin/priser")]
-    [InlineData("/admin/stadszoner")]
-    [InlineData("/admin/faciliteter")]
-    [InlineData("/admin/konton")]
+    [InlineData("/")]
+    [InlineData("/bokningar")]
+    [InlineData("/bokningar/ny")]
+    [InlineData("/kalender")]
+    [InlineData("/blockeringar")]
+    [InlineData("/byggnader")]
+    [InlineData("/matalternativ")]
+    [InlineData("/priser")]
+    [InlineData("/stadszoner")]
+    [InlineData("/faciliteter")]
+    [InlineData("/konton")]
     public async Task Admin_pages_have_no_serious_accessibility_violations(string path)
     {
         await LoginAsync();
@@ -248,7 +248,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     public async Task Booking_detail_has_no_serious_accessibility_violations()
     {
         await LoginAsync();
-        await Page.GotoAsync("/admin/bokningar");
+        await Page.GotoAsync("/bokningar");
         await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
@@ -266,7 +266,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         var email = $"{Guid.NewGuid()}@akerogarden.se";
 
         await LoginAsync();
-        await Page.GotoAsync("/admin/konton");
+        await Page.GotoAsync("/konton");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in administratör" }).ClickAsync();
@@ -306,7 +306,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         {
             // 1. Invite the new admin through the real Konton panel (creates a pending account).
             await LoginAsync();
-            await Page.GotoAsync("/admin/konton");
+            await Page.GotoAsync("/konton");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
             await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in administratör" }).ClickAsync();
             var panel = Page.Locator(".admin-panel");
@@ -384,7 +384,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         try
         {
             await LoginAsync();
-            await Page.GotoAsync("/admin/faciliteter");
+            await Page.GotoAsync("/faciliteter");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             var row = Page.Locator("tr", new() { HasText = name });
@@ -439,7 +439,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         try
         {
             await LoginAsync();
-            await Page.GotoAsync("/admin/byggnader");
+            await Page.GotoAsync("/byggnader");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             var pbRow = Page.Locator(".bldg-row--l0", new() { HasText = pbName });
@@ -527,7 +527,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         try
         {
             await LoginAsync();
-            await Page.GotoAsync("/admin/byggnader");
+            await Page.GotoAsync("/byggnader");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             // Both levels start collapsed — expand the physical building, then the building, so the
@@ -604,7 +604,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         {
             await LoginAsync();
             await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
-            await Page.GotoAsync("/admin/byggnader");
+            await Page.GotoAsync("/byggnader");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             var pbRow = Page.Locator(".bldg-row--l0", new() { HasText = pbName });
@@ -684,7 +684,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         try
         {
             await LoginAsync();
-            await Page.GotoAsync($"/admin/bokningar/{id}");
+            await Page.GotoAsync($"/bokningar/{id}");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             var approve = Page.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true });
@@ -746,10 +746,10 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     // their topbar title and the primary nav reachable at every breakpoint. ≤860px the sidebar collapses
     // behind a hamburger, so on mobile/tablet the links are reached by opening the toggle first.
     [Theory]
-    [InlineData("/admin", "Översikt")]
-    [InlineData("/admin/bokningar", "Bokningar")]
-    [InlineData("/admin/matalternativ", "Matalternativ")]
-    [InlineData("/admin/byggnader", "Byggnader")]
+    [InlineData("/", "Översikt")]
+    [InlineData("/bokningar", "Bokningar")]
+    [InlineData("/matalternativ", "Matalternativ")]
+    [InlineData("/byggnader", "Byggnader")]
     public async Task Admin_pages_stay_reachable_across_breakpoints(string path, string title)
     {
         await LoginAsync();
@@ -780,7 +780,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
         // Desktop: full vertical sidebar — links + group headings shown, no hamburger.
         await Page.SetViewportSizeAsync(Desktop.Width, Desktop.Height);
-        await Page.GotoAsync("/admin");
+        await Page.GotoAsync("/");
         await Assertions.Expect(Page.Locator(".admin-nav__group").First).ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".admin-nav__toggle")).Not.ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" }))
@@ -788,7 +788,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
         // Mobile: links hidden by default, hamburger shown.
         await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
-        await Page.GotoAsync("/admin");
+        await Page.GotoAsync("/");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         var bokningar = Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" });
         await Assertions.Expect(Page.Locator(".admin-nav__toggle")).ToBeVisibleAsync();
@@ -800,7 +800,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
         // …and navigating via a link closes the menu again.
         await bokningar.ClickAsync();
-        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/admin/bokningar$"));
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/bokningar$"));
         await Assertions.Expect(Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" }))
             .Not.ToBeVisibleAsync();
     }
@@ -810,7 +810,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     {
         await LoginAsync();
         await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
-        await Page.GotoAsync("/admin");
+        await Page.GotoAsync("/");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         // The two top cards stack vertically on a phone rather than being squeezed side by side.
@@ -838,7 +838,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     {
         await LoginAsync();
         await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
-        await Page.GotoAsync("/admin/bokningar");
+        await Page.GotoAsync("/bokningar");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         await Assertions.Expect(Page.Locator(".admin-table-wrap")).Not.ToBeVisibleAsync();
@@ -850,7 +850,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
         // The card itself is the tap target — same navigation the desktop row link offers.
         await pendlarCard.ClickAsync();
-        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/admin/bokningar/[0-9a-fA-F-]+$"));
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/bokningar/[0-9a-fA-F-]+$"));
 
         var docScrollWidth = await Page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
         Assert.True(docScrollWidth <= Mobile.Width + 1,
@@ -910,7 +910,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         try
         {
             await LoginAsync();
-            await Page.GotoAsync($"/admin/bokningar/{bookingId}");
+            await Page.GotoAsync($"/bokningar/{bookingId}");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             var section = Page.Locator(".detail-acc", new() { HasText = "Deltagare" });

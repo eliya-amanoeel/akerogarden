@@ -1,4 +1,4 @@
-@page "/admin/bokningar/{Id:guid}"
+@page "/bokningar/{Id:guid}"
 @layout AdminLayout
 @rendermode InteractiveServer
 @using AkeroGarden.Web.Core.Data.Entities
@@ -14,14 +14,14 @@
 @if (_booking is null)
 {
     <AdminHeader>
-        <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a></span></TitleContent>
+        <TitleContent><span class="crumb"><a href="/bokningar">Bokningar</a></span></TitleContent>
     </AdminHeader>
     <p class="admin-empty">@(_loaded ? "Bokningen kunde inte hittas." : "Laddar…")</p>
 }
 else
 {
     <AdminHeader>
-        <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a> / @_booking.BookingReference</span></TitleContent>
+        <TitleContent><span class="crumb"><a href="/bokningar">Bokningar</a> / @_booking.BookingReference</span></TitleContent>
     </AdminHeader>
 
     <div class="admin-detail-head">
@@ -425,13 +425,13 @@ else
                     <dl class="kv">
                         <dt>Deltagarlista</dt>
                         <dd>
-                            <a href="/admin/bokningar/@_booking.Id/deltagarlista.pdf">PDF</a> ·
-                            <a href="/admin/bokningar/@_booking.Id/deltagarlista.xlsx">Excel</a>
+                            <a href="/bokningar/@_booking.Id/deltagarlista.pdf">PDF</a> ·
+                            <a href="/bokningar/@_booking.Id/deltagarlista.xlsx">Excel</a>
                         </dd>
                         <dt>Matlista</dt>
                         <dd>
-                            <a href="/admin/bokningar/@_booking.Id/matlista.pdf">PDF</a> ·
-                            <a href="/admin/bokningar/@_booking.Id/matlista.xlsx">Excel</a>
+                            <a href="/bokningar/@_booking.Id/matlista.pdf">PDF</a> ·
+                            <a href="/bokningar/@_booking.Id/matlista.xlsx">Excel</a>
                         </dd>
                     </dl>
                 </section>

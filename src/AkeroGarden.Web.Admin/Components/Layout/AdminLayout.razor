@@ -16,7 +16,7 @@
            layout with the checkbox unchecked → the menu closes on navigate. *@
         <input type="checkbox" id="admin-nav-toggle" class="admin-nav__checkbox" aria-label="Öppna meny" />
         <div class="admin-nav__bar">
-            <a class="admin-nav__brand" href="/admin" aria-label="Till översikten">
+            <a class="admin-nav__brand" href="/" aria-label="Till översikten">
                 <Logo Variant="LogoVariant.OnDark" />
             </a>
             <label for="admin-nav-toggle" class="admin-nav__toggle">
@@ -27,24 +27,24 @@
 
         <div id="admin-nav-links" class="admin-nav__links" data-enhance-nav="false">
             <ul>
-                <li>@NavLink("/admin", "Översikt", exact: true)</li>
-                <li>@NavLink("/admin/bokningar", "Bokningar", count: _pendingCount)</li>
-                <li>@NavLink("/admin/kalender", "Kalendervy")</li>
-                <li>@NavLink("/admin/blockeringar", "Blockeringar")</li>
+                <li>@NavLink("/", "Översikt", exact: true)</li>
+                <li>@NavLink("/bokningar", "Bokningar", count: _pendingCount)</li>
+                <li>@NavLink("/kalender", "Kalendervy")</li>
+                <li>@NavLink("/blockeringar", "Blockeringar")</li>
             </ul>
 
             <div class="admin-nav__group">Referensdata</div>
             <ul>
-                <li>@NavLink("/admin/byggnader", "Byggnader")</li>
-                <li>@NavLink("/admin/matalternativ", "Matalternativ")</li>
-                <li>@NavLink("/admin/faciliteter", "Faciliteter")</li>
-                <li>@NavLink("/admin/priser", "Priser")</li>
-                <li>@NavLink("/admin/stadszoner", "Städzoner")</li>
+                <li>@NavLink("/byggnader", "Byggnader")</li>
+                <li>@NavLink("/matalternativ", "Matalternativ")</li>
+                <li>@NavLink("/faciliteter", "Faciliteter")</li>
+                <li>@NavLink("/priser", "Priser")</li>
+                <li>@NavLink("/stadszoner", "Städzoner")</li>
             </ul>
 
             <div class="admin-nav__group">System</div>
             <ul>
-                <li>@NavLink("/admin/konton", "Administratörskonton")</li>
+                <li>@NavLink("/konton", "Administratörskonton")</li>
             </ul>
 
             <div class="admin-nav__foot">

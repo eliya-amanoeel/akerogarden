@@ -1,4 +1,4 @@
-@page "/admin/bokningar/ny"
+@page "/bokningar/ny"
 @layout AdminLayout
 @rendermode InteractiveServer
 @using AkeroGarden.Web.Core.Data.Entities
@@ -12,7 +12,7 @@
 <PageTitle>Skapa bokning — Åkerögården Admin</PageTitle>
 
 <AdminHeader>
-    <TitleContent><span class="crumb"><a href="/admin/bokningar">Bokningar</a> / Skapa bokning</span></TitleContent>
+    <TitleContent><span class="crumb"><a href="/bokningar">Bokningar</a> / Skapa bokning</span></TitleContent>
 </AdminHeader>
 
 <div class="admin-detail-head"><h1>Skapa bokning</h1></div>
@@ -123,12 +123,12 @@ else
     {
         _stay.SelectedFacilityIds = _selectedFacilities.ToList();
         var booking = await BookingService.CreateStayRequestAsync(_stay, createdByAdmin: true);
-        Nav.NavigateTo($"/admin/bokningar/{booking.Id}");
+        Nav.NavigateTo($"/bokningar/{booking.Id}");
     }
 
     private async Task CreateGeneral()
     {
         var booking = await BookingService.CreateGeneralInquiryAsync(_general, createdByAdmin: true);
-        Nav.NavigateTo($"/admin/bokningar/{booking.Id}");
+        Nav.NavigateTo($"/bokningar/{booking.Id}");
     }
 }

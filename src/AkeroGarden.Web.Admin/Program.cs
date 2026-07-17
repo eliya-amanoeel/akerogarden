@@ -120,7 +120,7 @@ if (!app.Environment.IsDevelopment())
     app.UseHsts();
 }
 
-app.UseStatusCodePagesWithReExecute("/admin/not-found", createScopeForStatusCodePages: true);
+app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
@@ -130,10 +130,10 @@ app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-// The admin host has no public home; its root sends the admin to the dashboard, which in turn
-// redirects to /login via the auth cookie's LoginPath when they are not signed in. (Before the
-// Phase 10b split, "/" served the public home — that page now lives only on the public host.)
-app.MapGet("/", () => Results.LocalRedirect("/admin"));
+// The admin host has no public home: "/" is the dashboard itself (see Dashboard.razor, [Authorize]).
+// An unauthenticated request to "/" is redirected to /login via the auth cookie's LoginPath. (Before
+// the Phase 10b split, "/" served the public home; that page now lives only on the public host. Before
+// the admin route flatten, the dashboard was at "/admin" and "/" merely redirected to it.)
 
 // Logout runs in a real HTTP request (not the interactive circuit), so the auth cookie can actually
 // be cleared. POST-only; antiforgery is validated explicitly because minimal APIs only auto-validate
@@ -177,7 +177,7 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("E2ETest
 // available once details are submitted (DetailsComplete or later).
 const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-var lists = app.MapGroup("/admin/bokningar/{id:guid}").RequireAuthorization();
+var lists = app.MapGroup("/bokningar/{id:guid}").RequireAuthorization();
 lists.MapGet("/deltagarlista.pdf", (Guid id, BookingService bookings) =>
     BuildListAsync(id, bookings, "deltagarlista.pdf", "application/pdf", ListPdfGenerator.ParticipantList));
 lists.MapGet("/deltagarlista.xlsx", (Guid id, BookingService bookings) =>

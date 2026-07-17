@@ -32,7 +32,8 @@ public sealed class E2EFixture : IAsyncLifetime
     /// <summary>Public host (Static SSR) base URL — the guest-facing surface (home, /boka, /slutfor).</summary>
     public string PublicBaseUrl { get; private set; } = "";
 
-    /// <summary>Admin host (Interactive Server + Identity) base URL — /login and /admin/*.</summary>
+    /// <summary>Admin host (Interactive Server + Identity) base URL — /login and the flattened admin
+    /// routes (dashboard at "/", /bokningar, /konton, …).</summary>
     public string AdminBaseUrl { get; private set; } = "";
 
     public IPlaywright Playwright { get; private set; } = null!;
@@ -110,7 +111,7 @@ public sealed class E2EFixture : IAsyncLifetime
     public const string ConferenceCompletionSubmitToken = "e2e-completion-conference-submit-token-ghi789";
 
     /// <summary>Credentials for the admin user AdminSeeder creates on boot (Seed:AdminEmail/Password
-    /// passed via env below). The admin E2E tests log in with these before hitting /admin.</summary>
+    /// passed via env below). The admin E2E tests log in with these before hitting the dashboard.</summary>
     public const string AdminEmail = "e2e-admin@akerogarden.test";
     public const string AdminPassword = "E2e-Admin-Pass1!";
 

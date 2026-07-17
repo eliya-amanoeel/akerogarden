@@ -150,7 +150,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         $"{_opts.PublicBaseUrl.TrimEnd('/')}/slutfor/{token}";
 
     private string BuildAdminBookingUrl(Guid bookingId) =>
-        $"{_opts.AdminBaseUrl.TrimEnd('/')}/admin/bokningar/{bookingId}";
+        $"{_opts.AdminBaseUrl.TrimEnd('/')}/bokningar/{bookingId}";
 
     /// <summary>Appends the footer every email must carry (§9): name, contact email, privacy link.</summary>
     private string WithFooter(string body)

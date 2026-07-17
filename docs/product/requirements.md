@@ -12,7 +12,7 @@
 
 **Changes from v0.50:**
 
-- **CI/CD platform changed from GitHub Actions to Azure DevOps (Phase 10a, mid-phase).** The client's Azure DevOps access (via their subscription, no GitHub presence) made this preferable once actually assessed — the repo (all branches, full history) is mirrored to Azure Repos (`dev.azure.com/akerogarden/akerogarden`); deploys authenticate via a service-principal-backed service connection instead of a publish-profile secret; the three GitHub Actions workflows are ported to Azure Pipelines YAML. §2 (tech-stack decision table) and §11.1 updated; `infra/azure/README.md` and `implementation-plan.md` updated to match. The GitHub repository itself is left as-is for now (fate — delete vs. read-only archive — undecided).
+- **CI/CD platform changed from GitHub Actions to Azure DevOps (Phase 10a, mid-phase).** The client's Azure DevOps access (via their subscription, no GitHub presence) made this preferable once actually assessed — the repo (all branches, full history) is mirrored to Azure Repos (`dev.azure.com/akerogarden/akerogarden`); deploys authenticate via a service-principal-backed service connection instead of a publish-profile secret; the three GitHub Actions workflows are ported to Azure Pipelines YAML. §2 (tech-stack decision table) and §11.1 updated; `infra/azure/README.md` and `implementation-plan.md` updated to match. The GitHub repository is being retired as a **read-only archive** (frozen, no further pushes; history stays reachable) — decided 2026-07-17; Azure Repos is the single source of truth going forward.
 
 **Changes from v0.49:**
 

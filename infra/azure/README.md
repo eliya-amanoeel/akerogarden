@@ -120,7 +120,7 @@ When re-provisioning (a new resource group, e.g. a future tenant move), add a ro
 assignment for the *same* service principal scoped to the new resource group — the
 service connection itself doesn't need to change.
 
-The `Deploy - Staging` pipeline (`azure-pipelines-deploy-staging.yml`) is manual-only
+The `Deploy - Staging` pipeline (`infra/pipelines/azure-pipelines-deploy-staging.yml`) is manual-only
 (`trigger: none`) — run it from Pipelines → Deploy - Staging → Run pipeline. The first
 run against a fresh service connection prompts "This pipeline needs permission to
 access resources" — click Authorize once.

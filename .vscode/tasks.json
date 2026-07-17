@@ -7,7 +7,7 @@
       "type": "process",
       "args": [
         "build",
-        "${workspaceFolder}/src/AkeroGarden.Web/AkeroGarden.Web.csproj",
+        "${workspaceFolder}/AkeroGarden.slnx",
         "/property:GenerateFullPaths=true",
         "/consoleloggerparameters:NoSummary"
       ],

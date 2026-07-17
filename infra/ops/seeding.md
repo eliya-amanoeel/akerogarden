@@ -1,29 +1,35 @@
 # Åkerögården — Demo/seed data (staging & dev)
 
-Extracted from the Phase 8 demo script — everything about seeding and resetting the synthetic
-demo dataset, for both staging and local dev.
+Everything about seeding and resetting the synthetic demo dataset, for both staging and local dev.
 
 ## What the seeder does
 
-A gated startup routine (`DemoDataSeeder`, in `src/AkeroGarden.Web/Services/DemoDataSeeder.cs`, wired in
-`Program.cs`). On app startup, **only when the config flag `DemoSeed:Reset` is `true`**, it:
+A gated startup routine (`DemoDataSeeder`, in `src/AkeroGarden.Web.Core/Services/DemoDataSeeder.cs`,
+wired into `src/AkeroGarden.Web.Admin/Program.cs` only — the public app never runs it). On startup,
+**only when the config flag `DemoSeed:Reset` is `true`**, it:
 
 1. **Wipes every application table** — all bookings, participants, meals, selections, blocks, and all
-   reference data (buildings, rooms, meals, prices, facilities, cleaning zones).
+   reference data (physical buildings, buildings, rooms, meals, prices, facilities, cleaning zones).
 2. **Preserves the admin login** — the ASP.NET Identity users (`AspNetUsers`) are left untouched, so you
    never lose the account you sign in with.
-3. **Reseeds** the full synthetic Swedish demo dataset: 3 buildings (Huvudbyggnaden · Annexet · Sjöstugan)
-   + 12 rooms; 6 meal options; 6 price rules; 4 facilities; 4 cleaning zones incl. the "Hela lägret" bundle;
-   3 blocks; and one booking in every lifecycle state (Pending/Approved/DetailsComplete/Active/Completed/
-   Denied/Cancelled/Closed).
+3. **Reseeds** the real Åkerögården property layout and a synthetic Swedish demo dataset: 6 physical
+   buildings, 8 buildings (Blidö/Ljusterö/Singö/Tjockö/Vätö 1/Vätö 2/Smedjan/Tallstugan) with 28 rooms
+   (79 beds total); 10 meal options; 5 price rules; 5 facilities; 7 cleaning zones incl. the "Hela
+   lägret" bundle; 3 blocks; and one booking in every lifecycle state (Pending/Approved/
+   DetailsComplete/Active/Completed/Denied/Cancelled/Closed).
 
 It runs **every time the app starts while the flag is on** — that's why you remove the flag after seeding.
 
 ## Why it works this way
 
 The staging PostgreSQL is **VNet-only** (no public internet access), so you can't run SQL against it from
-a laptop. The App Service container is the only thing inside the VNet that can reach the DB — so the wipe +
-seed is done *by the app itself* at startup, toggled by a config flag. No public reset endpoint exists.
+a laptop. The admin App Service is the only thing inside the VNet that both reaches the DB and runs EF
+migrations — so the wipe + seed is done *by that app itself* at startup, toggled by a config flag. No
+public reset endpoint exists.
+
+**Two-app topology:** staging runs two separate App Services — `jmk-ag-staging-admin` and
+`jmk-ag-staging-public`. Only the admin app migrates the DB and wires `DemoDataSeeder`; setting the flag
+on the public app does nothing.
 
 ## Safety
 
@@ -35,23 +41,22 @@ seed is done *by the app itself* at startup, toggled by a config flag. No public
 
 ## Re-seed — Staging
 
-The seeder ships on `main` (merged since Phase 8), so no special branch is needed for a normal deploy —
-just remember the `gh workflow run deploy-staging.yml` dropdown defaults to `main` anyway, so this is a
-non-issue now; it only mattered while the seeder lived on an unmerged branch.
+The seeder ships on `main`, so any deploy from the "Deploy — Staging" Azure Pipeline already has it —
+no special branch needed.
 
-Resource group `akerogarden-staging`, app `jmk-ag-staging-app` (az CLI logged in; mgmt-plane).
+Resource group `akerogarden-staging`, admin app `jmk-ag-staging-admin` (az CLI logged in; mgmt-plane).
 
 ```bash
-# 1. Turn the flag on — this AUTO-RESTARTS the app, which wipes + reseeds on boot.
-az webapp config appsettings set -g akerogarden-staging -n jmk-ag-staging-app \
+# 1. Turn the flag on, on the ADMIN app only — this AUTO-RESTARTS it, which wipes + reseeds on boot.
+az webapp config appsettings set -g akerogarden-staging -n jmk-ag-staging-admin \
   --settings DemoSeed__Reset=true
 
 # 2. Wait ~1 min, then VERIFY AGAINST THE DATA (not just health — see gotcha below):
-#    the public facilities page should list the seeded facilities.
-curl -s https://jmk-ag-staging-app.azurewebsites.net/faciliteter | grep -o "Bastu"
+#    the public facilities page should list a seeded facility.
+curl -s https://staging.akerogarden.se/faciliteter | grep -o "Kapellet"
 
 # 3. Remove the flag so no future restart re-wipes.
-az webapp config appsettings delete -g akerogarden-staging -n jmk-ag-staging-app \
+az webapp config appsettings delete -g akerogarden-staging -n jmk-ag-staging-admin \
   --setting-names DemoSeed__Reset
 ```
 
@@ -68,12 +73,12 @@ az webapp config appsettings delete -g akerogarden-staging -n jmk-ag-staging-app
 2. Turn on demo seeding for the next run:
 
    ```bash
-   cd src/AkeroGarden.Web
+   cd src/AkeroGarden.Web.Admin
    dotnet user-secrets set "DemoSeed:Reset" "true"
    ```
 
 3. Run the app — this runs EF migrations against the now-empty DB, seeds the admin account, then
-   wipes+reseeds the demo dataset (8 bookings across every lifecycle state):
+   wipes+reseeds the demo dataset:
 
    ```bash
    dotnet run
@@ -95,11 +100,13 @@ it worked.
 
 ## If staging is powered down
 
-Start **PostgreSQL first**, wait until Ready, **then** the app (it runs EF migrations on boot):
+Start **PostgreSQL first**, wait until Ready, **then both apps** (the admin app runs EF migrations on
+boot, and the public app depends on the schema it creates):
 
 ```bash
 az postgres flexible-server start -g akerogarden-staging -n jmk-ag-staging-pg   # wait until Ready
-az webapp start -g akerogarden-staging -n jmk-ag-staging-app
+az webapp start -g akerogarden-staging -n jmk-ag-staging-admin
+az webapp start -g akerogarden-staging -n jmk-ag-staging-public
 ```
 
-Power down when idle: `az webapp stop …` + `az postgres flexible-server stop …`.
+Power down when idle: `az webapp stop …` (both apps) + `az postgres flexible-server stop …`.

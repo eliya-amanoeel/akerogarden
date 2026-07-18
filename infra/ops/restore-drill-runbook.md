@@ -72,7 +72,7 @@ Restore takes ~5–15 min. When it returns, the drill server exists and is priva
 
 The drill server is private-only (see the safety box), so verify it from **inside the VNet**, via the App Service SSH console — the same mechanism as `staging-db-access-runbook.md` (SSH into the running app container, install `psql` if missing, connect over the private FQDN).
 
-1. Portal → the app in the same VNet (`jmk-ag-staging-app` / prod equivalent) → **Development Tools → SSH**.
+1. Portal → an app in the same VNet — `jmk-ag-staging-admin` (or `jmk-ag-prod-admin` on production; both sites are VNet-integrated, admin is the convention) → **Development Tools → SSH**.
 2. `psql --version` — if missing: `apt-get update && apt-get install -y postgresql-client`.
 3. Connect to the **drill** server on its private endpoint and run the row-count checks:
    ```bash

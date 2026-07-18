@@ -4,7 +4,7 @@
 
 A full-stack booking and admin system for Åkerögården, a rural retreat in Norrtälje, Sweden. Replaces a decommissioned Payload CMS. The old production database was dropped during decommission — all data must be rebuilt from scratch.
 
-**Single source of truth:** `docs/product/requirements.md` (v0.47). If anything here conflicts with the SRS, the SRS wins — raise it, don't silently diverge.
+**Single source of truth:** `docs/product/requirements.md` — an unversioned living document stating current truth. If anything here conflicts with the SRS, the SRS wins — raise it, don't silently diverge.
 
 ## Tech stack (locked — do not change without explicit discussion)
 
@@ -29,10 +29,11 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 
 | File | Purpose |
 |---|---|
-| `docs/product/requirements.md` | Main SRS — v0.33, single source of truth |
+| `docs/product/requirements.md` | Main SRS — single source of truth; unversioned living document, edited in place |
+| `docs/product/requirements-changelog.md` | Frozen archive of SRS history up to the retirement of document versioning. Not maintained — read-only reference |
 | `docs/product/erd.md` | Mermaid entity-relationship diagram (14 app entities) |
 | `docs/product/architecture.md` | Mermaid app-level architecture diagram — public/admin surfaces, hosting, external services, tech stack |
-| `docs/product/implementation-plan.md` | 12-phase dependency-ordered build plan (0–9 done; 10a staging re-provisioning into the client's Azure tenant [done]; 10b public/admin host separation — 3-project split + two App Services, one B1 plan [FR-70, not yet built]; 10c production go-live; 11 post-production hardening & handover) |
+| `docs/product/implementation-plan.md` | 12-phase dependency-ordered build plan (0–9 done; 10a staging re-provisioning into the client's Azure tenant [done]; 10b public/admin host separation — 3-project split + two App Services on one B1 plan [FR-70, done, staging cut over 2026-07-17]; **10c production go-live — next, not started**; 11 post-production hardening & handover — partially built, paused) |
 | `docs/ux/design.md` | Visual design tokens, CSS classes, logo usage |
 | `infra/ops/dns-cutover-runbook.md` | DNS + one.com cutover steps for both Phase 10a (staging, client tenant) and Phase 10c (production, WordPress retirement) |
 
@@ -110,6 +111,7 @@ Follow `docs/product/implementation-plan.md` in order. Do not start a phase unti
 - Tombstoned requirements (FR-12, FR-41, FR-43, FR-46) need no work — they exist only to keep numbering stable.
 - **Challenge the user when their instinct is wrong or under-thought.** Don't be agreeable. If a decision has a real downside, say so directly and explain why before offering alternatives.
 - Be extremely careful when updating any document under `docs/product/`, all these are strongly integrated into eachother, when updating any of these files, all other files should be checked to be kept in sync with the change.
+- **Requirement changes are edited in place — there is no SRS changelog.** The SRS states current truth and carries no version number. When a requirement changes: (1) edit the body text directly; (2) put the rationale in the **commit body**, not just the subject — `git log --follow docs/product/requirements.md` is now the change history, so a lazy commit message loses it permanently; (3) if the change alters a **live constraint** (something a future reader could reasonably try to undo), fold a one-sentence *why* into the section that governs it, so the reasoning survives without needing the git log at all. `requirements-changelog.md` is frozen history — never append to it.
 - Before reading `project_akerogarden_history.md` (the archived-phase-history memory file), tell me first — say what you're about to look up and why, don't fetch it silently.
 
 ## Phase completion gate

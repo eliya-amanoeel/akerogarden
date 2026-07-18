@@ -1,6 +1,6 @@
 # Åkerögården — Implementation Plan
 
-**Based on:** requirements.md v0.53, erd.md
+**Based on:** requirements.md, erd.md
 **Audience:** the developer building v1.
 **Purpose:** a dependency-ordered, phased path from empty repo to production launch. Each phase lists its **goal**, **scope & deliverables**, the **requirements it satisfies**, and **exit criteria** (what "done" means before moving on).
 
@@ -361,7 +361,7 @@ Unlike the feature phases, this phase is **bookended by design discipline**: it 
 **Scope & deliverables:**
 
 - **Access:** client grants the developer a role (Contributor, or Owner if RBAC/Key Vault policy work is needed) on the new subscription; confirm the right tenant/subscription is targeted (`az login --tenant <client-tenant-id>`, `az account set --subscription <client-sub-id>`) before provisioning anything.
-- **Subdomain split (no longer deferred):** `staging.parameters.json` updated so `customHostnames` binds **`staging.akerogarden.se`** (public) and **`admin.staging.akerogarden.se`** (admin) — mirroring production's public/admin split instead of staging's current single default hostname (`jmk-ag-staging-app.azurewebsites.net`). `publicBaseUrl`/`adminBaseUrl` updated to match. A new `staging.ssl-parameters.json` is created for `ssl.bicep` (mirrors the still-missing `prod.ssl-parameters.json`, needed in Phase 10c).
+- **Subdomain split (no longer deferred):** `staging.parameters.json` updated so `customHostnames` binds **`staging.akerogarden.se`** (public) and **`admin.staging.akerogarden.se`** (admin) — mirroring production's public/admin split instead of staging's current single default hostname (`jmk-ag-staging-app.azurewebsites.net`). `publicBaseUrl`/`adminBaseUrl` updated to match. A new `staging.ssl-parameters.json` is created for `ssl.bicep` (its production counterpart `prod.ssl-parameters.json` now exists too, stubbed for Phase 10c — its `appServicePlanId` is a placeholder until prod is provisioned).
 - **Provision fresh in the client's subscription:** same resource-group name and region convention as today (`akerogarden-staging`, `swedencentral`) unless quota forces otherwise — **re-verify App Service/PostgreSQL quota in the new subscription**; a brand-new PAYG subscription is not guaranteed the same regional capacity as the old MSDN one, even in the same region.
 - **Resource naming changed mid-phase:** the first redeploy attempt hit real Azure-wide naming collisions — `akerogardenstagingblob` (storage account) belonged to an unrelated third-party Azure customer, and `akerogarden-staging-app` (App Service hostname) still held its old MSDN-tenant name reservation well after that resource group was deleted and purged. Root cause: several resource types (App Service hostname, Storage Account, Key Vault, Azure Managed Redis, Postgres Flexible Server) are named uniquely across **all of Azure**, not just this subscription. Fixed by moving every resource in `main.bicep` off the `akerogarden-<environmentName>` naming prefix onto `jmk-ag-<environmentName>` (`jmk` = Jungfru Maria Kyrkan, the client; `ag` = Åkerögården) — one `prefix` variable, applied consistently, short enough to survive Key Vault/Storage's 24-character cap. The resource-group name itself (`akerogarden-staging` / `akerogarden-prod`) is unaffected — only resource names *inside* it changed. See `infra/azure/README.md` ("Naming" + gotchas) for the full mapping.
 - **DNS: ✅ DONE (2026-07-16).** `staging` + `admin.staging` CNAME/`asuid` TXT records added at one.com per `infra/ops/dns-cutover-runbook.md`'s Phase 10a section; both resolved cleanly. `staging.parameters.json` updated (`customHostnames`, `publicBaseUrl`, `adminBaseUrl`) and `staging.ssl-parameters.json` created. Hostnames bound and `ssl.bicep` run — both `staging.akerogarden.se` and `admin.staging.akerogarden.se` serve over HTTPS with valid managed SSL (verified `200` on both). **Hit the ARM multi-hostname `for`-loop Conflict gotcha** (see `infra/azure/README.md` gotchas) — one hostname binding and one SSL binding each failed via the Bicep array deploy and were bound directly via `az webapp config hostname add` / `az webapp config ssl bind` instead; end state matches the Bicep declaration. Expect the same workaround in Phase 10c's prod DNS/SSL step.
@@ -498,4 +498,4 @@ The split also forces a cleaner allocation of concerns that co-location was hidi
 
 ---
 
-*Derived from requirements.md v0.53 and erd.md — Åkerögården Booking System.*
+*Derived from requirements.md and erd.md — Åkerögården Booking System.*

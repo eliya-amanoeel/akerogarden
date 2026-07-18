@@ -1,7 +1,7 @@
 # Åkerögården — Entity Relationship Diagram
 
-**Derived from:** requirements.md v0.47, Section 8 (Core Data Model)
-**Status:** Pre-development artefact — the schema blueprint for the .NET 10 / EF Core / PostgreSQL build.
+**Derived from:** requirements.md, Section 8 (Core Data Model)
+**Status:** Current — the implemented EF Core / PostgreSQL schema. Keep in sync with §8; if the diagram and the entities drift, reconcile them rather than letting them diverge.
 
 This is the diagram Section 8 of the SRS calls for. Attribute lists below show the **primary key, foreign keys, and the fields that drive relationships or logic** — see requirements.md §8 for the complete field list of each entity.
 

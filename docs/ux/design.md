@@ -2,7 +2,7 @@
 
 Visual + experiential design reference for the site: art direction, tokens, type scale, components (with states), the public shell, and logo usage. This is the **single source of truth for design**, evolved in Phase 6 (UI/UX). If a component in code drifts from this doc, reconcile them — don't let them diverge silently.
 
-> **Status:** Phase 6, direction **A — "Editorial lugn"** (chosen in slice 1). Phases 0–5 shipped a deliberately functional-but-unstyled UI ("functional first, polish last"); Phase 6 replaces that with the considered system documented here. Component classes are introduced per slice — see the implementation plan.
+> **Status:** Current — direction **A — "Editorial lugn"**, built and shipped in Phase 6 (merged 2026-07-07). Phases 0–5 had shipped a deliberately functional-but-unstyled UI ("functional first, polish last"); this system replaced it across both surfaces. The component classes documented here are in the codebase — if code and doc drift, reconcile them.
 
 ---
 

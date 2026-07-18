@@ -5,6 +5,8 @@
 **Based on:** requirements.md v0.7, design.md, operational-tasks.md  
 **Purpose:** Track all gaps, contradictions, and open decisions identified during architectural review. Each item must be resolved and reflected in requirements.md before the relevant feature is built.
 
+> **Archived — closed, not maintained.** Every item below is marked RESOLVED and folded into `requirements.md`, which supersedes this document on all points of fact. It is kept for one reason: it is the only record of the *pre-build design debate* — why several requirements are worded the way they are, and which alternatives were considered and rejected. Read it for rationale, never for current truth. The `v0.x` references throughout point at SRS versions that no longer exist; they resolve against `requirements-changelog.md` (frozen history). Not to be appended to — this is a closed artefact, and Phase 11's post-launch architecture review is a separate document.
+
 ---
 
 ## How to Use This File

@@ -5,6 +5,8 @@
 **Method:** static review of `src/AkeroGarden.Web/Program.cs`, the Identity/cookie/antiforgery config, the public/admin routing, the Bicep infrastructure (`infra/azure/main.bicep` + parameter files), and the test suite. Items whose behaviour is only observable in a real Azure environment (HTTPS/HSTS at the edge, VNet isolation, DataProtection keys surviving a platform recycle) are **code/config-verified here and flagged for live verification in Phase 10a/10b** when staging/production Azure is exercised.
 
 > This is the Phase 7 gate deliverable required by `.claude/CLAUDE.md` → "Phase completion gate" §5 (Security). Blunt by design.
+>
+> **Point-in-time record — still live, not superseded.** Findings and verdicts are as of 2026-07-08 and are not retro-edited. Two things have changed since: the single `src/AkeroGarden.Web` project reviewed above was **split into three** (`AkeroGarden.Web.Core` RCL + `.Public` + `.Admin`) and deployed as two App Service sites in Phase 10b, so the `Program.cs` paths cited under Method now resolve to `.Public`/`.Admin`; and the items parked here for **live verification in Phase 10a/10b/10c** are still the tracker for that work. Phase 11's architecture-and-security review is a *second, post-launch* pass that builds on this one — it does not replace it.
 
 ---
 

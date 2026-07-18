@@ -352,7 +352,7 @@ Unlike the feature phases, this phase is **bookended by design discipline**: it 
 
 ---
 
-## Phase 10a — Staging re-provisioning (client tenant)
+## Phase 10a — Staging re-provisioning (client tenant) ✅ COMPLETE (merged to main 2026-07-16)
 
 **Goal:** recreate staging from scratch inside the client's own Azure subscription/tenant (a Pay-As-You-Go subscription, newly created — separate tenant from the developer's MSDN subscription that has hosted staging until now), and give it the same real-subdomain + managed-SSL treatment production gets, rather than leaving it on the Azure default hostname indefinitely. This is deliberately sequenced **before** production go-live: it proves the client-tenant deploy mechanics (access/RBAC, Bicep provisioning, DNS, managed SSL, the deploy pipeline's auth) on the lower-risk environment (synthetic data, no live guests) before repeating the same pattern against production (Phase 10c).
 
@@ -378,7 +378,7 @@ Because the fix is a code + infra + pipeline change — not a footnote to hang o
 
 ---
 
-## Phase 10b — Public/Admin surface separation
+## Phase 10b — Public/Admin surface separation ✅ COMPLETE (merged to main 2026-07-17)
 
 **Goal:** make FR-70 ("the admin panel shall be … fully separated from the public site") **true**, structurally, for the first time. Today one web app serves every route on both hostnames; after this phase the public and admin surfaces are two independent applications that share only data and design. Sequenced deliberately **before** 10c so production is *born* separated, never retrofitted.
 

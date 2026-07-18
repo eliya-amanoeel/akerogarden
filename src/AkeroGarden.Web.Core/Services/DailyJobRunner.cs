@@ -17,7 +17,6 @@ public class DailyJobRunner(
     IOptions<JobOptions> options,
     ILogger<DailyJobRunner> logger) : BackgroundService
 {
-    private static readonly TimeZoneInfo Stockholm = TimeZoneInfo.FindSystemTimeZoneById("Europe/Stockholm");
     private readonly JobOptions _opts = options.Value;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -66,35 +65,11 @@ public class DailyJobRunner(
         }
     }
 
-    /// <summary>Delay from now until the next daily run instant in Europe/Stockholm.</summary>
-    private TimeSpan TimeUntilNextRun()
-    {
-        var nowUtc = clock.GetUtcNow();
-        var todayLocal = TimeZoneInfo.ConvertTime(nowUtc, Stockholm).Date;
-
-        var next = RunInstantOn(todayLocal);
-        if (next <= nowUtc)
-            next = RunInstantOn(todayLocal.AddDays(1));
-
-        return next - nowUtc;
-    }
-
     /// <summary>
-    /// The UTC instant at which the daily run falls on a given Stockholm date. Resolves the wall-clock
-    /// hour through the timezone's rules rather than the offset in force now, so the run lands on the
-    /// configured hour on both sides of a DST transition.
+    /// Delay from now until the next daily run instant. The scheduling arithmetic — including both
+    /// DST transitions — lives in <see cref="DailyRunSchedule"/> so it is testable as a pure
+    /// function rather than inferred from whether a timer happened to fire.
     /// </summary>
-    private DateTimeOffset RunInstantOn(DateTime localDate)
-    {
-        var wall = DateTime.SpecifyKind(localDate.AddHours(_opts.DailyRunHourLocal), DateTimeKind.Unspecified);
-
-        // Spring forward: this wall time does not exist (02:00–02:59 on the transition day), and
-        // converting it would throw. Run at the first instant that does exist.
-        if (Stockholm.IsInvalidTime(wall))
-            wall = wall.AddHours(1);
-
-        // Autumn back: an ambiguous wall time (02:00–02:59) resolves to standard time. Either instant
-        // is acceptable — what matters is that the run happens once that day.
-        return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(wall, Stockholm), TimeSpan.Zero);
-    }
+    private TimeSpan TimeUntilNextRun() =>
+        DailyRunSchedule.TimeUntilNextRun(clock.GetUtcNow(), _opts.DailyRunHourLocal);
 }

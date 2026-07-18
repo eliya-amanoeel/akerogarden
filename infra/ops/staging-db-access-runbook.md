@@ -14,12 +14,12 @@
 
 ## The working route: SSH into the App Service container
 
-`jmk-ag-staging-app` has VNet integration into `app-subnet` in the same VNet as the database's `db-subnet` — it's how the running app reaches Postgres privately today. Its container is therefore already a valid vantage point to run `psql` from.
+Both staging sites — `jmk-ag-staging-admin` and `jmk-ag-staging-public` — have VNet integration into `app-subnet`, in the same VNet as the database's `db-subnet`; it's how the running apps reach Postgres privately. Either container is therefore a valid vantage point to run `psql` from. **Use `jmk-ag-staging-admin`** below: it is the site that owns the EF migrations and the daily background job, so it is the one whose DB connectivity you actually want to confirm.
 
 ### Steps
 
 1. **Open the SSH console.**
-   In the Azure Portal, go to the `jmk-ag-staging-app` App Service → **Development Tools** → **SSH** (or **Advanced Tools** → **Go** → **SSH** from the Kudu page). This opens a browser-based terminal running inside the app's own container.
+   In the Azure Portal, go to the `jmk-ag-staging-admin` App Service → **Development Tools** → **SSH** (or **Advanced Tools** → **Go** → **SSH** from the Kudu page). This opens a browser-based terminal running inside the app's own container.
 
 2. **Check for `psql`.**
    ```bash

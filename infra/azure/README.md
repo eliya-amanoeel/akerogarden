@@ -4,10 +4,10 @@ Bicep templates for Åkerögården. Both production and staging deploy from the 
 `main.bicep` with different parameter files (`staging.parameters.json`,
 `prod.parameters.json`).
 
-> **Status:** staging is provisioned in **Sweden Central** (`akerogarden-staging`), currently in the developer's personal (MSDN) subscription.
-> **Phase 10a** recreates staging fresh in the **client's own Azure subscription/tenant** (a new PAYG subscription) with a real subdomain split — `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin) — instead of today's Azure default hostname; the old MSDN-hosted copy is deleted once the new one is verified. This is a redeploy from these same Bicep templates, not a migration — Azure's resource-move feature doesn't work across tenants.
-> **Phase 10b** splits the single web app into two App Service sites on the one shared plan (see below).
-> Production is provisioned directly in the client's tenant in **Phase 10c**, against that two-app topology.
+> **Status:** staging is live in **Sweden Central** (`akerogarden-staging`), in the **client's own Azure subscription/tenant** (PAYG), on `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin).
+> **Phase 10a ✅ done (2026-07-16)** — staging was recreated fresh in the client's tenant from these same Bicep templates (a redeploy, not a migration; Azure's resource-move feature doesn't work across tenants) and the old MSDN-hosted copy deleted.
+> **Phase 10b ✅ done (2026-07-17)** — the single web app was split into two App Service sites on the one shared plan (see "Two-app topology" below); staging is cut over and verified.
+> **Phase 10c — not started.** Production is provisioned directly in the client's tenant against this same two-app topology. ⚠️ `prod.parameters.json` is **not yet deployable**: `seedAdminEmail` / `seedAdminPassword` are required by `main.bicep` and still absent, pending creation of the `info@akerogarden.se` mailbox.
 
 ## What `main.bicep` creates
 

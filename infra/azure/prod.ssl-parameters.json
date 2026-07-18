@@ -1,0 +1,16 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "_comment": "Phase 10c. appServicePlanId CANNOT be filled in ahead of provisioning — take it from main.bicep's appServicePlanId output after the prod deployment succeeds, then replace <PROD_SUBSCRIPTION_ID>. Run ssl.bicep only AFTER the custom hostnames are bound and DNS resolves, or managed-certificate issuance fails validation.",
+  "parameters": {
+    "appServicePlanId": {
+      "value": "/subscriptions/<PROD_SUBSCRIPTION_ID>/resourceGroups/akerogarden-prod/providers/Microsoft.Web/serverfarms/jmk-ag-prod-plan"
+    },
+    "bindings": {
+      "value": [
+        { "siteName": "jmk-ag-prod-public", "hostname": "akerogarden.se" },
+        { "siteName": "jmk-ag-prod-admin", "hostname": "admin.akerogarden.se" }
+      ]
+    }
+  }
+}

@@ -75,10 +75,10 @@ stages:
           # Coverage is collected on the unit + integration tiers only. The E2E tier launches both
           # host apps out-of-process, so the collector never attributes that execution — collecting
           # there costs time and reports nothing. See the publish step below.
-          - script: dotnet test tests/AkeroGarden.Unit --no-build --configuration Release --logger "console;verbosity=normal" --logger trx --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/coverage
+          - script: dotnet test tests/AkeroGarden.Unit --no-build --configuration Release --logger "console;verbosity=normal" --logger trx --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/testresults
             displayName: Unit tests
 
-          - script: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "console;verbosity=normal" --logger trx --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/coverage
+          - script: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "console;verbosity=normal" --logger trx --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/testresults
             displayName: Integration tests
             env:
               ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=akerogarden_test;Username=akerogarden;Password=akerogarden_ci"
@@ -101,17 +101,24 @@ stages:
           - script: pwsh tests/AkeroGarden.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
             displayName: Install Playwright browsers
 
-          - script: dotnet test tests/AkeroGarden.E2E --no-build --configuration Release --logger "console;verbosity=normal" --logger trx
+          - script: dotnet test tests/AkeroGarden.E2E --no-build --configuration Release --logger "console;verbosity=normal" --logger trx --results-directory $(Agent.TempDirectory)/testresults
             displayName: E2E tests
             env:
               E2E_WEB_CONFIG: Release
 
+          # searchFolder must match the --results-directory above. All three tiers write there so
+          # every tier's .trx is published: without it the task searches the source directory,
+          # finds only whichever tier still wrote there, and the Tests tab silently under-reports
+          # (it showed 74 of 564 for two runs). The tests still run and still gate the build either
+          # way — this only affects what the Tests tab can see, which is where you would go to spot
+          # a flaky test.
           - task: PublishTestResults@2
             displayName: Publish test results
             condition: succeededOrFailed()
             inputs:
               testResultsFormat: VSTest
               testResultsFiles: "**/*.trx"
+              searchFolder: $(Agent.TempDirectory)/testresults
 
           # Reporting only — there is deliberately no coverage threshold and no build failure on a
           # drop. A percentage gate would reward tests that execute lines without asserting much,
@@ -127,7 +134,7 @@ stages:
               dotnet tool install -g dotnet-reportgenerator-globaltool
               export PATH="$PATH:$HOME/.dotnet/tools"
               reportgenerator \
-                -reports:"$(Agent.TempDirectory)/coverage/**/coverage.cobertura.xml" \
+                -reports:"$(Agent.TempDirectory)/testresults/**/coverage.cobertura.xml" \
                 -targetdir:"$(Build.ArtifactStagingDirectory)/coverage" \
                 -reporttypes:"Cobertura;HtmlInline_AzurePipelines" \
                 -assemblyfilters:"+AkeroGarden.Web.Core"

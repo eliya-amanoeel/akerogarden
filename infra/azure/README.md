@@ -178,6 +178,43 @@ The `codecoverage` status that appears on PRs is posted automatically by Azure P
 resolves to `notApplicable` (CI publishes no coverage data). It is informational and cannot block a
 merge — there is no status-check policy.
 
+## Code coverage in CI (reporting only, `AkeroGarden.Web.Core` only)
+
+The `CI` pipeline collects coverage on the **unit and integration** tiers and publishes a merged
+report to the run's **Code Coverage** tab. Two deliberate limits, both recorded here so the numbers
+are not misread later:
+
+**1. Reporting only — there is no coverage threshold and no build failure on a drop.** A percentage
+gate rewards tests that execute lines without asserting much, which is precisely what this repo's
+test-integrity rule forbids (`.claude/CLAUDE.md`). Coverage is used as an occasional gap-finder —
+"what did we forget exists?" — not as a target. When it was last run as such (2026-07-18) it closed
+two genuine 0% gaps and surfaced a real DST bug, while moving the headline figure only 66.5% →
+66.9%: a threshold would have been nearly blind to all of it.
+
+**2. The published report is filtered to `AkeroGarden.Web.Core`** (`-assemblyfilters:"+AkeroGarden.Web.Core"`).
+`AkeroGarden.Web.Admin` and `AkeroGarden.Web.Public` are **excluded, and their pages are not
+uncovered — they are unmeasurable**. The E2E tier launches both host apps *out-of-process*, so the
+coverage collector never attributes that execution back to the component classes. The tell is
+internal to the report: `Program` shows 74–82% and the shared layouts show 100% (lit up by the
+*in-process* integration tests) while every `@page` component shows 0%, even though the Playwright
+suite genuinely drives those pages in a real browser.
+
+Publishing unfiltered would therefore advertise ~67% when the meaningful figure is Core's ~94%, and
+invite someone to "fix" a measurement artefact by writing Razor tests that assert nothing. **Do not
+write tests to move the Admin/Public numbers.**
+
+Coverage is likewise **not collected on the E2E tier at all** — same reason: it costs runtime and
+attributes nothing.
+
+Known-low areas inside Core that are *not* worth chasing, already assessed: `DataProtectionSetup`
+(its pure `ResolveMode` is fully covered by design; the remainder is unmockable Azure I/O — a live
+`BlobContainerClient` call and `DefaultAzureCredential` — verifiable only by the staging rehearsal),
+`BlobImageStorage` (same), and the display-shaping helpers.
+
+To reproduce the full, unfiltered picture locally, see the coverage commands in the project memory
+or run `reportgenerator` without `-assemblyfilters` — remembering that Admin/Public will look far
+worse than they are.
+
 ## 3. First deploy
 
 Run `Deploy - Staging` manually from Azure Pipelines. The app applies EF migrations and

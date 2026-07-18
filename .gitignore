@@ -47,6 +47,10 @@ Generated\ Files/
 [Tt]est[Rr]esult*/
 [Bb]uild[Ll]og.*
 
+# Code coverage reports (ReportGenerator output — regenerate locally, never commit)
+coveragereport/
+coverage.cobertura.xml
+
 # NUnit
 *.VisualState.xml
 TestResult.xml

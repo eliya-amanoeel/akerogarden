@@ -88,7 +88,6 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         // Accommodation VAT 12 %, food 12 %, other services 25 % (placeholder rates — confirmed
         // with the accountant at go-live, Phase 9; fine for the demo).
         const decimal VatAccommodation = 0.12m;
-        const decimal VatFood = 0.12m;
         const decimal VatService = 0.25m;
 
         // ── Physical buildings (§8.14) — the level cleaning is priced at ──────────────

@@ -3,14 +3,13 @@
 # validation run only tests a preview of the merge and another PR could have landed on main in
 # between). Publish only runs on main, and only if Test passed on that exact commit — so a
 # deployable artifact only ever exists for a commit that was itself tested, never a stale preview.
+#
+# No `pr:` trigger here — Azure DevOps ignores YAML PR triggers for Azure Repos (they work for
+# GitHub/Bitbucket only). PR validation is the "CI must pass" build-validation branch policy on
+# main, configured in Azure DevOps and not from this file. The `trigger:` below is real and does
+# apply: a docs-only merge to main skips CI.
+#
 trigger:
-  branches:
-    include: [main]
-  paths:
-    exclude:
-      - "**/*.md"
-
-pr:
   branches:
     include: [main]
   paths:

@@ -35,7 +35,9 @@ public class DailyJobRunner(
                 delay, _opts.DailyRunHourLocal);
             try
             {
-                await Task.Delay(delay, stoppingToken);
+                // Wait on the injected clock, not the ambient one, so the schedule is driven by a
+                // single time source (and the loop is testable with a fake clock).
+                await Task.Delay(delay, clock, stoppingToken);
             }
             catch (OperationCanceledException)
             {
@@ -67,10 +69,32 @@ public class DailyJobRunner(
     /// <summary>Delay from now until the next daily run instant in Europe/Stockholm.</summary>
     private TimeSpan TimeUntilNextRun()
     {
-        var nowLocal = TimeZoneInfo.ConvertTime(clock.GetUtcNow(), Stockholm);
-        var todayRun = new DateTimeOffset(
-            nowLocal.Year, nowLocal.Month, nowLocal.Day, _opts.DailyRunHourLocal, 0, 0, nowLocal.Offset);
-        var next = nowLocal < todayRun ? todayRun : todayRun.AddDays(1);
-        return next - nowLocal;
+        var nowUtc = clock.GetUtcNow();
+        var todayLocal = TimeZoneInfo.ConvertTime(nowUtc, Stockholm).Date;
+
+        var next = RunInstantOn(todayLocal);
+        if (next <= nowUtc)
+            next = RunInstantOn(todayLocal.AddDays(1));
+
+        return next - nowUtc;
+    }
+
+    /// <summary>
+    /// The UTC instant at which the daily run falls on a given Stockholm date. Resolves the wall-clock
+    /// hour through the timezone's rules rather than the offset in force now, so the run lands on the
+    /// configured hour on both sides of a DST transition.
+    /// </summary>
+    private DateTimeOffset RunInstantOn(DateTime localDate)
+    {
+        var wall = DateTime.SpecifyKind(localDate.AddHours(_opts.DailyRunHourLocal), DateTimeKind.Unspecified);
+
+        // Spring forward: this wall time does not exist (02:00–02:59 on the transition day), and
+        // converting it would throw. Run at the first instant that does exist.
+        if (Stockholm.IsInvalidTime(wall))
+            wall = wall.AddHours(1);
+
+        // Autumn back: an ambiguous wall time (02:00–02:59) resolves to standard time. Either instant
+        // is acceptable — what matters is that the run happens once that day.
+        return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(wall, Stockholm), TimeSpan.Zero);
     }
 }

@@ -125,6 +125,59 @@ The `Deploy - Staging` pipeline (`infra/pipelines/azure-pipelines-deploy-staging
 run against a fresh service connection prompts "This pipeline needs permission to
 access resources" — click Authorize once.
 
+## PR validation on `main` (branch policy — *not* the pipeline YAML)
+
+`main` is PR-gated by a **build-validation branch policy** named `CI must pass`, which runs the
+`CI` pipeline against the PR merge commit. This is the only mechanism that validates a PR.
+
+**Azure DevOps ignores YAML `pr:` triggers for Azure Repos** (they work for GitHub/Bitbucket
+only). A `pr:` block in `infra/pipelines/azure-pipelines.yml` would look authoritative and do
+nothing — one was removed for exactly that reason. The `trigger:` block in that file *is* real,
+but it only governs CI on merge to `main`, not PR validation.
+
+### The path filter has three ways to silently disable the gate
+
+All three were hit on 2026-07-18 while trying to skip CI for docs-only PRs. Every one produces the
+same symptom — **no build runs, no error anywhere, and the policy still reports itself as enabled
+and blocking** — so `main` sat unvalidated across several PRs before anyone noticed:
+
+1. **Exclusions alone select nothing.** `!*.md;!**/*.md` matches no file, so the policy applies to
+   nothing. The filter needs an **include** for the exclusions to subtract from: `/*;!*.md;!**/*.md`.
+2. **Patterns are separated by `;`, not spaces.** `'!*.md !**/*.md'` is stored as one malformed
+   pattern.
+3. **`!` is history-expanded by zsh, even inside double quotes.** `"!*.md"` reaches `az` as
+   something else entirely (it silently became `test.md` once). **Always single-quote** a
+   `--path-filter` containing `!`.
+
+The filter is currently `/*` — every PR runs CI, including docs-only ones. That is deliberate:
+wasted CI minutes on a README edit are cheaper than an ungated `main`.
+
+```bash
+# Read the current filter (do this after ANY change — the command's exit code proves nothing)
+az repos policy show --policy-id 1 --query "settings.filenamePatterns" -o json
+
+# Update it. Note the single quotes.
+az repos policy build update --policy-id 1 \
+  --repository-id <repo-id> --branch main \
+  --blocking true --enabled true --build-definition-id 1 \
+  --display-name "CI must pass" \
+  --queue-on-source-update-only false --manual-queue-only false \
+  --valid-duration 0 \
+  --path-filter '/*'
+```
+
+A policy change does **not** re-evaluate open PRs — push a commit (or use ⋯ → Re-evaluate policies
+on the PR) and confirm a run appears with reason `pullRequest`:
+
+```bash
+az pipelines runs list --status inProgress \
+  --query "[].{id:id, reason:reason, branch:sourceBranch}" -o tsv
+```
+
+The `codecoverage` status that appears on PRs is posted automatically by Azure Pipelines and
+resolves to `notApplicable` (CI publishes no coverage data). It is informational and cannot block a
+merge — there is no status-check policy.
+
 ## 3. First deploy
 
 Run `Deploy - Staging` manually from Azure Pipelines. The app applies EF migrations and

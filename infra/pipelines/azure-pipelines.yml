@@ -72,10 +72,13 @@ stages:
           - script: dotnet build --no-restore --configuration Release
             displayName: Build
 
-          - script: dotnet test tests/AkeroGarden.Unit --no-build --configuration Release --logger "console;verbosity=normal" --logger trx
+          # Coverage is collected on the unit + integration tiers only. The E2E tier launches both
+          # host apps out-of-process, so the collector never attributes that execution — collecting
+          # there costs time and reports nothing. See the publish step below.
+          - script: dotnet test tests/AkeroGarden.Unit --no-build --configuration Release --logger "console;verbosity=normal" --logger trx --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/coverage
             displayName: Unit tests
 
-          - script: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "console;verbosity=normal" --logger trx
+          - script: dotnet test tests/AkeroGarden.Integration --no-build --configuration Release --logger "console;verbosity=normal" --logger trx --collect:"XPlat Code Coverage" --results-directory $(Agent.TempDirectory)/coverage
             displayName: Integration tests
             env:
               ConnectionStrings__Postgres: "Host=localhost;Port=5432;Database=akerogarden_test;Username=akerogarden;Password=akerogarden_ci"
@@ -109,6 +112,34 @@ stages:
             inputs:
               testResultsFormat: VSTest
               testResultsFiles: "**/*.trx"
+
+          # Reporting only — there is deliberately no coverage threshold and no build failure on a
+          # drop. A percentage gate would reward tests that execute lines without asserting much,
+          # which is exactly what this repo's test-integrity rule forbids (see CLAUDE.md).
+          #
+          # Scoped to AkeroGarden.Web.Core, which holds all the business logic and is the only
+          # assembly whose number is meaningful. Web.Admin and Web.Public are excluded because the
+          # E2E tier drives their pages out-of-process: the collector sees none of it, so an
+          # unfiltered report would publish a badly understated figure (~67% vs Core's ~94%) and
+          # invite people to "fix" a measurement artefact. This is a reporting choice, not a way to
+          # hide uncovered code.
+          - script: |
+              dotnet tool install -g dotnet-reportgenerator-globaltool
+              export PATH="$PATH:$HOME/.dotnet/tools"
+              reportgenerator \
+                -reports:"$(Agent.TempDirectory)/coverage/**/coverage.cobertura.xml" \
+                -targetdir:"$(Build.ArtifactStagingDirectory)/coverage" \
+                -reporttypes:"Cobertura;HtmlInline_AzurePipelines" \
+                -assemblyfilters:"+AkeroGarden.Web.Core"
+            displayName: Merge coverage (Core only)
+            condition: succeededOrFailed()
+
+          - task: PublishCodeCoverageResults@2
+            displayName: Publish code coverage
+            condition: succeededOrFailed()
+            inputs:
+              summaryFileLocation: "$(Build.ArtifactStagingDirectory)/coverage/Cobertura.xml"
+              pathToSources: "$(Build.SourcesDirectory)"
 
   - stage: Publish
     displayName: Publish admin/public artifacts

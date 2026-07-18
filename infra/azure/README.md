@@ -125,6 +125,96 @@ The `Deploy - Staging` pipeline (`infra/pipelines/azure-pipelines-deploy-staging
 run against a fresh service connection prompts "This pipeline needs permission to
 access resources" — click Authorize once.
 
+## PR validation on `main` (branch policy — *not* the pipeline YAML)
+
+`main` is PR-gated by a **build-validation branch policy** named `CI must pass`, which runs the
+`CI` pipeline against the PR merge commit. This is the only mechanism that validates a PR.
+
+**Azure DevOps ignores YAML `pr:` triggers for Azure Repos** (they work for GitHub/Bitbucket
+only). A `pr:` block in `infra/pipelines/azure-pipelines.yml` would look authoritative and do
+nothing — one was removed for exactly that reason. The `trigger:` block in that file *is* real,
+but it only governs CI on merge to `main`, not PR validation.
+
+### The path filter has three ways to silently disable the gate
+
+All three were hit on 2026-07-18 while trying to skip CI for docs-only PRs. Every one produces the
+same symptom — **no build runs, no error anywhere, and the policy still reports itself as enabled
+and blocking** — so `main` sat unvalidated across several PRs before anyone noticed:
+
+1. **Exclusions alone select nothing.** `!*.md;!**/*.md` matches no file, so the policy applies to
+   nothing. The filter needs an **include** for the exclusions to subtract from: `/*;!*.md;!**/*.md`.
+2. **Patterns are separated by `;`, not spaces.** `'!*.md !**/*.md'` is stored as one malformed
+   pattern.
+3. **`!` is history-expanded by zsh, even inside double quotes.** `"!*.md"` reaches `az` as
+   something else entirely (it silently became `test.md` once). **Always single-quote** a
+   `--path-filter` containing `!`.
+
+The filter is currently `/*` — every PR runs CI, including docs-only ones. That is deliberate:
+wasted CI minutes on a README edit are cheaper than an ungated `main`.
+
+```bash
+# Read the current filter (do this after ANY change — the command's exit code proves nothing)
+az repos policy show --policy-id 1 --query "settings.filenamePatterns" -o json
+
+# Update it. Note the single quotes.
+az repos policy build update --policy-id 1 \
+  --repository-id <repo-id> --branch main \
+  --blocking true --enabled true --build-definition-id 1 \
+  --display-name "CI must pass" \
+  --queue-on-source-update-only false --manual-queue-only false \
+  --valid-duration 0 \
+  --path-filter '/*'
+```
+
+A policy change does **not** re-evaluate open PRs — push a commit (or use ⋯ → Re-evaluate policies
+on the PR) and confirm a run appears with reason `pullRequest`:
+
+```bash
+az pipelines runs list --status inProgress \
+  --query "[].{id:id, reason:reason, branch:sourceBranch}" -o tsv
+```
+
+The `codecoverage` status that appears on PRs is posted automatically by Azure Pipelines and
+resolves to `notApplicable` (CI publishes no coverage data). It is informational and cannot block a
+merge — there is no status-check policy.
+
+## Code coverage in CI (reporting only, `AkeroGarden.Web.Core` only)
+
+The `CI` pipeline collects coverage on the **unit and integration** tiers and publishes a merged
+report to the run's **Code Coverage** tab. Two deliberate limits, both recorded here so the numbers
+are not misread later:
+
+**1. Reporting only — there is no coverage threshold and no build failure on a drop.** A percentage
+gate rewards tests that execute lines without asserting much, which is precisely what this repo's
+test-integrity rule forbids (`.claude/CLAUDE.md`). Coverage is used as an occasional gap-finder —
+"what did we forget exists?" — not as a target. When it was last run as such (2026-07-18) it closed
+two genuine 0% gaps and surfaced a real DST bug, while moving the headline figure only 66.5% →
+66.9%: a threshold would have been nearly blind to all of it.
+
+**2. The published report is filtered to `AkeroGarden.Web.Core`** (`-assemblyfilters:"+AkeroGarden.Web.Core"`).
+`AkeroGarden.Web.Admin` and `AkeroGarden.Web.Public` are **excluded, and their pages are not
+uncovered — they are unmeasurable**. The E2E tier launches both host apps *out-of-process*, so the
+coverage collector never attributes that execution back to the component classes. The tell is
+internal to the report: `Program` shows 74–82% and the shared layouts show 100% (lit up by the
+*in-process* integration tests) while every `@page` component shows 0%, even though the Playwright
+suite genuinely drives those pages in a real browser.
+
+Publishing unfiltered would therefore advertise ~67% when the meaningful figure is Core's ~94%, and
+invite someone to "fix" a measurement artefact by writing Razor tests that assert nothing. **Do not
+write tests to move the Admin/Public numbers.**
+
+Coverage is likewise **not collected on the E2E tier at all** — same reason: it costs runtime and
+attributes nothing.
+
+Known-low areas inside Core that are *not* worth chasing, already assessed: `DataProtectionSetup`
+(its pure `ResolveMode` is fully covered by design; the remainder is unmockable Azure I/O — a live
+`BlobContainerClient` call and `DefaultAzureCredential` — verifiable only by the staging rehearsal),
+`BlobImageStorage` (same), and the display-shaping helpers.
+
+To reproduce the full, unfiltered picture locally, see the coverage commands in the project memory
+or run `reportgenerator` without `-assemblyfilters` — remembering that Admin/Public will look far
+worse than they are.
+
 ## 3. First deploy
 
 Run `Deploy - Staging` manually from Azure Pipelines. The app applies EF migrations and

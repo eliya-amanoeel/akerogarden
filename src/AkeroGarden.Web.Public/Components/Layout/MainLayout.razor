@@ -1,11 +1,12 @@
 @inherits LayoutComponentBase
+@inject NavigationManager Nav
 
 @* Public pages are Static SSR with plain progressive-enhancement JS and full-page form posts.
    Blazor's enhanced navigation (in-place page swaps) would prevent those inline scripts from
    running and interfere with post-submit re-renders, so it's disabled for the whole public
    subtree — every public navigation is a normal full page load. (Admin uses AdminLayout and is
    unaffected.) *@
-<div data-enhance-nav="false">
+<div data-enhance-nav="false" class="@(ShowMobileCta ? "has-mobile-cta" : null)">
     <Header />
 
     <main>
@@ -49,4 +50,37 @@
             </div>
         </div>
     </footer>
+
+    @* Phone-only docked call to action. On a phone the header CTA is hidden inside the
+       hamburger panel and the hero CTA sits below the fold, so a visitor could see a screen
+       with no way to book at all. Last in the DOM so it never disturbs reading order. *@
+    @if (ShowMobileCta)
+    {
+        <div class="mobile-cta">
+            <a href="/boka" class="btn">Skicka förfrågan</a>
+        </div>
+    }
 </div>
+
+@code {
+    // Suppressed where a docked CTA would be wrong: on the form itself, on the calendar (which
+    // docks its own selection bar and would collide), on the guest completion flow (an approved
+    // booking, not a new inquiry), and on the error page.
+    private static readonly string[] SuppressedPrefixes =
+    [
+        "/boka",
+        "/kalender",
+        "/slutfor",
+        "/error",
+    ];
+
+    private bool ShowMobileCta
+    {
+        get
+        {
+            var path = new Uri(Nav.Uri).AbsolutePath.TrimEnd('/');
+            return !SuppressedPrefixes.Any(p =>
+                path.StartsWith(p, StringComparison.OrdinalIgnoreCase));
+        }
+    }
+}

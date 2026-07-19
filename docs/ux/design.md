@@ -38,7 +38,9 @@ Real photography is the biggest trust lever, so the design is **built for real p
 
 .NET 10 Blazor — **Static SSR** for all public pages, Interactive Server for admin. Styles live in `wwwroot/css/site.css`; no CSS framework, no component library — plain hand-written CSS.
 
-**Mobile-first**, breakpoints at `480px` (tablet) and `1024px` (desktop).
+**Mobile-first**, breakpoints at `480px` (tablet) and `1024px` (desktop). A few components add their own local breakpoint where the content demands it (e.g. `640px` for the calendar's docked selection bar, `720px` for the two-column month grid, `768px` for the three-up card rows) — these are component-level, not new global tiers.
+
+**Mobile fold discipline.** The hero image yields height to the call to action, not the other way round: the booking funnel is the primary KPI, so `Skicka förfrågan` must be reachable without scrolling on a small phone. Measured at 375px the CTA sat at 640px with a 15rem hero image — below the fold once browser chrome is counted — so the mobile image is capped at `11rem` and grows back from 480px up. Re-measure before increasing it.
 
 Public pages are Static SSR (no SignalR circuit), so any interactivity is plain progressive-enhancement JS/CSS — **not** Blazor interactivity. The **mobile nav is a CSS-only checkbox toggle** (no JS required), so it works under Static SSR. The header is a **solid sticky bar** (see Shell) — the earlier transparent-over-hero + scroll-JS + logo-swap approach is retired in direction A.
 
@@ -94,7 +96,7 @@ Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · bod
 
 | Role | Family / weight | Size (desktop) |
 |---|---|---|
-| Display (hero) | Playfair **400** | `clamp(38px, 4.6vw, 56px)`, line-height ~1.04, `-0.015em` |
+| Display (hero) | Playfair **400** | `clamp(36px, 5vw, 56px)`, line-height 1.05, `-0.015em` |
 | H1 | Playfair 400 | ~38px |
 | H2 (section) | Playfair 400 | `clamp(28px, 3.6vw, 40px)` |
 | H3 | Playfair **700** | ~21px |
@@ -137,7 +139,8 @@ Each component supports the relevant states: **default / hover / focus / active 
 
 ## The public shell
 
-- **Header** — solid sticky bar on `--color-bg`, hairline bottom border. Left: logo lockup (dark strokes). Right (desktop): quiet inline nav + outlined **Skicka förfrågan** CTA. Mobile: **CSS-only hamburger** opening a dropdown panel (no JS). Height `--header-h` (72px).
+- **Header** — solid sticky bar on `--color-bg`, hairline bottom border. Left: logo lockup (dark strokes). Right (desktop): quiet inline nav + outlined **Skicka förfrågan** CTA. Mobile: **CSS-only hamburger** opening a dropdown panel (no JS). Height `--header-h` (72px). **Current-page state** is a thin green underline on desktop and a **green inset bar + faint tint** in the mobile panel (mirroring the admin sidebar) — colour alone is not a sufficient state indicator (WCAG 1.4.1), and the desktop underline lives inside the 1024px query so mobile needs its own cue.
+- **Docked mobile CTA** (`.mobile-cta`) — a full-width **Skicka förfrågan** bar fixed to the bottom edge below `640px`. On a phone the header CTA is inside the collapsed hamburger panel and the hero CTA measures below the fold, so the first screen otherwise offers no route into the funnel at all — with the hero reading as a finished screen, so nothing prompts a scroll. Suppressed on `/boka`, `/kalender` (which docks its own selection bar and would collide), `/slutfor/*` (an approved booking, not a new inquiry) and the error page. Respects `env(safe-area-inset-bottom)`; the footer reserves matching bottom padding so the bar never covers it.
 - **Footer** — dark (`--color-footer-bg`), four-column grid: brand + contact · Utforska · Boka · Om sidan (incl. **Integritetspolicy**, required by NFR-20). Bottom bar with copyright + "Retreat & konferens sedan 1978". Collapses to one/two columns on mobile.
 
 ---

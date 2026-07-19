@@ -17,6 +17,31 @@
         days.forEach(function (a) { a.parentElement.classList.remove('cal-selected'); });
     }
 
+    // Build from explicit parts rather than new Date(iso) — the latter parses as UTC midnight
+    // and can render the previous day once formatted in a local time zone.
+    function toDate(iso) {
+        var p = iso.split('-');
+        return new Date(+p[0], +p[1] - 1, +p[2]);
+    }
+
+    // "18 juli" / "18–21 juli" / "28 juli – 3 augusti" / "28 dec 2026 – 2 jan 2027".
+    // The raw ISO pair was accurate but reads as machine output at the point of commitment.
+    function formatRange(startIso, endIso) {
+        var s = toDate(startIso);
+        if (!endIso) { return s.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' }); }
+
+        var e = toDate(endIso);
+        if (s.getFullYear() !== e.getFullYear()) {
+            var withYear = { day: 'numeric', month: 'short', year: 'numeric' };
+            return s.toLocaleDateString('sv-SE', withYear) + ' – ' + e.toLocaleDateString('sv-SE', withYear);
+        }
+        if (s.getMonth() === e.getMonth()) {
+            return s.getDate() + '–' + e.toLocaleDateString('sv-SE', { day: 'numeric', month: 'long' });
+        }
+        var sameYear = { day: 'numeric', month: 'long' };
+        return s.toLocaleDateString('sv-SE', sameYear) + ' – ' + e.toLocaleDateString('sv-SE', sameYear);
+    }
+
     function render() {
         clearHighlight();
         if (!start) { selectionBar.hidden = true; return; }
@@ -27,7 +52,7 @@
             }
         });
         selectionBar.hidden = false;
-        rangeLabel.textContent = end ? (start + ' – ' + end) : start;
+        rangeLabel.textContent = formatRange(start, end);
         goButton.href = end
             ? '/boka?incheckning=' + start + '&utcheckning=' + end
             : '/boka?incheckning=' + start;

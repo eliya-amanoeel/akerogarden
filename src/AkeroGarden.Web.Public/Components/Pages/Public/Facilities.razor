@@ -2,6 +2,8 @@
 @layout MainLayout
 @using AkeroGarden.Web.Core.Data.Entities
 @inject FacilityService FacilityService
+@inject BuildingService BuildingService
+@inject PhysicalBuildingService PhysicalBuildingService
 
 <PageTitle>Faciliteter — Åkerögården</PageTitle>
 
@@ -11,51 +13,153 @@
         <h1>Åtta hus, en gård</h1>
         <div class="page-head__rule"></div>
         <p class="page-head__intro">
-            Lokaler och utrymmen för möten, måltider och gemenskap — omgivna av skog och natur
-            strax utanför Norrtälje.
+            Boende, lokaler och utrymmen för möten, måltider och gemenskap — omgivna av skog
+            och natur strax utanför Norrtälje.
         </p>
     </div>
 </section>
 
+@if (facilities.Count == 0)
+{
+    <section class="section">
+        <div class="container">
+            <p>Inga faciliteter finns för närvarande.</p>
+        </div>
+    </section>
+}
+else
+{
+    var lead = facilities[0];
+    var rest = facilities.Skip(1).ToList();
+
+    <section class="section">
+        <div class="container">
+            <div class="teaser">
+                <div class="teaser__photo">
+                    @if (!string.IsNullOrEmpty(lead.ImageUrl))
+                    {
+                        <img src="@lead.ImageUrl" alt="@lead.Name" />
+                    }
+                    else
+                    {
+                        <span class="photo-tag">Foto</span>
+                    }
+                </div>
+                <div>
+                    <span class="eyebrow">Faciliteter</span>
+                    <h2>@lead.Name</h2>
+                    @if (!string.IsNullOrEmpty(lead.Description))
+                    {
+                        <p>@lead.Description</p>
+                    }
+                </div>
+            </div>
+        </div>
+    </section>
+
+    if (rest.Count > 0)
+    {
+        <section class="section section--warm">
+            <div class="container">
+                <div class="section__head">
+                    <span class="eyebrow">Fler faciliteter</span>
+                    <h2>Övriga faciliteter på gården</h2>
+                </div>
+                <div class="fac-grid">
+                    @for (var i = 0; i < rest.Count; i++)
+                    {
+                        var facility = rest[i];
+                        var cardClass = i == 0 ? "fac-card fac-card--wide" : "fac-card";
+
+                        <article class="@cardClass">
+                            <div class="fac-card__img">
+                                @if (!string.IsNullOrEmpty(facility.ImageUrl))
+                                {
+                                    <img src="@facility.ImageUrl" alt="@facility.Name" />
+                                }
+                                else
+                                {
+                                    <span class="photo-tag">Foto</span>
+                                }
+                            </div>
+                            <div class="fac-card__body">
+                                <h3>@facility.Name</h3>
+                                @if (!string.IsNullOrEmpty(facility.Description))
+                                {
+                                    <p>@facility.Description</p>
+                                }
+                            </div>
+                        </article>
+                    }
+                </div>
+            </div>
+        </section>
+    }
+}
+
 <section class="section">
     <div class="container">
-        @if (facilities.Count == 0)
+        <div class="section__head">
+            <span class="eyebrow">Boende</span>
+            <h2>Åtta hus att bo i</h2>
+        </div>
+        @if (lodgingGroups.Count == 0)
         {
-            <p>Inga faciliteter finns för närvarande.</p>
+            <p>Inget boende är tillagt för närvarande.</p>
         }
         else
         {
-            <div class="fac-grid">
-                @foreach (var facility in facilities)
-                {
-                    <article class="fac-card">
-                        <div class="fac-card__img">
-                            @if (!string.IsNullOrEmpty(facility.ImageUrl))
-                            {
-                                <img src="@facility.ImageUrl" alt="@facility.Name" />
-                            }
-                            else
-                            {
-                                <span class="photo-tag">Foto</span>
-                            }
-                        </div>
-                        <div class="fac-card__body">
-                            <h2>@facility.Name</h2>
-                            @if (!string.IsNullOrEmpty(facility.Description))
-                            {
-                                <p>@facility.Description</p>
-                            }
-                        </div>
-                    </article>
-                }
-            </div>
+            @foreach (var group in lodgingGroups)
+            {
+                <div class="lodging-group">
+                    <div class="lodging-group__head">
+                        <h3>@group.PhysicalBuildingName</h3>
+                        <span>@group.Buildings.Count hus</span>
+                    </div>
+                    <div class="lodging-list">
+                        @foreach (var building in group.Buildings)
+                        {
+                            <div class="lodging-item">
+                                <div class="lodging-item__mark"></div>
+                                <div class="lodging-item__body">
+                                    <h4>@building.Name</h4>
+                                    @if (!string.IsNullOrEmpty(building.Description))
+                                    {
+                                        <p>@building.Description</p>
+                                    }
+                                    @if (building.IsAccessible)
+                                    {
+                                        <span class="lodging-item__tag">Tillgänglighetsanpassad</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
         }
+    </div>
+</section>
+
+<section class="section section--warm">
+    <div class="container">
+        <div class="closing-line">
+            <p>Vilket sällskap ni än är — det finns en plats för er här.</p>
+        </div>
     </div>
 </section>
 
 @code {
     private List<Facility> facilities = [];
+    private List<Building> buildings = [];
+    private List<LodgingGroup> lodgingGroups = [];
 
-    protected override async Task OnInitializedAsync() =>
+    protected override async Task OnInitializedAsync()
+    {
         facilities = await FacilityService.GetActiveAsync();
+        buildings = await BuildingService.GetActiveAsync();
+        var physicalBuildings = await PhysicalBuildingService.GetActiveAsync();
+
+        lodgingGroups = BuildingService.GroupByPhysicalBuilding(buildings, physicalBuildings);
+    }
 }

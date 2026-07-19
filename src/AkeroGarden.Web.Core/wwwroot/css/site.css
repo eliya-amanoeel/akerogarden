@@ -493,11 +493,22 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 .section__head p { font-size: 1.0625rem; color: var(--color-text); margin: 1rem 0 0; }
 
-/* --- "Vad ni kan göra här" cards --- */
+/* --- "Vad ni kan göra här" cards — image card (design.md's other documented card pattern:
+   photo + title + body), not the flat green-rule card these used to be. Three identical
+   text-only blocks gave no visual distinction between very different use cases; a photo per
+   card is a stronger differentiator than a rule and a heading weight. Same shape as
+   Facilities' .fac-card, kept as its own class per this codebase's per-page naming. --- */
 .usecards { display: grid; grid-template-columns: 1fr; gap: 1.75rem; }
-.usecard { border-top: 2px solid var(--color-primary); padding-top: 1.35rem; }
-.usecard h3 { font-weight: 700; font-size: 1.35rem; margin: 0 0 0.6rem; }
-.usecard p { margin: 0; color: var(--color-text); }
+.usecard { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; background: #fff; }
+.usecard__img {
+    aspect-ratio: 4 / 3;
+    position: relative;
+    background: linear-gradient(160deg, #d3d9cf, #8a9a72);
+}
+.usecard__img img { width: 100%; height: 100%; object-fit: cover; }
+.usecard__body { padding: 1.1rem 1.25rem; }
+.usecard h3 { font-weight: 700; font-size: 1.2rem; margin: 0 0 0.4rem; }
+.usecard p { margin: 0; font-size: 0.95rem; color: var(--color-text); }
 @media (min-width: 768px) { .usecards { grid-template-columns: repeat(3, 1fr); } }
 
 /* --- Facilities teaser (asymmetric) --- */
@@ -515,6 +526,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     inset: 0;
     background: radial-gradient(80% 60% at 30% 20%, rgba(255, 255, 255, 0.4), rgba(0, 0, 0, 0) 60%);
 }
+.teaser__photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .teaser h2 { font-weight: 400; font-size: clamp(1.75rem, 3.4vw, 2.375rem); line-height: 1.1; margin: 0 0 1rem; }
 .teaser p { font-size: 1.0625rem; color: var(--color-text); margin: 0 0 1.5rem; max-width: 46ch; }
 .link-arrow { color: var(--color-primary-ink); font-weight: 700; border-bottom: 1.5px solid transparent; }
@@ -522,6 +534,9 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 @media (min-width: 1024px) {
     .teaser { grid-template-columns: 0.9fr 1.1fr; gap: 3.5rem; }
     .teaser__photo { min-height: 24rem; }
+    /* Flips photo to the right, text to the left — for a second .teaser lower on the same
+       page (e.g. Om oss) so it doesn't just repeat the layout of the one above it. */
+    .teaser--reverse .teaser__photo { order: 2; }
 }
 
 /* --- "Så går det till" — genuine 3-step sequence (numbers carry order) --- */
@@ -1403,8 +1418,11 @@ fieldset.participant legend {
     .about-photo { min-height: 21rem; }
 }
 
-/* Facilities grid */
-.fac-grid { display: grid; grid-template-columns: 1fr; gap: 1.75rem; }
+/* Facilities grid — sits below the lead .teaser feature, so card titles are h3 (h2 is the
+   section head above them). Deliberately capped at 2 columns (not 3): with the lead facility
+   pulled into its own feature spread, the remaining count is usually small, and the first
+   remaining card takes a --wide, two-up treatment so the grid isn't a uniform wall of boxes. */
+.fac-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
 .fac-card { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; background: #fff; }
 .fac-card__img {
     aspect-ratio: 4 / 3;
@@ -1413,12 +1431,78 @@ fieldset.participant legend {
 }
 .fac-card__img img { width: 100%; height: 100%; object-fit: cover; }
 .fac-card__body { padding: 1.1rem 1.25rem; }
-.fac-card h2 { font-size: 1.2rem; font-weight: 700; margin: 0 0 0.4rem; }
+.fac-card h3 { font-size: 1.2rem; font-weight: 700; margin: 0 0 0.4rem; }
 .fac-card p { margin: 0; font-size: 0.95rem; color: var(--color-text); }
-@media (min-width: 480px) { .fac-grid { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1024px) { .fac-grid { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 640px) {
+    .fac-grid { grid-template-columns: repeat(2, 1fr); }
+    .fac-card--wide { grid-column: span 2; display: grid; grid-template-columns: 1.2fr 1fr; }
+    .fac-card--wide .fac-card__img { aspect-ratio: auto; height: 100%; }
+    .fac-card--wide .fac-card__body { display: flex; flex-direction: column; justify-content: center; padding: 1.5rem 1.75rem; }
+    .fac-card--wide .fac-card__body h3 { font-size: 1.4rem; }
+}
 
-/* Menu (part of Mat & priser) */
+/* Lodging (Boende) — active buildings grouped by physical building (BuildingService.
+   GroupByPhysicalBuilding). A compact list, not a full photo card each: eight similar
+   sleeping sections would just reintroduce the "wall of boxes" problem one section down. */
+.lodging-group { margin-bottom: 2.25rem; }
+.lodging-group:last-child { margin-bottom: 0; }
+.lodging-group__head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    border-bottom: 1px solid var(--color-line);
+    padding-bottom: 0.6rem;
+    margin-bottom: 1rem;
+}
+.lodging-group__head h3 { font-weight: 700; font-size: 1.05rem; color: var(--color-heading); }
+.lodging-group__head span { font-size: 0.8rem; color: var(--color-muted); }
+.lodging-list { display: grid; grid-template-columns: 1fr; gap: 1.1rem; }
+.lodging-item { display: flex; gap: 0.85rem; align-items: flex-start; }
+.lodging-item__body { min-width: 0; } /* flex children default to min-width:auto — without this,
+    a long unbroken word in an admin-entered building description could overflow the row */
+.lodging-item__mark {
+    width: 2.5rem;
+    height: 2.5rem;
+    flex: none;
+    border-radius: var(--radius-card);
+    background: linear-gradient(150deg, #cddca0, #7c9a4a);
+}
+.lodging-item h4 { font-family: var(--font-heading); font-weight: 700; font-size: 1.02rem; color: var(--color-heading); margin: 0; }
+.lodging-item p { font-size: 0.85rem; color: var(--color-text); margin: 0.25rem 0 0; }
+.lodging-item__tag {
+    display: inline-block;
+    margin-top: 0.4rem;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+    color: var(--color-primary-ink);
+    background: var(--color-ok-bg);
+    padding: 0.18rem 0.5rem;
+    border-radius: 1rem;
+}
+@media (min-width: 640px) { .lodging-list { grid-template-columns: repeat(2, 1fr); } }
+@media (min-width: 1024px) { .lodging-list { grid-template-columns: repeat(4, 1fr); } }
+
+/* Quiet non-CTA sign-off — closes a page that already has enough routes into the funnel
+   (header CTA + docked mobile CTA) without stacking on a third, heavier one. Bookends the
+   page-head's warm tint from the top. See /faciliteter. */
+.closing-line { text-align: center; padding: 1rem 0; }
+.closing-line p {
+    font-family: var(--font-heading);
+    font-weight: 400;
+    font-size: clamp(1.25rem, 2.6vw, 1.625rem);
+    line-height: 1.35;
+    color: var(--color-heading);
+    max-width: 34ch;
+    margin: 0 auto;
+}
+
+/* Menu (part of Mat & priser) — sits below a lead .teaser (shared component, reused from
+   Home/Facilities), which is the page's only visual anchor; everything from .menu-body down
+   is otherwise unchanged. */
+.menu-body { margin-top: 2.5rem; }
 .menu-cols { display: grid; grid-template-columns: 1fr; gap: 2.5rem; }
 @media (min-width: 768px) { .menu-cols { grid-template-columns: 1fr 1fr; gap: 3rem; } }
 .menu-col h2 {
@@ -1473,16 +1557,48 @@ fieldset.participant legend {
 .price-note { font-size: 0.875rem; color: var(--color-muted); margin: 0 0 1.25rem; }
 .price-block + .price-block { margin-top: 2.5rem; }
 
-/* Contact */
+/* Contact — a location photo anchor beside two labelled info groups (Kontakta oss / Hitta
+   hit), rather than one flat six-row definition list with no visual hierarchy. */
 .contact-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; align-items: start; }
-@media (min-width: 768px) { .contact-grid { grid-template-columns: 1fr 1fr; gap: 2.5rem; } }
+.contact-photo {
+    min-height: 16rem;
+    border-radius: var(--radius-card);
+    position: relative;
+    overflow: hidden;
+    background: linear-gradient(160deg, #d3d9cf, #8a9a72);
+}
+@media (min-width: 1024px) {
+    .contact-grid { grid-template-columns: 0.9fr 1.1fr; gap: 3.5rem; }
+    .contact-photo { min-height: 100%; }
+}
+
+.contact-group { margin-bottom: 2rem; }
+.contact-group:last-child { margin-bottom: 0; }
+.contact-group__head { border-bottom: 1px solid var(--color-line); padding-bottom: 0.5rem; margin-bottom: 1rem; }
+.contact-group__head h2 {
+    /* Matches the documented eyebrow tokens exactly (design.md's typography table), just
+       without .eyebrow's own margin-bottom — .contact-group__head's border/padding already
+       carries that spacing. */
+    font-family: var(--font-body);
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--color-primary-ink);
+}
 .contact-dl { margin: 0; }
 .contact-dl dt { font-size: 0.75rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-muted); font-weight: 700; margin-top: 1.25rem; }
 .contact-dl dt:first-child { margin-top: 0; }
 .contact-dl dd { margin: 0.25rem 0 0; font-size: 1.0625rem; color: var(--color-heading); }
-.cta-card { background: var(--color-bg-warm); border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 1.75rem; }
+
+/* Flat card — green top-rule, no image (design.md's documented card pattern; matches
+   .usecard's treatment). Used both below the Kontakt grid (own margin-top there, scoped so
+   it doesn't leak into other contexts) and standalone in its own section (Om oss). */
+.cta-card { border-top: 2px solid var(--color-primary); padding-top: 1.35rem; }
 .cta-card h2 { font-weight: 400; font-size: 1.5rem; margin: 0 0 0.5rem; }
-.cta-card p { font-size: 0.95rem; color: var(--color-text); margin: 0 0 1.25rem; }
+.cta-card p { font-size: 0.95rem; color: var(--color-text); margin: 0 0 1.25rem; max-width: 52ch; }
+.cta-card .cta-links { font-size: 0.9rem; color: var(--color-muted); margin: 1.5rem 0 0; }
+.contact-grid + .cta-card { margin-top: 2.5rem; }
 
 /* Reassurance note next to a CTA */
 .cta-note { font-size: 0.9rem; color: var(--color-muted); }

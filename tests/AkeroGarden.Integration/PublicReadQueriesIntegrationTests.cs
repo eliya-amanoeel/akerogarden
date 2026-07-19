@@ -26,6 +26,8 @@ public class PublicReadQueriesIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<MealOptionService>();
             s.AddScoped<PriceRuleService>();
             s.AddScoped<CleaningZoneService>();
+            s.AddScoped<BuildingService>();
+            s.AddScoped<PhysicalBuildingService>();
         });
         scope = services.CreateScope();
         return scope.ServiceProvider.GetRequiredService<T>();
@@ -49,6 +51,31 @@ public class PublicReadQueriesIntegrationTests : IClassFixture<DbFixture>
 
         Assert.Equal([$"{prefix}A", $"{prefix}B"], mine.Select(f => f.Name));
         Assert.DoesNotContain(mine, f => f.Name == $"{prefix}Z");
+    }
+
+    [Fact]
+    public async Task Buildings_GetActive_ExcludesInactive_AndOrdersByDisplayOrder()
+    {
+        var physicalBuildingService = NewService<PhysicalBuildingService>(out var pbScope);
+        using var _pbs = pbScope;
+        var buildingService = NewService<BuildingService>(out var scope);
+        using var _s = scope;
+        var prefix = $"Bldg-{Guid.NewGuid():N}-";
+
+        var pb = new PhysicalBuilding { Name = $"{prefix}Pb" };
+        await physicalBuildingService.CreateAsync(pb);
+
+        await buildingService.TryCreateAsync(new Building { Name = $"{prefix}B", PhysicalBuildingId = pb.Id, DisplayOrder = 2 });
+        await buildingService.TryCreateAsync(new Building { Name = $"{prefix}A", PhysicalBuildingId = pb.Id, DisplayOrder = 1 });
+        var inactive = new Building { Name = $"{prefix}Z", PhysicalBuildingId = pb.Id, DisplayOrder = 3 };
+        await buildingService.TryCreateAsync(inactive);
+        await buildingService.SetActiveAsync(inactive.Id, false);
+
+        var mine = (await buildingService.GetActiveAsync())
+            .Where(b => b.Name.StartsWith(prefix)).ToList();
+
+        Assert.Equal([$"{prefix}A", $"{prefix}B"], mine.Select(b => b.Name));
+        Assert.DoesNotContain(mine, b => b.Name == $"{prefix}Z");
     }
 
     [Fact]

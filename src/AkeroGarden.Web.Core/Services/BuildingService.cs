@@ -18,6 +18,15 @@ public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
             .ThenBy(b => b.Name)
             .ToListAsync();
 
+    /// <summary>Active buildings only, in display order — for the public facilities page (FR-81
+    /// context: the "Åtta hus" lodging section) and any other public lodging listing.</summary>
+    public async Task<List<Building>> GetActiveAsync() =>
+        await db.Buildings
+            .Where(b => b.IsActive)
+            .OrderBy(b => b.DisplayOrder)
+            .ThenBy(b => b.Name)
+            .ToListAsync();
+
     public async Task<Building?> GetAsync(Guid id) =>
         await db.Buildings.FindAsync(id);
 
@@ -111,6 +120,34 @@ public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
     public static bool CanHardDelete(int referenceCount) => referenceCount == 0;
 
     /// <summary>
+    /// Groups active buildings by their physical building for the public lodging listing,
+    /// ordered by <see cref="PhysicalBuilding.DisplayOrder"/> (unit-testable, NFR-26 — the
+    /// Razor page calls this rather than embedding grouping/ordering logic itself). A building
+    /// whose physical building isn't in <paramref name="physicalBuildings"/> (e.g. deactivated
+    /// while the lodging unit under it stayed active) falls into an "Övrigt" group sorted last,
+    /// rather than being silently dropped from the page.
+    /// </summary>
+    public static List<LodgingGroup> GroupByPhysicalBuilding(
+        List<Building> buildings, List<PhysicalBuilding> physicalBuildings)
+    {
+        var physicalBuildingsById = physicalBuildings.ToDictionary(p => p.Id);
+
+        return buildings
+            .GroupBy(b => b.PhysicalBuildingId)
+            .Select(g =>
+            {
+                var physicalBuilding = physicalBuildingsById.GetValueOrDefault(g.Key);
+                return new LodgingGroup(
+                    physicalBuilding?.Name ?? "Övrigt",
+                    physicalBuilding?.DisplayOrder ?? int.MaxValue,
+                    g.OrderBy(b => b.DisplayOrder).ThenBy(b => b.Name).ToList());
+            })
+            .OrderBy(g => g.PhysicalBuildingOrder)
+            .ThenBy(g => g.PhysicalBuildingName)
+            .ToList();
+    }
+
+    /// <summary>
     /// Counts references that block a hard-delete (FR-16). Two-layered: rooms in the building
     /// (Phase 1), plus the transitive check added in Phase 4 — participants assigned to any of
     /// those rooms via the live <see cref="Participant.RoomId"/> link (§8.5). Either being non-zero
@@ -124,3 +161,7 @@ public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
         return roomCount + participantCount;
     }
 }
+
+/// <summary>One physical building's lodging units, for the public "Boende" listing — see
+/// <see cref="BuildingService.GroupByPhysicalBuilding"/>.</summary>
+public record LodgingGroup(string PhysicalBuildingName, int PhysicalBuildingOrder, List<Building> Buildings);

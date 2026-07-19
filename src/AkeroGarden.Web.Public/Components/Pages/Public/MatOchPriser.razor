@@ -20,30 +20,40 @@
 <!-- Meny -->
 <section class="section">
     <div class="container">
-        <span class="eyebrow">Menyn</span>
-        <h2 class="subhead">Hemlagat, med plats för önskemål</h2>
-
-        @if (meals.Count == 0)
-        {
-            <p>Ingen meny finns för närvarande.</p>
-        }
-        else
-        {
-            <div class="menu-cols">
-                <div class="menu-col">
-                    <h2>Lunch</h2>
-                    @RenderMeals(MealType.Lunch)
-                </div>
-                <div class="menu-col">
-                    <h2>Middag</h2>
-                    @RenderMeals(MealType.Dinner)
-                </div>
+        <div class="teaser">
+            <div class="teaser__photo">
+                <span class="photo-tag">Platshållare — foto vid lansering</span>
             </div>
-            <p class="menu-note">
-                Menyn varierar efter säsong och sällskapets önskemål. Specialkost och allergier
-                ordnas alltid — berätta i förfrågan.
-            </p>
-        }
+            <div>
+                <span class="eyebrow">Menyn</span>
+                <h2>Hemlagat, med plats för önskemål</h2>
+                <p>Hemlagade luncher och middagar, serverade i vår matsal — med plats för specialkost och allergier.</p>
+            </div>
+        </div>
+
+        <div class="menu-body">
+            @if (meals.Count == 0)
+            {
+                <p>Ingen meny finns för närvarande.</p>
+            }
+            else
+            {
+                <div class="menu-cols">
+                    <div class="menu-col">
+                        <h2>Lunch</h2>
+                        @RenderMeals(MealType.Lunch)
+                    </div>
+                    <div class="menu-col">
+                        <h2>Middag</h2>
+                        @RenderMeals(MealType.Dinner)
+                    </div>
+                </div>
+                <p class="menu-note">
+                    Menyn varierar efter säsong och sällskapets önskemål. Specialkost och allergier
+                    ordnas alltid — berätta i förfrågan.
+                </p>
+            }
+        </div>
     </div>
 </section>
 

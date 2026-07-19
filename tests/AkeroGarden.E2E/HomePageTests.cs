@@ -44,6 +44,19 @@ public class HomePageTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Usecards_are_image_cards_not_flat_text_blocks()
+    {
+        await Page.GotoAsync("/");
+
+        // Was three identical flat text-only cards (a green rule + heading); each now carries
+        // its own photo (design.md's image-card pattern, same shape as Facilities' .fac-card).
+        var cards = Page.Locator(".usecard");
+        await Assertions.Expect(cards).ToHaveCountAsync(3);
+        await Assertions.Expect(cards.Locator(".usecard__img").First).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Läger & retreat" })).ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task Has_no_serious_accessibility_violations()
     {
         await Page.GotoAsync("/");

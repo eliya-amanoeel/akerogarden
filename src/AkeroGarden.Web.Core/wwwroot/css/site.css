@@ -1365,7 +1365,7 @@ fieldset.participant legend {
 /* Inline links inside running text are underlined so they're distinguishable without relying on
    colour (WCAG 1.4.1 — axe "link-in-text-block"). Nav/footer/cards/buttons are excluded: they're
    set apart by layout, not sitting inside a sentence. */
-.prose a, .section p a, .menu-note a { text-decoration: underline; text-underline-offset: 0.15em; }
+.prose a, .section p a, .menu-note a, .contact-dl dd a { text-decoration: underline; text-underline-offset: 0.15em; }
 
 /* Section eyebrow + subhead on content pages */
 .subhead {

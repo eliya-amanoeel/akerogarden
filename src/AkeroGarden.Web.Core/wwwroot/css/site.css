@@ -696,7 +696,7 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 .form-hint { font-size: 0.8rem; color: var(--color-muted); margin: 0.35rem 0 0; }
 
 /* "Från kalender" prefill chip */
-.prefill { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: #37600d; background: rgba(113, 176, 2, 0.14); padding: 0.12rem 0.5rem; border-radius: 1rem; margin-left: 0.4rem; vertical-align: middle; }
+.prefill { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--color-primary-ink); background: rgba(113, 176, 2, 0.14); padding: 0.12rem 0.5rem; border-radius: 1rem; margin-left: 0.4rem; vertical-align: middle; }
 
 /* Segmented two-track toggle (CSS-only, SSR-safe) */
 .track-radio { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
@@ -720,7 +720,7 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 
 /* Acknowledgement (Tack) */
 .tack { text-align: center; padding: 3.5rem 0; max-width: 40rem; margin: 0 auto; }
-.tack__badge { width: 4rem; height: 4rem; border-radius: 50%; background: rgba(113, 176, 2, 0.16); color: #37600d; display: inline-flex; align-items: center; justify-content: center; font-size: 1.9rem; margin-bottom: 0.5rem; }
+.tack__badge { width: 4rem; height: 4rem; border-radius: 50%; background: rgba(113, 176, 2, 0.16); color: var(--color-primary-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 1.9rem; margin-bottom: 0.5rem; }
 .tack h1 { font-weight: 400; font-size: clamp(1.8rem, 4vw, 2.2rem); margin: 0.75rem 0; }
 .tack p { color: var(--color-text); font-size: 1.0625rem; margin: 0 0 1.6rem; }
 
@@ -809,7 +809,7 @@ select.inp {
 
 /* Access-state badge (reuses .utility from the trust pages) */
 .utility__badge { width: 3.75rem; height: 3.75rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 1.75rem; margin-bottom: 0.4rem; }
-.utility__badge--ok { background: rgba(113, 176, 2, 0.16); color: #37600d; }
+.utility__badge--ok { background: rgba(113, 176, 2, 0.16); color: var(--color-primary-ink); }
 .utility__badge--warn { background: rgba(214, 158, 46, 0.18); color: #6f4900; }
 
 /* ---- Completion at scale: group defaults + collapsible participant rows ---- */

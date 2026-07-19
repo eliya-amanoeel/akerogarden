@@ -283,12 +283,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* Text nav links (the CTA is a .btn and is excluded so it keeps its button styles). */
 .site-header__nav a:not(.site-header__cta) {
     color: var(--color-heading);
-    font-weight: 500;
+    /* 400/700 only — Roboto is self-hosted at those two weights, so 500 was being
+       synthesized by the browser (faux bold). See design.md "Fonts". */
+    font-weight: 400;
     padding: 0.75rem 0;
     border-bottom: 1px solid var(--color-line);
 }
 .site-header__nav a:not(.site-header__cta):hover { color: var(--color-primary-ink); }
-.site-header__nav a.active { color: var(--color-primary-ink); }
+
+/* Current page in the mobile panel: green inset bar + tint, mirroring the admin sidebar.
+   Colour alone is not a sufficient state indicator (WCAG 1.4.1) — desktop gets an underline
+   via ::after below, but that rule is inside the 1024px query and never applied here. */
+.site-header__nav a.active {
+    color: var(--color-primary-ink);
+    font-weight: 700;
+    box-shadow: inset 3px 0 0 var(--color-primary);
+    background-color: rgba(113, 176, 2, 0.07);
+    padding-left: 0.75rem;
+    margin-left: -0.75rem;
+    margin-right: -0.75rem;
+    padding-right: 0.75rem;
+}
 
 .site-header__cta { margin-top: 0.85rem; }
 
@@ -313,6 +328,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
         padding: 0.25rem 0;
         border-bottom: none;
         font-weight: 400;
+    }
+
+    /* Drop the mobile panel's inset-bar treatment — desktop uses the underline below. */
+    .site-header__nav a.active {
+        font-weight: 400;
+        box-shadow: none;
+        background-color: transparent;
+        padding-left: 0;
+        padding-right: 0;
+        margin-left: 0;
+        margin-right: 0;
     }
 
     /* Current-page indicator: a thin green underline under the active link. */
@@ -368,7 +394,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 .hero__photo {
     position: relative;
-    min-height: 15rem;
+    /* 11rem, not 15rem: measured at 375px the primary "Skicka förfrågan" CTA landed at
+       640px — below the fold once real browser chrome (~100px) is accounted for, on every
+       phone smaller than a modern iPhone. The booking funnel is the primary KPI, so the
+       hero image yields the height rather than the call to action. Grows back at 480px+. */
+    min-height: 11rem;
     order: -1; /* photo above text on mobile */
     background: linear-gradient(180deg, #cdd7d0 0%, #bcc7bd 32%, #9fae95 58%, #7e8f6a 82%, #6d7f5a 100%);
 }
@@ -398,6 +428,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 @media (min-width: 480px) {
     .hero__text { padding-left: 1.5rem; padding-right: 1.5rem; }
+    .hero__photo { min-height: 15rem; }
 }
 @media (min-width: 1024px) {
     .hero__grid { grid-template-columns: 1fr 1fr; align-items: stretch; }
@@ -439,12 +470,15 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .trust-strip__item { padding: 1.25rem 1rem; }
 .trust-strip__item + .trust-strip__item { border-left: 1px solid var(--color-line); }
 .trust-strip__item:nth-child(3) { border-left: none; }
+/* 2x2 on mobile: the vertical hairlines alone leave the two rows visually unmoored. */
+.trust-strip__item:nth-child(n + 3) { border-top: 1px solid var(--color-line); }
 .trust-strip__num { font-family: var(--font-heading); font-size: 1.4rem; color: var(--color-heading); line-height: 1; }
 .trust-strip__label { font-size: 0.8rem; color: var(--color-text); margin-top: 0.35rem; }
 @media (min-width: 1024px) {
     .trust-strip__grid { grid-template-columns: repeat(4, 1fr); }
     .trust-strip__item { padding: 1.5rem 2rem; }
     .trust-strip__item:nth-child(3) { border-left: 1px solid var(--color-line); }
+    .trust-strip__item:nth-child(n + 3) { border-top: none; } /* single row again */
 }
 
 /* --- Section heading block --- */
@@ -512,6 +546,34 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .cta-band__actions { display: flex; gap: 1.25rem; flex-wrap: wrap; align-items: center; justify-content: center; }
 .cta-band__actions .btn-ghost { color: #fff; border-color: #fff; }
 .cta-band__actions .btn-ghost:hover { color: #fff; border-color: #fff; opacity: 0.85; }
+
+/* ============================================================
+   Phone-only docked CTA
+   Desktop keeps the header CTA in view, so this is mobile-only. Measured at 375px the hero
+   CTA lands ~60px below the fold once browser chrome is counted, and the header CTA is inside
+   the collapsed hamburger — leaving a first screen with no route to the funnel.
+   ============================================================ */
+.mobile-cta { display: none; }
+
+@media (max-width: 640px) {
+    .mobile-cta {
+        display: block;
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 90;
+        padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom, 0px));
+        background-color: var(--color-bg);
+        border-top: 1px solid var(--color-line);
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+    }
+    .mobile-cta .btn { width: 100%; }
+
+    /* Reserve the bar's height so it never covers the end of the footer. */
+    .has-mobile-cta main { padding-bottom: 1rem; }
+    .has-mobile-cta .site-footer { padding-bottom: 6.5rem; }
+}
 
 /* ============================================================
    Footer
@@ -1550,6 +1612,37 @@ fieldset.participant legend {
     margin-bottom: 1.5rem;
 }
 .cal-selection[hidden] { display: none; }
+
+/* On a phone the top-sticky bar cost 124px directly under the 73px header — 197px, ~30% of a
+   640px viewport, consumed while the user is trying to read the grid. Docked to the bottom
+   instead: off the reading area and inside thumb reach. */
+@media (max-width: 640px) {
+    /* Qualified with the element on purpose: `.section p` (0,1,1) outranks a bare
+       `.cal-selection` (0,1,0) and its 1rem bottom margin survives. `bottom: 0` positions the
+       *margin* box, so that margin lifted the docked bar 16px off the screen edge. */
+    p.cal-selection {
+        position: fixed;
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        z-index: 90;
+        margin: 0;
+        border-radius: 0;
+        border-left: none;
+        border-right: none;
+        border-bottom: none;
+        gap: 0.6rem 1rem;
+        padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
+        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+    }
+    /* Range text takes its own line; the actions sit together beneath it. */
+    .cal-selection__label { flex: 1 0 100%; }
+    .cal-selection > .btn { flex: 1 1 auto; }
+
+    /* Reserve room so the docked bar never covers the last week of the final month. */
+    .cal-months { padding-bottom: 7rem; }
+}
 
 .cal-months { display: grid; grid-template-columns: 1fr; gap: 2rem 2.5rem; }
 @media (min-width: 720px) { .cal-months { grid-template-columns: 1fr 1fr; } }

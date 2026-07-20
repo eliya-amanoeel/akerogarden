@@ -1,4 +1,4 @@
-# DNS + one.com Cutover Runbook (Phase 10b — go-live)
+# DNS + one.com Cutover Runbook (Phase 10d — go-live)
 
 **Purpose:** move `akerogarden.se` and `admin.akerogarden.se` from the current one.com/WordPress hosting to the production App Service, without disrupting email or the domain registration.
 **Who runs it:** requires access to the one.com DNS control panel and Azure CLI logged in with rights on `akerogarden-prod` (in the client's Azure tenant — see Phase 10a/10b). (Claude drafted this; you execute the DNS edits and `az` commands.)
@@ -80,6 +80,8 @@ Leave existing `MX`/`SPF`/`DKIM`/`DMARC`/mailbox records untouched.
 
 **Do not delete the old WordPress `A`/`www` records yet** — see Part F (soak period).
 
+> **The two `asuid` `TXT` records should already be in place** — they are staged early, back in **Phase 10c**, because they only prove domain ownership and carry no traffic, so adding them cannot affect the still-live WordPress site. Pre-staging them means Azure's ownership check is already satisfied when the `A`/`CNAME` flip here, and certificate issuance in Part D starts immediately instead of waiting on TXT propagation inside the cutover window. If they are missing, add them now and allow for propagation before Part D. **The `A` and `CNAME` records are the only genuinely destructive edits in this runbook** — they are what moves live traffic.
+
 ---
 
 ## Part D — Bind the custom hostnames + issue SSL
@@ -134,7 +136,7 @@ Content parity is a non-issue here — implementation plan notes the live site t
 
 ## Record the result
 
-Log: date/time of cutover, DNS propagation confirmation method used, SSL binding confirmed (both hostnames), WordPress decommission date. This closes out the Phase 10c exit criterion "production reachable on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex."
+Log: date/time of cutover, DNS propagation confirmation method used, SSL binding confirmed (both hostnames), WordPress decommission date. This closes out the Phase 10d exit criterion "production reachable on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex."
 
 ---
 

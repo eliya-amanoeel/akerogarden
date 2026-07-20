@@ -17,7 +17,7 @@
 
 The restore always creates a **new, independent** server — it never touches the source. The risk is not the restore; it's how you *reach* the restored copy to verify it.
 
-> **Path 2 (inside the VNet) is now the only verification path — for staging as well as production.** The former "Path 1" (temporarily enable a public endpoint on the throwaway server) **does not work**: a point-in-time restore of a VNet-injected server produces another **VNet-injected, private-only** server, and that networking mode is fixed at creation — `az postgres flexible-server update --public-network-access Enabled` silently no-ops on it (same immutability confirmed in `staging-db-access-runbook.md`). So there is no public-endpoint shortcut even on staging.
+> **Path 2 (inside the VNet) is now the only verification path — for staging as well as production.** The former "Path 1" (temporarily enable a public endpoint on the throwaway server) **does not work**: a point-in-time restore of a VNet-injected server produces another **VNet-injected, private-only** server, and that networking mode is fixed at creation — `az postgres flexible-server update --public-network-access Enabled` silently no-ops on it (same immutability confirmed in `db-access-runbook.md`). So there is no public-endpoint shortcut even on staging.
 
 ---
 
@@ -70,7 +70,7 @@ Restore takes ~5–15 min. When it returns, the drill server exists and is priva
 
 ### Verify the restored data — Path 2 (inside the VNet), staging and production alike
 
-The drill server is private-only (see the safety box), so verify it from **inside the VNet**, via the App Service SSH console — the same mechanism as `staging-db-access-runbook.md` (SSH into the running app container, install `psql` if missing, connect over the private FQDN).
+The drill server is private-only (see the safety box), so verify it from **inside the VNet**, via the App Service SSH console — the same mechanism as `db-access-runbook.md` (SSH into the running app container, install `psql` if missing, connect over the private FQDN).
 
 1. Portal → an app in the same VNet — `jmk-ag-staging-admin` (or `jmk-ag-prod-admin` on production; both sites are VNet-integrated, admin is the convention) → **Development Tools → SSH**.
 2. `psql --version` — if missing: `apt-get update && apt-get install -y postgresql-client`.

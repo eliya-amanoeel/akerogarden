@@ -7,7 +7,8 @@ Bicep templates for Åkerögården. Both production and staging deploy from the 
 > **Status:** staging is live in **Sweden Central** (`akerogarden-staging`), in the **client's own Azure subscription/tenant** (PAYG), on `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin).
 > **Phase 10a ✅ done (2026-07-16)** — staging was recreated fresh in the client's tenant from these same Bicep templates (a redeploy, not a migration; Azure's resource-move feature doesn't work across tenants) and the old MSDN-hosted copy deleted.
 > **Phase 10b ✅ done (2026-07-17)** — the single web app was split into two App Service sites on the one shared plan (see "Two-app topology" below); staging is cut over and verified.
-> **Phase 10c — not started.** Production is provisioned directly in the client's tenant against this same two-app topology. ⚠️ `prod.parameters.json` is **not yet deployable**: `seedAdminEmail` / `seedAdminPassword` are required by `main.bicep` and still absent, pending creation of the `info@akerogarden.se` mailbox.
+> **Phase 10c (production pre-stage) — not started.** Production is provisioned directly in the client's tenant against this same two-app topology, and runs on its Azure default `*.azurewebsites.net` hostnames throughout 10c — no DNS involvement. ⚠️ `prod.parameters.json` is **not yet deployable**: `seedAdminEmail` / `seedAdminPassword` are required by `main.bicep` and still absent, pending creation of the `info@akerogarden.se` mailbox. Also note `location` still reads `northeurope`; staging was forced to `swedencentral` by a 0 App Service quota, so settle the region (or file a quota request) before deploying.
+> **Phase 10d (cutover) — not started.** Custom-hostname binding, managed SSL (`ssl.bicep`) and the WordPress retirement. Split out from 10c because Azure cannot issue a managed certificate until the domain already resolves to the App Service, so these are the only genuinely DNS-dependent steps.
 
 ## What `main.bicep` creates
 
@@ -256,9 +257,13 @@ old `-app` site — incremental mode). Procedure:
 
 Same as staging with `prod.parameters.json` and a `akerogarden-prod` resource group, in the
 client's tenant, and **born** in the two-app topology (no re-point step — production is provisioned
-as two sites from the start). Production binds the custom domains (`akerogarden.se` → public,
-`admin.akerogarden.se` → admin) + managed SSL via `ssl.bicep`, after DNS is configured. See
-`ssl.bicep` and the Phase 10c plan.
+as two sites from the start). This step is DNS-independent: the apps come up on their
+`*.azurewebsites.net` hostnames and everything except hostname binding is verified there.
+
+Binding the custom domains (`akerogarden.se` → public, `admin.akerogarden.se` → admin) and
+issuing managed SSL via `ssl.bicep` happen later, in **Phase 10d**, because certificate
+issuance requires DNS to already resolve to the App Service. See `ssl.bicep` and the
+Phase 10c / 10d plan.
 
 ## Power staging down (save cost)
 

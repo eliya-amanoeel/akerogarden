@@ -33,9 +33,9 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 | `docs/product/requirements-changelog.md` | Frozen archive of SRS history up to the retirement of document versioning. Not maintained — read-only reference |
 | `docs/product/erd.md` | Mermaid entity-relationship diagram (14 app entities) |
 | `docs/product/architecture.md` | Mermaid app-level architecture diagram — public/admin surfaces, hosting, external services, tech stack |
-| `docs/product/implementation-plan.md` | 12-phase dependency-ordered build plan (0–9 done; 10a staging re-provisioning into the client's Azure tenant [done]; 10b public/admin host separation — 3-project split + two App Services on one B1 plan [FR-70, done, staging cut over 2026-07-17]; **10c production go-live — next, not started**; 11 post-production hardening & handover — partially built, paused) |
+| `docs/product/implementation-plan.md` | 12-phase dependency-ordered build plan (0–9 done; 10a staging re-provisioning into the client's Azure tenant [done]; 10b public/admin host separation — 3-project split + two App Services on one B1 plan [FR-70, done, staging cut over 2026-07-17]; **10c production pre-stage (DNS-independent) — next, not started**; **10d cutover & launch — gated on the jurist review of the legal docs**; 11 post-production hardening & handover — partially built, paused) |
 | `docs/ux/design.md` | Visual design tokens, CSS classes, logo usage |
-| `infra/ops/dns-cutover-runbook.md` | DNS + one.com cutover steps for both Phase 10a (staging, client tenant) and Phase 10c (production, WordPress retirement) |
+| `infra/ops/dns-cutover-runbook.md` | DNS + one.com cutover steps for both Phase 10a (staging, client tenant) and Phase 10d (production, WordPress retirement) |
 
 ## Data model (EF Core entities)
 
@@ -47,7 +47,9 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 
 **Add EF Core migrations incrementally** — introduce each entity in the phase that first needs it (see implementation plan).
 
-> **Pre-go-live migration reset (Phase 11).** Because the system has not gone live and there is no production data to preserve, the accumulated per-phase migration history is being **wiped and regenerated as a single fresh consolidated baseline** before the production cutover. New entities added in this window (e.g. `AuditLog`, §8.15) land **in that baseline**, not as incremental migrations on top of it — the "incrementally / per phase" rule above describes how the schema was *designed*, not a requirement to keep the pre-launch migration files. Once production is live and holds real data, the incremental-per-change rule resumes and history is never rewritten again.
+> **Pre-go-live migration reset — ✅ DONE (2026-07-13).** Because the system had not gone live and there was no production data to preserve, the accumulated per-phase migration history was **wiped and regenerated as a single consolidated baseline** — `20260713155158_InitialSchema` (commit `1ddce7d`), now the only migration in the repo. New entities added in that window (e.g. `AuditLog`, §8.15) landed **in that baseline**, not as incremental migrations on top of it — the "incrementally / per phase" rule above describes how the schema was *designed*, not a requirement to keep the pre-launch migration files.
+>
+> **The exception expires when Phase 10c migrates the production database.** From that point production holds real data: every schema change is an incremental migration and history is never rewritten again. Do not regenerate the baseline a second time.
 
 ## Critical rules
 
@@ -101,7 +103,7 @@ Follow `docs/product/implementation-plan.md` in order. Do not start a phase unti
 7. Hardening & pre-demo readiness — security pass, NFR verification on staging, parked functional polish, operational/content blockers (privacy text, images, VAT)
 8. Client feedback — demo the app to the client on staging (real UAT), then implement the agreed issues/changes/improvements
 9. Pre-go-live — small agreed pre-launch changes surfaced on staging after Phase 8 sign-off (e.g. admin invite-lifecycle resend/remove), done before the cutover
-10. Transition & go-live — production provisioning, DNS/SSL, one.com/WordPress cutover, production-SMTP email E2E, production deploy
+10. Transition & go-live — 10a staging re-provisioning (client tenant); 10b public/admin host separation; **10c production pre-stage** (provisioning, config reconciliation, production-SMTP email E2E, restore drill, legal text — all DNS-independent, verified on `*.azurewebsites.net`); **10d cutover & launch** (DNS/SSL binding, one.com/WordPress cutover, final deploy). The 10c/10d seam is deliberate: only certificate issuance and the WordPress retirement actually require the DNS switch — do not recombine them
 11. Post-production hardening & handover — cost/health alerts, logging/diagnostics, admin delete-confirmation dialogs, test-suite honesty audit, audit trail (who-did-what — §6.9, backend now / admin view deferred), post-launch architecture/security review, technical SEO/social, client handover documentation
 
 ## Working style

@@ -43,7 +43,15 @@
                     <div class="contact-group__head"><h2>Hitta hit</h2></div>
                     <dl class="contact-dl">
                         <dt>Adress</dt>
-                        <dd>Åkerögården<br />Åkerövägen 81<br />761 94 Norrtälje</dd>
+                        <dd>
+                            @* A link, not an embed — only sends anything to Google when the visitor
+                               actively clicks it, same as the sl.se link below (unlike an embedded
+                               map, which would load Google's JS/tiles for every visitor regardless
+                               of intent — the same NFR-35 concern that already rules out Google Fonts). *@
+                            <a href="@MapsUrl" target="_blank" rel="noopener">
+                                Åkerögården<br />Åkerövägen 81<br />761 94 Norrtälje
+                            </a>
+                        </dd>
 
                         <dt>Med bil</dt>
                         <dd>
@@ -73,3 +81,10 @@
         </div>
     </div>
 </section>
+
+@code {
+    // Universal Google Maps search URL — no API key needed, works cross-platform (opens the
+    // app on mobile, maps.google.com on desktop).
+    private static readonly string MapsUrl =
+        $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString("Åkerögården, Åkerövägen 81, 761 94 Norrtälje")}";
+}

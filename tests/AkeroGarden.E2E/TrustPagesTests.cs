@@ -111,6 +111,21 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Address_links_to_google_maps_in_a_new_tab()
+    {
+        await Page.GotoAsync("/kontakt");
+
+        var addressLink = Page.GetByRole(AriaRole.Link, new() { Name = "Åkerögården Åkerövägen 81 761 94 Norrtälje" });
+
+        await Assertions.Expect(addressLink).ToHaveAttributeAsync("target", "_blank");
+        await Assertions.Expect(addressLink).ToHaveAttributeAsync("rel", "noopener");
+
+        var href = await addressLink.GetAttributeAsync("href");
+        Assert.StartsWith("https://www.google.com/maps/search/?api=1&query=", href);
+        Assert.Contains(Uri.EscapeDataString("Åkerögården"), href);
+    }
+
+    [Fact]
     public async Task Facilities_renders_the_seeded_facility_as_lead_feature_and_the_lodging_group()
     {
         await Page.GotoAsync("/faciliteter");

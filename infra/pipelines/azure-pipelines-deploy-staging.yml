@@ -1,7 +1,8 @@
-# Manual-only. Staging is powered down when idle, so deploys are triggered on demand
-# (Pipelines → "Deploy — Staging" → Run pipeline) rather than automatically on every
-# merge to main. Before running: start staging in order — PostgreSQL first (wait until
-# Ready), then the apps — so the on-boot EF migrations succeed.
+# Auto-deploys on every green CI run on main (see the `ci` pipeline resource trigger below).
+# This requires staging to be running at all times — the "power down when idle" practice is
+# paused for the first weeks after production go-live specifically so this can auto-deploy
+# without racing a stopped App Service / DB. Powering down on idle + auto-start-in-pipeline is
+# a possible future revisit; until then, do not power down staging.
 #
 # Build-once, deploy-that-artifact: this pipeline does NOT rebuild. It downloads the
 # admin/public artifacts produced by a *green* CI run's Publish stage (the `ci` pipeline
@@ -25,7 +26,9 @@ resources:
       branch: main # only main runs reach the Publish stage (see azure-pipelines.yml) —
       # without this, "latest CI run" can resolve to a PR-validation run (no Publish stage ran),
       # which never has the artifact and fails download with "Artifact ... was not found"
-      trigger: none # stay manual — do not auto-deploy on every CI completion
+      trigger:
+        branches:
+          include: [main] # auto-deploy whenever a CI run on main goes green (reaches Publish)
 
 jobs:
   - deployment: deploy_staging

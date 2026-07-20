@@ -2,8 +2,13 @@
 
 Single-pipeline, two-stage design (`azure-pipelines.yml`): **Test** runs on every PR and on
 every push to `main`; **Publish** runs only on `main`, and only if Test passed on that exact
-commit. Deploys (`azure-pipelines-deploy-staging.yml`, `azure-pipelines-deploy-prod.yml`) are
-always manual and always pull from the latest successful `main` run — never a PR-validation run.
+commit. Both deploys pull from the latest successful `main` run — never a PR-validation run.
+**Staging** (`azure-pipelines-deploy-staging.yml`) auto-deploys via a pipeline-completion trigger
+the moment CI goes green on `main` — this requires staging to stay powered on at all times, so
+the "power down when idle" practice is paused for the first weeks after production go-live (see
+that file's header comment; auto-starting staging in the pipeline itself is a possible future
+revisit). **Production** (`azure-pipelines-deploy-prod.yml`) stays manual, gated by an Environment
+approval.
 
 ## Why it's shaped this way
 
@@ -15,9 +20,10 @@ always manual and always pull from the latest successful `main` run — never a 
 - Publish only ever runs after Test succeeds *in the same pipeline run*, on the *same commit* —
   so every artifact that exists is one whose exact commit was tested. There's no separate,
   always-fires publish path that could ship an untested commit.
-- Deploys are separate, manual, and pull artifacts by branch (`branch: main` filter on the `ci`
+- Deploys are separate from CI and pull artifacts by branch (`branch: main` filter on the `ci`
   pipeline resource) — so "latest successful run" can never resolve to a PR-validation run that
-  never reached Publish.
+  never reached Publish. Staging additionally auto-triggers on that filter going green; production
+  stays manual, behind an approval gate.
 
 ```mermaid
 flowchart TD
@@ -35,8 +41,8 @@ flowchart TD
 
     Publish --> ArtifactsReady["admin + public artifacts\navailable, tagged to this main run"]
 
-    ArtifactsReady --> ManualStaging["Manual: run 'Deploy — Staging'\n(staging powered on first)"]
-    ManualStaging --> DownloadStaging["download: ci\nbranch: main filter\n→ latest successful run"]
+    ArtifactsReady --> AutoStaging["Auto-triggered: 'Deploy — Staging'\n(pipeline-completion trigger,\nstaging kept always-on)"]
+    AutoStaging --> DownloadStaging["download: ci\nbranch: main filter\n→ latest successful run"]
     DownloadStaging --> DeployAdminStaging["Deploy admin site\n(migrates DB — first)"]
     DeployAdminStaging --> DeployPublicStaging["Deploy public site"]
     DeployPublicStaging --> StagingLive["staging.akerogarden.se live"]

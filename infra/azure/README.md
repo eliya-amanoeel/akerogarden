@@ -317,6 +317,71 @@ issuing managed SSL via `ssl.bicep` happen later, in **Phase 10d**, because cert
 issuance requires DNS to already resolve to the App Service. See `ssl.bicep` and the
 Phase 10c / 10d plan.
 
+## Cost + health alerts (Phase 11)
+
+`alerts.bicep` is a separate template from `main.bicep` (same pattern as `ssl.bicep`), deliberately
+kept minimal for a solo-maintained, low-traffic site rather than the fuller per-resource-type alert
+set a team with an on-call rotation might build. It creates:
+
+- an Action Group (email → `adminNotificationEmail`, no new mailbox)
+- a monthly cost budget (default 600 SEK, alerts at 80%/100% actual — `Microsoft.Consumption/budgets`
+  has no currency property, the amount is always in the subscription's own billing currency; this
+  one bills in SEK, not USD, confirmed via `az consumption budget show ... --query currentSpend.unit`
+  after an earlier deploy accidentally set 60 assuming USD)
+- Http5xx alerts on both App Service sites
+- one Postgres alert on `cpu_credits_remaining` — the specific canary tied to the 2026-07-21
+  decision to accept the Burstable B1ms tier and watch rather than load-test
+- one Application Insights availability ping test against the public site's default
+  `*.azurewebsites.net` hostname (survives the Phase 10d DNS cutover unchanged), from 2 EU
+  locations so a single edge PoP blip doesn't fire a false alert
+
+Deliberately left out (add only if something real motivates it): response-time thresholds,
+Postgres cpu%/storage%/connection-count alerts, Key Vault availability, an admin-site ping (admin
+shares the same App Service plan as public — if the plan is down, the public ping already catches
+it).
+
+**Cost note:** unlike metric alerts (free up to 10 time series), availability tests are billed per
+execution — $0.0005 each. At the default 15-minute interval × 2 locations that's ~$2.88/month, on
+top of a few cents for the metric alerts. Not free, but small next to the ~$45/month base spend.
+
+```bash
+az deployment group create --resource-group akerogarden-prod \
+  --template-file alerts.bicep --parameters @prod.alerts-parameters.json
+```
+
+## Dashboard (Phase 11)
+
+`dashboard.json` is a one-glance portal dashboard pulling together everything `alerts.bicep`
+creates: the availability chart, both sites' Http5xx, Postgres `cpu_credits_remaining`, the budget
+spend summary, and an alerts overview. It's **not** a Bicep template — Azure Dashboard tile JSON
+(`Microsoft.Portal/dashboards`) is impractical to hand-author, so this was built visually in the
+portal (Dashboard → Edit → pin/add each tile) and captured via `az portal dashboard show`, the
+same way anyone builds one, then committed here so it's still tracked as code rather than a
+click-through-only artifact.
+
+**Note:** dashboards default to **private** (per-user, not an ARM resource) unless explicitly
+published — use **Share → Publish** in the portal, targeting the `akerogarden-prod` resource
+group, before it's exportable at all.
+
+Redeploy (e.g. after deleting and wanting it back, or standing up the same dashboard in another
+subscription):
+
+```bash
+az extension add --name portal   # one-time
+az portal dashboard create --resource-group akerogarden-prod \
+  --name jmk-ag-prod-dashboard --location swedencentral \
+  --tags hidden-title="Åkerögården Prod" \
+  --input-path dashboard.json
+```
+
+To re-export after further editing it in the portal:
+
+```bash
+az portal dashboard list --resource-group akerogarden-prod --query "[].name" -o tsv
+az portal dashboard show --resource-group akerogarden-prod --name <name-from-above> \
+  --query properties -o json > dashboard.json
+```
+
 ## Power staging down (save cost)
 
 ```bash

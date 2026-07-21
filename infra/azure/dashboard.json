@@ -1,0 +1,654 @@
+{
+  "lenses": [
+    {
+      "order": 0,
+      "parts": [
+        {
+          "metadata": {
+            "filters": {
+              "MsPortalFx_TimeRange": {
+                "model": {
+                  "format": "local",
+                  "granularity": "auto",
+                  "relative": "60m"
+                }
+              }
+            },
+            "inputs": [
+              {
+                "isOptional": true,
+                "name": "sharedTimeRange"
+              },
+              {
+                "isOptional": true,
+                "name": "options",
+                "value": {
+                  "chart": {
+                    "metrics": [
+                      {
+                        "aggregationType": 4,
+                        "metricVisualization": {
+                          "color": "#54A300",
+                          "displayName": "Availability",
+                          "resourceDisplayName": "jmk-ag-prod-appinsights"
+                        },
+                        "name": "availabilityResults/availabilityPercentage",
+                        "namespace": "microsoft.insights/components",
+                        "resourceMetadata": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Insights/components/jmk-ag-prod-appinsights",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      }
+                    ],
+                    "openBladeOnClick": {
+                      "destinationBlade": {
+                        "bladeName": "ResourceMenuBlade",
+                        "extensionName": "HubsExtension",
+                        "options": {
+                          "parameters": {
+                            "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Insights/components/jmk-ag-prod-appinsights",
+                            "menuid": "availability",
+                            "resourceGroup": "akerogarden-prod"
+                          }
+                        },
+                        "parameters": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Insights/components/jmk-ag-prod-appinsights",
+                          "menuid": "availability",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      },
+                      "openBlade": true
+                    },
+                    "title": "Availability",
+                    "titleKind": 2,
+                    "visualization": {
+                      "axisVisualization": {
+                        "x": {
+                          "isVisible": true
+                        },
+                        "y": {
+                          "isVisible": true,
+                          "max": 100,
+                          "min": 0
+                        }
+                      },
+                      "chartType": 2
+                    }
+                  }
+                }
+              }
+            ],
+            "settings": {
+              "content": {
+                "options": {
+                  "chart": {
+                    "metrics": [
+                      {
+                        "aggregationType": 4,
+                        "metricVisualization": {
+                          "color": "#54A300",
+                          "displayName": "Availability",
+                          "resourceDisplayName": "jmk-ag-prod-appinsights"
+                        },
+                        "name": "availabilityResults/availabilityPercentage",
+                        "namespace": "microsoft.insights/components",
+                        "resourceMetadata": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Insights/components/jmk-ag-prod-appinsights",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      }
+                    ],
+                    "openBladeOnClick": {
+                      "destinationBlade": {
+                        "bladeName": "ResourceMenuBlade",
+                        "extensionName": "HubsExtension",
+                        "options": {
+                          "parameters": {
+                            "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Insights/components/jmk-ag-prod-appinsights",
+                            "menuid": "availability",
+                            "resourceGroup": "akerogarden-prod"
+                          }
+                        },
+                        "parameters": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Insights/components/jmk-ag-prod-appinsights",
+                          "menuid": "availability",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      },
+                      "openBlade": true
+                    },
+                    "title": "Availability",
+                    "titleKind": 2,
+                    "visualization": {
+                      "axisVisualization": {
+                        "x": {
+                          "isVisible": true
+                        },
+                        "y": {
+                          "isVisible": true,
+                          "max": 100,
+                          "min": 0
+                        }
+                      },
+                      "chartType": 2,
+                      "disablePinning": true
+                    }
+                  }
+                }
+              }
+            },
+            "type": "Extension/HubsExtension/PartType/MonitorChartPart"
+          },
+          "position": {
+            "colSpan": 6,
+            "rowSpan": 4,
+            "x": 0,
+            "y": 0
+          }
+        },
+        {
+          "metadata": {
+            "filters": {
+              "MsPortalFx_TimeRange": {
+                "model": {
+                  "format": "local",
+                  "granularity": "auto",
+                  "relative": "1440m"
+                }
+              }
+            },
+            "inputs": [
+              {
+                "isOptional": true,
+                "name": "sharedTimeRange"
+              },
+              {
+                "isOptional": true,
+                "name": "options",
+                "value": {
+                  "chart": {
+                    "metrics": [
+                      {
+                        "aggregationType": 1,
+                        "metricVisualization": {
+                          "displayName": "Http Server Errors"
+                        },
+                        "name": "Http5xx",
+                        "namespace": "microsoft.web/sites",
+                        "resourceMetadata": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Web/sites/jmk-ag-prod-public",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      }
+                    ],
+                    "timespan": {
+                      "grain": 1,
+                      "relative": {
+                        "duration": 86400000
+                      },
+                      "showUTCTime": false
+                    },
+                    "title": "Sum Http Server Errors for jmk-ag-prod-public",
+                    "titleKind": 1,
+                    "visualization": {
+                      "axisVisualization": {
+                        "x": {
+                          "axisType": 2,
+                          "isVisible": true
+                        },
+                        "y": {
+                          "axisType": 1,
+                          "isVisible": true
+                        }
+                      },
+                      "chartType": 2,
+                      "legendVisualization": {
+                        "hideHoverCard": false,
+                        "hideLabelNames": true,
+                        "isVisible": true,
+                        "position": 2
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "settings": {
+              "content": {
+                "options": {
+                  "chart": {
+                    "metrics": [
+                      {
+                        "aggregationType": 1,
+                        "metricVisualization": {
+                          "displayName": "Http Server Errors"
+                        },
+                        "name": "Http5xx",
+                        "namespace": "microsoft.web/sites",
+                        "resourceMetadata": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Web/sites/jmk-ag-prod-public",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      }
+                    ],
+                    "title": "Sum Http Server Errors for jmk-ag-prod-public",
+                    "titleKind": 1,
+                    "visualization": {
+                      "axisVisualization": {
+                        "x": {
+                          "axisType": 2,
+                          "isVisible": true
+                        },
+                        "y": {
+                          "axisType": 1,
+                          "isVisible": true
+                        }
+                      },
+                      "chartType": 2,
+                      "disablePinning": true,
+                      "legendVisualization": {
+                        "hideHoverCard": false,
+                        "hideLabelNames": true,
+                        "isVisible": true,
+                        "position": 2
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "type": "Extension/HubsExtension/PartType/MonitorChartPart"
+          },
+          "position": {
+            "colSpan": 6,
+            "rowSpan": 4,
+            "x": 6,
+            "y": 0
+          }
+        },
+        {
+          "metadata": {
+            "filters": {
+              "MsPortalFx_TimeRange": {
+                "model": {
+                  "format": "local",
+                  "granularity": "auto",
+                  "relative": "1440m"
+                }
+              }
+            },
+            "inputs": [
+              {
+                "isOptional": true,
+                "name": "sharedTimeRange"
+              },
+              {
+                "isOptional": true,
+                "name": "options",
+                "value": {
+                  "chart": {
+                    "metrics": [
+                      {
+                        "aggregationType": 1,
+                        "metricVisualization": {
+                          "displayName": "Http Server Errors"
+                        },
+                        "name": "Http5xx",
+                        "namespace": "microsoft.web/sites",
+                        "resourceMetadata": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Web/sites/jmk-ag-prod-admin",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      }
+                    ],
+                    "timespan": {
+                      "grain": 1,
+                      "relative": {
+                        "duration": 86400000
+                      },
+                      "showUTCTime": false
+                    },
+                    "title": "Sum Http Server Errors for jmk-ag-prod-admin",
+                    "titleKind": 1,
+                    "visualization": {
+                      "axisVisualization": {
+                        "x": {
+                          "axisType": 2,
+                          "isVisible": true
+                        },
+                        "y": {
+                          "axisType": 1,
+                          "isVisible": true
+                        }
+                      },
+                      "chartType": 2,
+                      "legendVisualization": {
+                        "hideHoverCard": false,
+                        "hideLabelNames": true,
+                        "isVisible": true,
+                        "position": 2
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "settings": {
+              "content": {
+                "options": {
+                  "chart": {
+                    "metrics": [
+                      {
+                        "aggregationType": 1,
+                        "metricVisualization": {
+                          "displayName": "Http Server Errors"
+                        },
+                        "name": "Http5xx",
+                        "namespace": "microsoft.web/sites",
+                        "resourceMetadata": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Web/sites/jmk-ag-prod-admin",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      }
+                    ],
+                    "title": "Sum Http Server Errors for jmk-ag-prod-admin",
+                    "titleKind": 1,
+                    "visualization": {
+                      "axisVisualization": {
+                        "x": {
+                          "axisType": 2,
+                          "isVisible": true
+                        },
+                        "y": {
+                          "axisType": 1,
+                          "isVisible": true
+                        }
+                      },
+                      "chartType": 2,
+                      "disablePinning": true,
+                      "legendVisualization": {
+                        "hideHoverCard": false,
+                        "hideLabelNames": true,
+                        "isVisible": true,
+                        "position": 2
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "type": "Extension/HubsExtension/PartType/MonitorChartPart"
+          },
+          "position": {
+            "colSpan": 6,
+            "rowSpan": 4,
+            "x": 0,
+            "y": 4
+          }
+        },
+        {
+          "metadata": {
+            "filters": {
+              "MsPortalFx_TimeRange": {
+                "model": {
+                  "format": "local",
+                  "granularity": "auto",
+                  "relative": "1440m"
+                }
+              }
+            },
+            "inputs": [
+              {
+                "isOptional": true,
+                "name": "sharedTimeRange"
+              },
+              {
+                "isOptional": true,
+                "name": "options",
+                "value": {
+                  "chart": {
+                    "metrics": [
+                      {
+                        "aggregationType": 4,
+                        "metricVisualization": {
+                          "displayName": "CPU Credits Remaining"
+                        },
+                        "name": "cpu_credits_remaining",
+                        "namespace": "microsoft.dbforpostgresql/flexibleservers",
+                        "resourceMetadata": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.DBforPostgreSQL/flexibleServers/jmk-ag-prod-pg",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      }
+                    ],
+                    "timespan": {
+                      "grain": 1,
+                      "relative": {
+                        "duration": 86400000
+                      },
+                      "showUTCTime": false
+                    },
+                    "title": "Avg CPU Credits Remaining for jmk-ag-prod-pg",
+                    "titleKind": 1,
+                    "visualization": {
+                      "axisVisualization": {
+                        "x": {
+                          "axisType": 2,
+                          "isVisible": true
+                        },
+                        "y": {
+                          "axisType": 1,
+                          "isVisible": true
+                        }
+                      },
+                      "chartType": 2,
+                      "legendVisualization": {
+                        "hideHoverCard": false,
+                        "hideLabelNames": true,
+                        "isVisible": true,
+                        "position": 2
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "settings": {
+              "content": {
+                "options": {
+                  "chart": {
+                    "metrics": [
+                      {
+                        "aggregationType": 4,
+                        "metricVisualization": {
+                          "displayName": "CPU Credits Remaining"
+                        },
+                        "name": "cpu_credits_remaining",
+                        "namespace": "microsoft.dbforpostgresql/flexibleservers",
+                        "resourceMetadata": {
+                          "id": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.DBforPostgreSQL/flexibleServers/jmk-ag-prod-pg",
+                          "resourceGroup": "akerogarden-prod"
+                        }
+                      }
+                    ],
+                    "title": "Avg CPU Credits Remaining for jmk-ag-prod-pg",
+                    "titleKind": 1,
+                    "visualization": {
+                      "axisVisualization": {
+                        "x": {
+                          "axisType": 2,
+                          "isVisible": true
+                        },
+                        "y": {
+                          "axisType": 1,
+                          "isVisible": true
+                        }
+                      },
+                      "chartType": 2,
+                      "disablePinning": true,
+                      "legendVisualization": {
+                        "hideHoverCard": false,
+                        "hideLabelNames": true,
+                        "isVisible": true,
+                        "position": 2
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "type": "Extension/HubsExtension/PartType/MonitorChartPart"
+          },
+          "position": {
+            "colSpan": 6,
+            "rowSpan": 4,
+            "x": 6,
+            "y": 4
+          }
+        },
+        {
+          "metadata": {
+            "inputs": [
+              {
+                "name": "budgetId",
+                "value": "subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Consumption/budgets/jmk-ag-prod-monthly-budget"
+              }
+            ],
+            "type": "Extension/Microsoft_Azure_CostManagement/PartType/CurrentSpendvsBudgetPart"
+          },
+          "position": {
+            "colSpan": 4,
+            "rowSpan": 2,
+            "x": 0,
+            "y": 8
+          }
+        },
+        {
+          "metadata": {
+            "deepLink": "#@adminakerogarden.onmicrosoft.com/resource/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/alerts",
+            "inputs": [
+              {
+                "isOptional": true,
+                "name": "resourceId"
+              },
+              {
+                "isOptional": true,
+                "name": "subscriptions",
+                "value": [
+                  "de50bccd-4eeb-4a78-a52a-7b16cf84a37c"
+                ]
+              },
+              {
+                "isOptional": true,
+                "name": "managementGroups"
+              },
+              {
+                "isOptional": true,
+                "name": "resourceGroupsNames",
+                "value": [
+                  "akerogarden-prod"
+                ]
+              },
+              {
+                "isOptional": true,
+                "name": "resourceNames",
+                "value": []
+              },
+              {
+                "isOptional": true,
+                "name": "resourceTypes",
+                "value": []
+              },
+              {
+                "isOptional": true,
+                "name": "severity",
+                "value": []
+              },
+              {
+                "isOptional": true,
+                "name": "alertCondition",
+                "value": [
+                  "Fired"
+                ]
+              },
+              {
+                "isOptional": true,
+                "name": "userResponses",
+                "value": []
+              },
+              {
+                "isOptional": true,
+                "name": "monitorServices",
+                "value": []
+              },
+              {
+                "isOptional": true,
+                "name": "timeRange",
+                "value": {
+                  "customDateTimeRange": null,
+                  "timeRangeOptions": "1d"
+                }
+              },
+              {
+                "isOptional": true,
+                "name": "searchValue"
+              },
+              {
+                "isOptional": true,
+                "name": "queryContains"
+              },
+              {
+                "isOptional": true,
+                "name": "queryInputs"
+              }
+            ],
+            "type": "Extension/Microsoft_Azure_Monitoring_Alerts/PartType/AlertsSummaryBladePinnedPart"
+          },
+          "position": {
+            "colSpan": 4,
+            "rowSpan": 2,
+            "x": 4,
+            "y": 8
+          }
+        }
+      ]
+    }
+  ],
+  "metadata": {
+    "model": {
+      "filterLocale": {
+        "value": "en-us"
+      },
+      "filters": {
+        "value": {
+          "MsPortalFx_TimeRange": {
+            "displayCache": {
+              "name": "UTC Time",
+              "value": "Past 24 hours"
+            },
+            "filteredPartIds": [
+              "StartboardPart-MonitorChartPart-7e0a8d4c-7a9b-4b97-8731-ef7670959629",
+              "StartboardPart-MonitorChartPart-7e0a8d4c-7a9b-4b97-8731-ef7670959a30",
+              "StartboardPart-MonitorChartPart-7e0a8d4c-7a9b-4b97-8731-ef7670959ad0",
+              "StartboardPart-MonitorChartPart-7e0a8d4c-7a9b-4b97-8731-ef7670959c15"
+            ],
+            "model": {
+              "format": "utc",
+              "granularity": "auto",
+              "relative": "24h"
+            }
+          }
+        }
+      },
+      "timeRange": {
+        "type": "MsPortalFx.Composition.Configuration.ValueTypes.TimeRange",
+        "value": {
+          "relative": {
+            "duration": 24,
+            "timeUnit": 1
+          }
+        }
+      }
+    }
+  }
+}

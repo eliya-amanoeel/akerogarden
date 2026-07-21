@@ -420,7 +420,7 @@ The split also forces a cleaner allocation of concerns that co-location was hidi
 
 ---
 
-## Phase 10c — Production pre-stage (DNS-independent)
+## Phase 10c — Production pre-stage (DNS-independent) ✅ COMPLETE (2026-07-21)
 
 **Goal:** stand production up completely — provisioned, deployed, populated and verified — while `akerogarden.se` still serves WordPress. Production runs on its Azure default `*.azurewebsites.net` hostnames throughout this phase; nothing here is visible to the public or reversible-under-pressure.
 
@@ -490,7 +490,9 @@ Grouped deliberately: these all need the apps running, so they are done together
 
 **Satisfies:** NFR-31 · NFR-12, NFR-29 (moved from Phase 7). *(NFR-20–24, the privacy policy, moved to 10d with the jurist review.)*
 
-**Exit criteria:** production Azure provisioned in the client tenant with VNet isolation validated and the by-hand staging config reconciled; the manual-approval check live on the `production` Environment; the app deployed and reachable on its default hostnames; the first admin account created and real reference data entered; backups proven restorable via the Path-2 drill; every §9 email verified against the **production** SMTP with an external inbox confirming inbox (not spam) placement; the UI-lag question answered on a warm instance; `asuid` TXT records staged at one.com; the cutover runbook written and reviewed. **In short: the only work left is DNS records, a base-URL config flip, and the jurist-signed legal text.**
+**Exit criteria — ✅ ALL MET (2026-07-21):** production Azure provisioned in the client tenant with VNet isolation validated and the by-hand staging config reconciled; the manual-approval check live on the `production` Environment; the app deployed and reachable on its default hostnames; the first admin account created and real reference data entered; backups proven restorable via the Path-2 drill; every §9 email verified against the **production** SMTP with an external inbox confirming inbox (not spam) placement; the UI-lag question answered on a warm instance; `asuid` TXT records staged at one.com; the cutover runbook written and reviewed. **In short: the only work left is DNS records, a base-URL config flip, and the jurist-signed legal text.**
+
+> **Completion note (2026-07-21).** Prod provisioned from `main.bicep`+`prod.parameters.json` (14 top-level resources, Sweden Central); config reconciled and verified live (Always On, ForwardedHeaders, DataProtection BlobWithKeyVault; KV refs resolved — no stale-cache issue); first deploy green, admin seeded, reference data entered by the client. Restore drill PASS (Path-2, NFR-12/29). Full booking funnel + every §9 email verified on prod SMTP — **SPF/DKIM/DMARC all pass, inbox** (the Phase-8 spam finding is dead; SPF+DMARC were missing on `akerogarden.se` and were added at one.com). Warm perf good (public 61–131 ms; admin responsive) — the Phase-8 lag was cold-start only. **Prod is deliberately left running** (go-live ~2 days out, so power-down churn isn't worth it) and the **test-booking cleanup is deferred to 10d Part H** (10d creates more test data during the magic-link re-verify). Only Phase 10d remains before launch, gated on the jurist legal-text review.
 
 ---
 

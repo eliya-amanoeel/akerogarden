@@ -1,10 +1,10 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
-  "_comment": "Phase 10d (cutover). appServicePlanId CANNOT be filled in ahead of provisioning — take it from main.bicep's appServicePlanId output after the Phase 10c prod deployment succeeds, then replace <PROD_SUBSCRIPTION_ID>. Run ssl.bicep only AFTER the custom hostnames are bound and DNS resolves, or managed-certificate issuance fails validation — this is precisely why SSL sits in 10d and not in the 10c pre-stage.",
+  "_comment": "Phase 10d (cutover). appServicePlanId is now filled in — prod was provisioned 2026-07-20 and the plan jmk-ag-prod-plan exists in akerogarden-prod (subscription de50bccd). Run ssl.bicep only AFTER the custom hostnames are bound and DNS resolves, or managed-certificate issuance fails validation — this is precisely why SSL sits in 10d and not in the 10c pre-stage.",
   "parameters": {
     "appServicePlanId": {
-      "value": "/subscriptions/<PROD_SUBSCRIPTION_ID>/resourceGroups/akerogarden-prod/providers/Microsoft.Web/serverfarms/jmk-ag-prod-plan"
+      "value": "/subscriptions/de50bccd-4eeb-4a78-a52a-7b16cf84a37c/resourceGroups/akerogarden-prod/providers/Microsoft.Web/serverfarms/jmk-ag-prod-plan"
     },
     "bindings": {
       "value": [

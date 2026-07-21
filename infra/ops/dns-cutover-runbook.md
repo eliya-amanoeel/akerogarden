@@ -105,10 +105,10 @@ az webapp config hostname add -g $RG --webapp-name $ADMIN_APP  --hostname $ADMIN
 az deployment group create -g $RG --template-file infra/azure/ssl.bicep --parameters @infra/azure/prod.ssl-parameters.json
 ```
 
-`infra/azure/prod.ssl-parameters.json` doesn't exist yet — create it before this step, mirroring
-`staging.ssl-parameters.json`: `appServicePlanId` (a `main.bicep` output) plus a `bindings` array of
-`{ siteName, hostname }` pairs — `{jmk-ag-prod-public, akerogarden.se}` and `{jmk-ag-prod-admin,
-admin.akerogarden.se}`.
+`infra/azure/prod.ssl-parameters.json` **exists and is ready** (finalized 2026-07-21): its
+`appServicePlanId` is filled in with the real plan resource ID (prod was provisioned 2026-07-20), and
+the `bindings` array already pairs `{jmk-ag-prod-public, akerogarden.se}` and `{jmk-ag-prod-admin,
+admin.akerogarden.se}`. No edit needed at cutover — just run the deployment above.
 
 > **Gotcha (seen at the staging cutover):** if a hostname already has a managed cert on the plan
 > under a different site, `ssl.bicep` fails with `CanonicalName is invalid … duplicate certificate` —
@@ -134,9 +134,31 @@ Content parity is a non-issue here — implementation plan notes the live site t
 
 ---
 
+## Part G — base-URL flip + magic-link re-verify (config, not DNS)
+
+Not a DNS step, but it belongs in the same cutover window and must not be skipped:
+
+1. **Flip the base URLs.** During Phase 10c prod ran on `*.azurewebsites.net`, so `publicBaseUrl` / `adminBaseUrl` point there and every email link (esp. the `/slutfor/{token}` magic link) carries the Azure default hostname. Switch both to the real domains (`https://akerogarden.se` / `https://admin.akerogarden.se`) and redeploy.
+2. **Re-verify one magic-link email end-to-end** after the flip — submit a test booking, approve it, click the completion link, confirm it now points at `akerogarden.se` and completes. This is the one 10c email verification that does **not** survive the base-URL flip, so it must be re-checked here.
+
+## Part H — final pre-launch data cleanup (do LAST, before announcing go-live)
+
+Production accumulated **test bookings** during 10c verification (e.g. `AG-2026-0001`) and the Part G magic-link re-check adds another. Remove **all** test bookings so the client launches with zero fake data. Reference data (buildings, rooms, meals, prices, facilities, cleaning zones) **stays** — only bookings and their guest data go.
+
+Bookings are not hard-deletable from the admin UI (business records), so delete via the DB from inside the VNet — same SSH-into-`jmk-ag-prod-admin` + `psql` mechanism as the restore drill (`restore-drill-runbook.md` Path 2), connecting to the **live** server `jmk-ag-prod-pg.postgres.database.azure.com`. The booking's child rows (participants, meal preferences, cleaning/facility selections, booking-scoped audit entries) all have `ON DELETE CASCADE`, so one statement clears everything:
+
+```sql
+-- inside psql, connected to the live prod DB. Deletes ALL bookings (only test data exists pre-launch).
+DELETE FROM "Bookings";
+```
+
+*(Reminder: bash history-expansion eats `!` in the Postgres password inside the container shell — run `set +H` first. See the restore-drill runbook.)*
+
+Confirm `select count(*) from "Bookings";` returns **0** before announcing go-live.
+
 ## Record the result
 
-Log: date/time of cutover, DNS propagation confirmation method used, SSL binding confirmed (both hostnames), WordPress decommission date. This closes out the Phase 10d exit criterion "production reachable on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex."
+Log: date/time of cutover, DNS propagation confirmation method used, SSL binding confirmed (both hostnames), base-URL flip + magic-link re-verify done, test-data cleanup confirmed (0 bookings), WordPress decommission date. This closes out the Phase 10d exit criterion "production reachable on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex."
 
 ---
 

@@ -37,6 +37,15 @@ public abstract class E2ETestBase(E2EFixture fixture) : IAsyncLifetime
         {
             BaseURL = AppBaseUrl,
             ViewportSize = Desktop,
+            // The site uses `html { scroll-behavior: smooth }`, so elements animate during
+            // scroll-into-view. On the Interactive Server admin host a hydration re-render that lands in
+            // Playwright's "waiting for element to be stable" window detaches the node ("Element is not
+            // attached to the DOM" — a CI-only flake, 2026-07-21). The site already ships a
+            // `prefers-reduced-motion` override (`scroll-behavior: auto !important`), so running the
+            // context reduced-motion makes every scroll instant and stable. It also disables the
+            // `.form-status` toast's entry animation, so its bounding box is measured at rest. No
+            // assertion is weakened — behaviour and structure are unchanged, only animation timing.
+            ReducedMotion = ReducedMotion.Reduce,
         });
         Page = await Context.NewPageAsync();
     }

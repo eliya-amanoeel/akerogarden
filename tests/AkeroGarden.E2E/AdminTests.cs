@@ -202,7 +202,11 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         var saveBtn = Page.GetByRole(AriaRole.Button, new() { Name = "Spara betalningsstatus" });
-        await saveBtn.ScrollIntoViewIfNeededAsync();
+        // Wait for the button post-hydration via a web-first assertion (which re-resolves the locator
+        // through the circuit's re-render) instead of a standalone ScrollIntoViewIfNeeded, which threw
+        // on the detach. CheckAsync/ClickAsync auto-scroll (instant now — see ReducedMotion in
+        // E2ETestBase) and auto-retry, so no separate scroll step is needed.
+        await Assertions.Expect(saveBtn).ToBeVisibleAsync();
         await Page.GetByLabel("Handpenning fakturerad").CheckAsync();
         await saveBtn.ClickAsync();
 

@@ -1,6 +1,7 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
+  "_comment": "PHASE 10c VALUES. (1) Hostnames are deliberately EMPTY and the base URLs point at the Azure default *.azurewebsites.net names: throughout 10c the apex still resolves to WordPress, so binding akerogarden.se would fail — staging hit exactly this in Phase 10b Slice 4. Phase 10d fills in publicHostnames/adminHostnames and flips both base URLs to the real domains, then redeploys and re-verifies one magic-link email. (2) REPLACE_* values are NEVER stored here — pass postgresAdminPassword, smtpUsername, smtpPassword and seedAdminPassword on the az CLI at deploy time, and seedAdminEmail too. Omitting any of them RESETS the Postgres admin password and OVERWRITES the Key Vault SMTP secrets — this applies to the 10d drift re-apply as much as to the first deploy. (3) geoRedundantBackup is intentionally not set (defaults off) — see the SKU-limitations section in README.md.",
   "parameters": {
     "environmentName": { "value": "prod" },
     "location": { "value": "swedencentral" },
@@ -8,13 +9,15 @@
     "postgresAdminLogin": { "value": "akerogarden_admin" },
     "postgresAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
     "smtpPort": { "value": 465 },
-    "smtpFromAddress": { "value": "noreply@akerogarden.se" },
+    "smtpFromAddress": { "value": "info@akerogarden.se" },
     "smtpUsername": { "value": "REPLACE_VIA_CI_SECRET" },
     "smtpPassword": { "value": "REPLACE_VIA_CI_SECRET" },
-    "publicHostnames": { "value": ["akerogarden.se"] },
-    "adminHostnames": { "value": ["admin.akerogarden.se"] },
-    "publicBaseUrl": { "value": "https://akerogarden.se" },
-    "adminBaseUrl": { "value": "https://admin.akerogarden.se" },
+    "seedAdminEmail": { "value": "REPLACE_AT_DEPLOY" },
+    "seedAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
+    "publicHostnames": { "value": [] },
+    "adminHostnames": { "value": [] },
+    "publicBaseUrl": { "value": "https://jmk-ag-prod-public.azurewebsites.net" },
+    "adminBaseUrl": { "value": "https://jmk-ag-prod-admin.azurewebsites.net" },
     "adminNotificationEmail": { "value": "info@akerogarden.se" },
     "contactEmail": { "value": "info@akerogarden.se" }
   }

@@ -7,7 +7,7 @@ Bicep templates for Åkerögården. Both production and staging deploy from the 
 > **Status:** staging is live in **Sweden Central** (`akerogarden-staging`), in the **client's own Azure subscription/tenant** (PAYG), on `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin).
 > **Phase 10a ✅ done (2026-07-16)** — staging was recreated fresh in the client's tenant from these same Bicep templates (a redeploy, not a migration; Azure's resource-move feature doesn't work across tenants) and the old MSDN-hosted copy deleted.
 > **Phase 10b ✅ done (2026-07-17)** — the single web app was split into two App Service sites on the one shared plan (see "Two-app topology" below); staging is cut over and verified.
-> **Phase 10c (production pre-stage) — not started.** Production is provisioned directly in the client's tenant against this same two-app topology, and runs on its Azure default `*.azurewebsites.net` hostnames throughout 10c — no DNS involvement. ⚠️ `prod.parameters.json` is **not yet deployable**: `seedAdminEmail` / `seedAdminPassword` are required by `main.bicep` and still absent, pending creation of the `info@akerogarden.se` mailbox. Also note `location` still reads `northeurope`; staging was forced to `swedencentral` by a 0 App Service quota, so settle the region (or file a quota request) before deploying.
+> **Phase 10c (production pre-stage) — not started.** Production is provisioned directly in the client's tenant against this same two-app topology, and runs on its Azure default `*.azurewebsites.net` hostnames throughout 10c — no DNS involvement. ⚠️ `prod.parameters.json` is **not yet deployable**: `seedAdminEmail` / `seedAdminPassword` are required by `main.bicep` and still absent, pending creation of the `info@akerogarden.se` mailbox. It also still declares the real hostnames in `publicHostnames`/`adminHostnames`, which cannot bind while the apex resolves to WordPress — empty both for the 10c deploy and populate them in 10d. `location` reads `swedencentral` (staging was forced there by a 0 App Service quota in North Europe) — verify that quota actually exists in the client's subscription before deploying, since a quota request is a multi-day support ticket.
 > **Phase 10d (cutover) — not started.** Custom-hostname binding, managed SSL (`ssl.bicep`) and the WordPress retirement. Split out from 10c because Azure cannot issue a managed certificate until the domain already resolves to the App Service, so these are the only genuinely DNS-dependent steps.
 
 ## What `main.bicep` creates
@@ -22,6 +22,58 @@ Redis (Azure Managed Redis, Balanced B0 — the successor to the retired classic
 Cache for Redis) backs the inquiry rate limiter (NFR-04); its connection string is stored
 in Key Vault and read by the **public** site via its managed identity (the admin site has no
 rate limiting, so it never reads the Redis secret).
+
+### SKU limitations — accepted deliberately (2026-07-20)
+
+Both load-bearing tiers are entry-level, and both carry limitations that are easy to rediscover the
+hard way. They were reviewed and **kept as-is** for production: this site's traffic is a handful of
+inquiries a week, and Åkerögården has taken bookings by phone and email for years, so an outage
+degrades to the pre-existing manual process rather than stopping business. Moving up a tier would
+roughly triple the ~$45/month hosting envelope in `requirements.md` §11 to buy headroom for load that
+will not arrive.
+
+**PostgreSQL Flexible Server — `Standard_B1ms` (Burstable):**
+
+- **No read replicas.** The portal states plainly: *"Read replica is not supported for the Burstable
+  pricing tier."* This rules out the geo-replica DR pattern in the Azure docs entirely — not on cost
+  grounds, on availability grounds.
+- **No high availability**, and the server sits in a single availability zone (zone 1).
+- **CPU is credit-based** — sustained load exhausts burst credits and throttles. Fine for this
+  workload's spiky, low-volume profile; it would not be for a continuously busy one.
+- Microsoft positions Burstable for **dev/test** workloads. It is nonetheless a GA tier with an SLA,
+  and supported in production — the positioning is guidance about workload *shape*, not a support
+  restriction.
+- `geoRedundantBackup` is left **disabled** (the template does not set it, so it defaults off). Backup
+  protection is local PITR, which is what actually defends against the realistic failure — a bad
+  migration or an accidental delete. Note this is believed to be settable **only at server creation**.
+- **Storage autogrow is disabled** and storage is 32 GiB. If the database ever fills that, PostgreSQL
+  goes read-only and the booking system stops accepting writes. Autogrow *can* be enabled after
+  creation, so this is a monitoring concern rather than a provisioning decision.
+
+**App Service — B1 (Basic):**
+
+- **No deployment slots** — this is why staging is a separate resource group rather than a slot.
+- **No autoscale**, and a **single instance**: a platform restart or a bad deploy is downtime, with no
+  second instance to absorb it.
+- Both sites share the one B1 plan's 1.75 GB RAM (see "Two-app topology" below).
+
+**Redis (Azure Managed Redis, Balanced B0) — checked and cleared, *not* an entry-tier concern.**
+Unlike the two above, this was audited against MS Learn + the live portal (2026-07-21) and is a
+legitimate production configuration:
+
+- **Balanced is a production tier** ("standard workloads"), SLA-backed — it carries no dev/test
+  positioning. B0 (0.5 GB) is merely the smallest *size*, with a 15,000 max-connection ceiling this
+  workload will never approach.
+- **High availability is Enabled** (verified on the staging instance's portal Overview). Managed Redis
+  becomes dev/test-only *only if HA is explicitly disabled* — the Bicep does not disable it, so this is
+  clean. HA means primary + replica across ≥2 nodes, zone-distributed where the region supports it.
+- **Data persistence is Disabled, by design** — the only data is inquiry rate-limiter keys, all
+  short-lived (TTL) and behind a fail-open limiter (NFR-04); if the cache is ever emptied, rate
+  limiting momentarily resets and nothing is lost. Persistence would be pure cost for no benefit.
+
+> Verify feature availability against the live portal or MS Learn before assuming a tier supports
+> something — several of the limits above were assumed the other way round first, and were only caught
+> by checking the portal.
 
 ## Two-app topology (Phase 10b / FR-70)
 

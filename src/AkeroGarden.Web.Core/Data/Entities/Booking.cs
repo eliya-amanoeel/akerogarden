@@ -118,15 +118,6 @@ public class Booking
 
     public DateTime? CompletionTokenExpiry { get; set; }
 
-    // ── Deposit / final payment tracking (boolean status only — C8) ─────────────
-    public bool DepositInvoiced { get; set; }
-
-    public bool DepositPaid { get; set; }
-
-    public bool FinalInvoiced { get; set; }
-
-    public bool FinalPaid { get; set; }
-
     // ── Cancellation (§8.1, FR-76–79) ───────────────────────────────────────────
     /// <summary>Set when status changes to <see cref="BookingStatus.Cancelled"/>; trigger for
     /// the 12-month GDPR retention.</summary>

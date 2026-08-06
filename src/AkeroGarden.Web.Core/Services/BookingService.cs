@@ -770,25 +770,6 @@ public class BookingService(
         await db.SaveChangesAsync();
     }
 
-    /// <summary>Updates the deposit/final payment status flags (FR-42). Boolean status only — no amounts (C8).</summary>
-    public async Task SetPaymentStatusAsync(
-        Guid id, bool depositInvoiced, bool depositPaid, bool finalInvoiced, bool finalPaid)
-    {
-        var booking = await db.Bookings.FindAsync(id);
-        if (booking is null) return;
-        booking.DepositInvoiced = depositInvoiced;
-        booking.DepositPaid = depositPaid;
-        booking.FinalInvoiced = finalInvoiced;
-        booking.FinalPaid = finalPaid;
-        booking.UpdatedAt = DateTime.UtcNow;
-        // Boolean status flags only — no amounts (C8) and no guest data (NFR-37).
-        static string Flag(bool v) => v ? "ja" : "nej";
-        await RecordBookingAuditAsync(booking, AuditAction.PaymentStatusChanged,
-            $"Betalningsstatus uppdaterad — handpenning fakturerad: {Flag(depositInvoiced)}, betald: {Flag(depositPaid)}; "
-            + $"slutbetalning fakturerad: {Flag(finalInvoiced)}, betald: {Flag(finalPaid)}.");
-        await db.SaveChangesAsync();
-    }
-
     /// <summary>Blocked periods overlapping a date range — for the admin calendar view (FR-37).</summary>
     public async Task<List<BlockedPeriod>> GetBlocksInRangeAsync(DateOnly from, DateOnly to) =>
         await db.BlockedPeriods

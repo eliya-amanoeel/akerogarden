@@ -19,7 +19,6 @@ public enum AuditAction
     CompletionLinkRegenerated,
     CompletionSubmitted,
     ParticipantsEdited,
-    PaymentStatusChanged,
     AdminNotesEdited,
     GuestChoosesRoomsChanged,
 

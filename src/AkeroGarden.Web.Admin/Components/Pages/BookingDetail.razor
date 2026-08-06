@@ -437,19 +437,6 @@ else
                 </section>
             }
 
-            @* ── Payment tracking (FR-42) ─────────────────────────── *@
-            @if (_booking.BookingType == BookingType.StayRequest)
-            {
-                <section class="card">
-                    <div class="card__head"><h2>Betalningsstatus</h2></div>
-                    <label class="paycheck"><input type="checkbox" @bind="_depositInvoiced" /> Handpenning fakturerad</label>
-                    <label class="paycheck"><input type="checkbox" @bind="_depositPaid" /> Handpenning betald</label>
-                    <label class="paycheck"><input type="checkbox" @bind="_finalInvoiced" /> Slutbetalning fakturerad</label>
-                    <label class="paycheck"><input type="checkbox" @bind="_finalPaid" /> Slutbetalning betald</label>
-                    <button class="btn btn-sm" style="margin-top:0.7rem" @onclick="SavePayment">Spara betalningsstatus</button>
-                </section>
-            }
-
             @* ── Internal notes (FR-39) ────────────────────────────── *@
             <section class="card">
                 <div class="card__head"><h2>Interna anteckningar</h2></div>
@@ -532,7 +519,6 @@ else
     private ApprovalWarning _approvalWarning = ApprovalWarning.None;
 
     private string? _notes;
-    private bool _depositInvoiced, _depositPaid, _finalInvoiced, _finalPaid;
     private string? _denyReason;
     private string? _cancelReason;
     private CancellationInitiator _cancelInitiator = CancellationInitiator.GuestInitiated;
@@ -573,10 +559,6 @@ else
         if (_booking is null) return;
 
         _notes = _booking.AdminNotes;
-        _depositInvoiced = _booking.DepositInvoiced;
-        _depositPaid = _booking.DepositPaid;
-        _finalInvoiced = _booking.FinalInvoiced;
-        _finalPaid = _booking.FinalPaid;
         _guestChoosesRooms = _booking.GuestChoosesRooms;
 
         // Non-blocking pre-approval warnings (block overlap / capacity) shown before "Godkänn".
@@ -727,11 +709,5 @@ else
     {
         await BookingService.SetAdminNotesAsync(Id, _notes);
         _message = "Anteckningarna är sparade.";
-    }
-
-    private async Task SavePayment()
-    {
-        await BookingService.SetPaymentStatusAsync(Id, _depositInvoiced, _depositPaid, _finalInvoiced, _finalPaid);
-        _message = "Betalningsstatus är sparad.";
     }
 }

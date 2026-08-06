@@ -142,21 +142,6 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task PaymentStatusChange_WritesRow_WithFlagsOnly()
-    {
-        var provider = NewProvider();
-        var (id, guestEmail, _) = await CreatePendingStayAsync(provider);
-
-        using (var scope = provider.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<BookingService>()
-                .SetPaymentStatusAsync(id, depositInvoiced: true, depositPaid: true, finalInvoiced: false, finalPaid: false);
-
-        var row = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.PaymentStatusChanged));
-        Assert.Contains("handpenning", row.Summary);
-        Assert.DoesNotContain(guestEmail, row.Summary);
-    }
-
-    [Fact]
     public async Task CompletionSubmission_IsAttributedToGuest_NotAnAdmin()
     {
         var provider = NewProvider();

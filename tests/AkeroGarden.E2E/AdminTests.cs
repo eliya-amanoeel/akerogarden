@@ -188,39 +188,21 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await CaptureAsync("admin-booking-detail");
     }
 
-    [Fact]
-    public async Task Save_feedback_shows_as_a_toast_within_the_viewport_when_saving_far_down()
-    {
-        // Client feedback (Phase 8): saving payment status near the bottom of the detail page used to
-        // render the confirmation at the very top, so the admin had to scroll up to see it worked.
-        // It is now a fixed toast — assert it both appears and sits within the viewport after a save
-        // performed at the bottom of the page.
-        await LoginAsync();
-        await Page.GotoAsync("/bokningar");
-        await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
-        // Interactive Server: let the circuit connect before toggling @bind checkboxes / clicking.
-        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-
-        var saveBtn = Page.GetByRole(AriaRole.Button, new() { Name = "Spara betalningsstatus" });
-        // Wait for the button post-hydration via a web-first assertion (which re-resolves the locator
-        // through the circuit's re-render) instead of a standalone ScrollIntoViewIfNeeded, which threw
-        // on the detach. CheckAsync/ClickAsync auto-scroll (instant now — see ReducedMotion in
-        // E2ETestBase) and auto-retry, so no separate scroll step is needed.
-        await Assertions.Expect(saveBtn).ToBeVisibleAsync();
-        await Page.GetByLabel("Handpenning fakturerad").CheckAsync();
-        await saveBtn.ClickAsync();
-
-        var toast = Page.Locator(".form-status");
-        await Assertions.Expect(toast).ToBeVisibleAsync();
-        await Assertions.Expect(toast).ToContainTextAsync("Betalningsstatus är sparad.");
-
-        // Honest check of the actual claim: the toast is within the viewport without scrolling back up.
-        var box = await toast.BoundingBoxAsync();
-        var viewport = Page.ViewportSize!;
-        Assert.NotNull(box);
-        Assert.True(box!.Y >= 0 && box.Y + box.Height <= viewport.Height + 1,
-            $"Toast should sit within the viewport (y={box.Y}, h={box.Height}, viewportHeight={viewport.Height}).");
-    }
+    // REMOVED 2026-08-06 (demo-feedback slice 1): Save_feedback_shows_as_a_toast_within_the_viewport_
+    // when_saving_far_down. It covered the Phase 8 client fix that turned the save confirmation into a
+    // fixed toast, because the old top-anchored message was off-screen when saving low on the booking
+    // detail page. It was driven through the payment-status save, which FR-42 removed.
+    //
+    // It is deleted rather than re-pointed because it has no honest vehicle left: a fixed-position
+    // toast is trivially inside the viewport, so the assertion only means anything when the save
+    // button starts below the fold. Measured, not assumed — the notes save sits at y=648 in a 1280x900
+    // viewport, and the only lower control (Spara deltagaruppgifter) needs a booking with participants,
+    // which the E2E fixture does not seed. Keeping it pointed at an above-the-fold save would have left
+    // it permanently green while unable to detect the regression it exists to catch.
+    //
+    // COVERAGE GAP, deliberately logged rather than papered over: the toast-position fix now has no E2E
+    // regression test. Reinstate in slice 2, which seeds a participant-bearing booking for the
+    // building-assignment tests and will make Spara deltagaruppgifter reachable below the fold.
 
     // Slice 7: axe now sweeps every authenticated admin page — the operational dashboard, the
     // bookings list + manual-booking form, the calendar and blocks, and all six reference-data

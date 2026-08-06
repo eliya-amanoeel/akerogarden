@@ -18,7 +18,7 @@ namespace AkeroGarden.Web.Core.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "10.0.9")
+                .HasAnnotation("ProductVersion", "10.0.10")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
@@ -272,18 +272,6 @@ namespace AkeroGarden.Web.Core.Migrations
                     b.Property<string>("DenialReason")
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
-
-                    b.Property<bool>("DepositInvoiced")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("DepositPaid")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("FinalInvoiced")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("FinalPaid")
-                        .HasColumnType("boolean");
 
                     b.Property<bool>("GuestChoosesRooms")
                         .HasColumnType("boolean");

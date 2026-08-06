@@ -404,8 +404,6 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-20));
         active.Status = BookingStatus.Active;
         active.GuestChoosesRooms = false;
-        active.DepositInvoiced = true;
-        active.DepositPaid = true;
         active.DeleteAfter = null;
         active.MainBuildingCleaningPurchased = false;
         active.SleepingCleaningPurchased = false;
@@ -424,10 +422,6 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-60));
         completed.Status = BookingStatus.Completed;
         completed.GuestChoosesRooms = true;
-        completed.DepositInvoiced = true;
-        completed.DepositPaid = true;
-        completed.FinalInvoiced = true;
-        completed.FinalPaid = true;
         completed.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Completed, today.AddDays(-60), completed.CheckOut, today.AddDays(-27));
         completed.MainBuildingCleaningPurchased = true;
@@ -466,7 +460,6 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         cancelled.CancelledAt = nowUtc.AddDays(-3);
         cancelled.CancellationInitiator = CancellationInitiator.GuestInitiated;
         cancelled.CancellationReason = "Gruppen fick förhinder och avbokar.";
-        cancelled.DepositInvoiced = true;
         cancelled.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Cancelled, today.AddDays(-15), cancelled.CheckOut, today.AddDays(-3));
         db.Bookings.Add(cancelled);

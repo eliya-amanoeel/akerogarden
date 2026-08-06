@@ -148,17 +148,30 @@ public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
     }
 
     /// <summary>
-    /// Counts references that block a hard-delete (FR-16). Two-layered: rooms in the building
-    /// (Phase 1), plus the transitive check added in Phase 4 — participants assigned to any of
-    /// those rooms via the live <see cref="Participant.RoomId"/> link (§8.5). Either being non-zero
-    /// blocks the delete.
+    /// Counts references that block a hard-delete (FR-16). Three layers, any one of which blocks:
+    /// rooms in the building (Phase 1); bookings the building is assigned to via
+    /// <see cref="BookingBuildingAssignment"/> (§8.16, FR-103); and blocked periods scoped to the
+    /// building or to any of its rooms.
+    ///
+    /// The booking layer replaces the former transitive count of participants assigned to this
+    /// building's rooms, which died with per-participant room assignment. The blocked-period layer
+    /// is new: <see cref="BlockedPeriod.BuildingId"/> / <see cref="BlockedPeriod.RoomId"/> are
+    /// <b>logical references, not foreign keys</b> (see ApplicationDbContext), so deleting a building
+    /// silently orphans blocks pointing at it or at its rooms.
+    ///
+    /// Note the room layer alone made this guard look safe while the participant layer was rotting —
+    /// a lodging building always has rooms, so the delete was blocked by coincidence rather than by
+    /// design. The layers below are each load-bearing on their own.
     /// </summary>
     private async Task<int> CountReferencesAsync(Guid buildingId)
     {
         var roomCount = await db.Rooms.CountAsync(r => r.BuildingId == buildingId);
-        var participantCount = await db.Participants
-            .CountAsync(p => p.Room != null && p.Room.BuildingId == buildingId);
-        return roomCount + participantCount;
+        var assignmentCount = await db.BookingBuildingAssignments
+            .CountAsync(a => a.BuildingId == buildingId);
+        var blockCount = await db.BlockedPeriods
+            .CountAsync(p => p.BuildingId == buildingId
+                || (p.RoomId != null && db.Rooms.Any(r => r.Id == p.RoomId && r.BuildingId == buildingId)));
+        return roomCount + assignmentCount + blockCount;
     }
 }
 

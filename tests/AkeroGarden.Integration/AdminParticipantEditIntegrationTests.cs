@@ -10,8 +10,7 @@ namespace AkeroGarden.Integration;
 
 /// <summary>
 /// Integration coverage for the admin's post-submission participant editing (Phase 4 slice 6,
-/// FR-48/56): the GuestChoosesRooms toggle, editing participant fields + meal choices + room
-/// assignment (re-snapshotting) with no status change, and room-conflict surfacing.
+/// FR-48): editing participant fields + meal choices with no status change (C10).
 /// </summary>
 public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
 {
@@ -24,7 +23,6 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
         {
             s.AddSingleton<IEmailService>(new FakeEmailService());
             s.AddScoped<BookingEmailService>();
-            s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
             s.AddScoped<BuildingService>();
@@ -75,6 +73,8 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
             MealPlan = MealPlan.FullBoardAll,
             AcceptPrivacyPolicy = true
         }, createdByAdmin: true);
+        // Approval requires a lodging assignment (FR-103/D1).
+        await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
         await bookings.ApproveAsync(booking.Id);
         var token = (await db.Bookings.FindAsync(booking.Id))!.CompletionToken!;
 
@@ -93,24 +93,17 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
         return new Setup(booking.Id, room.Id, lunch.Id, dinner2.Id);
     }
 
-    [Fact]
-    public async Task SetGuestChoosesRooms_TogglesFlag()
-    {
-        var provider = NewProvider();
-        var setup = await SetupAsync(provider);
-
-        using (var scope = provider.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<BookingService>().SetGuestChoosesRoomsAsync(setup.BookingId, true);
-
-        using (var scope = provider.CreateScope())
-        {
-            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            Assert.True((await db.Bookings.FindAsync(setup.BookingId))!.GuestChoosesRooms);
-        }
-    }
+    // REMOVED 2026-08-06 (demo-feedback slice 2): SetGuestChoosesRooms_TogglesFlag and
+    // GetConflicts_FlagsOverAssignedRoom. The room-choice toggle and room-conflict detection were
+    // both deleted with per-participant room assignment (FR-56 tombstoned) — the system cannot
+    // over-assign a room it never assigns. Nothing weaker remains to assert.
+    //
+    // What replaced them is covered elsewhere: the admin now assigns buildings before approval
+    // (BuildingAssignmentIntegrationTests), and over-capacity is a non-blocking approval warning
+    // measured against the assigned buildings' beds rather than a per-room conflict.
 
     [Fact]
-    public async Task SaveParticipantEdits_UpdatesFields_AssignsRoom_ChangesMeal_NoStatusChange()
+    public async Task SaveParticipantEdits_UpdatesFields_ChangesMeal_NoStatusChange()
     {
         var provider = NewProvider();
         var setup = await SetupAsync(provider);
@@ -127,7 +120,6 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
                 Id = p.Id,
                 FullName = p.FullName,
                 AgeCategory = p.AgeCategory,
-                RoomId = p.RoomId,
                 Dietary = [.. p.DietaryRequirements],
                 Meals = p.MealPreferences.Select(m => new MealEdit { Id = m.Id, MealOptionId = m.MealOptionId }).ToList(),
             }).ToList();
@@ -136,7 +128,6 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
             edit.FullName = "Ändrat Namn";
             edit.AgeCategory = AgeCategory.Child;
             edit.Dietary = [DietaryRequirement.Vegan];
-            edit.RoomId = setup.RoomId;
             // change one dinner meal to the alternative dinner option
             var dinnerMeal = target.MealPreferences.First(m => m.MealType == MealType.Dinner);
             edit.Meals.First(m => m.Id == dinnerMeal.Id).MealOptionId = setup.DinnerId;
@@ -155,43 +146,7 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
             var edited = booking.Participants.Single(p => p.FullName == "Ändrat Namn");
             Assert.Equal(AgeCategory.Child, edited.AgeCategory);
             Assert.Equal([DietaryRequirement.Vegan], edited.DietaryRequirements);
-            Assert.Equal(setup.RoomId, edited.RoomId);
-            Assert.StartsWith("Rum 1 — Blidö", edited.RoomAssignmentSnapshot); // "Room — Building" snapshot
             Assert.Contains(edited.MealPreferences, m => m.MealOptionId == setup.DinnerId && m.MealOptionSnapshot == "Burgare");
-        }
-    }
-
-    [Fact]
-    public async Task GetConflicts_FlagsOverAssignedRoom()
-    {
-        var provider = NewProvider();
-        var setup = await SetupAsync(provider);
-
-        // Assign BOTH participants to the single-bed room → over capacity.
-        using (var scope = provider.CreateScope())
-        {
-            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
-            var booking = await service.GetWithParticipantsAsync(setup.BookingId);
-            var edits = booking!.Participants.Select(p => new ParticipantEdit
-            {
-                Id = p.Id,
-                FullName = p.FullName,
-                AgeCategory = p.AgeCategory,
-                RoomId = setup.RoomId,
-                Dietary = [.. p.DietaryRequirements],
-                Meals = [],
-            }).ToList();
-            await service.SaveParticipantEditsAsync(setup.BookingId, edits);
-        }
-
-        using (var scope = provider.CreateScope())
-        {
-            var availability = scope.ServiceProvider.GetRequiredService<RoomAvailabilityService>();
-            var conflicts = await availability.GetConflictsAsync(setup.BookingId);
-            var conflict = Assert.Single(conflicts);
-            Assert.Equal(setup.RoomId, conflict.RoomId);
-            Assert.Equal(2, conflict.AssignedBeds);
-            Assert.Equal(1, conflict.BedCount);
         }
     }
 }

@@ -48,6 +48,16 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToGuestAsync(booking, content);
     }
 
+    /// <summary>The assigned lodging buildings by name (FR-103), read from the assignment
+    /// <b>snapshots</b> so the guest is told what was agreed even if the building was renamed since
+    /// (NFR-16). Requires <see cref="Booking.BuildingAssignments"/> to be loaded — an unloaded
+    /// collection yields an empty list, which the templates render as no lodging line at all.</summary>
+    private static IReadOnlyList<string> AssignedBuildingNames(Booking booking) =>
+        booking.BuildingAssignments
+            .Select(a => a.BuildingNameSnapshot)
+            .OrderBy(n => n, StringComparer.CurrentCulture)
+            .ToList();
+
     /// <summary>Approval email with the completion magic link and its exact expiry (FR-52).
     /// Requires <see cref="Booking.CompletionToken"/> and <see cref="Booking.CompletionTokenExpiry"/> to be set.</summary>
     public Task SendApprovalAsync(Booking booking)
@@ -59,7 +69,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             booking.ContactName,
             BuildCompletionUrl(booking.CompletionToken),
             booking.CompletionTokenExpiry.Value,
-            booking.BookingReference);
+            booking.BookingReference,
+            AssignedBuildingNames(booking));
         return SendToGuestAsync(booking, content);
     }
 
@@ -72,7 +83,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         var meals = booking.Participants.Sum(p => p.MealPreferences.Count);
         var content = BookingEmailTemplates.TwoWeekReminder(
             booking.ContactName, overnight, dayGuests, meals, booking.CheckIn, booking.CheckOut,
-            _opts.PropertyAddress, booking.BookingReference);
+            _opts.PropertyAddress, booking.BookingReference, AssignedBuildingNames(booking));
         return SendToGuestAsync(booking, content);
     }
 

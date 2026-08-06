@@ -84,7 +84,6 @@ public class DayGuestNormalizerTests
         Assert.Equal(new DateOnly(2026, 8, 11), p.AttendanceDate);
         Assert.True(p.AttendsBreakfast);
         Assert.False(p.IsFullBoard);
-        Assert.Null(p.RoomId);
         Assert.Equal(2, p.MealPreferences.Count); // lunch + dinner, both for the attendance date
         Assert.All(p.MealPreferences, mp => Assert.Equal(new DateOnly(2026, 8, 11), mp.Date));
         Assert.All(p.MealPreferences, mp => Assert.False(string.IsNullOrEmpty(mp.MealOptionSnapshot)));

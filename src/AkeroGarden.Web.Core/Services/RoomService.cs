@@ -93,10 +93,16 @@ public class RoomService(ApplicationDbContext db, IAuditWriter audit)
     public static bool CanHardDelete(int referenceCount) => referenceCount == 0;
 
     /// <summary>
-    /// Counts references that block a hard-delete (FR-20): participants assigned to this room via
-    /// the live <see cref="Participant.RoomId"/> link (§8.5). Wired in Phase 4 now that Participant
-    /// exists.
+    /// Counts references that block a hard-delete (FR-20): blocked periods scoped to this room.
+    ///
+    /// This guard previously counted participants assigned to the room via <c>Participant.RoomId</c>.
+    /// That link was removed with per-participant room assignment (FR-103), which would have left the
+    /// count at zero for ever — <see cref="CanHardDelete"/> always true, every room hard-deletable,
+    /// and no test failing. FR-20 is therefore repointed at blocked-period integrity rather than
+    /// tombstoned: <see cref="BlockedPeriod.RoomId"/> is a <b>logical reference, not a foreign key</b>
+    /// (see ApplicationDbContext), so deleting a room silently orphans any room-scoped block pointing
+    /// at it — a real hole that predates this change and was guarded by nothing.
     /// </summary>
     private Task<int> CountReferencesAsync(Guid roomId) =>
-        db.Participants.CountAsync(p => p.RoomId == roomId);
+        db.BlockedPeriods.CountAsync(p => p.RoomId == roomId);
 }

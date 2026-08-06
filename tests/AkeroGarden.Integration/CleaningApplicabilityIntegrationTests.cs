@@ -28,7 +28,6 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
         {
             s.AddSingleton<IEmailService>(new FakeEmailService());
             s.AddScoped<BookingEmailService>();
-            s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
             s.AddScoped<BuildingService>();
@@ -142,7 +141,7 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
 
     private static async Task<(Guid BookingId, string Token)> SeedApprovedBookingAsync(
         IServiceProvider provider, ApplicationDbContext db, BookingService bookings,
-        bool guestChoosesRooms, Ref? withFacility = null, int overnightCount = 2)
+        Building[] assign, Ref? withFacility = null, int overnightCount = 2)
     {
         var input = new StayRequestInput
         {
@@ -156,17 +155,40 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
             AcceptPrivacyPolicy = true,
         };
         var booking = await bookings.CreateStayRequestAsync(input, createdByAdmin: true);
+
+        // Sleeping-cleaning zones resolve from the assigned buildings (FR-93), and assignment is a
+        // precondition of approval (FR-103/D1) — so the buildings are chosen here, before approving.
+        await AssignAsync(db, booking.Id, assign);
         await bookings.ApproveAsync(booking.Id);
 
         var persisted = await db.Bookings.FindAsync(booking.Id);
-        persisted!.GuestChoosesRooms = guestChoosesRooms;
-        await db.SaveChangesAsync();
+        return (booking.Id, persisted!.CompletionToken!);
+    }
 
-        return (booking.Id, persisted.CompletionToken!);
+    /// <summary>Assigns specific lodging buildings, replacing any existing assignment.</summary>
+    private static async Task AssignAsync(ApplicationDbContext db, Guid bookingId, params Building[] buildings)
+    {
+        var existing = await db.BookingBuildingAssignments.Where(a => a.BookingId == bookingId).ToListAsync();
+        db.BookingBuildingAssignments.RemoveRange(existing);
+        foreach (var b in buildings)
+        {
+            var physicalName = await db.PhysicalBuildings
+                .Where(p => p.Id == b.PhysicalBuildingId).Select(p => p.Name).FirstAsync();
+            db.BookingBuildingAssignments.Add(new BookingBuildingAssignment
+            {
+                Id = Guid.NewGuid(),
+                BookingId = bookingId,
+                BuildingId = b.Id,
+                BuildingNameSnapshot = b.Name,
+                PhysicalBuildingNameSnapshot = physicalName,
+                AssignedAt = DateTime.UtcNow,
+            });
+        }
+        await db.SaveChangesAsync();
     }
 
     private static CompletionFormModel Form(
-        bool main, bool sleeping, bool conference, params string?[] roomChoices)
+        bool main, bool sleeping, bool conference, int participants = 2)
     {
         var form = new CompletionFormModel
         {
@@ -174,14 +196,13 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
             SleepingCleaning = sleeping,
             ConferenceCleaning = conference,
         };
-        foreach (var choice in roomChoices)
+        for (var i = 0; i < participants; i++)
         {
             form.Overnight.Add(new OvernightParticipantEntry
             {
                 FullName = $"Deltagare {form.Overnight.Count + 1}",
                 AgeCategory = AgeCategory.Adult,
                 IsFullBoard = false,
-                RoomChoice = choice,
             });
         }
         return form;
@@ -195,10 +216,10 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
         var r = await SeedReferenceDataAsync(db);
-        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, guestChoosesRooms: false);
+        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, [r.Blido]);
 
         var result = await bookings.SubmitCompletionAsync(
-            token, Form(main: true, sleeping: false, conference: false, roomChoices: [null, null]), DateTime.UtcNow);
+            token, Form(main: true, sleeping: false, conference: false), DateTime.UtcNow);
         Assert.Equal(CompletionSubmitOutcome.Success, result.Outcome);
 
         var reloaded = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
@@ -216,12 +237,12 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
-        await SeedReferenceDataAsync(db);
+        var r = await SeedReferenceDataAsync(db);
         // No Konferensrum facility selected on this booking.
-        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, guestChoosesRooms: false);
+        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, [r.Blido]);
 
         var result = await bookings.SubmitCompletionAsync(
-            token, Form(main: false, sleeping: false, conference: true, roomChoices: [null, null]), DateTime.UtcNow);
+            token, Form(main: false, sleeping: false, conference: true), DateTime.UtcNow);
         Assert.Equal(CompletionSubmitOutcome.Success, result.Outcome);
 
         var reloaded = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
@@ -237,10 +258,10 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
         var r = await SeedReferenceDataAsync(db);
-        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, guestChoosesRooms: false, withFacility: r);
+        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, [r.Blido], withFacility: r);
 
         var result = await bookings.SubmitCompletionAsync(
-            token, Form(main: false, sleeping: false, conference: true, roomChoices: [null, null]), DateTime.UtcNow);
+            token, Form(main: false, sleeping: false, conference: true), DateTime.UtcNow);
         Assert.Equal(CompletionSubmitOutcome.Success, result.Outcome);
 
         var reloaded = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
@@ -250,17 +271,17 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task Submit_SleepingChosen_WithRoomAtCompletion_ResolvesZoneImmediately()
+    public async Task Submit_SleepingChosen_ResolvesZoneFromTheAssignedBuilding()
     {
         var provider = NewProvider();
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
         var r = await SeedReferenceDataAsync(db);
-        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, guestChoosesRooms: true);
+        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, [r.Blido]);
 
         var result = await bookings.SubmitCompletionAsync(
-            token, Form(main: false, sleeping: true, conference: false, roomChoices: [r.BlidoRum1.Id.ToString(), null]),
+            token, Form(main: false, sleeping: true, conference: false),
             DateTime.UtcNow);
         Assert.Equal(CompletionSubmitOutcome.Success, result.Outcome);
 
@@ -271,17 +292,17 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task Submit_SleepingNotChosen_NoZoneEvenWithRoomAssigned()
+    public async Task Submit_SleepingNotChosen_NoZoneEvenWithABuildingAssigned()
     {
         var provider = NewProvider();
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
         var r = await SeedReferenceDataAsync(db);
-        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, guestChoosesRooms: true);
+        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, [r.Blido]);
 
         var result = await bookings.SubmitCompletionAsync(
-            token, Form(main: false, sleeping: false, conference: false, roomChoices: [r.BlidoRum1.Id.ToString(), null]),
+            token, Form(main: false, sleeping: false, conference: false),
             DateTime.UtcNow);
         Assert.Equal(CompletionSubmitOutcome.Success, result.Outcome);
 
@@ -294,19 +315,18 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
     public async Task Submit_TwoUnitsInSamePhysicalBuilding_ResolvesToOneZoneRow()
     {
         // Blidö and Tjockö are two different lodging Buildings but share Lilla bostadslängan — the
-        // "one row per physical building, never per room/unit" rule (§5.5, §8.12).
+        // "one row per physical building, never per lodging unit" rule (§5.5, §8.12). Both must be
+        // assigned or this asserts nothing.
         var provider = NewProvider();
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
         var r = await SeedReferenceDataAsync(db);
-        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, guestChoosesRooms: true);
+        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, [r.Blido, r.Tjocko]);
 
         var result = await bookings.SubmitCompletionAsync(
             token,
-            Form(main: false, sleeping: true, conference: false,
-                roomChoices: [r.BlidoRum1.Id.ToString(), r.TjockoRum1.Id.ToString()]),
-            DateTime.UtcNow);
+            Form(main: false, sleeping: true, conference: false), DateTime.UtcNow);
         Assert.Equal(CompletionSubmitOutcome.Success, result.Outcome);
 
         var reloaded = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
@@ -315,65 +335,56 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task AdminAssignsRoomAfterCompletion_ResolvesSleepingZone()
+    public async Task RemovingTheAssignmentAfterCompletion_RemovesTheSleepingZone()
     {
-        // GuestChoosesRooms=false: the guest completes without a room, the admin assigns it
-        // afterward — the sleeping-zone selection must appear only once that assignment happens.
+        // Replaces AdminAssignsRoomAfterCompletion_ResolvesSleepingZone, whose premise no longer
+        // exists: rooms were assigned after the guest submitted, so a booking could sit completed
+        // with nothing to resolve from. Buildings are assigned before approval (FR-103/D1), so the
+        // zone is known at submission. The behaviour still worth pinning is the inverse — the
+        // resolution follows the assignment when it *changes* (D5), including down to nothing.
         var provider = NewProvider();
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
         var r = await SeedReferenceDataAsync(db);
-        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, guestChoosesRooms: false, overnightCount: 1);
+        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, [r.Blido], overnightCount: 1);
 
         await bookings.SubmitCompletionAsync(
-            token, Form(main: false, sleeping: true, conference: false, roomChoices: [null]), DateTime.UtcNow);
-
-        var afterSubmit = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
-        Assert.Empty(afterSubmit.CleaningSelections); // no room yet → nothing to resolve
-
-        var participant = await db.Participants.SingleAsync(p => p.BookingId == bookingId);
-        await bookings.SaveParticipantEditsAsync(bookingId, [new ParticipantEdit
-        {
-            Id = participant.Id,
-            FullName = participant.FullName,
-            AgeCategory = participant.AgeCategory,
-            RoomId = r.Vato1Rum1.Id,
-        }]);
-
-        var afterAssign = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
-        var selection = Assert.Single(afterAssign.CleaningSelections);
-        Assert.Equal(r.StoraZone.Id, selection.CleaningZoneId);
-    }
-
-    [Fact]
-    public async Task AdminReassignsRoomToDifferentPhysicalBuilding_SwapsTheZoneSelection()
-    {
-        var provider = NewProvider();
-        using var scope = provider.CreateScope();
-        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
-        var r = await SeedReferenceDataAsync(db);
-        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, guestChoosesRooms: true, overnightCount: 1);
-
-        await bookings.SubmitCompletionAsync(
-            token, Form(main: false, sleeping: true, conference: false, roomChoices: [r.BlidoRum1.Id.ToString()]),
-            DateTime.UtcNow);
+            token, Form(main: false, sleeping: true, conference: false, participants: 1), DateTime.UtcNow);
 
         var afterSubmit = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
         Assert.Equal(r.LillaZone.Id, Assert.Single(afterSubmit.CleaningSelections).CleaningZoneId);
 
-        var participant = await db.Participants.SingleAsync(p => p.BookingId == bookingId);
-        await bookings.SaveParticipantEditsAsync(bookingId, [new ParticipantEdit
-        {
-            Id = participant.Id,
-            FullName = participant.FullName,
-            AgeCategory = participant.AgeCategory,
-            RoomId = r.Vato1Rum1.Id, // move from Lilla (Blidö) to Stora (Vätö 1)
-        }]);
+        var cleared = await bookings.SetBuildingAssignmentsAsync(bookingId, []);
+        Assert.True(cleared.Succeeded);
 
+        db.ChangeTracker.Clear();
+        var afterClear = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
+        Assert.Empty(afterClear.CleaningSelections);
+    }
+
+    [Fact]
+    public async Task ReassigningToADifferentPhysicalBuilding_SwapsTheZoneSelection()
+    {
+        var provider = NewProvider();
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
+        var r = await SeedReferenceDataAsync(db);
+        var (bookingId, token) = await SeedApprovedBookingAsync(provider, db, bookings, [r.Blido], overnightCount: 1);
+
+        await bookings.SubmitCompletionAsync(
+            token, Form(main: false, sleeping: true, conference: false, participants: 1), DateTime.UtcNow);
+
+        var afterSubmit = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
+        Assert.Equal(r.LillaZone.Id, Assert.Single(afterSubmit.CleaningSelections).CleaningZoneId);
+
+        // Move from Lilla (Blidö) to Stora (Vätö 1) — the old row must go, not accumulate.
+        var moved = await bookings.SetBuildingAssignmentsAsync(bookingId, [r.Vato1.Id]);
+        Assert.True(moved.Succeeded);
+
+        db.ChangeTracker.Clear();
         var afterMove = await db.Bookings.Include(b => b.CleaningSelections).SingleAsync(b => b.Id == bookingId);
-        var selection = Assert.Single(afterMove.CleaningSelections);
-        Assert.Equal(r.StoraZone.Id, selection.CleaningZoneId); // old Lilla row is gone, Stora row replaced it
+        Assert.Equal(r.StoraZone.Id, Assert.Single(afterMove.CleaningSelections).CleaningZoneId);
     }
 }

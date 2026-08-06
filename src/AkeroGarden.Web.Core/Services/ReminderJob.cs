@@ -33,6 +33,7 @@ public class ReminderJob(
         var windowEnd = today.AddDays(ReminderSchedule.LeadDays);
         var due = await db.Bookings
             .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
+            .Include(b => b.BuildingAssignments) // named in the reminder (FR-64)
             .Where(b => b.ReminderEmailSentAt == null
                         && b.CheckIn != null
                         && b.CheckIn >= today

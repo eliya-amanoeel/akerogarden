@@ -29,7 +29,6 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         {
             s.AddSingleton<IEmailService>(fake);
             s.AddScoped<BookingEmailService>();
-            s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
             s.Configure<BookingEmailOptions>(o =>
@@ -68,6 +67,8 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
             MealPlan = mealPlan,
             AcceptPrivacyPolicy = true
         }, createdByAdmin: true);
+        // Approval requires a lodging assignment (FR-103/D1).
+        await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
         await service.ApproveAsync(booking.Id);
 
         var token = (await db.Bookings.FindAsync(booking.Id))!.CompletionToken!;
@@ -166,7 +167,6 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
             var dayGuest = Assert.Single(booking.Participants, p => p.ParticipantType == ParticipantType.DayGuest);
             Assert.Equal(new DateOnly(2026, 8, 11), dayGuest.AttendanceDate);
             Assert.True(dayGuest.AttendsBreakfast);
-            Assert.Null(dayGuest.RoomId);
             Assert.Equal(2, dayGuest.MealPreferences.Count); // lunch + dinner for the attended date
         }
     }

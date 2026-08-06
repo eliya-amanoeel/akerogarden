@@ -66,18 +66,16 @@ public static class CompletionNormalizer
     /// Builds the overnight <see cref="Participant"/> graph (with meal preferences + snapshots) from
     /// a form assumed to have passed <see cref="Validate"/>. Applies the server-authoritative rules:
     /// no meals for self-catering participants; each meal choice must be an active option of the
-    /// slot's meal type or it is dropped. Room assignment (<see cref="Participant.RoomId"/>) is left
-    /// null here — it is a slice-5 concern.
+    /// slot's meal type or it is dropped.
+    ///
+    /// <para>Participants carry no room assignment (FR-56 tombstoned) — the group's lodging is
+    /// recorded per booking against buildings by the admin before approval (FR-103, §8.16), and the
+    /// group divides itself among those buildings' rooms offline.</para>
     /// </summary>
-    /// <param name="availableRoomsById">When the booking's <c>GuestChoosesRooms</c> is true, the
-    /// rooms the guest may pick (id → room), used to set <see cref="Participant.RoomId"/> and the
-    /// <see cref="Participant.RoomAssignmentSnapshot"/>. Null (or a choice not in the set) leaves the
-    /// participant unassigned — the admin assigns in the panel (FR-56, slice 6).</param>
     public static List<Participant> BuildParticipants(
         CompletionFormModel form,
         IReadOnlyList<MealSlot> slots,
-        IReadOnlyDictionary<Guid, MealOption> activeOptionsById,
-        IReadOnlyDictionary<Guid, RoomInfo>? availableRoomsById = null)
+        IReadOnlyDictionary<Guid, MealOption> activeOptionsById)
     {
         var participants = new List<Participant>(form.Overnight.Count);
 
@@ -93,16 +91,6 @@ public static class CompletionNormalizer
                 DietaryRequirements = NormalizeDietary(entry.Dietary ?? []),
                 DietaryNotes = string.IsNullOrWhiteSpace(entry.DietaryNotes) ? null : entry.DietaryNotes.Trim(),
             };
-
-            // Room assignment (FR-56) — only an available room is accepted; snapshot the name +
-            // building at assignment time (NFR-16). Unassigned participants keep RoomId null.
-            if (availableRoomsById is not null
-                && Guid.TryParse(entry.RoomChoice, out var roomId)
-                && availableRoomsById.TryGetValue(roomId, out var room))
-            {
-                participant.RoomId = room.Id;
-                participant.RoomAssignmentSnapshot = $"{room.Name} — {room.BuildingName}";
-            }
 
             if (entry.IsFullBoard)
             {

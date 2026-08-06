@@ -62,6 +62,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         await db.Participants.ExecuteDeleteAsync();
         await db.BookingFacilitySelections.ExecuteDeleteAsync();
         await db.BookingCleaningSelections.ExecuteDeleteAsync();
+        await db.BookingBuildingAssignments.ExecuteDeleteAsync();
         await db.Bookings.ExecuteDeleteAsync();
         await db.BlockedPeriods.ExecuteDeleteAsync();
         await db.Rooms.ExecuteDeleteAsync();
@@ -336,6 +337,8 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         var singo = r.Buildings.First(b => b.Name == "Singö");
         var ljustero = r.Buildings.First(b => b.Name == "Ljusterö");
         var blido = r.Buildings.First(b => b.Name == "Blidö");
+        var vato1 = r.Buildings.First(b => b.Name == "Vätö 1");
+        var vato2 = r.Buildings.First(b => b.Name == "Vätö 2");
 
         // 1. Pending — a fresh stay request awaiting an admin decision, with selections.
         // Cleaning is not chosen at this stage under the new model (FR-93) — it is a
@@ -360,13 +363,14 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             today.AddDays(30), today.AddDays(33), overnight: 24, dayGuests: 6,
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-6));
         approved.Status = BookingStatus.Approved;
-        approved.GuestChoosesRooms = true;
         approved.CompletionToken = CompletionTokenPolicy.GenerateToken();
         approved.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(nowUtc, approved.CheckIn!.Value);
         approved.Message = "Konfirmationsläger för församlingen.";
         approved.AdminNotes = "Ringde och bekräftade antal – återkommer med matval via länken.";
         approved.DeleteAfter = null; // live state
         AddFacility(approved, konferensrum);
+        AddBuilding(approved, vato1);
+        AddBuilding(approved, vato2);
         db.Bookings.Add(approved);
 
         // 3. DetailsComplete — guest submitted the completion form (participants + meals + rooms +
@@ -378,19 +382,18 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             today.AddDays(25), today.AddDays(28), overnight: 4, dayGuests: 1,
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-9));
         details.Status = BookingStatus.DetailsComplete;
-        details.GuestChoosesRooms = true;
         details.DeleteAfter = null;
         details.MainBuildingCleaningPurchased = true;
         details.SleepingCleaningPurchased = true;
         AddFacility(details, r.Facilities.First(f => f.Name == "Kapellet"));
         AddZone(details, huvudZone);
         AddZone(details, lillaZone);
-        var detailsRoom = r.Rooms.First(x => x.BuildingId == tjocko.Id && x.Name == "Rum 2"); // 2 beds
-        AddOvernight(details, "Anna Sjöberg", AgeCategory.Adult, detailsRoom, [DietaryRequirement.LactoseFree], null, r);
-        AddOvernight(details, "Erik Sjöberg", AgeCategory.Adult, detailsRoom, [], null, r);
-        var detailsRoom2 = r.Rooms.First(x => x.BuildingId == singo.Id && x.Name == "Rum 2"); // 5 beds
-        AddOvernight(details, "Maja Sjöberg", AgeCategory.Child, detailsRoom2, [DietaryRequirement.NutAllergy], null, r);
-        AddOvernight(details, "Olle Sjöberg", AgeCategory.Child, detailsRoom2, [], null, r);
+        AddBuilding(details, tjocko);
+        AddBuilding(details, singo);
+        AddOvernight(details, "Anna Sjöberg", AgeCategory.Adult, [DietaryRequirement.LactoseFree], null, r);
+        AddOvernight(details, "Erik Sjöberg", AgeCategory.Adult, [], null, r);
+        AddOvernight(details, "Maja Sjöberg", AgeCategory.Child, [DietaryRequirement.NutAllergy], null, r);
+        AddOvernight(details, "Olle Sjöberg", AgeCategory.Child, [], null, r);
         AddDayGuest(details, "Britt Sjöberg", AgeCategory.Adult, details.CheckIn!.Value.AddDays(1),
             attendsBreakfast: false, [DietaryRequirement.Vegetarian], null, r);
         db.Bookings.Add(details);
@@ -403,14 +406,13 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             today.AddDays(-1), today.AddDays(2), overnight: 3, dayGuests: 0,
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-20));
         active.Status = BookingStatus.Active;
-        active.GuestChoosesRooms = false;
         active.DeleteAfter = null;
         active.MainBuildingCleaningPurchased = false;
         active.SleepingCleaningPurchased = false;
-        var activeRoom = r.Rooms.First(x => x.BuildingId == ljustero.Id && x.Name == "Rum 3"); // 4 beds
-        AddOvernight(active, "Peter Nyström", AgeCategory.Adult, activeRoom, [], null, r);
-        AddOvernight(active, "Lena Nyström", AgeCategory.Adult, activeRoom, [DietaryRequirement.GlutenFree], null, r);
-        AddOvernight(active, "Sven Åkesson", AgeCategory.Adult, activeRoom,
+        AddBuilding(active, ljustero);
+        AddOvernight(active, "Peter Nyström", AgeCategory.Adult, [], null, r);
+        AddOvernight(active, "Lena Nyström", AgeCategory.Adult, [DietaryRequirement.GlutenFree], null, r);
+        AddOvernight(active, "Sven Åkesson", AgeCategory.Adult,
             [DietaryRequirement.Other], "Undviker fläskkött.", r);
         db.Bookings.Add(active);
 
@@ -421,19 +423,18 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             today.AddDays(-30), today.AddDays(-27), overnight: 5, dayGuests: 2,
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-60));
         completed.Status = BookingStatus.Completed;
-        completed.GuestChoosesRooms = true;
         completed.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Completed, today.AddDays(-60), completed.CheckOut, today.AddDays(-27));
         completed.MainBuildingCleaningPurchased = true;
         completed.SleepingCleaningPurchased = true;
         AddZone(completed, huvudZone);
         AddZone(completed, lillaZone);
-        var compRoom = r.Rooms.First(x => x.BuildingId == ljustero.Id && x.Name == "Rum 2"); // 6 beds
-        AddOvernight(completed, "Margareta Holm", AgeCategory.Adult, compRoom, [], null, r);
-        AddOvernight(completed, "Gustav Holm", AgeCategory.Adult, compRoom, [], null, r);
-        AddOvernight(completed, "Elin Holm", AgeCategory.Adult, compRoom, [DietaryRequirement.Vegan], null, r);
-        AddOvernight(completed, "Nils Holm", AgeCategory.Child, compRoom, [], null, r);
-        AddOvernight(completed, "Alva Holm", AgeCategory.Child, compRoom, [], null, r);
+        AddBuilding(completed, ljustero);
+        AddOvernight(completed, "Margareta Holm", AgeCategory.Adult, [], null, r);
+        AddOvernight(completed, "Gustav Holm", AgeCategory.Adult, [], null, r);
+        AddOvernight(completed, "Elin Holm", AgeCategory.Adult, [DietaryRequirement.Vegan], null, r);
+        AddOvernight(completed, "Nils Holm", AgeCategory.Child, [], null, r);
+        AddOvernight(completed, "Alva Holm", AgeCategory.Child, [], null, r);
         AddDayGuest(completed, "Kerstin Ek", AgeCategory.Adult, completed.CheckIn!.Value.AddDays(1),
             attendsBreakfast: true, [], null, r);
         AddDayGuest(completed, "Bengt Ek", AgeCategory.Adult, completed.CheckIn!.Value.AddDays(1),
@@ -562,10 +563,25 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             VatRateSnapshot = z.VatRate,
         });
 
-    // Overnight participant with full-board meals following the §4.1 meals-by-day rule and a room
-    // assignment snapshot (as a real completion submission would capture — NFR-15/16).
+    // The lodging buildings a group sleeps in (§8.16, FR-103), with the name snapshots a real
+    // assignment captures (NFR-16).
+    private void AddBuilding(Booking b, Building building) =>
+        b.BuildingAssignments.Add(new BookingBuildingAssignment
+        {
+            Id = Guid.NewGuid(),
+            BuildingId = building.Id,
+            BuildingNameSnapshot = building.Name,
+            PhysicalBuildingNameSnapshot =
+                db.PhysicalBuildings.Local.FirstOrDefault(x => x.Id == building.PhysicalBuildingId)?.Name
+                ?? string.Empty,
+            AssignedAt = DateTime.UtcNow,
+        });
+
+    // Overnight participant with full-board meals following the §4.1 meals-by-day rule. Carries no
+    // room assignment: the group's lodging is recorded per booking against buildings (§8.16,
+    // FR-103), and who sleeps where inside them is not tracked.
     private void AddOvernight(
-        Booking b, string name, AgeCategory age, Room room,
+        Booking b, string name, AgeCategory age,
         List<DietaryRequirement> dietary, string? dietaryNotes, RefData r)
     {
         var p = new Participant
@@ -574,8 +590,6 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             FullName = name,
             ParticipantType = ParticipantType.Overnight,
             AgeCategory = age,
-            RoomId = room.Id,
-            RoomAssignmentSnapshot = $"{room.Name} ({r.Buildings.First(x => x.Id == room.BuildingId).Name})",
             IsFullBoard = true,
             AttendsBreakfast = true,
             DietaryRequirements = dietary,

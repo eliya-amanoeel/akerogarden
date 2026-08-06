@@ -428,6 +428,15 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Page.GotoAsync("/byggnader");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
+            // NetworkIdle is not a readiness signal on an Interactive Server page: the prerendered
+            // "Laddar…" is served long before the circuit connects and OnInitializedAsync loads the
+            // tree. Locally that gap is under a second, so asserting straight away passed; on the
+            // slower CI agent it exceeded the 5s expect timeout and this test failed there while
+            // passing 3/3 here. Wait for the placeholder to clear — the actual condition — rather
+            // than raising a timeout and hoping.
+            await Assertions.Expect(Page.Locator(".admin-empty", new() { HasText = "Laddar…" }))
+                .ToHaveCountAsync(0, new() { Timeout = 15000 });
+
             var pbRow = Page.Locator(".bldg-row--l0", new() { HasText = pbName });
             await Assertions.Expect(pbRow).ToBeVisibleAsync();
 
@@ -641,6 +650,62 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     /// email/one-way transition does NOT fire), and confirming actually approves it (reaches the
     /// "godkänd" toast). Seeded/cleaned up here so the shared Pending booking is untouched.</summary>
     [Fact]
+    public async Task Approving_without_a_building_assignment_is_refused()
+    {
+        // FR-103/D1 driven through the real UI: the approval email names the assigned buildings, so
+        // approving without them would send the guest an incomplete answer. Asserts the booking is
+        // genuinely still Pending afterwards, not merely that a message appeared.
+        var id = Guid.NewGuid();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Bookings.Add(new Booking
+            {
+                Id = id,
+                BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
+                BookingType = BookingType.StayRequest,
+                Status = BookingStatus.Pending,
+                ContactName = "Utan Byggnad",
+                ContactEmail = "utanbyggnad@example.se",
+                CheckIn = today.AddDays(70),
+                CheckOut = today.AddDays(72),
+                OvernightGuestCount = 4,
+                MealPlan = MealPlan.FullBoardAll,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                DeleteAfter = today.AddYears(1),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync($"/bokningar/{id}");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true }).ClickAsync();
+            var dialog = Page.GetByRole(AriaRole.Dialog);
+            await Assertions.Expect(dialog).ToBeVisibleAsync();
+            await dialog.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true }).ClickAsync();
+
+            await Assertions.Expect(Page.Locator(".form-status"))
+                .ToContainTextAsync("Tilldela minst en byggnad");
+
+            await using var check = Fixture.NewDbContext();
+            var booking = await check.Bookings.FindAsync(id);
+            Assert.Equal(BookingStatus.Pending, booking!.Status);
+            Assert.Null(booking.CompletionToken); // no magic link was issued
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Bookings.Where(b => b.Id == id).ExecuteDeleteAsync();
+        }
+    }
+
+    [Fact]
     public async Task Approve_gates_behind_confirmation_and_only_fires_on_confirm()
     {
         var id = Guid.NewGuid();
@@ -672,6 +737,13 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await LoginAsync();
             await Page.GotoAsync($"/bokningar/{id}");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            // Approval requires a lodging assignment (FR-103/D1), so reach an approvable state the
+            // way an admin does — through the assignment box — rather than seeding around the guard.
+            await Page.GetByRole(AriaRole.Checkbox, new() { Name = "Huvudbyggnaden" }).CheckAsync();
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Spara byggnadstilldelning" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status"))
+                .ToContainTextAsync("Byggnadstilldelningen är sparad.");
 
             var approve = Page.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true });
             await approve.ClickAsync();

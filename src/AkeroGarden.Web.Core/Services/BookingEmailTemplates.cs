@@ -107,13 +107,29 @@ public static class BookingEmailTemplates
         return new EmailContent(WithReference("Besked om din bokningsförfrågan", bookingReference), body.ToString());
     }
 
-    /// <summary>Approval email — magic link, exact expiry in plain text, deposit/cancellation policy (§9, FR-52).</summary>
-    public static EmailContent Approval(string contactName, string magicLinkUrl, DateTime expiryUtc, string bookingReference)
+    /// <summary>The lodging buildings the group has been given (FR-103). Omitted entirely rather
+    /// than rendered empty when nothing is assigned — approval requires an assignment, so an empty
+    /// set means a manually-created or otherwise unusual booking, and a blank "Ert boende:" line
+    /// would read as an error to the guest.</summary>
+    private static string LodgingLine(IReadOnlyList<string> buildingNames)
+    {
+        if (buildingNames.Count == 0) return string.Empty;
+        var label = buildingNames.Count == 1 ? "Ert boende" : "Era boenden";
+        return $"<p><strong>{label}:</strong> {Enc(string.Join(", ", buildingNames))}. "
+            + "Ni fördelar själva gruppen mellan rummen.</p>";
+    }
+
+    /// <summary>Approval email — magic link, exact expiry in plain text, the assigned lodging
+    /// buildings (FR-103), deposit/cancellation policy (§9, FR-52).</summary>
+    public static EmailContent Approval(
+        string contactName, string magicLinkUrl, DateTime expiryUtc, string bookingReference,
+        IReadOnlyList<string> assignedBuildingNames)
     {
         var body = new StringBuilder();
         body.Append(Greeting(contactName));
         body.Append("<p>Din bokningsförfrågan är godkänd! För att slutföra din bokning behöver du fylla i uppgifter om deltagare och måltider.</p>");
         body.Append(ReferenceLine(bookingReference));
+        body.Append(LodgingLine(assignedBuildingNames));
         body.Append($"<p><a href=\"{Enc(magicLinkUrl)}\">Slutför din bokning här</a></p>");
         body.Append($"<p>Länken är giltig till och med <strong>{FormatDateTime(expiryUtc)}</strong>. Fyll i uppgifterna före dess.</p>");
         body.Append("<h3>Handpenning och avbokning</h3>");
@@ -134,7 +150,8 @@ public static class BookingEmailTemplates
         DateOnly? checkIn,
         DateOnly? checkOut,
         string propertyAddress,
-        string bookingReference)
+        string bookingReference,
+        IReadOnlyList<string> assignedBuildingNames)
     {
         var body = new StringBuilder();
         body.Append(Greeting(contactName));
@@ -146,6 +163,8 @@ public static class BookingEmailTemplates
         body.Append($"<li><strong>Antal deltagare (övernattning):</strong> {overnightCount.ToString(Sv)}</li>");
         body.Append($"<li><strong>Antal dagsgäster:</strong> {dayGuestCount.ToString(Sv)}</li>");
         body.Append($"<li><strong>Antal beställda måltider:</strong> {fullBoardMealCount.ToString(Sv)}</li>");
+        if (assignedBuildingNames.Count > 0)
+            body.Append($"<li><strong>Ert boende:</strong> {Enc(string.Join(", ", assignedBuildingNames))}</li>");
         body.Append($"<li><strong>Adress:</strong> {Enc(propertyAddress)}</li>");
         body.Append("</ul>");
         body.Append("<p>Har ni frågor inför ankomsten är ni välkomna att kontakta oss.</p>");

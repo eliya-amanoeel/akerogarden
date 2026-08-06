@@ -30,6 +30,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<Booking> Bookings => Set<Booking>();
     public DbSet<BookingFacilitySelection> BookingFacilitySelections => Set<BookingFacilitySelection>();
     public DbSet<BookingCleaningSelection> BookingCleaningSelections => Set<BookingCleaningSelection>();
+    public DbSet<BookingBuildingAssignment> BookingBuildingAssignments => Set<BookingBuildingAssignment>();
     public DbSet<BlockedPeriod> BlockedPeriods => Set<BlockedPeriod>();
 
     // Phase 4 slice 1: completion flow — Participant + MealPreference.
@@ -188,6 +189,28 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             s.HasIndex(x => x.CleaningZoneId);
         });
 
+        builder.Entity<BookingBuildingAssignment>(a =>
+        {
+            a.Property(x => x.BuildingNameSnapshot).HasMaxLength(200);
+            a.Property(x => x.PhysicalBuildingNameSnapshot).HasMaxLength(200);
+
+            // Assignments follow the booking out under GDPR retention (FR-67/68/89/90).
+            a.HasOne(x => x.Booking!)
+                .WithMany(b => b.BuildingAssignments)
+                .HasForeignKey(x => x.BookingId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Live FK to Building; Restrict so a building assigned to a booking cannot be
+            // hard-deleted (FR-16) — defence in depth behind BuildingService.CanHardDelete.
+            a.HasOne(x => x.Building!)
+                .WithMany()
+                .HasForeignKey(x => x.BuildingId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // One row per building per booking — re-assigning the same building is not a new row.
+            a.HasIndex(x => new { x.BookingId, x.BuildingId }).IsUnique();
+        });
+
         builder.Entity<BlockedPeriod>(p =>
         {
             p.Property(x => x.Scope).HasConversion<string>().HasMaxLength(20);
@@ -219,24 +242,16 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             p.Property(x => x.ParticipantType).HasConversion<string>().HasMaxLength(20);
             p.Property(x => x.AgeCategory).HasConversion<string>().HasMaxLength(20);
             p.Property(x => x.FullName).HasMaxLength(200);
-            p.Property(x => x.RoomAssignmentSnapshot).HasMaxLength(300);
             p.Property(x => x.DietaryNotes).HasMaxLength(200);
 
             p.Property(x => x.DietaryRequirements)
                 .HasConversion(dietaryConverter)
                 .Metadata.SetValueComparer(dietaryComparer);
 
-            // Live FK → Room; Restrict so a room referenced by a participant cannot be
-            // hard-deleted (FR-20) — defence in depth behind RoomService.CanHardDelete.
-            p.HasOne(x => x.Room)
-                .WithMany()
-                .HasForeignKey(x => x.RoomId)
-                .OnDelete(DeleteBehavior.Restrict);
-
-            // Query participants by booking (completion + admin views) and by room (conflict
-            // detection / exclusion / the FR-20 guard count).
+            // No room relationship: participants are no longer assigned rooms (FR-56 tombstoned).
+            // The booking's lodging is recorded at building level instead — see
+            // BookingBuildingAssignment (§8.16, FR-103).
             p.HasIndex(x => x.BookingId);
-            p.HasIndex(x => x.RoomId);
         });
 
         builder.Entity<MealPreference>(m =>

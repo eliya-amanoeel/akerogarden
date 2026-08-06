@@ -61,10 +61,6 @@ public class Booking
 
     public MealPlan? MealPlan { get; set; }
 
-    /// <summary>True = the contact person assigns rooms on the completion form; false = admin
-    /// assigns rooms in the panel (§8.1, FR-56/57). Booking-wide, not per-participant.</summary>
-    public bool GuestChoosesRooms { get; set; }
-
     // ── Organisation / invoice (conditional) ────────────────────────────────────
     public bool IsOrganisation { get; set; }
 
@@ -81,6 +77,11 @@ public class Booking
     public List<BookingFacilitySelection> FacilitySelections { get; set; } = [];
 
     public List<BookingCleaningSelection> CleaningSelections { get; set; } = [];
+
+    /// <summary>The lodging buildings the group sleeps in (§8.16, FR-103). Assigned by the admin
+    /// before approval and editable afterwards; empty for general inquiries and for stay requests
+    /// with no overnight guests.</summary>
+    public List<BookingBuildingAssignment> BuildingAssignments { get; set; } = [];
 
     // ── Completion-form cleaning choice (FR-93, §5.5) ────────────────────────────
     /// <summary>Huvudbyggnad self-clean/buy toggle. Snapshot row written to

@@ -87,14 +87,10 @@ public class OvernightParticipantEntry
 
     public string? DietaryNotes { get; set; }
 
-    /// <summary>Chosen room id (string; empty = unassigned). Only collected when the booking's
-    /// <c>GuestChoosesRooms</c> is true (FR-56); string for the same SSR-binding reason as
-    /// <see cref="MealChoices"/>. Validated against the available rooms server-side.</summary>
-    public string? RoomChoice { get; set; }
 }
 
 /// <summary>One day guest's entry on the completion form (§4.2, §8.5, FR-58). A day guest occupies
-/// no bed/room and attends a single date for meals only.</summary>
+/// no bed and attends a single date for meals only.</summary>
 public class DayGuestEntry
 {
     public string? FullName { get; set; }

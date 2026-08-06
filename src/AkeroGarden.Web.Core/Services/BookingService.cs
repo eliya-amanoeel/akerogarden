@@ -12,14 +12,14 @@ namespace AkeroGarden.Web.Core.Services;
 /// FR-93), computes the initial retention date (FR-91), and fires the acknowledgement + admin
 /// notification emails (FR-05/06) — whose delivery is best-effort and never fails the booking
 /// (NFR-13). Completion submission (FR-93, §5.5) snapshots the Huvudbyggnad/Konferensbyggnad
-/// cleaning choices immediately and resolves the sleeping-building selection from room assignment
-/// (§8.12), refreshed whenever room assignment is set or changed.
+/// cleaning choices immediately and resolves the sleeping-building selection from the booking's
+/// assigned buildings (§8.12/8.16), re-resolved whenever that assignment changes.
 ///
 /// <para>Status changes (approve/deny/close/cancel) route through
 /// <see cref="BookingStateMachine"/>; this service is the only place bookings are mutated.</para>
 /// </summary>
 public class BookingService(
-    ApplicationDbContext db, BookingEmailService emails, RoomAvailabilityService rooms, CleaningZoneService cleaning,
+    ApplicationDbContext db, BookingEmailService emails, CleaningZoneService cleaning,
     IAuditWriter audit, ILogger<BookingService> logger)
 {
     /// <summary>Queues a booking-scoped audit entry (§8.15) on the current unit of work — persists
@@ -171,6 +171,7 @@ public class BookingService(
         await db.Bookings
             .Include(b => b.FacilitySelections)
             .Include(b => b.CleaningSelections)
+            .Include(b => b.BuildingAssignments)
             .SingleOrDefaultAsync(b => b.Id == id);
 
     // ── Completion link (magic link — §2.6, Phase 4) ───────────────────────────────
@@ -250,13 +251,7 @@ public class BookingService(
         var activeOptions = await db.MealOptions.Where(m => m.IsActive).ToListAsync();
         var optionsById = activeOptions.ToDictionary(o => o.Id);
 
-        // Room assignment is only collected when the booking lets the guest choose (FR-56);
-        // the available set is re-derived here, never trusted from the page.
-        IReadOnlyDictionary<Guid, RoomInfo>? roomsById = null;
-        if (booking.GuestChoosesRooms)
-            roomsById = (await rooms.GetAvailableRoomsAsync(booking.Id)).ToDictionary(r => r.Id);
-
-        var participants = CompletionNormalizer.BuildParticipants(form, slots, optionsById, roomsById);
+        var participants = CompletionNormalizer.BuildParticipants(form, slots, optionsById);
         if (dayGuestsApplicable)
             participants.AddRange(CompletionNormalizer.BuildDayGuests(
                 form.DayGuests ?? [], optionsById, booking.CheckIn.Value, booking.CheckOut.Value));
@@ -275,8 +270,8 @@ public class BookingService(
         // Cleaning (FR-93, §5.5). Huvudbyggnad always applies (a stay request always has overnight
         // lodging); Konferensbyggnad only when the Konferensrum facility was actually selected —
         // re-checked here server-side, never trusted from the posted form. Both snapshot their zone
-        // amount immediately. Sleeping is stored as intent only; its priced selections are resolved
-        // from room assignment below, once this save has persisted the participants' RoomId.
+        // amount immediately. Sleeping is stored as intent only; its priced selections resolve from
+        // the booking's assigned buildings below (FR-93).
         booking.MainBuildingCleaningPurchased = form.MainBuildingCleaning;
         if (form.MainBuildingCleaning)
             await AddCleaningSelectionAsync(booking, CleaningZoneKind.MainBuilding);
@@ -297,7 +292,6 @@ public class BookingService(
             "Bokningsuppgifter skickades in via slutförandelänken.", AuditActor.Guest);
         await db.SaveChangesAsync();
 
-        // Resolves after the save above, since it depends on participants' RoomId being persisted.
         await ResolveSleepingCleaningSelectionsAsync(booking);
 
         await emails.SendAdminDetailsCompleteAsync(booking);
@@ -326,12 +320,16 @@ public class BookingService(
 
     /// <summary>
     /// Resolves and snapshots the <see cref="CleaningZoneKind.SleepingBuilding"/> selections for a
-    /// booking from its currently assigned rooms (§8.12, FR-93) — one row per distinct occupied
-    /// physical building's zone, never per room, refreshed whenever room assignment is set or
-    /// changed. A no-op unless the guest opted in (<see cref="Booking.SleepingCleaningPurchased"/>
-    /// true); if intent is false, any stale sleeping-zone selections are removed. Requires
-    /// participants' RoomId to already be persisted — call after a <c>SaveChangesAsync</c> that
-    /// wrote the room assignment.
+    /// booking from its <b>assigned buildings</b> (§8.12, FR-93) — one row per distinct occupied
+    /// physical building's zone, never per building. A no-op unless the guest opted in
+    /// (<see cref="Booking.SleepingCleaningPurchased"/> true); if intent is false, any stale
+    /// sleeping-zone selections are removed.
+    ///
+    /// <para>This used to resolve from the participants' assigned rooms, which meant it could only
+    /// run <i>after</i> the guest submitted the completion form — hence the machinery that refreshed
+    /// it whenever room assignment changed. Buildings are assigned before approval (FR-103), so the
+    /// answer is known earlier and the refresh path is gone: this is called at completion submission
+    /// and whenever the assignment itself changes.</para>
     /// </summary>
     private async Task ResolveSleepingCleaningSelectionsAsync(Booking booking)
     {
@@ -352,9 +350,9 @@ public class BookingService(
             return;
         }
 
-        var occupiedPhysicalBuildingIds = await db.Participants
-            .Where(p => p.BookingId == booking.Id && p.RoomId != null)
-            .Select(p => p.Room!.Building!.PhysicalBuildingId)
+        var occupiedPhysicalBuildingIds = await db.BookingBuildingAssignments
+            .Where(a => a.BookingId == booking.Id)
+            .Select(a => a.Building!.PhysicalBuildingId)
             .Distinct()
             .ToListAsync();
 
@@ -430,6 +428,20 @@ public class BookingService(
         if (booking.CheckIn is null)
             return new ApproveResult(false, "Bokningen saknar incheckningsdatum.", null, false);
 
+        // Building assignment is a precondition of approval (FR-38/FR-103/D1) — the approval email
+        // names the buildings, so approving without them would send the guest an incomplete answer.
+        //
+        // D6 exempts bookings with no overnight guests, but that exemption is unreachable here and is
+        // deliberately not coded (decision 2026-08-06): general inquiries are already rejected above
+        // by the BookingType check, and StayRequestInput.OvernightGuestCount is [Range(1, 1000)], so
+        // a stay request always has at least one overnight guest. A `> 0` clause would have been a
+        // branch no input could take and no test could honestly cover.
+        if (!await db.BookingBuildingAssignments.AnyAsync(a => a.BookingId == booking.Id))
+        {
+            return new ApproveResult(
+                false, "Tilldela minst en byggnad innan bokningen godkänns.", null, false);
+        }
+
         var now = DateTime.UtcNow;
         booking.CompletionToken = CompletionTokenPolicy.GenerateToken();
         booking.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(now, booking.CheckIn.Value);
@@ -439,6 +451,10 @@ public class BookingService(
         await RecordBookingAuditAsync(booking, AuditAction.BookingApproved, "Bokningen godkändes.");
         await db.SaveChangesAsync();
 
+        // The approval email names the assigned buildings (FR-103). The booking was loaded with
+        // FindAsync, which does not populate the collection — without this the email would silently
+        // omit the lodging rather than fail, which is the worst way for it to be wrong.
+        await db.Entry(booking).Collection(b => b.BuildingAssignments).LoadAsync();
         await emails.SendApprovalAsync(booking);
         logger.LogInformation("Booking {BookingId} approved", booking.Id);
 
@@ -450,9 +466,10 @@ public class BookingService(
 
     /// <summary>
     /// Non-blocking pre-approval checks (Phase 7): does the requested stay overlap a block, or does
-    /// the overnight guest count exceed the beds actually available for those dates? The admin keeps
-    /// override authority — this only warns, it never blocks approval — but it stops a booking being
-    /// approved onto fully-blocked dates that would leave the guest with an empty room picker.
+    /// the overnight guest count exceed the beds in the buildings actually assigned? The admin keeps
+    /// override authority — this only warns, it never blocks approval (FR-103/D2), matching the
+    /// existing project pattern (FR-75). Assignment itself <i>is</i> blocking; see
+    /// <see cref="ApproveAsync"/>.
     /// </summary>
     public async Task<ApprovalWarning> GetApprovalWarningsAsync(Guid id)
     {
@@ -462,21 +479,166 @@ public class BookingService(
             return ApprovalWarning.None;
 
         var guests = booking.OvernightGuestCount ?? 0;
-        // Beds actually available for the dates — blocks and other bookings' occupancy already excluded.
-        var availableBeds = (await rooms.GetAvailableRoomsAsync(id)).Sum(r => r.BedCount);
 
-        // The same overlap predicate RoomAvailabilityService uses, so the block warning matches what
-        // actually reduces the room picker (checkout day is a departure, hence StartDate < checkOut).
+        // Checkout day is a departure, hence StartDate < checkOut rather than <=.
         var blocks = await db.BlockedPeriods
             .Where(p => p.StartDate < checkOut && p.EndDate >= checkIn)
             .OrderBy(p => p.StartDate)
             .ToListAsync();
+
+        // Beds the assigned buildings really offer over these dates — a room-scoped block nets its
+        // beds out (FR-102), so the warning is measured against what is on offer rather than paper
+        // capacity. Warning on paper capacity would stay silent in exactly the case it exists for.
+        var assignedBuildingIds = await db.BookingBuildingAssignments
+            .Where(a => a.BookingId == id)
+            .Select(a => a.BuildingId)
+            .ToListAsync();
+
+        var assigned = (await LoadBuildingInfosAsync())
+            .Where(b => assignedBuildingIds.Contains(b.Id))
+            .ToList();
+        var availableBeds = BuildingExclusionCalculator.Evaluate(assigned, blocks).Sum(b => b.AvailableBedCount);
 
         return new ApprovalWarning(
             CapacityExceeded: guests > availableBeds,
             RequestedGuests: guests,
             AvailableBeds: availableBeds,
             BlockDescriptions: await DescribeBlocksAsync(blocks));
+    }
+
+    /// <summary>
+    /// A booking's assigned lodging with the rooms inside each building (FR-103/D4) — shown
+    /// read-only on the completion form so the group can divide itself up, since the system does not
+    /// record who sleeps where. Building names come from the assignment <b>snapshots</b> (NFR-16),
+    /// so renaming the reference data later does not change what the group was told; the room list
+    /// is live, as it is descriptive rather than agreed.
+    /// </summary>
+    public async Task<IReadOnlyList<AssignedLodging>> GetAssignedLodgingAsync(Guid bookingId)
+    {
+        var assignments = await db.BookingBuildingAssignments
+            .Where(a => a.BookingId == bookingId)
+            .OrderBy(a => a.BuildingNameSnapshot)
+            .Select(a => new
+            {
+                a.BuildingId,
+                a.BuildingNameSnapshot,
+                a.PhysicalBuildingNameSnapshot,
+                Rooms = db.Rooms
+                    .Where(r => r.BuildingId == a.BuildingId && r.IsActive)
+                    .OrderBy(r => r.DisplayOrder)
+                    .Select(r => new AssignedLodgingRoom(r.Name, r.BedCount))
+                    .ToList(),
+            })
+            .ToListAsync();
+
+        return assignments
+            .Select(a => new AssignedLodging(a.BuildingNameSnapshot, a.PhysicalBuildingNameSnapshot, a.Rooms))
+            .ToList();
+    }
+
+    /// <summary>Active lodging buildings with their active rooms, projected into the pure
+    /// calculator's shape (<see cref="BuildingExclusionCalculator"/>).</summary>
+    private async Task<IReadOnlyList<BuildingInfo>> LoadBuildingInfosAsync()
+    {
+        var buildings = await db.Buildings
+            .Where(b => b.IsActive)
+            .Select(b => new
+            {
+                b.Id,
+                b.Name,
+                PhysicalBuildingName = b.PhysicalBuilding != null ? b.PhysicalBuilding.Name : string.Empty,
+                Rooms = db.Rooms.Where(r => r.BuildingId == b.Id && r.IsActive)
+                    .Select(r => new AssignableRoom(r.Id, r.BedCount)).ToList(),
+            })
+            .ToListAsync();
+
+        return buildings
+            .Select(b => new BuildingInfo(b.Id, b.Name, b.PhysicalBuildingName, b.Rooms))
+            .ToList();
+    }
+
+    /// <summary>The buildings the admin may assign for a booking's dates, with the beds each really
+    /// offers (FR-102/103). Buildings closed by a whole-property or building-scope block over the
+    /// stay are returned as unavailable rather than omitted, so the UI can show <i>why</i>.</summary>
+    public async Task<IReadOnlyList<BuildingAvailability>> GetAssignableBuildingsAsync(Guid bookingId)
+    {
+        var booking = await db.Bookings.FindAsync(bookingId);
+        if (booking?.CheckIn is not { } checkIn || booking.CheckOut is not { } checkOut)
+            return [];
+
+        var blocks = await db.BlockedPeriods
+            .Where(p => p.StartDate < checkOut && p.EndDate >= checkIn)
+            .ToListAsync();
+
+        return BuildingExclusionCalculator.Evaluate(await LoadBuildingInfosAsync(), blocks);
+    }
+
+    /// <summary>
+    /// Sets the lodging buildings a booking's group sleeps in (FR-103, §8.16), replacing any existing
+    /// assignment. Editable for the booking's life (D5). Each row snapshots the building and physical
+    /// building names at assignment time (NFR-16), so a later rename does not rewrite what was agreed.
+    ///
+    /// <para>A building closed by a whole-property or building-scope block over the stay is
+    /// <b>rejected</b> (FR-102). That protection used to exist only as a side effect of the
+    /// completion form's room picker excluding blocked rooms; with the picker gone, nothing else
+    /// prevents assigning a closed building.</para>
+    ///
+    /// <para>Re-resolves the sleeping-cleaning selections, since those follow the assigned buildings
+    /// (FR-93).</para>
+    /// </summary>
+    public async Task<BuildingAssignmentResult> SetBuildingAssignmentsAsync(
+        Guid bookingId, IReadOnlyCollection<Guid> buildingIds)
+    {
+        var booking = await db.Bookings
+            .Include(b => b.BuildingAssignments)
+            .SingleOrDefaultAsync(b => b.Id == bookingId);
+        if (booking is null) return BuildingAssignmentResult.Fail("Bokningen kunde inte hittas.");
+        if (booking.BookingType != BookingType.StayRequest)
+            return BuildingAssignmentResult.Fail("Endast bokningsförfrågningar kan tilldelas byggnader.");
+
+        var evaluated = (await GetAssignableBuildingsAsync(bookingId)).ToDictionary(b => b.Building.Id);
+
+        var unknown = buildingIds.Where(id => !evaluated.ContainsKey(id)).ToList();
+        if (unknown.Count > 0)
+            return BuildingAssignmentResult.Fail("En eller flera valda byggnader finns inte eller är inaktiva.");
+
+        var blocked = buildingIds.Where(id => !evaluated[id].IsAvailable).Select(id => evaluated[id].Building.Name).ToList();
+        if (blocked.Count > 0)
+        {
+            return BuildingAssignmentResult.Fail(
+                $"Följande byggnader är blockerade under vistelsen och kan inte tilldelas: {string.Join(", ", blocked)}.");
+        }
+
+        db.BookingBuildingAssignments.RemoveRange(booking.BuildingAssignments);
+        booking.BuildingAssignments.Clear();
+
+        var now = DateTime.UtcNow;
+        foreach (var id in buildingIds.Distinct())
+        {
+            var info = evaluated[id].Building;
+            booking.BuildingAssignments.Add(new BookingBuildingAssignment
+            {
+                BookingId = booking.Id,
+                BuildingId = id,
+                BuildingNameSnapshot = info.Name,
+                PhysicalBuildingNameSnapshot = info.PhysicalBuildingName,
+                AssignedAt = now,
+            });
+        }
+
+        booking.UpdatedAt = now;
+        // Building names are reference data, not guest data — safe to record (NFR-37).
+        var names = booking.BuildingAssignments.Select(a => a.BuildingNameSnapshot).OrderBy(n => n).ToList();
+        await RecordBookingAuditAsync(booking, AuditAction.BuildingAssignmentChanged,
+            names.Count == 0
+                ? "Byggnadstilldelningen togs bort."
+                : $"Byggnadstilldelning uppdaterad: {string.Join(", ", names)}.");
+        await db.SaveChangesAsync();
+
+        await ResolveSleepingCleaningSelectionsAsync(booking);
+        logger.LogInformation(
+            "Booking {BookingId} building assignment set to {Count} building(s)", booking.Id, names.Count);
+        return BuildingAssignmentResult.Ok();
     }
 
     /// <summary>Swedish, human-readable descriptions of the overlapping blocks (scope + name + dates).</summary>
@@ -680,25 +842,12 @@ public class BookingService(
             .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
             .SingleOrDefaultAsync(b => b.Id == id);
 
-    /// <summary>Toggles whether the guest assigns rooms on the completion form (FR-56); the admin
-    /// sets this before the guest completes. Booking-wide, not per-participant.</summary>
-    public async Task SetGuestChoosesRoomsAsync(Guid id, bool value)
-    {
-        var booking = await db.Bookings.FindAsync(id);
-        if (booking is null) return;
-        booking.GuestChoosesRooms = value;
-        booking.UpdatedAt = DateTime.UtcNow;
-        await RecordBookingAuditAsync(booking, AuditAction.GuestChoosesRoomsChanged,
-            $"Inställning för gästens rumsval ändrades till {(value ? "på" : "av")}.");
-        await db.SaveChangesAsync();
-    }
-
     /// <summary>
     /// Applies the admin's post-submission edits to a booking's participants (FR-48): names, age,
-    /// dietary, day-guest breakfast, overnight room assignment (re-snapshotting name + building,
-    /// NFR-16), and corrections to existing meal choices. <b>No status change and no guest
-    /// reopen</b> — this is the only post-submission edit path (C10). The admin may assign any active
-    /// room (overrides allowed); conflicts are flagged separately.
+    /// dietary, day-guest breakfast, and corrections to existing meal choices. <b>No status change
+    /// and no guest reopen</b> — this is the only post-submission edit path (C10). Room assignment
+    /// is no longer among these fields (FR-56 tombstoned); lodging is recorded per booking against
+    /// buildings instead (FR-103).
     /// </summary>
     public async Task SaveParticipantEditsAsync(Guid bookingId, IReadOnlyList<ParticipantEdit> edits)
     {
@@ -707,7 +856,6 @@ public class BookingService(
             .SingleOrDefaultAsync(b => b.Id == bookingId);
         if (booking is null) return;
 
-        var roomsById = (await rooms.GetAllActiveRoomsAsync()).ToDictionary(r => r.Id);
         var optionsById = (await db.MealOptions.Where(m => m.IsActive).ToListAsync()).ToDictionary(o => o.Id);
         var editsById = edits.ToDictionary(e => e.Id);
 
@@ -721,19 +869,7 @@ public class BookingService(
             participant.DietaryNotes = string.IsNullOrWhiteSpace(edit.DietaryNotes) ? null : edit.DietaryNotes.Trim();
 
             if (participant.ParticipantType == ParticipantType.DayGuest)
-            {
                 participant.AttendsBreakfast = edit.AttendsBreakfast;
-            }
-            else if (edit.RoomId is { } roomId && roomsById.TryGetValue(roomId, out var room))
-            {
-                participant.RoomId = roomId;
-                participant.RoomAssignmentSnapshot = $"{room.Name} — {room.BuildingName}";
-            }
-            else if (edit.RoomId is null)
-            {
-                participant.RoomId = null;
-                participant.RoomAssignmentSnapshot = null;
-            }
 
             // Correct existing meal choices only (right type + active) — the set of days is fixed.
             foreach (var mealEdit in edit.Meals)
@@ -782,8 +918,24 @@ public class BookingService(
 /// shortened because check-in is 14 days away or sooner (so the admin can follow up directly).</summary>
 public record ApproveResult(bool Succeeded, string? Error, DateTime? TokenExpiry, bool ShortExpiryWarning);
 
+/// <summary>One assigned lodging building and the rooms inside it, for the completion form's
+/// read-only "Ert boende" panel (FR-103/D4).</summary>
+public record AssignedLodging(string Name, string PhysicalBuildingName, IReadOnlyList<AssignedLodgingRoom> Rooms);
+
+/// <summary>A room inside an assigned building — descriptive only, never an assignment target.</summary>
+public record AssignedLodgingRoom(string Name, int BedCount);
+
+/// <summary>Outcome of setting a booking's building assignment (FR-103): success, or a Swedish
+/// reason — an unknown/inactive building, or one closed by a block over the stay (FR-102).</summary>
+public record BuildingAssignmentResult(bool Succeeded, string? Error)
+{
+    public static BuildingAssignmentResult Ok() => new(true, null);
+    public static BuildingAssignmentResult Fail(string error) => new(false, error);
+}
+
 /// <summary>Non-blocking pre-approval warnings (Phase 7) shown on the admin booking detail: the stay
-/// overlaps one or more blocks, and/or the overnight count exceeds the beds available for the dates.</summary>
+/// overlaps one or more blocks, and/or the overnight count exceeds the beds the assigned buildings
+/// offer over the dates.</summary>
 public record ApprovalWarning(
     bool CapacityExceeded, int RequestedGuests, int AvailableBeds, IReadOnlyList<string> BlockDescriptions)
 {

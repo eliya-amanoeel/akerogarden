@@ -6,11 +6,15 @@ namespace AkeroGarden.Web.Core.Services;
 /// <summary>
 /// Shapes a booking's participants + meal preferences into the two admin download lists
 /// (requirements.md FR-44/45), built entirely off the <b>snapshot</b> fields
-/// (<see cref="Participant.RoomAssignmentSnapshot"/>, <see cref="MealPreference.MealOptionSnapshot"/>)
-/// so a downloaded list reflects exactly what was agreed even if reference data changed since
-/// (NFR-15/16). Pure and unit-testable; the PDF/Excel generators render the returned rows.
+/// (<see cref="MealPreference.MealOptionSnapshot"/>) so a downloaded list reflects exactly what was
+/// agreed even if reference data changed since (NFR-15/16). Pure and unit-testable; the PDF/Excel
+/// generators render the returned rows.
 ///
-/// <para>The <b>Deltagarlista</b> (FR-44) is the named roster (headcount/room/dietary). The
+/// <para>The per-participant <b>Rum</b> column was removed 2026-08-06: the system no longer records
+/// who sleeps in which room (FR-56 tombstoned). Lodging is a booking-level fact now — the assigned
+/// buildings (§8.16, FR-103) — not a property of each row.</para>
+///
+/// <para>The <b>Deltagarlista</b> (FR-44) is the named roster (headcount/dietary). The
 /// <b>Matlista</b> (FR-45) is redesigned from a per-person table into a <b>kitchen prep summary</b>
 /// (post-demo, Phase 8): a caterer needs "how many of each dish per meal per day", not one row per
 /// guest. So it carries no names for the bulk — just per-day, per-meal option counts
@@ -45,7 +49,6 @@ public static class ListShaper
             Name: p.FullName,
             Type: BookingDisplay.ParticipantTypeLabel(p.ParticipantType),
             Age: BookingDisplay.AgeLabel(p.AgeCategory),
-            Room: string.IsNullOrWhiteSpace(p.RoomAssignmentSnapshot) ? "—" : p.RoomAssignmentSnapshot!,
             Attendance: p.ParticipantType == ParticipantType.DayGuest && p.AttendanceDate is { } d
                 ? d.ToString("yyyy-MM-dd", Sv)
                 : "—",
@@ -169,7 +172,7 @@ public static class ListShaper
 }
 
 /// <summary>A row in the participant list (FR-44) — headcount/room/dietary oriented.</summary>
-public record ParticipantRow(string Name, string Type, string Age, string Room, string Attendance, string Dietary);
+public record ParticipantRow(string Name, string Type, string Age, string Attendance, string Dietary);
 
 /// <summary>A row in the Matlista kitchen prep summary (FR-45): a dish to prepare and how many —
 /// <c>(Day, Meal, Option, Count)</c>. No names (see <see cref="SpecialDietRow"/> for those).</summary>

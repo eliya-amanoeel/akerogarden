@@ -28,7 +28,6 @@ public class ListGeneratorTests
                 AgeCategory = AgeCategory.Adult,
                 IsFullBoard = true,
                 AttendsBreakfast = true,
-                RoomAssignmentSnapshot = i % 5 == 0 ? null : $"Rum {i % 20} — Blidö",
                 AttendanceDate = i % 5 == 0 ? new DateOnly(2026, 8, 2) : null,
                 DietaryRequirements = i % 3 == 0 ? [DietaryRequirement.Vegetarian] : [DietaryRequirement.None],
             };

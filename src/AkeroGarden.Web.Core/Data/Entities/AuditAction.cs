@@ -20,7 +20,7 @@ public enum AuditAction
     CompletionSubmitted,
     ParticipantsEdited,
     AdminNotesEdited,
-    GuestChoosesRoomsChanged,
+    BuildingAssignmentChanged,
 
     // ── Reference data (FR-96) — EntityType disambiguates which kind ────────────
     ReferenceDataCreated,

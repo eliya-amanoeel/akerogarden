@@ -1253,8 +1253,24 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .rail-actions { display: flex; flex-direction: column; gap: 0.5rem; }
 .rail-actions .btn, .rail-actions .btn-outline { justify-content: center; }
 .action-note { font-size: 0.85rem; color: var(--color-muted); margin: 0.7rem 0 0; }
-.paycheck { display: flex; gap: 0.5rem; align-items: center; font-size: 0.875rem; color: var(--color-text); margin-bottom: 0.35rem; }
-.paycheck:last-child { margin-bottom: 0; }
+/* Building assignment (FR-103) — admin booking detail. Replaced .paycheck, whose last consumers
+   were the payment checkboxes (FR-42, removed) and the room-choice toggle (FR-56, tombstoned). */
+.assign-list { display: flex; flex-direction: column; gap: 0.15rem; border: 0; margin: 0; padding: 0; }
+.assign-item { display: flex; gap: 0.5rem; align-items: center; font-size: 0.875rem; color: var(--color-text); padding: 0.4rem 0.5rem; border-radius: var(--radius-sm); }
+.assign-item:hover { background: var(--color-bg-warm); }
+.assign-item__name { flex: 1; }
+.assign-item__meta { color: var(--color-muted); font-size: 0.8125rem; }
+/* Blocked buildings stay visible but unselectable, so the admin sees why rather than wondering
+   where the building went (FR-102). */
+.assign-item--blocked { color: var(--color-muted); }
+.assign-item--blocked:hover { background: none; }
+.assign-item--blocked .assign-item__meta { color: var(--color-warn); }
+
+/* Read-only assigned lodging on the completion form (FR-103/D4). */
+.lodging-note { margin-top: 1.5rem; }
+.lodging-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.lodging-list li { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.6rem 0.75rem; background: var(--color-bg-warm); border-radius: var(--radius-sm); }
+.lodging-rooms { font-size: 0.875rem; color: var(--color-muted); }
 .detail-rail .card textarea {
     width: 100%; font: inherit; font-size: 0.875rem; padding: 0.45rem 0.55rem;
     border: 1px solid var(--color-line); border-radius: var(--radius-sm); background: #fff; resize: vertical;

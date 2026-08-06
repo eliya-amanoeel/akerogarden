@@ -273,9 +273,6 @@ namespace AkeroGarden.Web.Core.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
-                    b.Property<bool>("GuestChoosesRooms")
-                        .HasColumnType("boolean");
-
                     b.Property<string>("InvoiceAddress")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
@@ -339,6 +336,41 @@ namespace AkeroGarden.Web.Core.Migrations
                     b.HasIndex("Status");
 
                     b.ToTable("Bookings");
+                });
+
+            modelBuilder.Entity("AkeroGarden.Web.Core.Data.Entities.BookingBuildingAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("BuildingId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("BuildingNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PhysicalBuildingNameSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BuildingId");
+
+                    b.HasIndex("BookingId", "BuildingId")
+                        .IsUnique();
+
+                    b.ToTable("BookingBuildingAssignments");
                 });
 
             modelBuilder.Entity("AkeroGarden.Web.Core.Data.Entities.BookingCleaningSelection", b =>
@@ -646,18 +678,9 @@ namespace AkeroGarden.Web.Core.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("character varying(20)");
 
-                    b.Property<string>("RoomAssignmentSnapshot")
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<Guid?>("RoomId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
 
                     b.HasIndex("BookingId");
-
-                    b.HasIndex("RoomId");
 
                     b.ToTable("Participants");
                 });
@@ -906,6 +929,25 @@ namespace AkeroGarden.Web.Core.Migrations
                     b.Navigation("Booking");
                 });
 
+            modelBuilder.Entity("AkeroGarden.Web.Core.Data.Entities.BookingBuildingAssignment", b =>
+                {
+                    b.HasOne("AkeroGarden.Web.Core.Data.Entities.Booking", "Booking")
+                        .WithMany("BuildingAssignments")
+                        .HasForeignKey("BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("AkeroGarden.Web.Core.Data.Entities.Building", "Building")
+                        .WithMany()
+                        .HasForeignKey("BuildingId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
+
+                    b.Navigation("Building");
+                });
+
             modelBuilder.Entity("AkeroGarden.Web.Core.Data.Entities.BookingCleaningSelection", b =>
                 {
                     b.HasOne("AkeroGarden.Web.Core.Data.Entities.Booking", "Booking")
@@ -1002,14 +1044,7 @@ namespace AkeroGarden.Web.Core.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("AkeroGarden.Web.Core.Data.Entities.Room", "Room")
-                        .WithMany()
-                        .HasForeignKey("RoomId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.Navigation("Booking");
-
-                    b.Navigation("Room");
                 });
 
             modelBuilder.Entity("AkeroGarden.Web.Core.Data.Entities.Room", b =>
@@ -1076,6 +1111,8 @@ namespace AkeroGarden.Web.Core.Migrations
 
             modelBuilder.Entity("AkeroGarden.Web.Core.Data.Entities.Booking", b =>
                 {
+                    b.Navigation("BuildingAssignments");
+
                     b.Navigation("CleaningSelections");
 
                     b.Navigation("FacilitySelections");

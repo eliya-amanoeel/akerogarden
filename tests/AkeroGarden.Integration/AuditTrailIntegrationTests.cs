@@ -32,7 +32,6 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         {
             s.AddSingleton<IEmailService>(fake);
             s.AddScoped<BookingEmailService>();
-            s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
             // Override the fixture's default System accessor with a known admin (last wins).
@@ -64,6 +63,10 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
             MealPlan = MealPlan.FullBoardAll,
             AcceptPrivacyPolicy = true
         }, createdByAdmin: true);
+
+        // Approval requires a lodging assignment (FR-103/D1).
+        await BuildingAssignmentSeed.AssignBuildingAsync(
+            scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(), booking.Id);
         return (booking.Id, guestEmail, booking.BookingReference);
     }
 
@@ -171,6 +174,8 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
                 MealPlan = MealPlan.FullBoardAll,
                 AcceptPrivacyPolicy = true
             }, createdByAdmin: true);
+            // Approval requires a lodging assignment (FR-103/D1).
+            await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
             await service.ApproveAsync(booking.Id);
             bookingId = booking.Id;
             token = (await db.Bookings.FindAsync(bookingId))!.CompletionToken!;

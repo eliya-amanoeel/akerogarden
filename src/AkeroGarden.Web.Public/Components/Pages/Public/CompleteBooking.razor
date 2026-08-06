@@ -6,7 +6,6 @@
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject MealOptionService MealOptionService
-@inject RoomAvailabilityService RoomAvailability
 @inject CleaningZoneService CleaningZoneService
 
 @* Token-authenticated booking completion page (§6.6, FR-54..62). Static SSR: the token in the URL
@@ -55,6 +54,34 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                 <div><dt>Utcheckning</dt><dd>@Fmt(_booking.CheckOut)</dd></div>
                 <div><dt>Övernattande</dt><dd>@(_booking.OvernightGuestCount) gäster</dd></div>
             </dl>
+
+            @* Assigned lodging (FR-103/D4) — read-only. The system does not record who sleeps in
+               which room; the group divides itself among these rooms. *@
+            @if (_assignedBuildings.Count > 0)
+            {
+                <div class="lodging-note">
+                    <h2>Ert boende</h2>
+                    <p class="sec-note">
+                        Ni disponerar följande byggnader. Fördela gruppen mellan rummen som ni vill —
+                        vi behöver inte veta vem som sover var.
+                    </p>
+                    <ul class="lodging-list">
+                        @foreach (var b in _assignedBuildings)
+                        {
+                            <li>
+                                <strong>@b.Name</strong>
+                                <span class="sub">@b.PhysicalBuildingName</span>
+                                @if (b.Rooms.Count > 0)
+                                {
+                                    <span class="lodging-rooms">
+                                        @string.Join(" · ", b.Rooms.Select(r => $"{r.Name} ({r.BedCount} bäddar)"))
+                                    </span>
+                                }
+                            </li>
+                        }
+                    </ul>
+                </div>
+            }
 
             @if (_errors.Count > 0)
             {
@@ -170,25 +197,6 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                             <label class="prow__toggle" for="exp-@index"><span class="chev" aria-hidden="true">›</span> Måltider &amp; kost</label>
                         </div>
                         <div class="prow__body">
-                            @if (_guestChoosesRooms)
-                            {
-                                <div class="form-group">
-                                    <label for="p@(index)-room">Rum</label>
-                                    <select id="p@(index)-room" name="Form.Overnight[@index].RoomChoice">
-                                        <option value="">– välj rum –</option>
-                                        @foreach (var group in _availableRooms.GroupBy(r => r.BuildingName))
-                                        {
-                                            <optgroup label="@group.Key">
-                                                @foreach (var room in group)
-                                                {
-                                                    <option value="@room.Id" selected="@(entry.RoomChoice == room.Id.ToString())">@room.Name (@room.BedCount bäddar)</option>
-                                                }
-                                            </optgroup>
-                                        }
-                                    </select>
-                                </div>
-                            }
-
                             <div class="fbrow">
                                 @* Hidden companion so an unchecked box posts "false" (checkbox first, hidden second → checked wins). *@
                                 <input type="checkbox" id="p@(index)-fb" name="Form.Overnight[@index].IsFullBoard"
@@ -498,8 +506,7 @@ else
     private int _dinnerSlotCount;
     private bool _dayGuestsApplicable;
     private IReadOnlyList<DateOnly> _stayDates = [];
-    private bool _guestChoosesRooms;
-    private IReadOnlyList<RoomInfo> _availableRooms = [];
+    private IReadOnlyList<AssignedLodging> _assignedBuildings = [];
     private IReadOnlyList<string> _errors = [];
     private bool _conferenceCleaningApplicable;
 
@@ -531,11 +538,10 @@ else
             _dayGuestsApplicable = _booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
             _stayDates = EnumerateDates(_booking.CheckIn.Value, _booking.CheckOut.Value);
 
-            // Room picker only when the booking lets the guest choose rooms (FR-56); otherwise the
-            // admin assigns in the panel. Exclusions are computed live for the stay's dates.
-            _guestChoosesRooms = _booking.GuestChoosesRooms;
-            if (_guestChoosesRooms)
-                _availableRooms = await RoomAvailability.GetAvailableRoomsAsync(_booking.Id);
+            // The buildings the admin assigned before approval (FR-103), with their rooms, shown
+            // read-only. Names come from the assignment snapshots (NFR-16) so a later rename of the
+            // reference data does not change what the group was told.
+            _assignedBuildings = await BookingService.GetAssignedLodgingAsync(_booking.Id);
 
             // Konferensbyggnad toggle (§5.5, FR-93) only shown when the Konferensrum facility was
             // actually requested — Huvudbyggnad/Sovbyggnader always apply since a stay request

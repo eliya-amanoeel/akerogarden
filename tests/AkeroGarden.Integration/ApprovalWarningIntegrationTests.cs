@@ -23,7 +23,6 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
         {
             s.AddSingleton<IEmailService>(new FakeEmailService());
             s.AddScoped<BookingEmailService>();
-            s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
             s.AddScoped<BuildingService>();
@@ -70,6 +69,21 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
             MealPlan = MealPlan.SelfCateringAll,
             AcceptPrivacyPolicy = true,
         }, createdByAdmin: true);
+
+        // The capacity warning is measured against the beds of the *assigned* buildings (FR-103/D2),
+        // not every room on the property — so the booking must be assigned this building or the
+        // available-bed count is zero and every case would warn.
+        db.BookingBuildingAssignments.Add(new BookingBuildingAssignment
+        {
+            Id = Guid.NewGuid(),
+            BookingId = booking.Id,
+            BuildingId = building.Id,
+            BuildingNameSnapshot = building.Name,
+            PhysicalBuildingNameSnapshot = physicalBuilding.Name,
+            AssignedAt = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+
         return new Seeded(booking.Id, building.Id);
     }
 

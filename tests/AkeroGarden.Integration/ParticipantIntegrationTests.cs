@@ -10,9 +10,10 @@ namespace AkeroGarden.Integration;
 /// <summary>
 /// Integration coverage for the Phase 4 completion-flow data foundation against real PostgreSQL:
 /// Participant/MealPreference persistence (string enums, the multi-select dietary converter,
-/// snapshot fields — NFR-15/16), and the three hard-delete guards now that their referents exist —
-/// MealOption ← MealPreference (FR-26), Room ← Participant.RoomId (FR-20), Building's transitive
-/// check (FR-16). Tests use unique names because the fixture's database is shared across the class.
+/// snapshot fields — NFR-15/16), and the MealOption ← MealPreference hard-delete guard (FR-26) now
+/// that its referent exists. The Room/Building guards moved to
+/// <c>ReferenceDataDeleteGuardIntegrationTests</c> when they were repointed away from participant
+/// room assignment. Tests use unique names because the fixture's database is shared across the class.
 /// </summary>
 public class ParticipantIntegrationTests : IClassFixture<DbFixture>
 {
@@ -207,70 +208,15 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
         Assert.Equal(HardDeleteResult.Deleted, await meals.TryHardDeleteAsync(option.Id));
     }
 
-    [Fact]
-    public async Task Room_HardDelete_Blocked_WhenReferencedByParticipant()
-    {
-        var (buildings, rooms, _, db) = NewScope(out var scope);
-        using var _s = scope;
-
-        var pb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"Lilla-{Guid.NewGuid():N}" };
-        db.PhysicalBuildings.Add(pb);
-        await db.SaveChangesAsync();
-
-        var building = new Building { Name = $"Blidö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id, DisplayOrder = 1 };
-        await buildings.TryCreateAsync(building);
-        var room = new Room { Name = "Rum 1", BedCount = 4, BuildingId = building.Id, DisplayOrder = 1 };
-        await rooms.CreateAsync(room);
-
-        var booking = NewStayBooking();
-        db.Bookings.Add(booking);
-        db.Participants.Add(new Participant
-        {
-            Id = Guid.NewGuid(),
-            BookingId = booking.Id,
-            FullName = "Fredrik Falk",
-            ParticipantType = ParticipantType.Overnight,
-            AgeCategory = AgeCategory.Adult,
-            RoomId = room.Id,
-            RoomAssignmentSnapshot = $"{room.Name} — {building.Name}",
-            IsFullBoard = true,
-        });
-        await db.SaveChangesAsync();
-
-        Assert.Equal(HardDeleteResult.Blocked, await rooms.TryHardDeleteAsync(room.Id));
-    }
-
-    [Fact]
-    public async Task Building_HardDelete_Blocked_WhenRoomHasAssignedParticipant()
-    {
-        var (buildings, rooms, _, db) = NewScope(out var scope);
-        using var _s = scope;
-
-        var pb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"Lilla-{Guid.NewGuid():N}" };
-        db.PhysicalBuildings.Add(pb);
-        await db.SaveChangesAsync();
-
-        var building = new Building { Name = $"Ljusterö-{Guid.NewGuid():N}", PhysicalBuildingId = pb.Id, DisplayOrder = 1 };
-        await buildings.TryCreateAsync(building);
-        var room = new Room { Name = "Rum 1", BedCount = 3, BuildingId = building.Id, DisplayOrder = 1 };
-        await rooms.CreateAsync(room);
-
-        var booking = NewStayBooking();
-        db.Bookings.Add(booking);
-        db.Participants.Add(new Participant
-        {
-            Id = Guid.NewGuid(),
-            BookingId = booking.Id,
-            FullName = "Gustav Grön",
-            ParticipantType = ParticipantType.Overnight,
-            AgeCategory = AgeCategory.Adult,
-            RoomId = room.Id,
-            IsFullBoard = true,
-        });
-        await db.SaveChangesAsync();
-
-        Assert.Equal(HardDeleteResult.Blocked, await buildings.TryHardDeleteAsync(building.Id));
-    }
+    // REMOVED 2026-08-06 (demo-feedback slice 2): Room_HardDelete_Blocked_WhenReferencedByParticipant
+    // and Building_HardDelete_Blocked_WhenRoomHasAssignedParticipant. Both asserted that a
+    // participant's room assignment blocks a hard-delete — behaviour that no longer exists, since
+    // participants no longer reference rooms (FR-56 tombstoned). Deleted rather than adjusted: there
+    // is no weaker version of these that would still be true.
+    //
+    // Coverage is not lost. The guards they covered were repointed, not dropped (FR-20 at
+    // blocked-period integrity, FR-16 additionally at booking building assignments), and are covered
+    // against real referencing rows in ReferenceDataDeleteGuardIntegrationTests.
 
     private record ParticipantRaw(string Type, string Age, string Diet);
 }

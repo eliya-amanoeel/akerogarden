@@ -306,13 +306,15 @@ the group across the rooms of the assigned buildings offline.
 - **FR-56 → tombstoned.** The room-picker requirement genuinely ceases to exist; same
   treatment as FR-12/41/43/46, keeping numbering stable.
 - **FR-57 amended** — drop the room-assignment clause from the per-participant collection.
-- **FR-99 (new)** — the admin shall assign lodging building(s) to a stay request, required
-  before approval (D1), editable afterwards (D5), with a capacity warning (D2).
+- **FR-103 (new)** — the admin shall assign lodging building(s) to a stay request, required
+  before approval (D1), editable afterwards (D5), with a capacity warning (D2). *(Numbered FR-99
+  in this section's first draft; renumbered when the FR set was finalised — FR-99 is the
+  completion-link expiry warning. Corrected 2026-08-06 to match `requirements.md`.)*
 - **FR-93 amended** — sleeping-cleaning zones resolve from the **assigned buildings**, not
   from the assigned rooms' buildings, and are written at completion submission rather than
   refreshed on room assignment.
 - **FR-38 / §2.5 amended** — approval precondition.
-- **§8.5 `Participant`** loses two fields; **new §8.x** for the assignment entity; **§8.11 /
+- **§8.5 `Participant`** loses two fields; **new §8.16** for the assignment entity; **§8.11 /
   §8.12** resolution notes updated; **`erd.md`** redrawn.
 
 **FR-64 amended (confirmed 2026-08-06):** the two-week reminder email also names the

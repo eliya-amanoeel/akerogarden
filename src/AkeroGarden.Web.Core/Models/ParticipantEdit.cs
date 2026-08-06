@@ -15,10 +15,6 @@ public class ParticipantEdit
 
     public AgeCategory AgeCategory { get; set; }
 
-    /// <summary>Overnight participants only — the assigned room, or null to unassign. Ignored for
-    /// day guests. Only an available room (or the current one) is accepted server-side.</summary>
-    public Guid? RoomId { get; set; }
-
     public bool AttendsBreakfast { get; set; }
 
     public List<DietaryRequirement> Dietary { get; set; } = [];

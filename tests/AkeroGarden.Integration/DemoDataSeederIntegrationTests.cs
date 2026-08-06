@@ -88,10 +88,15 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         var mealOptionIds = await db.MealOptions.Select(o => o.Id).ToListAsync();
         Assert.All(meals, m => Assert.Contains(m.MealOptionId, mealOptionIds));
 
-        // Overnight participants with a room carry a room snapshot (NFR-16).
-        var assigned = participants.Where(p => p.RoomId is not null).ToList();
-        Assert.NotEmpty(assigned);
-        Assert.All(assigned, p => Assert.False(string.IsNullOrWhiteSpace(p.RoomAssignmentSnapshot)));
+        // Approved-and-beyond bookings carry their lodging assignment with both name snapshots
+        // (§8.16, NFR-16). Participants no longer carry any room link (FR-56 tombstoned).
+        var assignments = await db.BookingBuildingAssignments.ToListAsync();
+        Assert.NotEmpty(assignments);
+        Assert.All(assignments, a =>
+        {
+            Assert.False(string.IsNullOrWhiteSpace(a.BuildingNameSnapshot));
+            Assert.False(string.IsNullOrWhiteSpace(a.PhysicalBuildingNameSnapshot));
+        });
 
         // Blocks at all three scopes.
         var scopes = await db.BlockedPeriods.Select(b => b.Scope).Distinct().ToListAsync();

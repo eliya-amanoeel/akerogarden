@@ -89,9 +89,10 @@ public class BookingEmailTemplatesTests
     public void Approval_IncludesMagicLinkExpiryAndDepositPolicy()
     {
         var expiry = new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc);
-        var c = BookingEmailTemplates.Approval("Anna", "https://akerogarden.se/slutfor/TOKEN", expiry, Ref);
+        var c = BookingEmailTemplates.Approval("Anna", "https://akerogarden.se/slutfor/TOKEN", expiry, Ref, ["Smedjan"]);
 
         Assert.Contains("https://akerogarden.se/slutfor/TOKEN", c.HtmlBody);
+        Assert.Contains("Smedjan", c.HtmlBody);       // assigned lodging stated (FR-103)
         Assert.Contains("2026", c.HtmlBody);          // exact expiry rendered in plain text
         Assert.Contains("14:00", c.HtmlBody);
         Assert.Contains("20 %", c.HtmlBody);          // deposit policy
@@ -125,7 +126,8 @@ public class BookingEmailTemplatesTests
     {
         var c = BookingEmailTemplates.TwoWeekReminder(
             "Anna", overnightCount: 8, dayGuestCount: 3, fullBoardMealCount: 20,
-            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4), "Åkerögården, Norrtälje", Ref);
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4), "Åkerögården, Norrtälje", Ref,
+            assignedBuildingNames: ["Smedjan", "Tallstugan"]);
         Assert.Contains("Hej Anna", c.HtmlBody);
         Assert.Contains("14:00", c.HtmlBody);
         Assert.Contains("12:00", c.HtmlBody);
@@ -134,6 +136,20 @@ public class BookingEmailTemplatesTests
         Assert.Contains("Adress:", c.HtmlBody);
         Assert.Contains("Norrt", c.HtmlBody);                       // address (ä is HTML-encoded)
         Assert.Contains(Ref, c.HtmlBody);
+        // The assigned lodging the group needs in writing to divide itself up (FR-64/FR-103).
+        Assert.Contains("Ert boende:", c.HtmlBody);
+        Assert.Contains("Smedjan, Tallstugan", c.HtmlBody);
+    }
+
+    [Fact]
+    public void TwoWeekReminder_WithNoAssignedBuildings_OmitsTheLodgingLineEntirely()
+    {
+        // A blank "Ert boende:" would read to the guest as a mistake rather than as absence.
+        var c = BookingEmailTemplates.TwoWeekReminder(
+            "Anna", overnightCount: 8, dayGuestCount: 3, fullBoardMealCount: 20,
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4), "Åkerögården, Norrtälje", Ref,
+            assignedBuildingNames: []);
+        Assert.DoesNotContain("Ert boende", c.HtmlBody);
     }
 
     [Fact]

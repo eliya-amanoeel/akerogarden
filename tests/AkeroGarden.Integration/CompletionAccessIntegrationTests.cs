@@ -27,7 +27,6 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
         {
             s.AddSingleton<IEmailService>(fake);
             s.AddScoped<BookingEmailService>();
-            s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
             s.Configure<BookingEmailOptions>(o =>
@@ -55,9 +54,11 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
             MealPlan = MealPlan.FullBoardAll,
             AcceptPrivacyPolicy = true
         }, createdByAdmin: true);
-        await service.ApproveAsync(booking.Id);
 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        // Approval requires a lodging assignment (FR-103/D1).
+        await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
+        await service.ApproveAsync(booking.Id);
         var token = (await db.Bookings.FindAsync(booking.Id))!.CompletionToken!;
         return (booking.Id, token);
     }

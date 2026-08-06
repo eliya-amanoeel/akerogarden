@@ -22,12 +22,12 @@ public static class ListPdfGenerator
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    private static readonly string[] ParticipantHeaders = ["Namn", "Typ", "Ålder", "Rum", "Närvaro", "Kostbehov"];
+    private static readonly string[] ParticipantHeaders = ["Namn", "Typ", "Ålder", "Närvaro", "Kostbehov"];
 
     public static byte[] ParticipantList(BookingListData data) =>
         Build("Deltagarlista", data, ParticipantHeaders,
-            data.Participants.Select(p => new[] { p.Name, p.Type, p.Age, p.Room, p.Attendance, p.Dietary }),
-            ParticipantHeaders.Select(h => h is "Kostbehov" or "Rum" ? 2f : 1f).ToArray());
+            data.Participants.Select(p => new[] { p.Name, p.Type, p.Age, p.Attendance, p.Dietary }),
+            ParticipantHeaders.Select(h => h is "Kostbehov" ? 2f : 1f).ToArray());
 
     public static byte[] FoodPreferenceList(BookingListData data)
     {

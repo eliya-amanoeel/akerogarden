@@ -13,7 +13,7 @@ namespace AkeroGarden.Web.Core.Services;
 /// </summary>
 public static class ListExcelGenerator
 {
-    private static readonly string[] ParticipantHeaders = ["Namn", "Typ", "Ålder", "Rum", "Närvaro", "Kostbehov"];
+    private static readonly string[] ParticipantHeaders = ["Namn", "Typ", "Ålder", "Närvaro", "Kostbehov"];
     private static readonly string[] PrepHeaders = ["Dag", "Måltid", "Rätt", "Antal"];
     private static readonly string[] SpecialDietHeaders = ["Namn", "Typ", "Kostbehov", "Måltider"];
 
@@ -21,7 +21,7 @@ public static class ListExcelGenerator
     {
         using var workbook = new XLWorkbook();
         WriteSheet(workbook, "Deltagarlista", "Deltagarlista", data, ParticipantHeaders,
-            data.Participants.Select(p => new[] { p.Name, p.Type, p.Age, p.Room, p.Attendance, p.Dietary }));
+            data.Participants.Select(p => new[] { p.Name, p.Type, p.Age, p.Attendance, p.Dietary }));
         return Save(workbook);
     }
 

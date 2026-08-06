@@ -28,7 +28,6 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
             s.AddSingleton<IEmailService>(fake);
             s.AddSingleton(TimeProvider.System);
             s.AddScoped<BookingEmailService>();
-            s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
             s.AddScoped<ReminderJob>();

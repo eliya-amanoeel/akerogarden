@@ -160,16 +160,33 @@ public sealed class E2EFixture : IAsyncLifetime
             MealPlan = MealPlan.FullBoardAll,
             CompletionToken = token,
             CompletionTokenExpiry = DateTime.UtcNow.AddDays(14),
-            GuestChoosesRooms = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),
         };
-        ctx.Bookings.Add(CompletionBooking(CompletionToken));
-        ctx.Bookings.Add(CompletionBooking(CompletionSubmitToken));
+        // Every Approved booking carries a building assignment (§8.16), matching what a real
+        // approval requires (FR-103/D1) and giving the completion form's read-only "Ert boende"
+        // panel (D4) something to render.
+        BookingBuildingAssignment Assignment() => new()
+        {
+            Id = Guid.NewGuid(),
+            BuildingId = building.Id,
+            BuildingNameSnapshot = building.Name,
+            PhysicalBuildingNameSnapshot = sovPb.Name,
+            AssignedAt = DateTime.UtcNow,
+        };
+
+        var completionBooking = CompletionBooking(CompletionToken);
+        completionBooking.BuildingAssignments.Add(Assignment());
+        ctx.Bookings.Add(completionBooking);
+
+        var submitBooking = CompletionBooking(CompletionSubmitToken);
+        submitBooking.BuildingAssignments.Add(Assignment());
+        ctx.Bookings.Add(submitBooking);
 
         var selfCateringBooking = CompletionBooking(SelfCateringCompletionToken);
         selfCateringBooking.MealPlan = MealPlan.SelfCateringAll;
+        selfCateringBooking.BuildingAssignments.Add(Assignment());
         ctx.Bookings.Add(selfCateringBooking);
 
         // Cleaning rework (Phase 8, §5.5): a Konferensbyggnad physical building + Konferensrum

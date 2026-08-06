@@ -5,7 +5,6 @@
 @using AkeroGarden.Web.Core.Models
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
-@inject RoomAvailabilityService RoomAvailability
 @inject MealOptionService MealOptionService
 @attribute [Authorize]
 
@@ -98,20 +97,46 @@ else
                     </div>
                 </details>
 
-                @* Room-choice mode (FR-56) — set by the admin before the guest completes. *@
+                @* Building assignment (FR-103, §8.16) — required before approval, editable for the
+                   booking's life. Replaced the room-choice toggle when per-participant room
+                   assignment was removed (FR-56 tombstoned). *@
                 <details class="detail-acc" open>
                     <summary class="detail-acc__head">
-                        <h2 class="detail-acc__title">Rumsval</h2>
-                        <span class="detail-acc__meta">@(_guestChoosesRooms ? "Gästen väljer själv" : "Admin tilldelar")</span>
+                        <h2 class="detail-acc__title">Byggnadstilldelning</h2>
+                        <span class="detail-acc__meta">@AssignmentSummary</span>
                         <span class="detail-acc__chev" aria-hidden="true">▾</span>
                     </summary>
                     <div class="detail-acc__body">
-                        <label class="paycheck">
-                            <input type="checkbox" @bind="_guestChoosesRooms" />
-                            Gästen väljer rum själv på slutförandeformuläret
-                        </label>
-                        <p class="action-note">Av: administratören tilldelar rummen nedan.</p>
-                        <button class="btn btn-sm" style="margin-top:0.6rem" @onclick="SaveGuestChoosesRooms">Spara rumsval-inställning</button>
+                        <p class="action-note">
+                            Gruppen fördelar sig själv mellan rummen i de tilldelade byggnaderna.
+                        </p>
+                        <div class="assign-list">
+                            @foreach (var b in _assignable)
+                            {
+                                <label class="assign-item @(b.IsAvailable ? "" : "assign-item--blocked")">
+                                    <input type="checkbox"
+                                           checked="@_selectedBuildingIds.Contains(b.Building.Id)"
+                                           disabled="@(!b.IsAvailable)"
+                                           @onchange="e => ToggleBuilding(b.Building.Id, e.Value is true)" />
+                                    <span class="assign-item__name">@b.Building.Name</span>
+                                    <span class="assign-item__meta">
+                                        @if (b.IsAvailable)
+                                        {
+                                            @($"{b.AvailableBedCount} bäddar")
+                                        }
+                                        else
+                                        {
+                                            @:Blockerad under vistelsen
+                                        }
+                                    </span>
+                                </label>
+                            }
+                        </div>
+                        @if (_assignmentError is not null)
+                        {
+                            <p class="form-error" role="alert">@_assignmentError</p>
+                        }
+                        <button class="btn btn-sm" style="margin-top:0.6rem" @onclick="SaveBuildingAssignment">Spara byggnadstilldelning</button>
                     </div>
                 </details>
             }
@@ -126,19 +151,6 @@ else
                         <span class="detail-acc__chev" aria-hidden="true">▾</span>
                     </summary>
                     <div class="detail-acc__body">
-                        @if (_conflicts.Count > 0)
-                        {
-                            <div class="form-error" role="alert">
-                                <p>Rumskonflikter (fler tilldelade än bäddar):</p>
-                                <ul>
-                                    @foreach (var c in _conflicts)
-                                    {
-                                        <li>@c.RoomName (@c.BuildingName): @c.AssignedBeds tilldelade av @c.BedCount bäddar</li>
-                                    }
-                                </ul>
-                            </div>
-                        }
-
                         @foreach (var edit in _edits)
                         {
                             var participant = _participants.First(p => p.Id == edit.Id);
@@ -158,11 +170,7 @@ else
                                         </div>
                                         <div class="participant-view__meta">
                                             @AgeLabel(edit.AgeCategory)
-                                            @if (isOvernight)
-                                            {
-                                                @:· @(RoomName(edit.RoomId) ?? "ej tilldelat rum")
-                                            }
-                                            else if (edit.AttendsBreakfast)
+                                            @if (!isOvernight && edit.AttendsBreakfast)
                                             {
                                                 @:· Deltar på frukost
                                             }
@@ -203,25 +211,7 @@ else
                                         </select>
                                     </div>
 
-                                    @if (isOvernight)
-                                    {
-                                        <div class="form-group">
-                                            <label>Rum</label>
-                                            <select @bind="edit.RoomId">
-                                                <option value="">– ej tilldelat –</option>
-                                                @foreach (var group in _rooms.GroupBy(r => r.BuildingName))
-                                                {
-                                                    <optgroup label="@group.Key">
-                                                        @foreach (var room in group)
-                                                        {
-                                                            <option value="@room.Id">@room.Name (@room.BedCount bäddar)</option>
-                                                        }
-                                                    </optgroup>
-                                                }
-                                            </select>
-                                        </div>
-                                    }
-                                    else
+                                    @if (!isOvernight)
                                     {
                                         <div class="form-group">
                                             <label><input type="checkbox" @bind="edit.AttendsBreakfast" /> Deltar på frukost</label>
@@ -523,12 +513,14 @@ else
     private string? _cancelReason;
     private CancellationInitiator _cancelInitiator = CancellationInitiator.GuestInitiated;
 
-    // Participant editing (FR-48) + room assignment (FR-56).
-    private bool _guestChoosesRooms;
+    // Participant editing (FR-48).
     private List<Participant> _participants = [];
     private List<ParticipantEdit> _edits = [];
-    private IReadOnlyList<RoomInfo> _rooms = [];
-    private IReadOnlyList<RoomConflict> _conflicts = [];
+
+    // Building assignment (FR-103, §8.16).
+    private IReadOnlyList<BuildingAvailability> _assignable = [];
+    private readonly HashSet<Guid> _selectedBuildingIds = [];
+    private string? _assignmentError;
     private List<MealOption> _lunchOptions = [];
     private List<MealOption> _dinnerOptions = [];
     private readonly HashSet<Guid> _editingParticipants = [];
@@ -559,7 +551,14 @@ else
         if (_booking is null) return;
 
         _notes = _booking.AdminNotes;
-        _guestChoosesRooms = _booking.GuestChoosesRooms;
+
+        if (_booking.BookingType == BookingType.StayRequest)
+        {
+            _assignable = await BookingService.GetAssignableBuildingsAsync(Id);
+            _selectedBuildingIds.Clear();
+            foreach (var a in _booking.BuildingAssignments)
+                _selectedBuildingIds.Add(a.BuildingId);
+        }
 
         // Non-blocking pre-approval warnings (block overlap / capacity) shown before "Godkänn".
         _approvalWarning = _booking is { Status: BookingStatus.Pending, BookingType: BookingType.StayRequest }
@@ -567,14 +566,12 @@ else
             : ApprovalWarning.None;
 
         // Participants exist only after the guest submits (DetailsComplete+). Load them plus the
-        // rooms/options/conflicts the admin editor needs.
+        // meal options the admin editor needs.
         var withParticipants = await BookingService.GetWithParticipantsAsync(Id);
         _participants = withParticipants?.Participants.OrderBy(p => p.ParticipantType).ToList() ?? [];
 
         if (_participants.Count > 0)
         {
-            _rooms = await RoomAvailability.GetAllActiveRoomsAsync();
-            _conflicts = await RoomAvailability.GetConflictsAsync(Id);
             var options = await MealOptionService.GetActiveAsync();
             _lunchOptions = options.Where(o => o.MealType == MealType.Lunch).ToList();
             _dinnerOptions = options.Where(o => o.MealType == MealType.Dinner).ToList();
@@ -591,7 +588,6 @@ else
         Id = p.Id,
         FullName = p.FullName,
         AgeCategory = p.AgeCategory,
-        RoomId = p.RoomId,
         AttendsBreakfast = p.AttendsBreakfast,
         Dietary = [.. p.DietaryRequirements],
         DietaryNotes = p.DietaryNotes,
@@ -612,10 +608,22 @@ else
         if (!_editingParticipants.Add(participantId)) _editingParticipants.Remove(participantId);
     }
 
-    // RoomInfo is a readonly record struct (not a reference type), so FirstOrDefault can't be
-    // null-conditioned with ?. — project through Select first so the lookup itself yields string?.
-    private string? RoomName(Guid? roomId) =>
-        roomId is null ? null : _rooms.Where(r => r.Id == roomId).Select(r => r.Name).FirstOrDefault();
+    private string AssignmentSummary
+    {
+        get
+        {
+            var chosen = _assignable.Where(b => _selectedBuildingIds.Contains(b.Building.Id)).ToList();
+            if (chosen.Count == 0) return "Ingen byggnad tilldelad";
+            var beds = chosen.Sum(b => b.AvailableBedCount);
+            return $"{chosen.Count} {(chosen.Count == 1 ? "byggnad" : "byggnader")} · {beds} bäddar";
+        }
+    }
+
+    private void ToggleBuilding(Guid buildingId, bool selected)
+    {
+        if (selected) _selectedBuildingIds.Add(buildingId);
+        else _selectedBuildingIds.Remove(buildingId);
+    }
 
     private static string AgeLabel(AgeCategory age) => age switch
     {
@@ -636,10 +644,12 @@ else
         _ => diet.ToString(),
     };
 
-    private async Task SaveGuestChoosesRooms()
+    private async Task SaveBuildingAssignment()
     {
-        await BookingService.SetGuestChoosesRoomsAsync(Id, _guestChoosesRooms);
-        _message = "Rumsval-inställningen är sparad.";
+        var result = await BookingService.SetBuildingAssignmentsAsync(Id, [.. _selectedBuildingIds]);
+        _assignmentError = result.Succeeded ? null : result.Error;
+        if (!result.Succeeded) return;
+        _message = "Byggnadstilldelningen är sparad.";
         await Load();
     }
 

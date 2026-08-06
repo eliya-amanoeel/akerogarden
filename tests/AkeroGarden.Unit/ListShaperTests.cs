@@ -42,7 +42,6 @@ public class ListShaperTests
                 FullName = "Anna",
                 ParticipantType = ParticipantType.Overnight,
                 AgeCategory = AgeCategory.Adult,
-                RoomAssignmentSnapshot = "Rum 1 — Blidö",
             },
             new Participant
             {
@@ -53,11 +52,9 @@ public class ListShaperTests
             }));
 
         var anna = data.Participants[0];
-        Assert.Equal("Rum 1 — Blidö", anna.Room);
         Assert.Equal("—", anna.Attendance); // overnight → no single attendance date
 
         var bo = data.Participants[1];
-        Assert.Equal("—", bo.Room);           // day guest → no room
         Assert.Equal("2026-08-02", bo.Attendance);
     }
 

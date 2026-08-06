@@ -28,7 +28,6 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         {
             s.AddSingleton<IEmailService>(fake);
             s.AddScoped<BookingEmailService>();
-            s.AddScoped<RoomAvailabilityService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
             s.Configure<BookingEmailOptions>(o =>
@@ -55,6 +54,12 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
             MealPlan = MealPlan.FullBoardAll,
             AcceptPrivacyPolicy = true
         }, createdByAdmin: true); // suppress creation emails so we can assert transition emails
+
+        // Approval now requires a lodging assignment (FR-103/D1), so a "pending stay ready to be
+        // approved" is not realistic without one. See BuildingAssignmentSeed for why this is
+        // arranged rather than the precondition being relaxed.
+        await BuildingAssignmentSeed.AssignBuildingAsync(
+            scope.ServiceProvider.GetRequiredService<ApplicationDbContext>(), b.Id);
         return b.Id;
     }
 

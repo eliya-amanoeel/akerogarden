@@ -55,7 +55,6 @@ public static class AkeroServiceCollectionExtensions
         services.AddScoped<BookingService>();
         services.AddScoped<BlockedPeriodService>();
         services.AddScoped<OccupancyProvider>();
-        services.AddScoped<RoomAvailabilityService>();
         return services;
     }
 

@@ -136,7 +136,6 @@ else
                         {
                             <p class="form-error" role="alert">@_assignmentError</p>
                         }
-                        <button class="btn btn-sm" style="margin-top:0.6rem" @onclick="SaveBuildingAssignment">Spara byggnadstilldelning</button>
                     </div>
                 </details>
             }
@@ -619,10 +618,27 @@ else
         }
     }
 
-    private void ToggleBuilding(Guid buildingId, bool selected)
+    /// <summary>Persists on every tick — there is no separate save step (decision 2026-08-06). The
+    /// approval precondition (FR-103/D1) reads the <b>persisted</b> assignment, so page state alone
+    /// would never satisfy it. On failure the tick is reverted, so what is shown always matches what
+    /// is stored rather than leaving the admin believing a rejected change took.</summary>
+    private async Task ToggleBuilding(Guid buildingId, bool selected)
     {
         if (selected) _selectedBuildingIds.Add(buildingId);
         else _selectedBuildingIds.Remove(buildingId);
+
+        var result = await BookingService.SetBuildingAssignmentsAsync(Id, [.. _selectedBuildingIds]);
+        if (!result.Succeeded)
+        {
+            if (selected) _selectedBuildingIds.Remove(buildingId);
+            else _selectedBuildingIds.Add(buildingId);
+            _assignmentError = result.Error;
+            return;
+        }
+
+        _assignmentError = null;
+        _message = "Byggnadstilldelningen är sparad.";
+        await Load();
     }
 
     private static string AgeLabel(AgeCategory age) => age switch
@@ -644,14 +660,6 @@ else
         _ => diet.ToString(),
     };
 
-    private async Task SaveBuildingAssignment()
-    {
-        var result = await BookingService.SetBuildingAssignmentsAsync(Id, [.. _selectedBuildingIds]);
-        _assignmentError = result.Succeeded ? null : result.Error;
-        if (!result.Succeeded) return;
-        _message = "Byggnadstilldelningen är sparad.";
-        await Load();
-    }
 
     private async Task SaveParticipants()
     {

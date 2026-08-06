@@ -56,6 +56,7 @@ public static class ListShaper
         ).ToList();
 
         return new BookingListData(
+            BookingReference: booking.BookingReference,
             ContactName: booking.ContactName,
             CheckIn: booking.CheckIn,
             CheckOut: booking.CheckOut,
@@ -184,6 +185,7 @@ public record SpecialDietRow(string Name, string Type, string Dietary, string Me
 
 /// <summary>The shaped data behind both downloadable lists for one booking.</summary>
 public record BookingListData(
+    string BookingReference,
     string ContactName,
     DateOnly? CheckIn,
     DateOnly? CheckOut,

@@ -740,8 +740,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
             // Approval requires a lodging assignment (FR-103/D1), so reach an approvable state the
             // way an admin does — through the assignment box — rather than seeding around the guard.
+            // Ticking persists immediately; there is no save step.
             await Page.GetByRole(AriaRole.Checkbox, new() { Name = "Huvudbyggnaden" }).CheckAsync();
-            await Page.GetByRole(AriaRole.Button, new() { Name = "Spara byggnadstilldelning" }).ClickAsync();
             await Assertions.Expect(Page.Locator(".form-status"))
                 .ToContainTextAsync("Byggnadstilldelningen är sparad.");
 

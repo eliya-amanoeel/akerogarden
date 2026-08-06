@@ -22,12 +22,16 @@ public static class ListPdfGenerator
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    private static readonly string[] ParticipantHeaders = ["Namn", "Typ", "Ålder", "Närvaro", "Kostbehov"];
+    // The printed roster is deliberately narrower than the Excel one (decision 2026-08-06):
+    // Närvaro and Kostbehov are dropped here because the Matlista already carries attendance by day
+    // and names everyone needing an adapted plate ("Kostbehov & allergier"). The Excel keeps both
+    // columns as the fuller working copy.
+    private static readonly string[] ParticipantHeaders = ["Namn", "Typ", "Ålder"];
 
     public static byte[] ParticipantList(BookingListData data) =>
         Build("Deltagarlista", data, ParticipantHeaders,
-            data.Participants.Select(p => new[] { p.Name, p.Type, p.Age, p.Attendance, p.Dietary }),
-            ParticipantHeaders.Select(h => h is "Kostbehov" ? 2f : 1f).ToArray());
+            data.Participants.Select(p => new[] { p.Name, p.Type, p.Age }),
+            [2f, 1f, 1f]);
 
     public static byte[] FoodPreferenceList(BookingListData data)
     {
@@ -42,6 +46,7 @@ public static class ListPdfGenerator
             page.Header().Column(col =>
             {
                 col.Item().Text("Matlista").Bold().FontSize(15);
+                col.Item().Text(data.BookingReference).FontSize(10).SemiBold();
                 col.Item().Text(subtitle).FontSize(9).FontColor(Colors.Grey.Darken1);
             });
 
@@ -139,6 +144,7 @@ public static class ListPdfGenerator
             page.Header().Column(col =>
             {
                 col.Item().Text(title).Bold().FontSize(15);
+                col.Item().Text(data.BookingReference).FontSize(10).SemiBold();
                 col.Item().Text(subtitle).FontSize(9).FontColor(Colors.Grey.Darken1);
             });
 

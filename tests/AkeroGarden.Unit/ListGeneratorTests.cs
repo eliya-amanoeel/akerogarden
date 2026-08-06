@@ -15,6 +15,7 @@ public class ListGeneratorTests
     {
         var booking = new Booking
         {
+            BookingReference = "AG-2026-0042",
             ContactName = "Förening X",
             CheckIn = new DateOnly(2026, 8, 1),
             CheckOut = new DateOnly(2026, 8, 4),
@@ -79,6 +80,36 @@ public class ListGeneratorTests
         Assert.Contains("Deltagare 001", cells);
         Assert.Contains("Deltagare 002", cells);
         Assert.Contains("Vegetarian", cells);           // Deltagare 000's dietary requirement (i % 3 == 0)
+    }
+
+    [Fact]
+    public void Excel_ParticipantList_KeepsNarvaroAndKostbehov_UnlikeThePdf()
+    {
+        // Decision 2026-08-06: the printed roster is trimmed to Namn/Typ/Ålder, but the Excel stays
+        // the fuller working copy. Asserting the divergence deliberately, so a later "tidy-up" that
+        // silently drops these from the spreadsheet too fails here.
+        var cells = SheetStrings(ListExcelGenerator.ParticipantList(Data(5)), "Deltagarlista");
+
+        Assert.Contains("Närvaro", cells);
+        Assert.Contains("Kostbehov", cells);
+    }
+
+    [Fact]
+    public void Excel_BothLists_StateTheBookingReference()
+    {
+        // FR-92: the reference identifies the booking on every artefact. It was missing from all
+        // four downloads until 2026-08-06.
+        var data = Data(3);
+
+        Assert.Contains("AG-2026-0042", SheetStrings(ListExcelGenerator.ParticipantList(data), "Deltagarlista").First());
+        Assert.Contains("AG-2026-0042", SheetStrings(ListExcelGenerator.FoodPreferenceList(data), "Tillagning").First());
+
+        // COVERAGE LIMIT, stated rather than papered over: the PDFs are binary and QuestPDF offers
+        // no text extraction, so this test does NOT verify the reference is rendered on the PDF —
+        // only that the generators receive it. The PDF heading is verified by eye on staging. Adding
+        // a PDF text-extraction dependency for one assertion was judged not worth it; revisit if the
+        // PDF headers grow more logic.
+        Assert.Equal("AG-2026-0042", data.BookingReference);
     }
 
     [Fact]

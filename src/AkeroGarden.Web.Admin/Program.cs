@@ -179,23 +179,28 @@ const string XlsxContentType = "application/vnd.openxmlformats-officedocument.sp
 
 var lists = app.MapGroup("/bokningar/{id:guid}").RequireAuthorization();
 lists.MapGet("/deltagarlista.pdf", (Guid id, BookingService bookings) =>
-    BuildListAsync(id, bookings, "deltagarlista.pdf", "application/pdf", ListPdfGenerator.ParticipantList));
+    BuildListAsync(id, bookings, "deltagarlista", ".pdf", "application/pdf", ListPdfGenerator.ParticipantList));
 lists.MapGet("/deltagarlista.xlsx", (Guid id, BookingService bookings) =>
-    BuildListAsync(id, bookings, "deltagarlista.xlsx", XlsxContentType, ListExcelGenerator.ParticipantList));
+    BuildListAsync(id, bookings, "deltagarlista", ".xlsx", XlsxContentType, ListExcelGenerator.ParticipantList));
 lists.MapGet("/matlista.pdf", (Guid id, BookingService bookings) =>
-    BuildListAsync(id, bookings, "matlista.pdf", "application/pdf", ListPdfGenerator.FoodPreferenceList));
+    BuildListAsync(id, bookings, "matlista", ".pdf", "application/pdf", ListPdfGenerator.FoodPreferenceList));
 lists.MapGet("/matlista.xlsx", (Guid id, BookingService bookings) =>
-    BuildListAsync(id, bookings, "matlista.xlsx", XlsxContentType, ListExcelGenerator.FoodPreferenceList));
+    BuildListAsync(id, bookings, "matlista", ".xlsx", XlsxContentType, ListExcelGenerator.FoodPreferenceList));
 
 static async Task<IResult> BuildListAsync(
-    Guid id, BookingService bookings, string fileName, string contentType, Func<BookingListData, byte[]> render)
+    Guid id, BookingService bookings, string baseName, string extension, string contentType,
+    Func<BookingListData, byte[]> render)
 {
     var booking = await bookings.GetWithParticipantsAsync(id);
     if (booking is null || !ListShaper.IsAvailableFor(booking.Status))
         return Results.NotFound();
 
     var bytes = render(ListShaper.Shape(booking));
-    return Results.File(bytes, contentType, fileName);
+    // The booking reference is in the filename (FR-92) because every booking previously downloaded
+    // as the same "deltagarlista.pdf" — three bookings collided in the downloads folder as
+    // "deltagarlista (1).pdf" and so on, with nothing on the file saying which booking it was.
+    // The reference is a system-generated identifier (AG-YYYY-NNNN), not guest data (NFR-05).
+    return Results.File(bytes, contentType, $"{baseName}-{booking.BookingReference}{extension}");
 }
 
 // The admin host is the single migrating/seeding process (the public host never migrates).

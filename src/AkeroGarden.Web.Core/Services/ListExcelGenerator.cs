@@ -51,7 +51,7 @@ public static class ListExcelGenerator
     {
         var ws = workbook.Worksheets.Add(sheetName);
 
-        ws.Cell(1, 1).Value = $"{title} – {data.ContactName}";
+        ws.Cell(1, 1).Value = $"{title} – {data.BookingReference} – {data.ContactName}";
         ws.Cell(1, 1).Style.Font.Bold = true;
         ws.Cell(1, 1).Style.Font.FontSize = 14;
         ws.Cell(2, 1).Value = $"Incheckning {Fmt(data.CheckIn)} – Utcheckning {Fmt(data.CheckOut)}";

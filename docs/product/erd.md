@@ -19,14 +19,15 @@ erDiagram
     BUILDING ||--o{ ROOM : "contains"
     BUILDING |o--o{ BLOCKEDPERIOD : "scoped to (nullable)"
     ROOM     |o--o{ BLOCKEDPERIOD : "scoped to (nullable)"
-    ROOM     |o--o{ PARTICIPANT : "assigned (RoomId, nullable)"
+    BUILDING ||--o{ BOOKINGBUILDINGASSIGNMENT : "assigned to bookings"
 
     BOOKING  ||--o{ PARTICIPANT : "has"
+    BOOKING  ||--o{ BOOKINGBUILDINGASSIGNMENT : "sleeps in"
+    BOOKING  ||--o{ BOOKINGMEALSELECTION : "has"
     BOOKING  ||--o{ BOOKINGCLEANINGSELECTION : "has"
     BOOKING  ||--o{ BOOKINGFACILITYSELECTION : "has"
 
-    PARTICIPANT ||--o{ MEALPREFERENCE : "has"
-    MEALOPTION  ||--o{ MEALPREFERENCE : "chosen as"
+    MEALOPTION  ||--o{ BOOKINGMEALSELECTION : "chosen as"
 
     CLEANINGZONE ||--o{ BOOKINGCLEANINGSELECTION : "selected as"
     FACILITY     ||--o{ BOOKINGFACILITYSELECTION : "selected as"
@@ -43,15 +44,19 @@ erDiagram
         string ContactEmail
         date CheckIn "null for general inquiry"
         date CheckOut "null for general inquiry"
+        time CheckInTime "stated arrival, default 14:00 (FR-100)"
+        time CheckOutTime "stated departure, default 12:00 (FR-100)"
         int OvernightGuestCount
         int DayGuestCount "inquiry-stage estimate"
-        enum MealPlan "FullBoardAll | SelfCateringAll | Mixed"
-        bool GuestChoosesRooms
+        enum MealPlan "FullBoardAll | SelfCateringAll"
+        bool ArrivalBreakfast "edge-day meals: stored, not derived (FR-105)"
+        bool DepartureDinner "…six flags, arrival + departure"
+        bool DayGuestLunch "…three flags, all day guests on the booking"
+        int VegetarianCount "dietary preference as a count (§4.6)"
+        int VeganCount "dietary preference as a count (§4.6)"
         bool MainBuildingCleaningPurchased "completion choice, FR-93"
-        bool SleepingCleaningPurchased "completion choice; rows resolved at room assignment"
+        bool SleepingCleaningPurchased "completion choice; rows resolve from assigned buildings"
         bool ConferenceCleaningPurchased "completion choice, only if Konferensrum booked"
-        bool DepositPaid
-        bool FinalPaid
         date DeleteAfter "computed, FR-91"
     }
 
@@ -83,23 +88,30 @@ erDiagram
     PARTICIPANT {
         guid Id PK
         guid BookingId FK
-        guid RoomId FK "nullable; overnight only"
         string FullName
         enum ParticipantType "Overnight | DayGuest"
         enum AgeCategory "Adult | Child | Infant"
         date AttendanceDate "day guests only"
-        bool IsFullBoard
-        bool AttendsBreakfast
-        string RoomAssignmentSnapshot "history (NFR-16)"
+        array Allergies "medical only; GDPR art. 9 (§4.6)"
+        string AllergyNotes "free text, accompanies OTHER"
     }
 
-    MEALPREFERENCE {
+    BOOKINGMEALSELECTION {
         guid Id PK
-        guid ParticipantId FK
+        guid BookingId FK "re-parented from Participant (FR-105)"
         guid MealOptionId FK
         date Date
         enum MealType "Lunch | Dinner"
         string MealOptionSnapshot "history (NFR-15)"
+    }
+
+    BOOKINGBUILDINGASSIGNMENT {
+        guid Id PK
+        guid BookingId FK "cascade-delete"
+        guid BuildingId FK "the lodging building the group sleeps in"
+        string BuildingNameSnapshot "history (NFR-16)"
+        string PhysicalBuildingNameSnapshot "history (NFR-16)"
+        datetime AssignedAt
     }
 
     MEALOPTION {
@@ -180,7 +192,7 @@ erDiagram
         guid ActorUserId "nullable; Identity user, not FK-constrained"
         string ActorEmailSnapshot "nullable; admin email at write time"
         string ActorNameSnapshot "nullable; admin name at write time"
-        enum ActionType "BookingApproved, PaymentStatusChanged, …"
+        enum ActionType "BookingApproved, BuildingsAssigned, …"
         string EntityType "Booking, CleaningZone, Room, …"
         guid EntityId "affected record"
         string Summary "no guest PII (NFR-37)"
@@ -200,9 +212,10 @@ erDiagram
 | PhysicalBuilding | CleaningZone | 0..1 → 0..1 | `CleaningZone.PhysicalBuildingId` | The building a zone cleans; null for the `Everything` bundle |
 | Building | Room | 1 → many | `Room.BuildingId` | A building contains its rooms |
 | Booking | Participant | 1 → many | `Participant.BookingId` | General inquiries have zero participants |
-| Room | Participant | 0..1 → many | `Participant.RoomId` | Nullable — set only for assigned overnight guests (I14) |
-| Participant | MealPreference | 1 → many | `MealPreference.ParticipantId` | One row per day × meal type |
-| MealOption | MealPreference | 1 → many | `MealPreference.MealOptionId` | Live ref; name also snapshotted |
+| Booking | BookingBuildingAssignment | 1 → many | `BookingBuildingAssignment.BookingId` | Which lodging buildings the group sleeps in; assigned before approval (FR-103), cascade-deleted with the booking |
+| Building | BookingBuildingAssignment | 1 → many | `BookingBuildingAssignment.BuildingId` | Live ref; name + physical-building name snapshotted (NFR-16). Blocks hard-delete while assigned (FR-16) |
+| Booking | BookingMealSelection | 1 → many | `BookingMealSelection.BookingId` | One row per day × meal type — **the whole group's choice**, not per participant (FR-105) |
+| MealOption | BookingMealSelection | 1 → many | `BookingMealSelection.MealOptionId` | Live ref; name also snapshotted |
 | Booking | BookingCleaningSelection | 1 → many | `BookingCleaningSelection.BookingId` | One row per purchased cleaning zone; populated at completion (FR-93) |
 | CleaningZone | BookingCleaningSelection | 1 → many | `BookingCleaningSelection.CleaningZoneId` | Live ref; name + amount snapshotted (NFR-33) |
 | Booking | BookingFacilitySelection | 1 → many | `BookingFacilitySelection.BookingId` | One row per selected facility |
@@ -216,14 +229,18 @@ erDiagram
 
 ## Modelling notes
 
-1. **Snapshot pattern.** `MealPreference`, `BookingCleaningSelection`, and `Participant.RoomAssignmentSnapshot` each keep a *live FK* **and** a *text/amount snapshot* taken at submission time. The FK powers queries and conflict detection; the snapshot preserves what was agreed if the reference data is later edited (NFR-15/16/33). Hard-delete of referenced reference data is blocked (FR-16/20/26/30/88). *Cleaning (FR-93) is chosen at completion, not inquiry: `MainBuilding`/`Conference` rows snapshot at submission, while the combined `SleepingBuilding` choice is stored as intent (`Booking.SleepingCleaningPurchased`) and its rows are resolved from room assignment and snapshotted when that assignment is set/changed.*
+1. **Snapshot pattern.** `BookingMealSelection`, `BookingCleaningSelection`, `BookingFacilitySelection`, and `BookingBuildingAssignment` each keep a *live FK* **and** a *text/amount snapshot* taken at the time of agreement. The FK powers queries; the snapshot preserves what was agreed if the reference data is later edited (NFR-15/16/33/34). Hard-delete of referenced reference data is blocked (FR-16/20/26/30/88). *Cleaning (FR-93) is chosen at completion, not inquiry, and all three kinds snapshot at submission — the `SleepingBuilding` rows resolve from the booking's assigned buildings, which are already known because assignment precedes approval (FR-103).*
 
-2. **No monetary totals.** Per C8, no booking total / deposit / balance is stored. `AmountExVat` on `CleaningZone`/`PriceRule` is reference data only; deposit/final tracking on `Booking` is boolean status.
+2. **No monetary totals — and no payment state at all.** Per C8, no booking total / deposit / balance is stored. `AmountExVat` on `CleaningZone`/`PriceRule` is reference data only. The four deposit/final-payment booleans were removed from `Booking` in 2026-08 (FR-42): invoicing is manual and entirely outside the system (§5.4), so tracking flags here formed an island of state that drove nothing.
 
 3. **Array columns.** `CleaningZone.IncludesZoneIds` is a PostgreSQL `uuid[]` column (supported by EF Core), used only for the Hela lägret bundle self-reference. Facility and cleaning *selections* are full child entities (with snapshots), not arrays.
 
 4. **Facility & cleaning selections are symmetric.** Both `BookingFacilitySelection` and `BookingCleaningSelection` are child entities with a live FK plus name/amount snapshots, so an agreed facility or cleaning price survives later edits to the reference record (NFR-33/34, resolved consistently with C6). This was previously an asymmetry (facilities were a bare ID array) — aligned in v0.32.
 
-5. **PhysicalBuilding is the cleaning/blocking level.** Cleaning is priced per physical building, so `CleaningZone` links to `PhysicalBuilding` by **FK** (not a `uuid[]` of building/facility IDs) — sleeping-cleaning resolves by the structural join room → `Building.PhysicalBuildingId` → `CleaningZone.PhysicalBuildingId` with referential integrity, and `Facility.PhysicalBuildingId` drives conference cleaning. The lodging `Building` (Blidö, …) is a *unit inside* a physical building; the level was promoted to a first-class entity (rather than a `CleaningZone`↔`Building` join table) because a concrete future use exists — blocking a whole physical building (e.g. all of Stora bostadslängan) in one action, a `BlockedPeriod.PhysicalBuilding` scope planned as a later slice.
+5. **PhysicalBuilding is the cleaning/blocking level.** Cleaning is priced per physical building, so `CleaningZone` links to `PhysicalBuilding` by **FK** (not a `uuid[]` of building/facility IDs) — sleeping-cleaning resolves by the structural join assigned `Building.PhysicalBuildingId` → `CleaningZone.PhysicalBuildingId` with referential integrity, and `Facility.PhysicalBuildingId` drives conference cleaning. The lodging `Building` (Blidö, …) is a *unit inside* a physical building; the level was promoted to a first-class entity (rather than a `CleaningZone`↔`Building` join table) because a concrete future use exists — blocking a whole physical building (e.g. all of Stora bostadslängan) in one action, a `BlockedPeriod.PhysicalBuilding` scope planned as a later slice.
 
-6. **AuditLog is accountability, not preservation.** The snapshot pattern (note 1) answers *"what was agreed?"*; `AuditLog` (§8.15) answers *"who changed this, and when?"* — a distinct concern, so it is a separate append-only entity, not more snapshot columns. It is **semi-polymorphic**: `EntityType`/`EntityId` identify the affected record of any kind, while an optional hard FK `BookingId` (ON DELETE CASCADE) is set for booking-scoped entries so they are purged with the booking (FR-98) and listable per booking. It stores **no guest personal data** (NFR-37) — booking-change entries carry the action + `BookingReferenceSnapshot` only, never guest field values or art. 9 dietary data. Actor is `Admin` / `Guest` (magic-link completion) / `System` (background jobs), so every change is attributable. Admin identity is stored as a live `ActorUserId` plus an `ActorEmailSnapshot` (not FK-constrained — Identity tables are infrastructure, §6.4 — and admins can be removed, FR-74).
+6. **`Room` is capacity data, not an assignment target.** Participants used to carry a `RoomId`; that link was removed in 2026-08 along with per-participant room assignment (FR-56). Bookings now attach to whole lodging **buildings** (`BookingBuildingAssignment`, §8.16) and the group divides itself among the rooms. `Room` remains because bed counts are what the availability calendar computes capacity from (FR-10), and because `BlockedPeriod` can still be scoped to a single room — it simply no longer appears in any booking's data. One consequence worth stating: with no participant pointing at a room, the old hard-delete guard for rooms would count zero for ever and silently pass, so FR-20 was repointed at `BlockedPeriod` references, which are logical rather than foreign keys and therefore the real orphan risk.
+
+7. **`Participant` is a roster.** It carries who is present, their age category, and their allergies — nothing else. Meal choice, catering plan, room, and breakfast attendance were all removed: each was a booking-level decision that had been stored per person, and each could disagree with the booking it was copied from. Dietary *preferences* became counts on `Booking` for the same reason, which also stores strictly less personal data.
+
+8. **AuditLog is accountability, not preservation.** The snapshot pattern (note 1) answers *"what was agreed?"*; `AuditLog` (§8.15) answers *"who changed this, and when?"* — a distinct concern, so it is a separate append-only entity, not more snapshot columns. It is **semi-polymorphic**: `EntityType`/`EntityId` identify the affected record of any kind, while an optional hard FK `BookingId` (ON DELETE CASCADE) is set for booking-scoped entries so they are purged with the booking (FR-98) and listable per booking. It stores **no guest personal data** (NFR-37) — booking-change entries carry the action + `BookingReferenceSnapshot` only, never guest field values or art. 9 dietary data. Actor is `Admin` / `Guest` (magic-link completion) / `System` (background jobs), so every change is attributable. Admin identity is stored as a live `ActorUserId` plus an `ActorEmailSnapshot` (not FK-constrained — Identity tables are infrastructure, §6.4 — and admins can be removed, FR-74).

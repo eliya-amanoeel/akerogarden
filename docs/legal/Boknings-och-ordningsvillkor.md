@@ -34,7 +34,7 @@
 - Åkerögården är rök- och djurfri. Rökning är endast tillåten utomhus på anvisade platser.
 - Det är inte tillåtet att flytta ut inomhusmöbler till utomhusmiljö.
 - Det är inte tillåtet att fästa tejp eller liknande på väggarna, då detta kan orsaka skador.
-- Incheckning sker kl. 14:00 och utcheckning kl. 12:00, om inte annat överenskommits.
+- Standardtid för incheckning är kl. 14:00 och för utcheckning kl. 12:00. Vid bokningsförfrågan kan gästen ange en önskad in- och utcheckningstid; en tid som avviker från standardtiderna är ett önskemål som bekräftas separat av Åkerögården och kan medföra en tilläggsavgift.
 - [ATT BEKRÄFTA — eventuella ytterligare ordningsregler specifika för Åkerögården: t.ex. tystnad efter viss tid, alkoholpolicy, regler kring gemensamma utrymmen/kök.]
 
 ## 6. Skador och ansvar

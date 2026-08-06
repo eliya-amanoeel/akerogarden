@@ -8,10 +8,19 @@
 
 ## How to use this plan
 
+> ⚠️ **Completed phases are a historical record, not current truth.** Phases 0–9 describe what
+> was built *at the time they were built*, and are deliberately not rewritten when later work
+> supersedes them — otherwise the record of what actually happened is lost. **The 2026-08
+> demo-feedback work changed several things those phases describe**, so Phase 3/4/5 text still
+> mentions `MealPreference`, `IsFullBoard`, `AttendsBreakfast`, `GuestChoosesRooms`,
+> per-participant room assignment and per-participant meal selection, and deposit/payment
+> status tracking. **None of those exist any more.** For current truth always read
+> `requirements.md`; for what changed and why, read `demo-feedback-2026-08-05.md`.
+
 - Phases are **dependency-ordered** — each builds on the one before. Don't start a phase until the prior phase's exit criteria are met.
 - Every requirement ID (FR-xx / NFR-xx) traces back to requirements.md. If a phase seems to conflict with the SRS, the **SRS wins** — raise it, don't silently diverge.
-- The data model is fixed in requirements.md §8 and visualised in erd.md. **Add EF Core migrations incrementally**, introducing each entity in the phase that first needs it (noted per phase). **Pre-go-live exception — ✅ DONE (2026-07-13).** With no production data to preserve, the accumulated 14-migration per-phase history was wiped and regenerated as a single consolidated baseline, `20260713155158_InitialSchema` (commit `1ddce7d`). Entities added in that window — notably `AuditLog` (§8.15) — landed **in** the baseline rather than as incremental migrations on top of it. **The exception expires when Phase 10c migrates the production database:** from that point production holds real data, every schema change is an incremental migration, and history is never rewritten again.
-- **Tombstoned requirements need no work:** FR-12, FR-41, FR-43 (merged/removed), and FR-46 (dropped). They're listed in the SRS only to keep numbering stable.
+- The data model is fixed in requirements.md §8 and visualised in erd.md. **Add EF Core migrations incrementally**, introducing each entity in the phase that first needs it (noted per phase). **Pre-go-live exception — ✅ DONE (2026-07-13).** With no production data to preserve, the accumulated 14-migration per-phase history was wiped and regenerated as a single consolidated baseline, `20260713155158_InitialSchema` (commit `1ddce7d`). Entities added in that window — notably `AuditLog` (§8.15) — landed **in** the baseline rather than as incremental migrations on top of it. **The exception now expires at the Phase 10d cutover** (amended 2026-08-06, was "when Phase 10c migrates the production database"). 10c provisioned and migrated production, but production has never gone live and holds **no real data** — the gate that actually matters is *real guest data*, not *production exists*. The 2026-08 demo-feedback work reshapes the schema substantially (`Participant` loses four fields, `MealPreference` is re-parented and renamed, a building-assignment entity is added, the payment flags are dropped), so the baseline is regenerated once more and both the staging and production databases are dropped and recreated. **From the 10d cutover onward the rule is absolute:** production holds real data, every schema change is an incremental migration, and history is never rewritten again. See `demo-feedback-2026-08-05.md`.
+- **Tombstoned requirements need no work:** FR-12, FR-41, FR-43 (merged/removed), FR-46 (dropped), and — from the 2026-08 demo feedback — FR-42 (payment tracking withdrawn) and FR-56 (per-participant room assignment withdrawn). They're listed in the SRS only to keep numbering stable.
 
 ### Cross-cutting concerns (apply in every phase, not a separate phase)
 
@@ -496,6 +505,105 @@ Grouped deliberately: these all need the apps running, so they are done together
 
 ---
 
+## Demo feedback (2026-08-05) — deliberately *not* a phase
+
+**Full decision record: [`demo-feedback-2026-08-05.md`](demo-feedback-2026-08-05.md).** That
+document is the authority on scope, decisions and their reasoning; this section exists so the
+plan is not silently untrue about where the work sits.
+
+**Why it is not numbered as a phase.** Phases here are **dependency-ordered**, and this work
+is not a dependency of anything — Phase 10d is gated on the jurist review of the legal text,
+which is outside the project's control, and this work runs inside that waiting window.
+Numbering it would imply it holds a position in the ordering and gates something, which it
+does not. It must, however, land **before** the 10d cutover: the client saw the system at the
+demo and asked for these changes, and launching the version they critiqued is not the intent.
+
+**Scope, in one line each** (client-requested unless marked):
+
+| Ref | Change |
+|---|---|
+| 1a | Meal selection becomes one choice per sitting **for the whole group**; `Mixed` meal plan removed; dietary requirements split into per-person **allergies** and booking-level **preference counts**; `MealPreference` → `BookingMealSelection`, re-parented to `Booking` (FR-105, FR-55/57/58) |
+| 1b | Participant-name file upload — **deferred to after launch**, as an explicit decision. See the feedback document for why an undecided deferral would have blocked the jurist review and therefore the launch |
+| 2a | Per-participant room assignment replaced by admin **building assignment before approval** (FR-103, §8.16); FR-56 retired; `Room` survives as capacity data only |
+| 2b | Second admin role **`Samordning`**, restricted to the two per-booking lists, page-separated from `BookingDetail` (FR-104). Un-defers the role-based-permissions entry formerly in §10 |
+| 3 | Guest states **check-in/check-out times** at inquiry (FR-100/101); arrival- and departure-day meals become chosen data rather than derived from fixed times |
+| 4a | The check-out date **and the following day** are shown unavailable — two clear turnover days, computed not stored (FR-106) |
+| 5a | The "review feature" — **postponed as a future feature** (2026-08-06), out of launch scope. Never identified beyond the client's phrase; the decision fork is recorded in the feedback document and in `requirements.md` §10. Deciding it out rather than leaving it parked also removes the only item in this set that could have required new Azure infrastructure |
+| 6a | Warning email before the completion link expires (FR-99) |
+| 6b | Guest email address shown in the approve confirmation dialog (FR-38) |
+| 6c | Stale SRS version footer corrected |
+| 6d | The four deposit/final-payment tracking checkboxes removed (FR-42 retired) |
+| §7 | **Two design corrections, ours not the client's:** give the meal-occasion set a single resolved source of truth instead of leaving one derived and one stored; and make "unavailable" a first-class set of reasons in the availability calculator instead of one boolean |
+| §8 | **Four conflict-audit findings**, each of which would have shipped as a silent defect — most notably that removing `Participant.RoomId` leaves the room hard-delete guard always passing rather than failing loudly (FR-20 repointed at `BlockedPeriod` orphan protection) |
+
+**Infrastructure impact: none.** No Bicep changes, no new Azure resources, no cost change. The
+only Azure-adjacent work is dropping and recreating both databases for the regenerated
+baseline — see the migration note under Phase 10d.
+
+**Order of work:** documents before code, without exception — `requirements.md`, `erd.md`,
+`architecture.md`, this plan, `CLAUDE.md`, and `docs/legal/` are all reconciled before any
+implementation begins. ✅ **Documents done 2026-08-06** (branch `docs/demo-feedback-2026-08-05`).
+
+### Slices
+
+Built as independently reviewable vertical slices, each with its unit **and** integration
+tests, in the same style as Phases 1/3/4/10b. **The order is not arbitrary** — several items
+collide in the same files, and the obvious order is the wrong one:
+
+| # | Slice | Scope | Why it sits here |
+|---|---|---|---|
+| **1** | **Remove payment tracking** *(6d)* | Drop `DepositInvoiced`/`DepositPaid`/`FinalInvoiced`/`FinalPaid` from `Booking`, `BookingService.SetPaymentFlagsAsync`, the payment `AuditAction` verb, `DemoDataSeeder`, and the `.paycheck` block in `BookingDetail.razor` + its CSS (FR-42) | Smallest and fully independent. Doing it **first** shrinks `BookingDetail`'s action rail *before* slice 2 adds building assignment to the same rail |
+| **2** | **Building assignment** *(2a + audit C1, C3)* | New `BookingBuildingAssignment` (§8.16) with name snapshots; remove `Participant.RoomId`/`RoomAssignmentSnapshot` and `Booking.GuestChoosesRooms`; delete `RoomConflictDetector` + `RoomAvailabilityService`; re-point sleeping-cleaning resolution to assigned buildings (FR-93); **rewrite the FR-16/20 hard-delete guards (audit C1)**; **add the blocked-building assignment guard (FR-102, audit C3)**; admin assignment UI; approval precondition + capacity warning (FR-38/103); buildings in the approval + reminder emails (FR-64) | The guards **must ship in the same slice as the removal that creates the hole.** Removing `RoomId` leaves `RoomService`'s guard counting zero for ever — it silently always passes — and nothing prevents assigning a blocked building. A later slice would leave that window open |
+| **3** | **Meals + times** *(1a + item 3 + §7.1; sub-split below)* | 1a and item 3 **together** | They rewrite the same three things — `MealsByDayCalculator`, the completion form's meal section, `ListShaper`. Splitting them means touching each twice and risks leaving edge-day meals half-derived/half-stored, the exact two-sources-of-truth failure §7.1 exists to prevent |
+| **3a** | — data model + resolver | `MealPlan` drops `Mixed`; `Participant` loses `IsFullBoard`/`MealPreferences`/`AttendsBreakfast`; `DietaryRequirements` splits into `Allergies` + booking-level `VegetarianCount`/`VeganCount`; `MealPreference` → `BookingMealSelection` re-parented to `Booking`; `CheckInTime`/`CheckOutTime`; the six edge-day flags; the three day-guest meal flags; **§7.1 — one resolved meal-occasion concept** (calculator supplies defaults, booking overrides edge days, every consumer reads the single resolved answer) | Everything downstream depends on the resolved shape |
+| **3b** | — completion form | Group meal picker per sitting with "same for all days"; edge-day meal checkboxes; allergies per participant; preference counts; day-guest attendance; read-only assigned buildings and their rooms | |
+| **3c** | — inquiry form + times | Time pickers (30-min steps, 07:00–22:00, defaults 14:00/12:00, FR-100); `MealPlan` dropdown loses `Mixed`; day-guest visibility rule; **consolidate the triplicated `dayGuestsApplicable` rule** (audit finding — currently in `BookingService`, `InquiryNormalizer` and `CompleteBooking.razor`); FR-101 admin non-standard-time warning | |
+| **3d** | — lists + emails | `ListShaper` prep counts from booking-level selections; preference counts on the Matlista (FR-45); reminder email carries the booking's own times and the assigned buildings (FR-64) | |
+| **4** | **Turnover days** *(4a + §7.2 + audit C4, M1)* | §7.2 — make "unavailable" a first-class set of reasons in `AvailabilityCalculator` rather than one boolean; turnover window computed from booking dates (FR-106); apply to the public calendar **and** `AdminCalendar` | Independent of the data model. **§7.2 is what makes it work at all** — extending the date range alone leaves a small group's turnover days reading *partially* booked. **`AdminCalendar` does not use `OccupancyProvider`** (audit M1), so it is a second code path that must be updated deliberately |
+| **5** | **`Samordning` role** *(2b + audit H2)* | Role seeding at startup + `Administratör` backfilled onto existing/seeded admins (**audit H2 — no role is created or assigned today**); `AdminInviteService` carries a role; per-page authorisation; the restricted booking list + list-download view; its own landing page (the admin host's `/` is the dashboard, which this role must not see); role-change audit verb | Independent of the data model, but touches admin pages — so it follows slice 2 rather than colliding with it |
+| **6** | **Notifications polish** *(6a + 6b)* | Link-expiry warning email + `LinkExpiryWarningSentAt` + `DailyJobRunner` step (FR-99); guest email address in the approve `ConfirmDialog` (FR-38/6b) | Small, independent, no schema coupling beyond one timestamp |
+| **7** | **Baseline + cutover prep** *(schema, DBs, gate)* | Regenerate the migration baseline **once**; drop and recreate the staging **and** production databases per `infra/ops/db-access-runbook.md`; reseed; final doc reconciliation; **completion gate** | One regeneration, not one per slice. A regenerated baseline **cannot** apply over an existing schema — `MigrateAsync` tries to `CREATE TABLE` over the old tables and the container dies on the 230s startup timeout (staging, 2026-07-14) |
+
+**Testing per slice** (NFR-26–28, written *with* the slice, never after):
+
+- **Unit** — the meal-occasion resolver (3a), the turnover-window computation and the
+  unavailable-reason evaluation (4), the capacity warning threshold (2), the expiry-warning
+  cutoff (6).
+- **Integration** — building assignment incl. the approval precondition and the blocked-building
+  rejection (2); both rewritten hard-delete guards, asserting a **blocked** result, not merely
+  that the call returns (2); cleaning-zone resolution from assigned buildings incl.
+  re-resolution when the assignment changes (2); completion submission end-to-end on the new
+  shape (3b); list generation against booking-level selections (3d); `Samordning` authorisation
+  — a role that **cannot** reach `BookingDetail` or guest contact data (5).
+- **E2E** — the booking funnel end-to-end on the new completion form, driven to the
+  acknowledgement rather than merely rendering; the admin approval path including the
+  assignment precondition; a `Samordning` login reaching only its own pages.
+- **Deletions are not free.** Removing `RoomConflictDetector`, `RoomAvailabilityService`,
+  `SetPaymentFlagsAsync` and the per-participant meal paths also removes their tests. Confirm
+  each removed test was covering behaviour that genuinely no longer exists, rather than
+  quietly dropping coverage — the test-integrity rule applies to deletions too.
+
+**Exit criteria:**
+
+- Every FR-99–106 implemented; FR-42, FR-56 and FR-59 have no remaining code path.
+- The audit findings are closed **in code**, not only in prose: the hard-delete guards fail
+  loudly rather than counting zero (C1); a blocked building cannot be assigned (C3); turnover
+  days render as *fully* booked on **both** calendars (C4/M1); no orphaned `RoomId` references.
+- Migration baseline regenerated once; both databases dropped, recreated and reseeded; staging
+  boots clean and is verified end-to-end.
+- Full suite green — unit, integration, E2E — with no test weakened or skipped to accommodate
+  a change.
+- Docs re-verified against the built code, since the documents were written first and the code
+  may legitimately have taught us something.
+
+> **The completion gate in `.claude/CLAUDE.md` applies to this work**, even though it is not a
+> phase. State it explicitly because the Byggnader rework already merged once without it
+> (logged as an open gap in Phase 11). Run the gate before merging: exit criteria, critical
+> rules, FR/NFR compliance, security, tests, infra, design system — reported as ✅ CONFIRMED /
+> ⚠️ GAPS / ❌ VIOLATIONS, with findings fixed rather than carried forward.
+
+---
+
 ## Phase 10d — Cutover & launch
 
 **Goal:** flip the domain and go live. Deliberately short and scripted — every item below is fast and rehearsed, because everything slow was completed in 10c.
@@ -515,7 +623,9 @@ Grouped deliberately: these all need the apps running, so they are done together
 
 **Exit criteria:** the privacy policy and booking terms jurist-reviewed, gap-free and live; go-live checklist complete; the WordPress site decommissioned with DNS + email preserved; production reachable over valid managed SSL on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex; a magic-link email verified to carry real-domain links.
 
-> **Migration discipline resumes here.** The moment 10c migrates the production database, the pre-go-live exception described at the top of this plan expires: production holds real data from launch, so every subsequent schema change is an incremental migration and the history is never rewritten again.
+> **Migration discipline resumes here.** The pre-go-live exception described at the top of this plan expires at **this** phase's cutover (amended 2026-08-06 — it previously expired at 10c). Production was provisioned and migrated in 10c but has never held real data, and the demo-feedback work reshapes the schema, so one further baseline regeneration is taken before launch. From the cutover onward production holds real data: every subsequent schema change is an incremental migration and the history is never rewritten again.
+>
+> **Cutover step, do not skip:** a regenerated baseline **cannot** be applied to a database that still holds the old tables — `MigrateAsync` tries to `CREATE TABLE` over them and the container dies on the 230-second startup timeout (this happened on staging 2026-07-14). Both databases must be **dropped and recreated** per `infra/ops/db-access-runbook.md`, never migrated in place.
 
 ---
 
@@ -568,6 +678,7 @@ Grouped deliberately: these all need the apps running, so they are done together
 | 9 Pre-go-live | FR-74 (admin invite lifecycle) | feedback-driven pre-launch polish |
 | 10a/10b Staging re-provisioning & host separation | FR-70 (host separation — 10b) | — |
 | 10c Production pre-stage | — | NFR-12,29,31 |
+| *(Demo feedback 2026-08-05 — not a phase)* | FR-99–106; retires FR-42, FR-56; amends FR-03,10,16,20,21,38,55,57,58,64,93,95 | NFR-15,16 (snapshots re-pointed) |
 | 10d Cutover & launch | — | NFR-20–24 (privacy policy) · residual go-live (reachability, managed SSL) |
 | 11 Post-production hardening & handover | FR-95,96,98 (audit trail; FR-97 UI deferred) | operational maturity (alerts, logging, security review), NFR-36,37 (audit trail), FR-16/20/26/30/88 (delete-confirm UX) |
 

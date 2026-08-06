@@ -25,23 +25,25 @@ Vi samlar in personuppgifter i samband med bokningsförfrågningar, bokningar oc
 | Kategori | Exempel | Vem lämnar uppgiften |
 |---|---|---|
 | Kontaktuppgifter | Namn, e-postadress, telefonnummer | Bokande gäst (bokningsansvarig) |
-| Bokningsuppgifter | Ankomst- och avresedatum, antal gäster, meddelande/önskemål, organisation/faktureringsuppgifter vid företagsbokning | Bokande gäst |
-| Deltagaruppgifter | För- och efternamn på deltagare, rumsplacering | Bokande gäst, vid slutförande av bokning |
-| Måltidspreferenser | Val av måltidsalternativ, specialkost och allergier | Bokande gäst eller deltagare, vid slutförande av bokning |
-| Betalningsstatus | Om handpenning respektive slutbetalning är registrerad som mottagen (inga kortuppgifter eller betalningsuppgifter lagras i systemet) | Registreras av administratör |
+| Bokningsuppgifter | Ankomst- och avresedatum, önskad in- och utcheckningstid, antal gäster, meddelande/önskemål, organisation/faktureringsuppgifter vid företagsbokning | Bokande gäst |
+| Deltagaruppgifter | För- och efternamn på deltagare samt ålderskategori | Bokande gäst, vid slutförande av bokning |
+| Allergiuppgifter | Allergier per namngiven deltagare | Bokande gäst, vid slutförande av bokning |
+| Måltidsuppgifter | Gruppens gemensamma val av måltidsalternativ samt **antal** portioner med kostpreferens (vegetariskt/veganskt) — dessa antal är inte kopplade till namngivna personer | Bokande gäst, vid slutförande av bokning |
 
 **Vi samlar aldrig in personnummer.** Vi ber aldrig om, och lagrar aldrig, svenska personnummer i bokningssystemet.
 
 ### Känsliga personuppgifter (allergi- och kostinformation)
 
-Uppgifter om allergier och specialkost kan utgöra känsliga personuppgifter (uppgifter om hälsa) enligt artikel 9 GDPR. Vi behandlar dessa uppgifter uteslutande för att kunna tillgodose gästens kost- och säkerhetsbehov under vistelsen (t.ex. undvika allergiframkallande livsmedel i köket), och behandlingen sker med gästens uttryckliga samtycke i samband med att uppgiften lämnas i bokningsformuläret. Uppgiften delas endast internt med den personal som planerar och tillagar måltider.
+**Allergiuppgifter** kopplas till en namngiven deltagare och kan utgöra känsliga personuppgifter (uppgifter om hälsa) enligt artikel 9 GDPR. Vi behandlar dessa uppgifter uteslutande för att kunna tillgodose gästens säkerhetsbehov under vistelsen (t.ex. undvika allergiframkallande livsmedel i köket), och behandlingen sker med gästens uttryckliga samtycke i samband med att uppgiften lämnas i bokningsformuläret.
+
+**Kostpreferenser (vegetariskt och veganskt) behandlas däremot inte som personuppgifter.** De registreras enbart som ett *antal* portioner för hela sällskapet och kopplas aldrig till en namngiven person — köket behöver veta hur många portioner som ska anpassas, inte vem som beställt dem. Uppgiften kan därför inte hänföras till en enskild individ. Uppgiften delas endast internt med den personal som planerar och tillagar måltider. Sådan personal — samordnare och köksansvarig — har egna, behörighetsbegränsade konton i bokningssystemet som **endast** ger åtkomst till deltagarlistan och matlistan för aktuella bokningar. De har inte åtkomst till gästens kontaktuppgifter, meddelanden eller övriga bokningsuppgifter.
 
 ## 3. Varför behandlar vi dina uppgifter och med vilket lagstöd?
 
 | Ändamål | Lagstöd (GDPR art. 6) |
 |---|---|
 | Hantera din bokningsförfrågan och kommunicera bokningsstatus | Fullgörande av avtal (6.1 b) — inför ingående av avtal |
-| Administrera en bekräftad bokning, inklusive deltagarlista, rumsplacering och måltider | Fullgörande av avtal (6.1 b) |
+| Administrera en bekräftad bokning, inklusive deltagarlista och måltider | Fullgörande av avtal (6.1 b) |
 | Behandla allergi- och kostuppgifter | Uttryckligt samtycke (6.1 a, jämfört med 9.2 a) |
 | Skicka påminnelser inför ankomst | Fullgörande av avtal (6.1 b) |
 | Besvara allmänna förfrågningar som inte leder till bokning | Berättigat intresse av att kunna besvara förfrågningar (6.1 f) |

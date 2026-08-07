@@ -70,7 +70,9 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             BuildCompletionUrl(booking.CompletionToken),
             booking.CompletionTokenExpiry.Value,
             booking.BookingReference,
-            AssignedBuildingNames(booking));
+            AssignedBuildingNames(booking),
+            booking.CheckInTime,
+            booking.CheckOutTime);
         return SendToGuestAsync(booking, content);
     }
 
@@ -80,9 +82,10 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     {
         var overnight = booking.Participants.Count(p => p.ParticipantType == ParticipantType.Overnight);
         var dayGuests = booking.Participants.Count(p => p.ParticipantType == ParticipantType.DayGuest);
-        var meals = booking.Participants.Sum(p => p.MealPreferences.Count);
+        var meals = booking.MealSelections.Count;
         var content = BookingEmailTemplates.TwoWeekReminder(
             booking.ContactName, overnight, dayGuests, meals, booking.CheckIn, booking.CheckOut,
+            booking.CheckInTime, booking.CheckOutTime,
             _opts.PropertyAddress, booking.BookingReference, AssignedBuildingNames(booking));
         return SendToGuestAsync(booking, content);
     }

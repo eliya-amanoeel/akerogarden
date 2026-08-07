@@ -44,6 +44,29 @@
             <div class="form-group"><label for="mb-checkout">Utcheckning</label><InputDate id="mb-checkout" @bind-Value="_stay.CheckOut" /><ValidationMessage For="() => _stay.CheckOut" /></div>
         </div>
 
+        @* Stated arrival/departure times (FR-100, §2.8) — a request the admin may adjust later,
+           never priced or approved by the system. Same fixed choices as the public form. *@
+        <div class="form-row">
+            <div class="form-group">
+                <label for="mb-checkin-time">Ankomsttid</label>
+                <InputSelect id="mb-checkin-time" @bind-Value="_stay.CheckInTime">
+                    @foreach (var t in StatedTimePolicy.Options())
+                    {
+                        <option value="@StatedTimePolicy.Display(t)">@StatedTimePolicy.Display(t)</option>
+                    }
+                </InputSelect>
+            </div>
+            <div class="form-group">
+                <label for="mb-checkout-time">Avresetid</label>
+                <InputSelect id="mb-checkout-time" @bind-Value="_stay.CheckOutTime">
+                    @foreach (var t in StatedTimePolicy.Options())
+                    {
+                        <option value="@StatedTimePolicy.Display(t)">@StatedTimePolicy.Display(t)</option>
+                    }
+                </InputSelect>
+            </div>
+        </div>
+
         <div class="form-group"><label for="mb-guests">Antal gäster (övernattning)</label><InputNumber id="mb-guests" min="1" @bind-Value="_stay.OvernightGuestCount" /><ValidationMessage For="() => _stay.OvernightGuestCount" /></div>
 
         <div class="form-group">
@@ -52,12 +75,11 @@
                 <option value="">Välj...</option>
                 <option value="@MealPlan.FullBoardAll">Helpension för alla</option>
                 <option value="@MealPlan.SelfCateringAll">Självhushåll för alla</option>
-                <option value="@MealPlan.Mixed">Blandat</option>
             </InputSelect>
             <ValidationMessage For="() => _stay.MealPlan" />
         </div>
 
-        @if (_stay.MealPlan != MealPlan.SelfCateringAll)
+        @if (InquiryNormalizer.DayGuestsApplicable(_stay.MealPlan))
         {
             <div class="form-group"><label for="mb-dayguests">Antal dagsgäster</label><InputNumber id="mb-dayguests" min="0" @bind-Value="_stay.DayGuestCount" /></div>
         }

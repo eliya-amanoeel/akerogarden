@@ -48,7 +48,7 @@ public class CleaningCompletionTests(E2EFixture fixture) : PublicE2ETestBase(fix
 
         await Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name").FillAsync("Anna Andersson");
         await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__name").FillAsync("Bengt Berg");
-        await SelectEveryGroupDefaultLunchAsync("Ugnsbakad lax");
+        await ChooseEveryVisibleSittingAsync();
 
         await Page.Locator("#clean-main").CheckAsync();
         await Page.Locator("#clean-conference").CheckAsync();
@@ -73,13 +73,13 @@ public class CleaningCompletionTests(E2EFixture fixture) : PublicE2ETestBase(fix
         Assert.Equal(2, booking.CleaningSelections.Count); // exactly the two chosen — no sleeping row
     }
 
-    /// <summary>Selects the given option on every per-day group-default lunch dropdown, cascading it
-    /// to that day's slot for all participants (mirrors CompletionTests' helper).</summary>
-    private async Task SelectEveryGroupDefaultLunchAsync(string label)
+    /// <summary>Picks a dish for every sitting the group is taking, so the form is complete
+    /// (mirrors CompletionTests' helper).</summary>
+    private async Task ChooseEveryVisibleSittingAsync()
     {
-        var selects = Page.Locator("select[data-groupdefault-slot][data-meal='Lunch']");
+        var selects = Page.Locator("[data-sitting]:visible select");
         var count = await selects.CountAsync();
         for (var i = 0; i < count; i++)
-            await selects.Nth(i).SelectOptionAsync(new SelectOptionValue { Label = label });
+            await selects.Nth(i).SelectOptionAsync(new SelectOptionValue { Index = 1 });
     }
 }

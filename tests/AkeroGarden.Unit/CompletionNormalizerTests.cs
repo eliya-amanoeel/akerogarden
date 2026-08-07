@@ -6,15 +6,15 @@ namespace AkeroGarden.Unit;
 
 /// <summary>
 /// Unit coverage for the pure completion-form normaliser (NFR-26, §6.6): validation (names, the
-/// full-board meals-required rule, dietary "Annat" notes, count/org guards) and the
-/// server-authoritative build (no meals for self-catering, wrong-type/inactive options dropped,
-/// snapshots captured, overnight breakfast always true).
+/// meals-required rule, allergy "Annat" notes, preference-count and org guards) and the
+/// server-authoritative build — the group's one choice per sitting (FR-105), wrong-type/inactive
+/// options dropped, snapshots captured, and a roster carrying nothing but name, age and allergies.
 /// </summary>
 public class CompletionNormalizerTests
 {
-    private static readonly DateOnly CheckIn = new(2026, 8, 10);
-    private static readonly DateOnly CheckOut = new(2026, 8, 12); // 2 nights → dinner, lunch+dinner
-    private static readonly IReadOnlyList<MealSlot> Slots = MealsByDayCalculator.Slots(CheckIn, CheckOut);
+    private static readonly DateOnly Day1 = new(2026, 8, 10);
+    private static readonly DateOnly Day2 = new(2026, 8, 11);
+    private static readonly DateOnly Day3 = new(2026, 8, 12); // 2 nights
 
     private static readonly MealOption Lunch1 = new() { Id = Guid.NewGuid(), Name = "Fisk", MealType = MealType.Lunch, IsActive = true };
     private static readonly MealOption Dinner1 = new() { Id = Guid.NewGuid(), Name = "Kyckling", MealType = MealType.Dinner, IsActive = true };
@@ -22,205 +22,424 @@ public class CompletionNormalizerTests
     private static Dictionary<Guid, MealOption> Options() =>
         new() { [Lunch1.Id] = Lunch1, [Dinner1.Id] = Dinner1 };
 
-    // Slots for a 2-night stay are [Dinner(day1), Lunch(day2), Dinner(day2)].
-    private static OvernightParticipantEntry FullBoardEntry(string name = "Anna") => new()
-    {
-        FullName = name,
-        AgeCategory = AgeCategory.Adult,
-        IsFullBoard = true,
-        MealChoices = [Dinner1.Id.ToString(), Lunch1.Id.ToString(), Dinner1.Id.ToString()],
-    };
+    /// <summary>The standard-schedule resolution for the 2-night stay used throughout.
+    /// Grid (AllSittings): 0=D1 lunch, 1=D1 dinner, 2=D2 lunch, 3=D2 dinner, 4=D3 lunch, 5=D3 dinner.
+    /// Selectable: 1, 2, 3.</summary>
+    private static ResolvedMealOccasions Occasions(
+        MealPlan plan = MealPlan.FullBoardAll,
+        bool arrivalLunch = false, bool departureLunch = false,
+        bool dayGuestLunch = false, bool dayGuestDinner = false) =>
+        MealOccasionResolver.Resolve(new MealOccasionInput(
+            Day1, Day3, plan,
+            false, arrivalLunch, true,
+            true, departureLunch, false,
+            false, dayGuestLunch, dayGuestDinner));
 
-    private static CompletionFormModel FormWith(params OvernightParticipantEntry[] entries) =>
-        new() { Overnight = [.. entries] };
+    /// <summary>A meal grid with the three standard-schedule sittings chosen and the rest blank.</summary>
+    private static List<string?> StandardChoices() =>
+        [null, Dinner1.Id.ToString(), Lunch1.Id.ToString(), Dinner1.Id.ToString(), null, null];
+
+    private static CompletionFormModel FormWith(params string[] names)
+    {
+        var form = new CompletionFormModel { MealChoices = StandardChoices() };
+        foreach (var name in names)
+            form.Overnight.Add(new OvernightParticipantEntry { FullName = name, AgeCategory = AgeCategory.Adult });
+        return form;
+    }
 
     // ── Validation ────────────────────────────────────────────────────────────────
 
     [Fact]
-    public void Validate_ValidFullBoardForm_NoErrors()
+    public void Validate_ValidForm_NoErrors()
     {
-        var errors = CompletionNormalizer.Validate(FormWith(FullBoardEntry()), Slots, 1);
-        Assert.Empty(errors);
+        Assert.Empty(CompletionNormalizer.Validate(FormWith("Anna"), Occasions(), 1));
     }
 
     [Fact]
     public void Validate_MissingName_ReportsError()
     {
-        var entry = FullBoardEntry(name: "   ");
-        var errors = CompletionNormalizer.Validate(FormWith(entry), Slots, 1);
+        var errors = CompletionNormalizer.Validate(FormWith("   "), Occasions(), 1);
         Assert.Contains(errors, e => e.Contains("namn", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public void Validate_FullBoardWithMissingMealChoice_ReportsError()
+    public void Validate_TooLongName_ReportsError()
     {
-        var entry = FullBoardEntry();
-        entry.MealChoices[1] = null; // drop the lunch selection
-        var errors = CompletionNormalizer.Validate(FormWith(entry), Slots, 1);
+        var errors = CompletionNormalizer.Validate(FormWith(new string('x', 201)), Occasions(), 1);
+        Assert.Contains(errors, e => e.Contains("200 tecken", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_MissingMealChoiceForATakenSitting_ReportsError()
+    {
+        var form = FormWith("Anna");
+        form.MealChoices[2] = null; // drop the middle-day lunch
+        var errors = CompletionNormalizer.Validate(form, Occasions(), 1);
         Assert.Contains(errors, e => e.Contains("måltid", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public void Validate_SelfCatering_DoesNotRequireMeals()
+    public void Validate_BlankChoiceForASittingTheGroupDidNotTake_IsNotAnError()
     {
-        var entry = new OvernightParticipantEntry
-        {
-            FullName = "Bo",
-            IsFullBoard = false,
-            MealChoices = [null, null, null],
-        };
-        var errors = CompletionNormalizer.Validate(FormWith(entry), Slots, 1);
-        Assert.Empty(errors);
+        // Index 0 is the arrival-day lunch, which this group is not taking — the grid always posts
+        // it, so a blank there must not block submission.
+        var form = FormWith("Anna");
+        Assert.Null(form.MealChoices[0]);
+        Assert.Empty(CompletionNormalizer.Validate(form, Occasions(), 1));
     }
 
     [Fact]
-    public void Validate_OtherDietaryWithoutNotes_ReportsError()
+    public void Validate_MealChosenForAnEdgeDayTheGroupAdded_IsRequired()
     {
-        var entry = FullBoardEntry();
-        entry.Dietary = [DietaryRequirement.Other];
-        var errors = CompletionNormalizer.Validate(FormWith(entry), Slots, 1);
-        Assert.Contains(errors, e => e.Contains("Annat", StringComparison.OrdinalIgnoreCase));
+        // Ticking arrival lunch makes index 0 a real sitting, so leaving it blank now *is* an error.
+        var form = FormWith("Anna");
+        var errors = CompletionNormalizer.Validate(form, Occasions(arrivalLunch: true), 1);
+        Assert.Contains(errors, e => e.Contains("måltid", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
-    public void Validate_CountMismatch_ReportsSingleError()
+    public void Validate_SelfCatering_RequiresNoMeals()
     {
-        var errors = CompletionNormalizer.Validate(FormWith(FullBoardEntry()), Slots, 2);
-        Assert.Single(errors);
-        Assert.Contains(errors, e => e.Contains("Antalet deltagare"));
+        var form = new CompletionFormModel { MealChoices = [] };
+        form.Overnight.Add(new OvernightParticipantEntry { FullName = "Bo" });
+
+        Assert.Empty(CompletionNormalizer.Validate(form, Occasions(MealPlan.SelfCateringAll), 1));
+    }
+
+    [Fact]
+    public void Validate_WrongParticipantCount_ReportsMismatchAndStops()
+    {
+        var errors = CompletionNormalizer.Validate(FormWith("Anna"), Occasions(), 3);
+
+        var error = Assert.Single(errors);
+        Assert.Contains("Antalet deltagare", error, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Validate_OtherAllergyWithoutNote_ReportsError()
+    {
+        var form = FormWith("Anna");
+        form.Overnight[0].Allergies = [Allergy.Other];
+
+        var errors = CompletionNormalizer.Validate(form, Occasions(), 1);
+
+        Assert.Contains(errors, e => e.Contains("Annat", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_TooLongAllergyNote_ReportsError()
+    {
+        var form = FormWith("Anna");
+        form.Overnight[0].AllergyNotes = new string('x', 201);
+
+        var errors = CompletionNormalizer.Validate(form, Occasions(), 1);
+
+        Assert.Contains(errors, e => e.Contains("200 tecken", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Validate_NullAllergyList_IsTreatedAsNone()
+    {
+        // An unticked checkbox group binds to null on an SSR post.
+        var form = FormWith("Anna");
+        form.Overnight[0].Allergies = null!;
+
+        Assert.Empty(CompletionNormalizer.Validate(form, Occasions(), 1));
     }
 
     [Fact]
     public void Validate_OrganisationWithoutName_ReportsError()
     {
-        var form = FormWith(FullBoardEntry());
+        var form = FormWith("Anna");
         form.IsOrganisation = true;
-        var errors = CompletionNormalizer.Validate(form, Slots, 1);
-        Assert.Contains(errors, e => e.Contains("Organisationsnamn"));
+
+        var errors = CompletionNormalizer.Validate(form, Occasions(), 1);
+
+        Assert.Contains(errors, e => e.Contains("Organisationsnamn", StringComparison.Ordinal));
     }
 
-    // ── Build ─────────────────────────────────────────────────────────────────────
+    // ── Dietary-preference counts (§4.6) ──────────────────────────────────────────
 
     [Fact]
-    public void Build_FullBoard_CreatesMealsWithSnapshotsAndCorrectSlots()
+    public void Validate_PreferenceCountsWithinHeadcount_NoError()
     {
-        var participants = CompletionNormalizer.BuildParticipants(FormWith(FullBoardEntry()), Slots, Options());
+        var form = FormWith("Anna", "Bo", "Cecilia");
+        form.VegetarianCount = 2;
+        form.VeganCount = 1;
 
-        var p = Assert.Single(participants);
-        Assert.Equal(ParticipantType.Overnight, p.ParticipantType);
-        Assert.True(p.AttendsBreakfast); // overnight guests always
-        Assert.Equal(3, p.MealPreferences.Count);
+        Assert.Empty(CompletionNormalizer.Validate(form, Occasions(), 3));
+    }
 
-        // Each meal preference matches its slot's date + type, and snapshots the option name.
-        for (var j = 0; j < Slots.Count; j++)
+    [Fact]
+    public void Validate_PreferenceCountsExceedingHeadcount_ReportsError()
+    {
+        var form = FormWith("Anna", "Bo");
+        form.VegetarianCount = 2;
+        form.VeganCount = 1; // 3 portions for 2 people
+
+        var errors = CompletionNormalizer.Validate(form, Occasions(), 2);
+
+        Assert.Contains(errors, e => e.Contains("överstiga", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Validate_PreferenceCountsMayCoverDayGuestsToo()
+    {
+        // Day guests eat what the group eats, so they count towards the portion ceiling.
+        var form = FormWith("Anna");
+        form.DayGuests.Add(new DayGuestEntry { FullName = "Britt", AttendanceDate = "2026-08-11" });
+        form.VegetarianCount = 2;
+
+        Assert.Empty(CompletionNormalizer.Validate(form, Occasions(), 1));
+    }
+
+    [Fact]
+    public void Validate_SelfCatering_IgnoresPreferenceCountsEntirely()
+    {
+        // No meals means no portions to adapt, so a posted count is meaningless rather than wrong —
+        // it is dropped on save. Validating it would block a legitimate self-catering submission.
+        var form = new CompletionFormModel { MealChoices = [], VegetarianCount = 99 };
+        form.Overnight.Add(new OvernightParticipantEntry { FullName = "Bo" });
+
+        Assert.Empty(CompletionNormalizer.Validate(form, Occasions(MealPlan.SelfCateringAll), 1));
+    }
+
+    [Fact]
+    public void Validate_NegativePreferenceCount_ReportsError()
+    {
+        var form = FormWith("Anna");
+        form.VegetarianCount = -1;
+
+        var errors = CompletionNormalizer.Validate(form, Occasions(), 1);
+
+        Assert.Contains(errors, e => e.Contains("negativt", StringComparison.Ordinal));
+    }
+
+    // ── Building the group's meal selections (FR-105) ─────────────────────────────
+
+    [Fact]
+    public void BuildMealSelections_OneRowPerSittingTheGroupTakes()
+    {
+        var selections = CompletionNormalizer.BuildMealSelections(FormWith("Anna"), Occasions(), Options());
+
+        Assert.Equal(3, selections.Count);
+        Assert.Equal(
+            new[]
+            {
+                (Day1, MealType.Dinner),
+                (Day2, MealType.Lunch),
+                (Day2, MealType.Dinner),
+            },
+            selections.Select(s => (s.Date, s.MealType)));
+    }
+
+    [Fact]
+    public void BuildMealSelections_CapturesTheOptionNameSnapshot()
+    {
+        var selections = CompletionNormalizer.BuildMealSelections(FormWith("Anna"), Occasions(), Options());
+
+        var lunch = selections.Single(s => s.MealType == MealType.Lunch);
+        Assert.Equal(Lunch1.Id, lunch.MealOptionId);
+        Assert.Equal("Fisk", lunch.MealOptionSnapshot);
+    }
+
+    [Fact]
+    public void BuildMealSelections_IgnoresChoicesForSittingsTheGroupDidNotTake()
+    {
+        // A leftover value at the arrival-day lunch index must be discarded, not shifted onto a
+        // different day — that is what indexing by the full grid protects against.
+        var form = FormWith("Anna");
+        form.MealChoices[0] = Lunch1.Id.ToString();
+
+        var selections = CompletionNormalizer.BuildMealSelections(form, Occasions(), Options());
+
+        Assert.Equal(3, selections.Count);
+        Assert.DoesNotContain(selections, s => s.Date == Day1 && s.MealType == MealType.Lunch);
+    }
+
+    [Fact]
+    public void BuildMealSelections_KeepsAnEdgeDayMealTheGroupAdded()
+    {
+        var form = FormWith("Anna");
+        form.MealChoices[4] = Lunch1.Id.ToString(); // departure-day lunch
+
+        var selections = CompletionNormalizer.BuildMealSelections(form, Occasions(departureLunch: true), Options());
+
+        Assert.Contains(selections, s => s.Date == Day3 && s.MealType == MealType.Lunch);
+    }
+
+    [Fact]
+    public void BuildMealSelections_DropsWrongTypeOption()
+    {
+        var form = FormWith("Anna");
+        form.MealChoices[2] = Dinner1.Id.ToString(); // a dinner option posted for a lunch sitting
+
+        var selections = CompletionNormalizer.BuildMealSelections(form, Occasions(), Options());
+
+        Assert.DoesNotContain(selections, s => s.MealType == MealType.Lunch);
+        Assert.Equal(2, selections.Count);
+    }
+
+    [Fact]
+    public void BuildMealSelections_DropsInactiveOrUnknownOption()
+    {
+        var form = FormWith("Anna");
+        form.MealChoices[2] = Guid.NewGuid().ToString(); // not in the active list
+
+        var selections = CompletionNormalizer.BuildMealSelections(form, Occasions(), Options());
+
+        Assert.DoesNotContain(selections, s => s.MealType == MealType.Lunch);
+    }
+
+    [Fact]
+    public void BuildMealSelections_SelfCateringYieldsNothing()
+    {
+        var form = FormWith("Anna");
+
+        var selections = CompletionNormalizer.BuildMealSelections(
+            form, Occasions(MealPlan.SelfCateringAll), Options());
+
+        Assert.Empty(selections);
+    }
+
+    [Fact]
+    public void BuildMealSelections_NullChoiceListYieldsNothing()
+    {
+        var form = FormWith("Anna");
+        form.MealChoices = null!;
+
+        Assert.Empty(CompletionNormalizer.BuildMealSelections(form, Occasions(), Options()));
+    }
+
+    // ── Building the roster ───────────────────────────────────────────────────────
+
+    [Fact]
+    public void BuildParticipants_TrimsNameAndSetsType()
+    {
+        var form = FormWith("  Anna  ");
+
+        var participant = Assert.Single(CompletionNormalizer.BuildParticipants(form));
+
+        Assert.Equal("Anna", participant.FullName);
+        Assert.Equal(ParticipantType.Overnight, participant.ParticipantType);
+        Assert.Null(participant.AttendanceDate);
+    }
+
+    [Fact]
+    public void BuildParticipants_KeepsAllergiesAndNotes()
+    {
+        var form = FormWith("Anna");
+        form.Overnight[0].Allergies = [Allergy.Nut, Allergy.Other];
+        form.Overnight[0].AllergyNotes = "  Undviker fläskkött.  ";
+
+        var participant = Assert.Single(CompletionNormalizer.BuildParticipants(form));
+
+        Assert.Equal([Allergy.Nut, Allergy.Other], participant.Allergies);
+        Assert.Equal("Undviker fläskkött.", participant.AllergyNotes);
+    }
+
+    [Fact]
+    public void BuildParticipants_DedupesAllergiesAndDropsNoneWhenARealOneIsPresent()
+    {
+        var form = FormWith("Anna");
+        form.Overnight[0].Allergies = [Allergy.None, Allergy.Nut, Allergy.Nut];
+
+        var participant = Assert.Single(CompletionNormalizer.BuildParticipants(form));
+
+        Assert.Equal([Allergy.Nut], participant.Allergies);
+    }
+
+    [Fact]
+    public void BuildParticipants_BlankAllergyNoteBecomesNull()
+    {
+        var form = FormWith("Anna");
+        form.Overnight[0].AllergyNotes = "   ";
+
+        var participant = Assert.Single(CompletionNormalizer.BuildParticipants(form));
+
+        Assert.Null(participant.AllergyNotes);
+    }
+
+    // ── Day guests (§4.2) ─────────────────────────────────────────────────────────
+
+    private static List<DayGuestEntry> DayGuests(params DayGuestEntry[] entries) => [.. entries];
+
+    [Fact]
+    public void ValidateDayGuests_ValidRow_NoErrors()
+    {
+        var errors = CompletionNormalizer.ValidateDayGuests(
+            DayGuests(new DayGuestEntry { FullName = "Britt", AttendanceDate = "2026-08-11" }), Day1, Day3);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateDayGuests_BlankRowIsIgnored()
+    {
+        var errors = CompletionNormalizer.ValidateDayGuests(DayGuests(new DayGuestEntry()), Day1, Day3);
+
+        Assert.Empty(errors);
+    }
+
+    [Fact]
+    public void ValidateDayGuests_DateOutsideStay_ReportsError()
+    {
+        var errors = CompletionNormalizer.ValidateDayGuests(
+            DayGuests(new DayGuestEntry { FullName = "Britt", AttendanceDate = "2026-09-01" }), Day1, Day3);
+
+        Assert.Contains(errors, e => e.Contains("inom vistelsen", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ValidateDayGuests_MissingDate_ReportsError()
+    {
+        var errors = CompletionNormalizer.ValidateDayGuests(
+            DayGuests(new DayGuestEntry { FullName = "Britt" }), Day1, Day3);
+
+        Assert.Contains(errors, e => e.Contains("vilken dag", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ValidateDayGuests_OtherAllergyWithoutNote_ReportsError()
+    {
+        var errors = CompletionNormalizer.ValidateDayGuests(
+            DayGuests(new DayGuestEntry
+            {
+                FullName = "Britt",
+                AttendanceDate = "2026-08-11",
+                Allergies = [Allergy.Other],
+            }), Day1, Day3);
+
+        Assert.Contains(errors, e => e.Contains("Annat", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void BuildDayGuests_SetsTypeDateAndAllergies()
+    {
+        var participants = CompletionNormalizer.BuildDayGuests(DayGuests(new DayGuestEntry
         {
-            var mp = p.MealPreferences.Single(m => m.Date == Slots[j].Date && m.MealType == Slots[j].MealType);
-            var expected = Slots[j].MealType == MealType.Lunch ? Lunch1 : Dinner1;
-            Assert.Equal(expected.Id, mp.MealOptionId);
-            Assert.Equal(expected.Name, mp.MealOptionSnapshot);
-        }
+            FullName = " Britt ",
+            AttendanceDate = "2026-08-11",
+            AgeCategory = AgeCategory.Child,
+            Allergies = [Allergy.Gluten],
+        }));
+
+        var dayGuest = Assert.Single(participants);
+        Assert.Equal("Britt", dayGuest.FullName);
+        Assert.Equal(ParticipantType.DayGuest, dayGuest.ParticipantType);
+        Assert.Equal(Day2, dayGuest.AttendanceDate);
+        Assert.Equal(AgeCategory.Child, dayGuest.AgeCategory);
+        Assert.Equal([Allergy.Gluten], dayGuest.Allergies);
     }
 
     [Fact]
-    public void Build_SelfCatering_HasNoMeals_EvenIfChoicesSubmitted()
+    public void BuildDayGuests_SkipsBlankAndUndatedRows()
     {
-        var entry = FullBoardEntry();
-        entry.IsFullBoard = false; // choices still present, but must be ignored
+        var participants = CompletionNormalizer.BuildDayGuests(DayGuests(
+            new DayGuestEntry(),
+            new DayGuestEntry { FullName = "Britt" },
+            new DayGuestEntry { FullName = "Kerstin", AttendanceDate = "2026-08-11" }));
 
-        var participants = CompletionNormalizer.BuildParticipants(FormWith(entry), Slots, Options());
-
-        Assert.Empty(Assert.Single(participants).MealPreferences);
-    }
-
-    [Fact]
-    public void Build_WrongTypeOption_IsDropped()
-    {
-        var entry = FullBoardEntry();
-        entry.MealChoices[0] = Lunch1.Id.ToString(); // slot 0 is a Dinner slot — a lunch option is invalid here
-
-        var participants = CompletionNormalizer.BuildParticipants(FormWith(entry), Slots, Options());
-
-        var p = Assert.Single(participants);
-        Assert.DoesNotContain(p.MealPreferences, m => m.Date == Slots[0].Date && m.MealType == MealType.Dinner);
-        Assert.Equal(2, p.MealPreferences.Count); // the two valid slots remain
-    }
-
-    [Fact]
-    public void Build_UnknownOption_IsDropped()
-    {
-        var entry = FullBoardEntry();
-        entry.MealChoices[0] = Guid.NewGuid().ToString(); // not in the active option set
-
-        var participants = CompletionNormalizer.BuildParticipants(FormWith(entry), Slots, Options());
-
-        Assert.Equal(2, Assert.Single(participants).MealPreferences.Count);
-    }
-
-    [Fact]
-    public void Validate_NullDietaryAndMealChoices_DoNotThrow()
-    {
-        // An unchecked checkbox group / un-posted select group binds to null on SSR post.
-        var entry = new OvernightParticipantEntry
-        {
-            FullName = "Cecilia",
-            IsFullBoard = false,
-            MealChoices = null!,
-            Dietary = null!,
-        };
-        var errors = CompletionNormalizer.Validate(FormWith(entry), Slots, 1);
-        Assert.Empty(errors); // self-catering, no name/org issues
-    }
-
-    [Fact]
-    public void Build_NullCollections_TreatedAsEmpty()
-    {
-        var entry = new OvernightParticipantEntry
-        {
-            FullName = "Cecilia",
-            IsFullBoard = true,
-            MealChoices = null!,
-            Dietary = null!,
-        };
-        var participants = CompletionNormalizer.BuildParticipants(FormWith(entry), Slots, Options());
-
-        var p = Assert.Single(participants);
-        Assert.Empty(p.MealPreferences);       // null choices → no meals
-        Assert.Empty(p.DietaryRequirements);   // null dietary → none
-    }
-
-    [Fact]
-    public void EmptyStringChoice_IsTreatedAsUnselected()
-    {
-        // A placeholder <select> posts "" for an unselected slot — must count as missing, not a meal.
-        var entry = FullBoardEntry();
-        entry.MealChoices[1] = ""; // unselect the lunch slot
-
-        Assert.Contains(
-            CompletionNormalizer.Validate(FormWith(entry), Slots, 1),
-            e => e.Contains("måltid", StringComparison.OrdinalIgnoreCase));
-
-        entry.IsFullBoard = false; // now self-catering — the empty string must not crash the build
-        var p = Assert.Single(CompletionNormalizer.BuildParticipants(FormWith(entry), Slots, Options()));
-        Assert.Empty(p.MealPreferences);
-    }
-
-    [Fact]
-    public void Validate_FullBoardWithNullMealChoices_ReportsMissingMeal()
-    {
-        var entry = new OvernightParticipantEntry { FullName = "Dan", IsFullBoard = true, MealChoices = null! };
-        var errors = CompletionNormalizer.Validate(FormWith(entry), Slots, 1);
-        Assert.Contains(errors, e => e.Contains("måltid", StringComparison.OrdinalIgnoreCase));
-    }
-
-    [Fact]
-    public void Build_DietaryNone_DroppedWhenRealRequirementPresent()
-    {
-        var entry = FullBoardEntry();
-        entry.Dietary = [DietaryRequirement.None, DietaryRequirement.Vegan];
-
-        var participants = CompletionNormalizer.BuildParticipants(FormWith(entry), Slots, Options());
-
-        var p = Assert.Single(participants);
-        Assert.Equal([DietaryRequirement.Vegan], p.DietaryRequirements);
+        Assert.Equal("Kerstin", Assert.Single(participants).FullName);
     }
 }

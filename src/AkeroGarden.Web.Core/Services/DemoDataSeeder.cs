@@ -58,7 +58,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
     // admin survives.
     private async Task WipeAsync()
     {
-        await db.MealPreferences.ExecuteDeleteAsync();
+        await db.BookingMealSelections.ExecuteDeleteAsync();
         await db.Participants.ExecuteDeleteAsync();
         await db.BookingFacilitySelections.ExecuteDeleteAsync();
         await db.BookingCleaningSelections.ExecuteDeleteAsync();
@@ -367,14 +367,17 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         approved.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(nowUtc, approved.CheckIn!.Value);
         approved.Message = "Konfirmationsläger för församlingen.";
         approved.AdminNotes = "Ringde och bekräftade antal – återkommer med matval via länken.";
+        // A non-standard stated arrival (§2.8) so the admin panel's FR-101 deviation warning has
+        // something to show in a seeded environment.
+        approved.CheckInTime = new TimeOnly(8, 0);
         approved.DeleteAfter = null; // live state
         AddFacility(approved, konferensrum);
         AddBuilding(approved, vato1);
         AddBuilding(approved, vato2);
         db.Bookings.Add(approved);
 
-        // 3. DetailsComplete — guest submitted the completion form (participants + meals + rooms +
-        // cleaning, FR-93). Occupies rooms in both Tjockö and Singö — both map to the same Lilla
+        // 3. DetailsComplete — guest submitted the completion form (participants + the group's meal
+        // choices + cleaning, FR-93). Occupies rooms in both Tjockö and Singö — both map to the same Lilla
         // bostadslängan zone, so this demonstrates the "one row per distinct occupied zone, never
         // per room" rule (§8.12): two occupied lodging units, one cleaning charge.
         var details = StayRequest(
@@ -390,12 +393,20 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddZone(details, lillaZone);
         AddBuilding(details, tjocko);
         AddBuilding(details, singo);
-        AddOvernight(details, "Anna Sjöberg", AgeCategory.Adult, [DietaryRequirement.LactoseFree], null, r);
-        AddOvernight(details, "Erik Sjöberg", AgeCategory.Adult, [], null, r);
-        AddOvernight(details, "Maja Sjöberg", AgeCategory.Child, [DietaryRequirement.NutAllergy], null, r);
-        AddOvernight(details, "Olle Sjöberg", AgeCategory.Child, [], null, r);
-        AddDayGuest(details, "Britt Sjöberg", AgeCategory.Adult, details.CheckIn!.Value.AddDays(1),
-            attendsBreakfast: false, [DietaryRequirement.Vegetarian], null, r);
+        AddOvernight(details, "Anna Sjöberg", AgeCategory.Adult, [Allergy.Lactose], null);
+        AddOvernight(details, "Erik Sjöberg", AgeCategory.Adult, [], null);
+        AddOvernight(details, "Maja Sjöberg", AgeCategory.Child, [Allergy.Nut], null);
+        AddOvernight(details, "Olle Sjöberg", AgeCategory.Child, [], null);
+        AddDayGuest(details, "Britt Sjöberg", AgeCategory.Adult, details.CheckIn!.Value.AddDays(1), [], null);
+        // The group stayed for lunch on its departure day rather than the standard breakfast-only —
+        // a completed booking that exercises the edge-day override (§4.1).
+        details.DepartureLunch = true;
+        // Day guests eat lunch and dinner, not breakfast (§4.2) — one setting for all of them.
+        details.DayGuestLunch = true;
+        details.DayGuestDinner = true;
+        // One vegetarian portion in the group (§4.6) — a count, not a named person.
+        details.VegetarianCount = 1;
+        AddGroupMeals(details, r);
         db.Bookings.Add(details);
 
         // 4. Active — a group currently on site (check-in past, check-out ahead). Completed
@@ -410,10 +421,10 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         active.MainBuildingCleaningPurchased = false;
         active.SleepingCleaningPurchased = false;
         AddBuilding(active, ljustero);
-        AddOvernight(active, "Peter Nyström", AgeCategory.Adult, [], null, r);
-        AddOvernight(active, "Lena Nyström", AgeCategory.Adult, [DietaryRequirement.GlutenFree], null, r);
-        AddOvernight(active, "Sven Åkesson", AgeCategory.Adult,
-            [DietaryRequirement.Other], "Undviker fläskkött.", r);
+        AddOvernight(active, "Peter Nyström", AgeCategory.Adult, [], null);
+        AddOvernight(active, "Lena Nyström", AgeCategory.Adult, [Allergy.Gluten], null);
+        AddOvernight(active, "Sven Åkesson", AgeCategory.Adult, [Allergy.Other], "Undviker fläskkött.");
+        AddGroupMeals(active, r);
         db.Bookings.Add(active);
 
         // 5. Completed — a finished stay (retention = check-out + 2 years). Purchased both
@@ -430,16 +441,50 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddZone(completed, huvudZone);
         AddZone(completed, lillaZone);
         AddBuilding(completed, ljustero);
-        AddOvernight(completed, "Margareta Holm", AgeCategory.Adult, [], null, r);
-        AddOvernight(completed, "Gustav Holm", AgeCategory.Adult, [], null, r);
-        AddOvernight(completed, "Elin Holm", AgeCategory.Adult, [DietaryRequirement.Vegan], null, r);
-        AddOvernight(completed, "Nils Holm", AgeCategory.Child, [], null, r);
-        AddOvernight(completed, "Alva Holm", AgeCategory.Child, [], null, r);
-        AddDayGuest(completed, "Kerstin Ek", AgeCategory.Adult, completed.CheckIn!.Value.AddDays(1),
-            attendsBreakfast: true, [], null, r);
+        AddOvernight(completed, "Margareta Holm", AgeCategory.Adult, [], null);
+        AddOvernight(completed, "Gustav Holm", AgeCategory.Adult, [], null);
+        AddOvernight(completed, "Elin Holm", AgeCategory.Adult, [], null);
+        AddOvernight(completed, "Nils Holm", AgeCategory.Child, [], null);
+        AddOvernight(completed, "Alva Holm", AgeCategory.Child, [], null);
+        AddDayGuest(completed, "Kerstin Ek", AgeCategory.Adult, completed.CheckIn!.Value.AddDays(1), [], null);
         AddDayGuest(completed, "Bengt Ek", AgeCategory.Adult, completed.CheckIn!.Value.AddDays(1),
-            attendsBreakfast: true, [DietaryRequirement.GlutenFree], null, r);
+            [Allergy.Gluten], null);
+        // These day guests ate all three meals on their day (§4.2).
+        completed.DayGuestBreakfast = true;
+        completed.DayGuestLunch = true;
+        completed.DayGuestDinner = true;
+        completed.VeganCount = 1;
+        AddGroupMeals(completed, r);
         db.Bookings.Add(completed);
+
+        // 5b. DetailsComplete with check-in exactly 14 days out — the one booking the daily
+        // reminder job (FR-63/64) will actually pick up, so the two-week reminder can be seen in a
+        // dev inbox without hand-editing dates in the database. Non-standard times on purpose, so
+        // the mail demonstrates that it carries the booking's own times rather than 14:00/12:00.
+        var reminderDue = StayRequest(
+            "Ingrid Påminnelse", "ingrid.paminnelse@example.com", "070-444 55 66",
+            today.AddDays(14), today.AddDays(16), overnight: 6, dayGuests: 2,
+            MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-40));
+        reminderDue.Status = BookingStatus.DetailsComplete;
+        reminderDue.DeleteAfter = null;
+        reminderDue.CheckInTime = new TimeOnly(10, 0);
+        reminderDue.CheckOutTime = new TimeOnly(16, 30);
+        reminderDue.MainBuildingCleaningPurchased = false;
+        reminderDue.SleepingCleaningPurchased = false;
+        AddBuilding(reminderDue, blido);
+        AddOvernight(reminderDue, "Ingrid Påminnelse", AgeCategory.Adult, [], null);
+        AddOvernight(reminderDue, "Bertil Påminnelse", AgeCategory.Adult, [Allergy.Lactose], null);
+        AddOvernight(reminderDue, "Stina Påminnelse", AgeCategory.Adult, [], null);
+        AddOvernight(reminderDue, "Karl Påminnelse", AgeCategory.Child, [], null);
+        AddOvernight(reminderDue, "Ester Påminnelse", AgeCategory.Child, [], null);
+        AddOvernight(reminderDue, "Hugo Påminnelse", AgeCategory.Child, [], null);
+        AddDayGuest(reminderDue, "Gunnel Vän", AgeCategory.Adult, today.AddDays(15), [], null);
+        AddDayGuest(reminderDue, "Torsten Vän", AgeCategory.Adult, today.AddDays(15), [Allergy.Nut], null);
+        reminderDue.DayGuestLunch = true;
+        reminderDue.DayGuestDinner = true;
+        reminderDue.VegetarianCount = 2;
+        AddGroupMeals(reminderDue, r);
+        db.Bookings.Add(reminderDue);
 
         // 6. Denied — declined with a required reason (retention = denial date + 12 months).
         var denied = StayRequest(
@@ -538,6 +583,14 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
                 OvernightGuestCount = overnight,
                 DayGuestCount = dayGuests,
                 MealPlan = plan,
+                // The stated times (§2.8) — the standard schedule unless a demo booking overrides
+                // them below to exercise the FR-101 non-standard-time warning.
+                CheckInTime = MealOccasionResolver.StandardCheckInTime,
+                CheckOutTime = MealOccasionResolver.StandardCheckOutTime,
+                // Edge-day meals pre-filled from the standard schedule, exactly as a real inquiry is
+                // created (§4.1) — arrival dinner, departure breakfast.
+                ArrivalDinner = true,
+                DepartureBreakfast = true,
                 CreatedAt = createdAt,
                 UpdatedAt = createdAt,
             };
@@ -577,29 +630,47 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             AssignedAt = DateTime.UtcNow,
         });
 
-    // Overnight participant with full-board meals following the §4.1 meals-by-day rule. Carries no
-    // room assignment: the group's lodging is recorded per booking against buildings (§8.16,
-    // FR-103), and who sleeps where inside them is not tracked.
-    private void AddOvernight(
-        Booking b, string name, AgeCategory age,
-        List<DietaryRequirement> dietary, string? dietaryNotes, RefData r)
+    // Overnight participant — a roster entry only (§8.5). No meals (the group chooses once per
+    // sitting, FR-105) and no room assignment: the group's lodging is recorded per booking against
+    // buildings (§8.16, FR-103), and who sleeps where inside them is not tracked.
+    private static void AddOvernight(
+        Booking b, string name, AgeCategory age, List<Allergy> allergies, string? allergyNotes)
     {
-        var p = new Participant
+        b.Participants.Add(new Participant
         {
             Id = Guid.NewGuid(),
             FullName = name,
             ParticipantType = ParticipantType.Overnight,
             AgeCategory = age,
-            IsFullBoard = true,
-            AttendsBreakfast = true,
-            DietaryRequirements = dietary,
-            DietaryNotes = dietaryNotes,
-        };
+            Allergies = allergies,
+            AllergyNotes = allergyNotes,
+        });
+    }
 
-        foreach (var slot in MealsByDayCalculator.Slots(b.CheckIn!.Value, b.CheckOut!.Value))
+    private static void AddDayGuest(
+        Booking b, string name, AgeCategory age, DateOnly attendanceDate,
+        List<Allergy> allergies, string? allergyNotes)
+    {
+        b.Participants.Add(new Participant
         {
-            var option = PickMeal(slot.MealType, dietary, r);
-            p.MealPreferences.Add(new MealPreference
+            Id = Guid.NewGuid(),
+            FullName = name,
+            ParticipantType = ParticipantType.DayGuest,
+            AgeCategory = age,
+            AttendanceDate = attendanceDate,
+            Allergies = allergies,
+            AllergyNotes = allergyNotes,
+        });
+    }
+
+    // The group's one dish per sitting (§8.6, FR-105), for every occasion the booking resolves to —
+    // exactly what a submitted completion form produces.
+    private static void AddGroupMeals(Booking b, RefData r)
+    {
+        foreach (var slot in MealOccasionResolver.Resolve(b).SelectionSlots)
+        {
+            var option = PickMeal(slot.MealType, slot.Date, r);
+            b.MealSelections.Add(new BookingMealSelection
             {
                 Id = Guid.NewGuid(),
                 Date = slot.Date,
@@ -608,58 +679,14 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
                 MealOptionSnapshot = option.Name,
             });
         }
-
-        b.Participants.Add(p);
     }
 
-    private void AddDayGuest(
-        Booking b, string name, AgeCategory age, DateOnly attendanceDate,
-        bool attendsBreakfast, List<DietaryRequirement> dietary, string? dietaryNotes, RefData r)
-    {
-        var p = new Participant
-        {
-            Id = Guid.NewGuid(),
-            FullName = name,
-            ParticipantType = ParticipantType.DayGuest,
-            AgeCategory = age,
-            AttendanceDate = attendanceDate,
-            IsFullBoard = false,
-            AttendsBreakfast = attendsBreakfast,
-            DietaryRequirements = dietary,
-            DietaryNotes = dietaryNotes,
-        };
-
-        // A day guest on a middle day attends lunch and dinner.
-        var served = MealsByDayCalculator.ServedOn(attendanceDate, b.CheckIn!.Value, b.CheckOut!.Value);
-        if (served.Lunch)
-            AddDayMeal(p, attendanceDate, MealType.Lunch, dietary, r);
-        if (served.Dinner)
-            AddDayMeal(p, attendanceDate, MealType.Dinner, dietary, r);
-
-        b.Participants.Add(p);
-    }
-
-    private void AddDayMeal(Participant p, DateOnly date, MealType type, List<DietaryRequirement> dietary, RefData r)
-    {
-        var option = PickMeal(type, dietary, r);
-        p.MealPreferences.Add(new MealPreference
-        {
-            Id = Guid.NewGuid(),
-            Date = date,
-            MealType = type,
-            MealOptionId = option.Id,
-            MealOptionSnapshot = option.Name,
-        });
-    }
-
-    // Pick a plausible option: vegetarian/vegan participants get the vegetarian option.
-    private static MealOption PickMeal(MealType type, List<DietaryRequirement> dietary, RefData r)
+    // Pick a plausible dish for the whole group, varying it across the stay so a seeded Matlista
+    // shows several dishes rather than the same one every day. The vegetarian option is reached by
+    // the group choosing it, not through anyone's individual preference (FR-105).
+    private static MealOption PickMeal(MealType type, DateOnly date, RefData r)
     {
         var options = type == MealType.Lunch ? r.Lunches : r.Dinners;
-        var wantsVeg = dietary.Contains(DietaryRequirement.Vegetarian)
-            || dietary.Contains(DietaryRequirement.Vegan);
-        return wantsVeg
-            ? options.First(o => o.IsVegetarian)
-            : options[0];
+        return options[date.DayNumber % options.Count];
     }
 }

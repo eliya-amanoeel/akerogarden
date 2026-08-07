@@ -152,7 +152,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         // Seed active meal options + an approved 2-night booking.
         Guid bookingId;
         string token;
-        IReadOnlyList<MealSlot> slots;
+        ResolvedMealOccasions occasions;
         Guid lunchId, dinnerId;
         using (var scope = provider.CreateScope())
         {
@@ -179,17 +179,22 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
             await service.ApproveAsync(booking.Id);
             bookingId = booking.Id;
             token = (await db.Bookings.FindAsync(bookingId))!.CompletionToken!;
-            slots = MealsByDayCalculator.Slots(new DateOnly(2026, 8, 10), new DateOnly(2026, 8, 12));
+            occasions = MealOccasionResolver.Resolve((await db.Bookings.FindAsync(bookingId))!);
         }
 
-        var form = new CompletionFormModel();
+        var form = new CompletionFormModel
+        {
+            ArrivalDinner = true,
+            DepartureBreakfast = true,
+            MealChoices = occasions.AllSittings
+                .Select(s => (string?)(s.MealType == MealType.Lunch ? lunchId : dinnerId).ToString())
+                .ToList(),
+        };
         form.Overnight.Add(new OvernightParticipantEntry
         {
             FullName = "Hemligt Namn", // must never reach the audit trail
             AgeCategory = AgeCategory.Adult,
-            IsFullBoard = true,
-            MealChoices = slots.Select(s => (string?)(s.MealType == MealType.Lunch ? lunchId : dinnerId).ToString()).ToList(),
-            Dietary = [DietaryRequirement.NutAllergy],
+            Allergies = [Allergy.Nut],  // art. 9 health data — must never reach it either (NFR-37)
         });
 
         using (var scope = provider.CreateScope())

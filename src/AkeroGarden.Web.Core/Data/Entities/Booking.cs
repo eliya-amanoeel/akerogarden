@@ -4,18 +4,20 @@ namespace AkeroGarden.Web.Core.Data.Entities;
 
 /// <summary>
 /// A booking — either a stay request or a general inquiry (requirements.md §8.1).
-/// For a <see cref="BookingType.GeneralInquiry"/> the stay-specific fields (dates, guest
-/// counts, meal plan, room choice, selections, org/invoice, deposit flags, completion token)
-/// are null/unused; only the contact fields, <see cref="Message"/>, <see cref="BookingType"/>,
-/// <see cref="Status"/>, <see cref="AdminNotes"/>, and the retention fields apply.
+/// For a <see cref="BookingType.GeneralInquiry"/> the stay-specific fields (dates, times, guest
+/// counts, meal plan, meal occasions and selections, building assignments, dietary-preference
+/// counts, other selections, org/invoice, completion token) are null/unused; only the contact
+/// fields, <see cref="Message"/>, <see cref="BookingType"/>, <see cref="Status"/>,
+/// <see cref="AdminNotes"/>, and the retention fields apply.
 ///
 /// <para><b>Status is one-way (§2.5).</b> Mutate it only through
 /// <see cref="AkeroGarden.Web.Core.Services.BookingService"/>, which routes every change through
 /// <see cref="AkeroGarden.Web.Core.Services.BookingStateMachine"/> so illegal transitions are
 /// blocked in code, not just hidden in the UI.</para>
 ///
-/// <para><b>No monetary totals (C8).</b> No booking total, deposit amount, or balance is
-/// stored — deposit/final tracking is boolean status only.</para>
+/// <para><b>No monetary totals and no payment state (C8, FR-42 retired).</b> No booking total,
+/// deposit amount, or balance is stored, and no invoicing/payment flags either — invoicing happens
+/// entirely outside the system, so a flag here tracked nothing the system could act on.</para>
 /// </summary>
 public class Booking
 {
@@ -53,6 +55,20 @@ public class Booking
 
     public DateOnly? CheckOut { get; set; }
 
+    /// <summary>The guest's stated arrival time (FR-100, §2.8), pre-filled with the standard 14:00.
+    /// A request, not a commitment — the admin may adjust it, and any early-arrival surcharge is
+    /// still negotiated outside the system.
+    ///
+    /// <para><b>Deliberately a separate <see cref="TimeOnly"/> rather than folding time into
+    /// <see cref="CheckIn"/>.</b> The date values are load-bearing for availability computation,
+    /// retention arithmetic, blocked periods and the turnover window; turning them into timestamps
+    /// would ripple through all of it for no benefit.</para></summary>
+    public TimeOnly? CheckInTime { get; set; }
+
+    /// <summary>The guest's stated departure time (FR-100, §2.8), pre-filled with the standard
+    /// 12:00. Same reasoning as <see cref="CheckInTime"/>.</summary>
+    public TimeOnly? CheckOutTime { get; set; }
+
     public int? OvernightGuestCount { get; set; }
 
     /// <summary>Inquiry-stage estimate of guests attending meals only (no bed). The
@@ -60,6 +76,59 @@ public class Booking
     public int? DayGuestCount { get; set; }
 
     public MealPlan? MealPlan { get; set; }
+
+    // ── Meal occasions (§4.1, §4.2, FR-105) ─────────────────────────────────────
+    // The edge days are *stored*; the middle days are derived. Read them through
+    // MealOccasionResolver rather than directly — it is the single resolved answer to "which meals
+    // occur on day X of this stay", and re-deriving anywhere else reintroduces the second source of
+    // truth these fields exist to remove.
+
+    /// <summary>Which meals the group takes on the <b>arrival day</b> (FR-105). Stored, not derived
+    /// from <see cref="CheckInTime"/>: a group arriving at 11:00 may perfectly reasonably want
+    /// breakfast, and any cutoff rule would be wrong often enough to be worse than trusting the
+    /// group (§4.1). Created with the standard schedule pre-filled — arrival dinner only — so a
+    /// booking always has a coherent meal state before the guest reaches the completion form.</summary>
+    public bool ArrivalBreakfast { get; set; }
+
+    public bool ArrivalLunch { get; set; }
+
+    public bool ArrivalDinner { get; set; }
+
+    /// <summary>Which meals the group takes on the <b>departure day</b> (FR-105). Stored, not
+    /// derived from <see cref="CheckOutTime"/> — see <see cref="ArrivalBreakfast"/>. Created with
+    /// the standard schedule pre-filled: departure breakfast only.</summary>
+    public bool DepartureBreakfast { get; set; }
+
+    public bool DepartureLunch { get; set; }
+
+    public bool DepartureDinner { get; set; }
+
+    /// <summary>Which meals day guests attend — <b>one setting for every day guest on the
+    /// booking</b>, not per day guest (§4.2).
+    ///
+    /// <para><b>Required, not merely convenient.</b> A day guest's attendance used to be implied by
+    /// which meal rows existed for them; once meal selection moved to booking level that signal
+    /// disappeared entirely, and without these flags a dinner-only visitor is indistinguishable
+    /// from one eating all three — making the kitchen counts wrong.</para></summary>
+    public bool DayGuestBreakfast { get; set; }
+
+    public bool DayGuestLunch { get; set; }
+
+    public bool DayGuestDinner { get; set; }
+
+    // ── Dietary preferences (§4.6) ──────────────────────────────────────────────
+    /// <summary>Number of vegetarian portions required (§4.6). A count, not a per-person flag — the
+    /// kitchen needs the number, not the names, so this stores strictly less personal data than the
+    /// per-participant list it replaced.</summary>
+    public int VegetarianCount { get; set; }
+
+    /// <summary>Number of vegan portions required (§4.6). See <see cref="VegetarianCount"/>.</summary>
+    public int VeganCount { get; set; }
+
+    /// <summary>The group's meal choice per sitting (§8.6, FR-105) — one row per (date, lunch|dinner)
+    /// with an option-name snapshot. Empty until the guest submits the completion form, and always
+    /// empty for a <see cref="Data.Entities.MealPlan.SelfCateringAll"/> booking.</summary>
+    public List<BookingMealSelection> MealSelections { get; set; } = [];
 
     // ── Organisation / invoice (conditional) ────────────────────────────────────
     public bool IsOrganisation { get; set; }

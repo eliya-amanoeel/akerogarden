@@ -120,10 +120,17 @@ public static class BookingEmailTemplates
     }
 
     /// <summary>Approval email — magic link, exact expiry in plain text, the assigned lodging
-    /// buildings (FR-103), deposit/cancellation policy (§9, FR-52).</summary>
+    /// buildings (FR-103), deposit/cancellation policy (§9, FR-52), and the booking's own check-in
+    /// and check-out times.
+    ///
+    /// <para><b>The booking's times, not the 14:00/12:00 standard.</b> The admin is warned about a
+    /// deviating time at the approve button (FR-101) and can adjust it first (FR-48), so whatever is
+    /// stored when this sends is what was agreed. Restating the standard at a guest who asked for
+    /// 08:00 would be confusing without correcting anything — they would still expect 08:00 — and
+    /// omitting the line entirely corrects it no better.</para></summary>
     public static EmailContent Approval(
         string contactName, string magicLinkUrl, DateTime expiryUtc, string bookingReference,
-        IReadOnlyList<string> assignedBuildingNames)
+        IReadOnlyList<string> assignedBuildingNames, TimeOnly? checkInTime, TimeOnly? checkOutTime)
     {
         var body = new StringBuilder();
         body.Append(Greeting(contactName));
@@ -135,20 +142,29 @@ public static class BookingEmailTemplates
         body.Append("<h3>Handpenning och avbokning</h3>");
         body.Append("<p>En handpenning på 20 % av totalsumman betalas för att bekräfta bokningen. Resterande 80 % faktureras före ankomst.</p>");
         body.Append("<p>Vid avbokning mer än två månader före ankomst återbetalas handpenningen i sin helhet. Vid avbokning två månader eller mindre före ankomst återbetalas inte handpenningen.</p>");
-        body.Append("<p>Incheckning sker kl. 14:00 och utcheckning kl. 12:00.</p>");
+        body.Append($"<p>Incheckning sker kl. {Enc(StatedTimePolicy.Display(checkInTime, MealOccasionResolver.StandardCheckInTime))} "
+            + $"och utcheckning kl. {Enc(StatedTimePolicy.Display(checkOutTime, MealOccasionResolver.StandardCheckOutTime))}.</p>");
         return new EmailContent(WithReference("Din bokning är godkänd – slutför dina uppgifter", bookingReference), body.ToString());
     }
 
     /// <summary>Standard 14-day reminder to the guest (§9, FR-64) — participant/day-guest counts,
-    /// meal summary, check-in 14:00 / check-out 12:00, and the property address. Sent when the
-    /// booking is <c>DetailsComplete</c> or later.</summary>
+    /// meal summary, the assigned lodging building(s), <b>the booking's own check-in and check-out
+    /// times</b>, and the property address. Sent when the booking is <c>DetailsComplete</c> or
+    /// later.
+    ///
+    /// <para>The times are the booking's, not the 14:00/12:00 standard (FR-64): by this point the
+    /// guest has stated a time and the admin has had every chance to adjust it (FR-48/101), so
+    /// restating the default would contradict what was agreed. A booking that never stated one
+    /// falls back to the standard.</para></summary>
     public static EmailContent TwoWeekReminder(
         string contactName,
         int overnightCount,
         int dayGuestCount,
-        int fullBoardMealCount,
+        int groupMealCount,
         DateOnly? checkIn,
         DateOnly? checkOut,
+        TimeOnly? checkInTime,
+        TimeOnly? checkOutTime,
         string propertyAddress,
         string bookingReference,
         IReadOnlyList<string> assignedBuildingNames)
@@ -158,11 +174,13 @@ public static class BookingEmailTemplates
         body.Append("<p>Snart är det dags för er vistelse hos Åkerögården! Här är en påminnelse med era uppgifter.</p>");
         body.Append("<ul>");
         body.Append($"<li><strong>Referensnummer:</strong> {Enc(bookingReference)}</li>");
-        body.Append($"<li><strong>Incheckning:</strong> {FormatDate(checkIn)} kl. 14:00</li>");
-        body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(checkOut)} kl. 12:00</li>");
+        body.Append($"<li><strong>Incheckning:</strong> {FormatDate(checkIn)} kl. {Enc(StatedTimePolicy.Display(checkInTime, MealOccasionResolver.StandardCheckInTime))}</li>");
+        body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(checkOut)} kl. {Enc(StatedTimePolicy.Display(checkOutTime, MealOccasionResolver.StandardCheckOutTime))}</li>");
         body.Append($"<li><strong>Antal deltagare (övernattning):</strong> {overnightCount.ToString(Sv)}</li>");
         body.Append($"<li><strong>Antal dagsgäster:</strong> {dayGuestCount.ToString(Sv)}</li>");
-        body.Append($"<li><strong>Antal beställda måltider:</strong> {fullBoardMealCount.ToString(Sv)}</li>");
+        // The group eats one dish per meal (FR-105), so this counts *meals*, not portions. Labelled
+        // accordingly: "Antal beställda måltider: 3" for a party of 24 would read as a mistake.
+        body.Append($"<li><strong>Antal måltider för gruppen:</strong> {groupMealCount.ToString(Sv)}</li>");
         if (assignedBuildingNames.Count > 0)
             body.Append($"<li><strong>Ert boende:</strong> {Enc(string.Join(", ", assignedBuildingNames))}</li>");
         body.Append($"<li><strong>Adress:</strong> {Enc(propertyAddress)}</li>");
@@ -284,7 +302,6 @@ public static class BookingEmailTemplates
     {
         MealPlan.FullBoardAll => "Helpension för alla",
         MealPlan.SelfCateringAll => "Självhushåll för alla",
-        MealPlan.Mixed => "Blandat",
         _ => "—"
     };
 }

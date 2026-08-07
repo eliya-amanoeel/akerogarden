@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using AkeroGarden.E2E.Infrastructure;
 using Deque.AxeCore.Playwright;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
 namespace AkeroGarden.E2E;
@@ -159,5 +160,50 @@ public class FunnelTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
             serious.Count == 0,
             $"axe found serious/critical a11y violations on {path}:\n" +
             string.Join("\n", serious.SelectMany(v => v.Nodes.Select(n => $"  [{v.Id}] {n.Html}"))));
+    }
+
+    [Fact]
+    public async Task Arrival_and_departure_time_are_a_fixed_dropdown_prefilled_with_the_standard()
+    {
+        // FR-100: a constrained picker, not free text and not a native time field the guest can type
+        // anything into. The standard times are pre-selected so the ordinary case needs no decision.
+        await Page.GotoAsync("/boka");
+
+        await Assertions.Expect(Page.Locator("#s-checkin-time")).ToHaveValueAsync("14:00");
+        await Assertions.Expect(Page.Locator("#s-checkout-time")).ToHaveValueAsync("12:00");
+
+        // 07:00–22:00 on the half hour = 31 choices, first and last as stated in §2.8.
+        var options = Page.Locator("#s-checkin-time option");
+        await Assertions.Expect(options).ToHaveCountAsync(31);
+        await Assertions.Expect(options.First).ToHaveAttributeAsync("value", "07:00");
+        await Assertions.Expect(options.Last).ToHaveAttributeAsync("value", "22:00");
+    }
+
+    [Fact]
+    public async Task A_stated_arrival_time_reaches_the_database()
+    {
+        // Driven to the acknowledgement and then cross-checked against the row — "the dropdown
+        // rendered" would not prove the value survives binding and normalisation.
+        await Page.GotoAsync("/boka");
+        var email = $"tid-{Guid.NewGuid():N}@example.se";
+
+        await Page.FillAsync("#s-name", "Tidig Ankomst");
+        await Page.FillAsync("#s-email", email);
+        await Page.FillAsync("#s-email-confirm", email);
+        await Page.FillAsync("#s-checkin", "2027-06-01");
+        await Page.FillAsync("#s-checkout", "2027-06-03");
+        await Page.FillAsync("#s-guests", "8");
+        await Page.SelectOptionAsync("#mealplan", "FullBoardAll");
+        await Page.SelectOptionAsync("#s-checkin-time", "08:30");
+        await Page.SelectOptionAsync("#s-checkout-time", "18:00");
+        await Page.Locator(".track--stay label:has-text('integritetspolicyn') input[type=checkbox]").CheckAsync();
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
+
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
+
+        await using var db = Fixture.NewDbContext();
+        var booking = await db.Bookings.SingleAsync(b => b.ContactEmail == email);
+        Assert.Equal(new TimeOnly(8, 30), booking.CheckInTime);
+        Assert.Equal(new TimeOnly(18, 0), booking.CheckOutTime);
     }
 }

@@ -595,6 +595,14 @@ collide in the same files, and the obvious order is the wrong one:
   a change.
 - Docs re-verified against the built code, since the documents were written first and the code
   may legitimately have taught us something.
+- **The `ok` / `err` / `info` semantic colours re-measured against the warm `#f0ebe1` section tint,
+  not only against white.** Each pairs a text colour with a **translucent** background, so its real
+  contrast depends on the surface beneath it — and that has now shipped as a WCAG AA failure twice:
+  once for the green (Phase 6) and once for `--color-warn`, which measured 5.2:1 over white but
+  4.49:1 over the warm tint and failed on the `Väntar` badge (fixed 2026-08-07, slice 3c). These
+  three have the identical shape and have never been checked against the tint; they pass today only
+  because nothing has put them on that surface where axe can see it. See the warm-tint rule in
+  `docs/ux/design.md`.
 
 > **The completion gate in `.claude/CLAUDE.md` applies to this work**, even though it is not a
 > phase. State it explicitly because the Byggnader rework already merged once without it

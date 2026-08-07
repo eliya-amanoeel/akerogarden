@@ -1,22 +1,29 @@
 namespace AkeroGarden.Web.Core.Data.Entities;
 
 /// <summary>
-/// One meal selection for a participant on a specific day (requirements.md §8.6) — a lunch or a
-/// dinner choice drawn from the active admin-managed meal list. Which days and meals are collected
-/// follows the meals-by-day rule (§4.1), computed by
-/// <see cref="AkeroGarden.Web.Core.Services.MealsByDayCalculator"/>.
+/// The whole group's meal choice for one sitting (requirements.md §8.6) — one row per
+/// (booking, date, lunch|dinner), drawn from the active admin-managed meal list. Which sittings
+/// are collected follows the resolved meal occasions of the booking (§4.1), computed by
+/// <see cref="AkeroGarden.Web.Core.Services.MealOccasionResolver"/>.
+///
+/// <para><b>Per booking, not per person (FR-105).</b> This was <c>MealPreference</c>, hanging off
+/// <see cref="Participant"/> with one row per person per meal. Nobody chooses individually any
+/// more: the group picks one option per sitting and everybody — including day guests — eats it.
+/// The name changed with the parent because "preference" stopped being true. Individual needs are
+/// met through <see cref="Participant.Allergies"/> and the booking's dietary-preference counts
+/// instead (§4.6).</para>
 ///
 /// <para><b>Snapshot pattern (NFR-15).</b> <see cref="MealOptionId"/> is the live link (and blocks
 /// hard-deleting a referenced meal option, FR-26); <see cref="MealOptionSnapshot"/> preserves the
 /// option name agreed at submission so history survives later edits to the MealOption record.</para>
 /// </summary>
-public class MealPreference
+public class BookingMealSelection
 {
     public Guid Id { get; set; }
 
-    public Guid ParticipantId { get; set; }
+    public Guid BookingId { get; set; }
 
-    public Participant? Participant { get; set; }
+    public Booking? Booking { get; set; }
 
     /// <summary>The specific day this selection applies to (§8.6).</summary>
     public DateOnly Date { get; set; }

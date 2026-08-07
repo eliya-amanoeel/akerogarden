@@ -4,13 +4,11 @@ namespace AkeroGarden.Web.Core.Models;
 
 /// <summary>
 /// The completion form the booking's contact person submits on <c>/slutfor/{token}</c> (Phase 4,
-/// §6.6). Bound via <c>[SupplyParameterFromForm]</c> under Static SSR. Slice 3 covers overnight
-/// participants + org/invoice; day guests (§4.2) arrive in slice 4 and room assignment (FR-56) in
-/// slice 5.
+/// §6.6). Bound via <c>[SupplyParameterFromForm]</c> under Static SSR.
 ///
 /// <para><b>Server-authoritative.</b> Nothing here is trusted as-submitted: the overnight count is
 /// re-checked against the booking, meal choices are validated against the active meal list and the
-/// server-derived meal slots (§4.1), and self-catering participants have their meals dropped —
+/// server-resolved meal occasions (§4.1), and a self-catering booking's meals are dropped —
 /// regardless of what the client posts (mirrors <see cref="AkeroGarden.Web.Core.Services.InquiryNormalizer"/>).</para>
 /// </summary>
 public class CompletionFormModel
@@ -20,32 +18,62 @@ public class CompletionFormModel
     public List<OvernightParticipantEntry> Overnight { get; set; } = [];
 
     /// <summary>Optional day guests (§4.2, FR-58) — variable count, added/removed via server
-    /// postback. Only applicable when the booking's meal plan is <c>FullBoardAll</c> or <c>Mixed</c>;
-    /// dropped server-side for <c>SelfCateringAll</c>.</summary>
+    /// postback. Only applicable when the booking's meal plan is <c>FullBoardAll</c>; dropped
+    /// server-side for <c>SelfCateringAll</c>.</summary>
     public List<DayGuestEntry> DayGuests { get; set; } = [];
 
-    // ── Group defaults (presentation only) ───────────────────────────────────────
-    // The "Standard för hela gruppen" convenience controls cascade one choice to every participant
-    // via completion-form.js; they are NOT participant data and are ignored by CompletionNormalizer.
-    // They are bound to the model purely so their displayed value survives an add/remove-day-guest
-    // server round-trip (which re-renders the whole form) instead of blanking out.
+    // ── Group meal choice (§4.1, FR-105) ─────────────────────────────────────────
+    /// <summary>The group's chosen meal option id (as a string) per sitting, aligned by index to
+    /// the server-resolved selection slots
+    /// (<see cref="AkeroGarden.Web.Core.Services.ResolvedMealOccasions.SelectionSlots"/>). One
+    /// choice per sitting for everybody — nobody selects individually (FR-105).
+    ///
+    /// <para>Kept as <see cref="string"/> (not <see cref="Guid"/>?) because a placeholder select
+    /// posts an empty value for every unselected slot, and the SSR model binder fails to bind ""
+    /// into a <c>List&lt;Guid?&gt;</c> element — nulling the whole collection. Parsed to a Guid
+    /// server-side in <see cref="AkeroGarden.Web.Core.Services.CompletionNormalizer"/>. Only the id
+    /// round-trips; each slot's date + meal type are re-resolved on the server.</para></summary>
+    public List<string?> MealChoices { get; set; } = [];
 
-    /// <summary>Whether the group-default "Helpension för alla" box is ticked (presentation only).</summary>
-    public bool GroupDefaultFullBoard { get; set; }
+    // ── Edge-day meal occasions (§4.1, FR-105) ───────────────────────────────────
+    // Which meals the group takes on the arrival and departure day. Stored on the booking, not
+    // derived from the stated check-in/check-out times — see MealOccasionResolver.
 
-    /// <summary>Group-default meal choice <b>per serving slot</b> (presentation only), aligned by index
-    /// to the same server-derived slot list as <see cref="OvernightParticipantEntry.MealChoices"/>. Each
-    /// per-day dropdown in the "Standard för hela gruppen" panel cascades its value to that same slot for
-    /// every participant via completion-form.js. Kept as <see cref="string"/> for the same SSR-binding
-    /// reason as <see cref="OvernightParticipantEntry.MealChoices"/>; ignored by CompletionNormalizer.</summary>
-    public List<string?> GroupDefaultMeals { get; set; } = [];
+    public bool ArrivalBreakfast { get; set; }
+
+    public bool ArrivalLunch { get; set; }
+
+    public bool ArrivalDinner { get; set; }
+
+    public bool DepartureBreakfast { get; set; }
+
+    public bool DepartureLunch { get; set; }
+
+    public bool DepartureDinner { get; set; }
+
+    // ── Day-guest meal attendance (§4.2) ─────────────────────────────────────────
+    // One setting for every day guest on the booking, not per day guest.
+
+    public bool DayGuestBreakfast { get; set; }
+
+    public bool DayGuestLunch { get; set; }
+
+    public bool DayGuestDinner { get; set; }
+
+    // ── Dietary preferences (§4.6) ───────────────────────────────────────────────
+    /// <summary>How many vegetarian portions the kitchen must prepare. A count, not a per-person
+    /// flag — nobody needs to know which individuals they are.</summary>
+    public int VegetarianCount { get; set; }
+
+    /// <summary>How many vegan portions the kitchen must prepare (§4.6).</summary>
+    public int VeganCount { get; set; }
 
     // ── Cleaning (FR-93, §5.5) ────────────────────────────────────────────────────
     /// <summary>Huvudbyggnad self-clean/buy toggle. Default false (self-clean is the default).</summary>
     public bool MainBuildingCleaning { get; set; }
 
     /// <summary>The combined sleeping-building(s) toggle — intent only; the priced selection rows
-    /// resolve from room assignment (§8.12), not from this flag directly.</summary>
+    /// resolve from the booking's building assignments (§8.12/8.16), not from this flag directly.</summary>
     public bool SleepingCleaning { get; set; }
 
     /// <summary>Konferensbyggnad toggle — only honored server-side when the Konferensrum facility
@@ -62,56 +90,44 @@ public class CompletionFormModel
     public string? InvoiceAddress { get; set; }
 }
 
-/// <summary>One overnight participant's entry on the completion form (§8.5, FR-57).</summary>
-public class OvernightParticipantEntry
+/// <summary>The allergy fields both participant kinds carry (§4.6), so one validation rule covers
+/// both rather than being written twice and drifting apart.</summary>
+public interface IAllergyEntry
+{
+    List<Allergy> Allergies { get; }
+
+    string? AllergyNotes { get; }
+}
+
+/// <summary>One overnight participant's entry on the completion form (§8.5, FR-57). Name, age and
+/// allergies only — meals are the group's single choice, and there is no room to assign.</summary>
+public class OvernightParticipantEntry : IAllergyEntry
 {
     public string? FullName { get; set; }
 
     public AgeCategory AgeCategory { get; set; } = AgeCategory.Adult;
 
-    /// <summary>Pre-filled from the booking's <c>MealPlan</c>, overridable per participant (§4.1).
-    /// When false the participant has no meal selection (self-catering).</summary>
-    public bool IsFullBoard { get; set; }
+    /// <summary>Multi-select allergies (§4.6) — medical constraints only. Empty when none apply.</summary>
+    public List<Allergy> Allergies { get; set; } = [];
 
-    /// <summary>Chosen meal option id (as a string) per applicable meal slot, aligned by index to
-    /// the server-derived slot list (<see cref="AkeroGarden.Web.Core.Services.MealsByDayCalculator"/>).
-    /// A null/empty entry is an unselected slot. Kept as <see cref="string"/> (not
-    /// <see cref="Guid"/>?) because a placeholder select posts an empty value for every unselected
-    /// slot, and the SSR model binder fails to bind "" into a <c>List&lt;Guid?&gt;</c> element —
-    /// nulling the whole collection. Parsed to a Guid server-side in <see cref="CompletionNormalizer"/>.
-    /// Only the id round-trips; the slot's date + meal type are re-derived on the server.</summary>
-    public List<string?> MealChoices { get; set; } = [];
-
-    /// <summary>Multi-select dietary requirements (§4.6). Empty when none apply.</summary>
-    public List<DietaryRequirement> Dietary { get; set; } = [];
-
-    public string? DietaryNotes { get; set; }
-
+    public string? AllergyNotes { get; set; }
 }
 
 /// <summary>One day guest's entry on the completion form (§4.2, §8.5, FR-58). A day guest occupies
-/// no bed and attends a single date for meals only.</summary>
-public class DayGuestEntry
+/// no bed and attends a single date for meals only; which meals is one booking-level setting, and
+/// what they eat is the group's choice — so neither appears here.</summary>
+public class DayGuestEntry : IAllergyEntry
 {
     public string? FullName { get; set; }
 
     public AgeCategory AgeCategory { get; set; } = AgeCategory.Adult;
 
     /// <summary>The single date attended (§4.2), as a string (<c>yyyy-MM-dd</c>) — kept as string
-    /// for the same SSR-binding reason as <see cref="OvernightParticipantEntry.MealChoices"/>
-    /// (an empty select value fails to bind into a nullable value type). Parsed server-side.</summary>
+    /// for the same SSR-binding reason as <see cref="CompletionFormModel.MealChoices"/> (an empty
+    /// select value fails to bind into a nullable value type). Parsed server-side.</summary>
     public string? AttendanceDate { get; set; }
 
-    /// <summary>Whether the day guest attends the breakfast buffet (no meal selection needed).</summary>
-    public bool AttendsBreakfast { get; set; }
+    public List<Allergy> Allergies { get; set; } = [];
 
-    /// <summary>Chosen lunch option id (string; empty = not attending lunch).</summary>
-    public string? LunchChoice { get; set; }
-
-    /// <summary>Chosen dinner option id (string; empty = not attending dinner).</summary>
-    public string? DinnerChoice { get; set; }
-
-    public List<DietaryRequirement> Dietary { get; set; } = [];
-
-    public string? DietaryNotes { get; set; }
+    public string? AllergyNotes { get; set; }
 }

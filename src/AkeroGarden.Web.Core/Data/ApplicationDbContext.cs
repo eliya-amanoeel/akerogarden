@@ -33,9 +33,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BookingBuildingAssignment> BookingBuildingAssignments => Set<BookingBuildingAssignment>();
     public DbSet<BlockedPeriod> BlockedPeriods => Set<BlockedPeriod>();
 
-    // Phase 4 slice 1: completion flow — Participant + MealPreference.
+    // Phase 4 slice 1: completion flow — Participant. Meal selection re-parented from Participant
+    // to Booking in the 2026-08 demo-feedback work (§8.6, FR-105).
     public DbSet<Participant> Participants => Set<Participant>();
-    public DbSet<MealPreference> MealPreferences => Set<MealPreference>();
+    public DbSet<BookingMealSelection> BookingMealSelections => Set<BookingMealSelection>();
 
     // Phase 8: cleaning rework — PhysicalBuilding (§8.14).
     public DbSet<PhysicalBuilding> PhysicalBuildings => Set<PhysicalBuilding>();
@@ -221,17 +222,17 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         });
 
         // ── Phase 4: completion flow ────────────────────────────────────────────
-        // Multi-select dietary requirements persist as a comma-joined string of enum names —
-        // legible, and never queried in a WHERE, so no join table or PG array is warranted.
-        var dietaryConverter = new ValueConverter<List<DietaryRequirement>, string>(
+        // Multi-select allergies persist as a comma-joined string of enum names — legible, and
+        // never queried in a WHERE, so no join table or PG array is warranted.
+        var allergyConverter = new ValueConverter<List<Allergy>, string>(
             v => string.Join(',', v.Select(d => d.ToString())),
             v => string.IsNullOrEmpty(v)
-                ? new List<DietaryRequirement>()
+                ? new List<Allergy>()
                 : v.Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(Enum.Parse<DietaryRequirement>)
+                    .Select(Enum.Parse<Allergy>)
                     .ToList());
         // EF needs a value comparer for a mutable reference-typed property to track edits correctly.
-        var dietaryComparer = new ValueComparer<List<DietaryRequirement>>(
+        var allergyComparer = new ValueComparer<List<Allergy>>(
             (a, b) => (a ?? new()).SequenceEqual(b ?? new()),
             v => v.Aggregate(0, (acc, d) => HashCode.Combine(acc, d.GetHashCode())),
             v => v.ToList());
@@ -242,11 +243,11 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             p.Property(x => x.ParticipantType).HasConversion<string>().HasMaxLength(20);
             p.Property(x => x.AgeCategory).HasConversion<string>().HasMaxLength(20);
             p.Property(x => x.FullName).HasMaxLength(200);
-            p.Property(x => x.DietaryNotes).HasMaxLength(200);
+            p.Property(x => x.AllergyNotes).HasMaxLength(200);
 
-            p.Property(x => x.DietaryRequirements)
-                .HasConversion(dietaryConverter)
-                .Metadata.SetValueComparer(dietaryComparer);
+            p.Property(x => x.Allergies)
+                .HasConversion(allergyConverter)
+                .Metadata.SetValueComparer(allergyComparer);
 
             // No room relationship: participants are no longer assigned rooms (FR-56 tombstoned).
             // The booking's lodging is recorded at building level instead — see
@@ -254,16 +255,20 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             p.HasIndex(x => x.BookingId);
         });
 
-        builder.Entity<MealPreference>(m =>
+        builder.Entity<BookingMealSelection>(m =>
         {
             m.Property(x => x.MealType).HasConversion<string>().HasMaxLength(20);
             m.Property(x => x.MealOptionSnapshot).HasMaxLength(200);
 
-            // Meal preferences cascade with their participant (retention deletion, Phase 5).
-            m.HasOne(x => x.Participant!)
-                .WithMany(x => x.MealPreferences)
-                .HasForeignKey(x => x.ParticipantId)
+            // Meal selections cascade with their booking (retention deletion, Phase 5).
+            m.HasOne(x => x.Booking!)
+                .WithMany(x => x.MealSelections)
+                .HasForeignKey(x => x.BookingId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // One choice per sitting for the whole group (FR-105) — enforced in the database, not
+            // only in the normalizer, so a duplicate row cannot exist however it was written.
+            m.HasIndex(x => new { x.BookingId, x.Date, x.MealType }).IsUnique();
 
             // Live FK → MealOption; Restrict so a referenced option cannot be hard-deleted
             // (FR-26) — defence in depth behind MealOptionService.CanHardDelete.

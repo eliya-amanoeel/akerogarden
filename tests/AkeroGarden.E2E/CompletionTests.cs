@@ -30,7 +30,7 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
-    public async Task Participant_row_collapses_meals_until_expanded()
+    public async Task Participant_row_collapses_allergies_until_expanded()
     {
         await Page.GotoAsync(CompletionUrl);
         var row = Page.Locator(".prow[aria-label='Deltagare 1']");
@@ -41,48 +41,53 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
-    public async Task Single_option_meal_renders_as_fixed_text_not_a_dropdown()
+    public async Task Meals_are_chosen_once_for_the_group_not_per_participant()
     {
+        // FR-105: the meal grid lives outside the participant rows, and a participant row carries
+        // no meal control at all.
         await Page.GotoAsync(CompletionUrl);
+
+        await Assertions.Expect(Page.Locator("[data-group-meals]")).ToBeVisibleAsync();
+
         var row = Page.Locator(".prow[aria-label='Deltagare 1']");
         await row.Locator(".prow__toggle").ClickAsync();
 
-        // Lunch has 2 options → a select; dinner has 1 → fixed text (both dinner slots) + a hidden field.
-        await Assertions.Expect(row.Locator("select[data-meal='Lunch']")).ToHaveCountAsync(1);
-        await Assertions.Expect(row.Locator("select[data-meal='Dinner']")).ToHaveCountAsync(0);
-        await Assertions.Expect(row.Locator(".meal-fixed")).ToHaveCountAsync(2);
+        // No meal control of any kind in the row. Scoped to the meal markup rather than to "select"
+        // outright — the age-category dropdown is a select and legitimately belongs here.
+        await Assertions.Expect(row.Locator("[data-sitting]")).ToHaveCountAsync(0);
+        await Assertions.Expect(row.Locator("select[data-meal-select]")).ToHaveCountAsync(0);
     }
 
     [Fact]
-    public async Task Group_default_lunch_cascades_to_every_participant()
+    public async Task Ticking_an_edge_day_meal_reveals_that_sittings_dropdown()
     {
+        // The arrival-day lunch is not taken by default, so its dropdown starts hidden; ticking the
+        // arrival-lunch box reveals it (§4.1, FR-105).
         await Page.GotoAsync(CompletionUrl);
 
-        // Group defaults are now per day: a day's lunch cascades to THAT day's slot for everyone.
-        var gdLunch = Page.Locator("select[data-groupdefault-slot][data-meal='Lunch']").First;
-        var slot = await gdLunch.GetAttributeAsync("data-groupdefault-slot");
-        await gdLunch.SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
-        var chosen = await gdLunch.InputValueAsync();
+        var arrivalLunch = Page.Locator("[data-sitting][data-edge='arrival'][data-meal='Lunch']");
+        await Assertions.Expect(arrivalLunch).Not.ToBeVisibleAsync();
 
-        // A participant whose own select was never touched now carries the group choice for that day.
-        await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__toggle").ClickAsync();
-        await Assertions.Expect(Page.Locator($".prow[aria-label='Deltagare 2'] select[data-slot='{slot}']"))
-            .ToHaveValueAsync(chosen);
+        await Page.Locator("input[name='Form.ArrivalLunch'][data-edge-meal]").CheckAsync();
+        await Assertions.Expect(arrivalLunch).ToBeVisibleAsync();
+
+        await Page.Locator("input[name='Form.ArrivalLunch'][data-edge-meal]").UncheckAsync();
+        await Assertions.Expect(arrivalLunch).Not.ToBeVisibleAsync();
     }
 
+    // REMOVED 2026-08-07: Same_dish_all_days_copies_the_chosen_lunch_across_the_stay. The
+    // "Samma rätt alla dagar" button it covered is gone — see §4.1. The shortcut existed to cascade
+    // one choice across every *participant*, which group-level meal selection (FR-105) now does by
+    // construction; read literally as "one dish for every day" it made the booking worse rather than
+    // faster. Nothing weaker remains to assert: the behaviour no longer exists.
+
     [Fact]
-    public async Task Group_default_meal_pickers_are_hidden_when_group_default_full_board_is_unchecked()
+    public async Task Self_catering_booking_has_no_meal_section_at_all()
     {
-        // Regression for the Phase-8 smoke-test bug: on a SelfCateringAll booking the "Helpension
-        // för alla" checkbox correctly renders unticked, but the per-day meal pickers rendered
-        // regardless — there was no gate mirroring the per-participant syncMeals behaviour.
+        // FR-55: a SelfCateringAll booking has no meal selection section — not a hidden one.
         await Page.GotoAsync(Url(E2EFixture.SelfCateringCompletionToken));
 
-        await Assertions.Expect(Page.Locator("[data-groupdefault-fullboard]")).Not.ToBeCheckedAsync();
-        await Assertions.Expect(Page.Locator("[data-groupdefault-days]").First).Not.ToBeVisibleAsync();
-
-        await Page.Locator("[data-groupdefault-fullboard]").CheckAsync();
-        await Assertions.Expect(Page.Locator("[data-groupdefault-days]").First).ToBeVisibleAsync();
+        await Assertions.Expect(Page.Locator("[data-group-meals]")).ToHaveCountAsync(0);
     }
 
     [Fact]
@@ -104,23 +109,22 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
-    public async Task Group_default_value_survives_an_add_day_guest_postback()
+    public async Task Meal_choices_survive_an_add_day_guest_postback()
     {
-        // Regression for the "shortcut resets on postback" bug: the group-default controls are
-        // JS-cascade helpers, but their displayed value must round-trip the add/remove-day-guest
-        // server postback (which re-renders the whole form) instead of blanking out. Adding a day
-        // guest does not consume the token, so this can share the read-only CompletionToken.
+        // Regression for the "choices reset on postback" bug: the add/remove-day-guest round-trip
+        // re-renders the whole form, and the posted grid must round-trip instead of blanking out.
+        // Adding a day guest does not consume the token, so this shares the read-only token.
         await Page.GotoAsync(CompletionUrl);
 
-        var gdLunch = Page.Locator("select[data-groupdefault-slot][data-meal='Lunch']").First;
-        await gdLunch.SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
-        var chosen = await gdLunch.InputValueAsync();
+        var lunch = Page.Locator("[data-sitting][data-meal='Lunch']:visible select").First;
+        await lunch.SelectOptionAsync(new SelectOptionValue { Label = "Ugnsbakad lax" });
+        var chosen = await lunch.InputValueAsync();
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "Lägg till dagsgäst" }).ClickAsync();
 
-        // A new day-guest row proves the postback happened; the group-default select kept its value.
+        // A new day-guest row proves the postback happened; the meal select kept its value.
         await Assertions.Expect(Page.Locator(".pcard[aria-label='Dagsgäst 1']")).ToBeVisibleAsync();
-        await Assertions.Expect(Page.Locator("select[data-groupdefault-slot][data-meal='Lunch']").First)
+        await Assertions.Expect(Page.Locator("[data-sitting][data-meal='Lunch']:visible select").First)
             .ToHaveValueAsync(chosen);
     }
 
@@ -131,23 +135,21 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 
         await Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name").FillAsync("Anna Andersson");
         await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__name").FillAsync("Bengt Berg");
-        // Each day's group-default lunch cascades to that day's slot for every participant; dinner is
-        // single-option and auto-filled — so every full-board meal slot is satisfied.
-        await SelectEveryGroupDefaultLunchAsync("Ugnsbakad lax");
+        await ChooseEveryVisibleSittingAsync();
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka in uppgifter" }).ClickAsync();
 
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
     }
 
-    /// <summary>Selects the given option on every per-day group-default lunch dropdown, cascading it
-    /// to that day's slot for all participants (the per-day successor to the old single "all days").</summary>
-    private async Task SelectEveryGroupDefaultLunchAsync(string label)
+    /// <summary>Picks the first real option on every sitting the group is taking, so the form is
+    /// complete — the server requires a dish for each (§4.1).</summary>
+    private async Task ChooseEveryVisibleSittingAsync()
     {
-        var selects = Page.Locator("select[data-groupdefault-slot][data-meal='Lunch']");
+        var selects = Page.Locator("[data-sitting]:visible select");
         var count = await selects.CountAsync();
         for (var i = 0; i < count; i++)
-            await selects.Nth(i).SelectOptionAsync(new SelectOptionValue { Label = label });
+            await selects.Nth(i).SelectOptionAsync(new SelectOptionValue { Index = 1 });
     }
 
     [Fact]
@@ -159,7 +161,7 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         // not consume the token, so this can safely share the read-only CompletionToken.
         await Page.GotoAsync(CompletionUrl);
         await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__name").FillAsync("Bengt Berg");
-        await SelectEveryGroupDefaultLunchAsync("Ugnsbakad lax");
+        await ChooseEveryVisibleSittingAsync();
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka in uppgifter" }).ClickAsync();
 

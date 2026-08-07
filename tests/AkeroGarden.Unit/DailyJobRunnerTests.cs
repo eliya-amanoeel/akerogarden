@@ -111,6 +111,62 @@ public class DailyJobRunnerTests
     }
 
     [Fact]
+    public async Task RunOnStartup_RunsOnceImmediately_WithoutAdvancingTheClock()
+    {
+        // The point of the seam: a scheduled email is reachable in a dev inbox without waiting for
+        // the next run hour. Asserted with the clock held still, which is the whole claim.
+        var clock = WinterClock();
+        var job = new RecordingJob("Påminnelser");
+        var runner = CreateRunner(clock, new JobOptions { RunOnStartup = true, DailyRunHourLocal = 3 }, job);
+
+        await runner.StartAsync(CancellationToken.None);
+
+        var sw = Stopwatch.StartNew();
+        while (job.RunCount == 0 && sw.Elapsed < Timeout)
+            await Task.Delay(20);
+
+        Assert.True(job.RunCount >= 1, "Jobbet kördes inte direkt vid start.");
+        await runner.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunOnStartup_StillFollowsTheNormalScheduleAfterwards()
+    {
+        // A one-off run must not replace the loop — otherwise turning the seam on in a long-running
+        // process would silently stop retention deletion (§2.7, FR-69).
+        var clock = WinterClock();
+        var job = new RecordingJob("Gallring");
+        var runner = CreateRunner(clock, new JobOptions { RunOnStartup = true, DailyRunHourLocal = 3 }, job);
+
+        await runner.StartAsync(CancellationToken.None);
+
+        Assert.True(await AdvanceUntilRunAsync(clock, job, 2), "Schemat tog inte över efter startkörningen.");
+
+        await runner.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task RunOnStartup_IsOffByDefault()
+    {
+        // It is a development seam; a production process must not run jobs the moment it boots.
+        Assert.False(new JobOptions().RunOnStartup);
+    }
+
+    [Fact]
+    public async Task Disabled_BeatsRunOnStartup()
+    {
+        var clock = WinterClock();
+        var job = new RecordingJob("Gallring");
+        var runner = CreateRunner(clock, new JobOptions { Enabled = false, RunOnStartup = true }, job);
+
+        await runner.StartAsync(CancellationToken.None);
+        await Task.Delay(100);
+
+        Assert.Equal(0, job.RunCount);
+        await runner.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
     public async Task OneJobThrowing_DoesNotPreventTheOthers()
     {
         var failing = new RecordingJob("Påminnelser", throws: true);

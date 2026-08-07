@@ -76,17 +76,19 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         Assert.NotNull(cancelled.CancelledAt);
         Assert.NotNull(cancelled.CancellationInitiator);
 
-        // Participants + meal snapshots exist and reference live meal options.
-        var participants = await db.Participants
-            .Include(p => p.MealPreferences)
-            .ToListAsync();
+        // Participants exist as a roster; the group's meal snapshots hang off the booking (FR-105)
+        // and reference live meal options.
+        var participants = await db.Participants.ToListAsync();
         Assert.NotEmpty(participants);
 
-        var meals = participants.SelectMany(p => p.MealPreferences).ToList();
+        var meals = await db.BookingMealSelections.ToListAsync();
         Assert.NotEmpty(meals);
         Assert.All(meals, m => Assert.False(string.IsNullOrWhiteSpace(m.MealOptionSnapshot)));
         var mealOptionIds = await db.MealOptions.Select(o => o.Id).ToListAsync();
         Assert.All(meals, m => Assert.Contains(m.MealOptionId, mealOptionIds));
+
+        // One choice per sitting for the whole group — never one per participant.
+        Assert.All(meals.GroupBy(m => (m.BookingId, m.Date, m.MealType)), g => Assert.Single(g));
 
         // Approved-and-beyond bookings carry their lodging assignment with both name snapshots
         // (§8.16, NFR-16). Participants no longer carry any room link (FR-56 tombstoned).
@@ -131,5 +133,44 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
 
         // The admin user is untouched by the wipe.
         Assert.NotNull(await users.FindByEmailAsync(email));
+    }
+
+    [Fact]
+    public async Task Seed_IncludesABookingTheReminderJobWillActuallyPickUp()
+    {
+        // The two-week reminder (FR-63/64) only fires for a booking that is DetailsComplete or later
+        // with check-in inside the next 14 days. Without one seeded, seeing that email in a dev inbox
+        // means hand-editing dates in the database — so this asserts the affordance stays, rather
+        // than leaving it to be quietly broken by a later change to the seed dates.
+        var seeder = NewSeeder(out var scope, out var db);
+        using var _s = scope;
+
+        await seeder.ResetAndSeedAsync();
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var windowEnd = today.AddDays(ReminderSchedule.LeadDays);
+
+        var due = await db.Bookings
+            .Where(b => b.ReminderEmailSentAt == null
+                        && b.CheckIn != null
+                        && b.CheckIn >= today
+                        && b.CheckIn <= windowEnd
+                        && (b.Status == BookingStatus.Approved
+                            || b.Status == BookingStatus.DetailsComplete
+                            || b.Status == BookingStatus.Active))
+            .ToListAsync();
+
+        var booking = Assert.Single(due, b => b.Status == BookingStatus.DetailsComplete);
+
+        // Non-standard times on purpose: the email must demonstrably carry the booking's own times
+        // rather than the 14:00/12:00 standard (FR-64).
+        Assert.NotEqual(MealOccasionResolver.StandardCheckInTime, booking.CheckInTime);
+        Assert.NotEqual(MealOccasionResolver.StandardCheckOutTime, booking.CheckOutTime);
+
+        // And it has to have content worth reading: participants and the group's chosen dishes.
+        await db.Entry(booking).Collection(b => b.Participants).LoadAsync();
+        await db.Entry(booking).Collection(b => b.MealSelections).LoadAsync();
+        Assert.NotEmpty(booking.Participants);
+        Assert.NotEmpty(booking.MealSelections);
     }
 }

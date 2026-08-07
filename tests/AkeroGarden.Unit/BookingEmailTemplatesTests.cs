@@ -89,7 +89,9 @@ public class BookingEmailTemplatesTests
     public void Approval_IncludesMagicLinkExpiryAndDepositPolicy()
     {
         var expiry = new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc);
-        var c = BookingEmailTemplates.Approval("Anna", "https://akerogarden.se/slutfor/TOKEN", expiry, Ref, ["Smedjan"]);
+        var c = BookingEmailTemplates.Approval(
+            "Anna", "https://akerogarden.se/slutfor/TOKEN", expiry, Ref, ["Smedjan"],
+            new TimeOnly(14, 0), new TimeOnly(12, 0));
 
         Assert.Contains("https://akerogarden.se/slutfor/TOKEN", c.HtmlBody);
         Assert.Contains("Smedjan", c.HtmlBody);       // assigned lodging stated (FR-103)
@@ -97,6 +99,32 @@ public class BookingEmailTemplatesTests
         Assert.Contains("14:00", c.HtmlBody);
         Assert.Contains("20 %", c.HtmlBody);          // deposit policy
         Assert.Contains(Ref, c.HtmlBody);
+    }
+
+    [Fact]
+    public void Approval_StatesTheBookingsOwnTimes_NotTheStandard()
+    {
+        // A guest who asked to arrive at 08:00 must not be told check-in is at 14:00. The admin is
+        // warned about the deviation at the approve button (FR-101) and can adjust the time first
+        // (FR-48), so what is stored when this sends is what was agreed.
+        var c = BookingEmailTemplates.Approval(
+            "Anna", "https://akerogarden.se/slutfor/TOKEN",
+            new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc), Ref, [],
+            new TimeOnly(8, 0), new TimeOnly(18, 30));
+
+        Assert.Contains("Incheckning sker kl. 08:00", c.HtmlBody);
+        Assert.Contains("utcheckning kl. 18:30", c.HtmlBody);
+    }
+
+    [Fact]
+    public void Approval_FallsBackToTheStandardTimes_WhenNoneWereStated()
+    {
+        var c = BookingEmailTemplates.Approval(
+            "Anna", "https://akerogarden.se/slutfor/TOKEN",
+            new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc), Ref, [], null, null);
+
+        Assert.Contains("Incheckning sker kl. 14:00", c.HtmlBody);
+        Assert.Contains("utcheckning kl. 12:00", c.HtmlBody);
     }
 
     [Fact]
@@ -125,8 +153,9 @@ public class BookingEmailTemplatesTests
     public void TwoWeekReminder_StatesCounts_Times_AndAddress()
     {
         var c = BookingEmailTemplates.TwoWeekReminder(
-            "Anna", overnightCount: 8, dayGuestCount: 3, fullBoardMealCount: 20,
-            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4), "Åkerögården, Norrtälje", Ref,
+            "Anna", overnightCount: 8, dayGuestCount: 3, groupMealCount: 5,
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
+            new TimeOnly(14, 0), new TimeOnly(12, 0), "Åkerögården, Norrtälje", Ref,
             assignedBuildingNames: ["Smedjan", "Tallstugan"]);
         Assert.Contains("Hej Anna", c.HtmlBody);
         Assert.Contains("14:00", c.HtmlBody);
@@ -142,12 +171,57 @@ public class BookingEmailTemplatesTests
     }
 
     [Fact]
+    public void TwoWeekReminder_StatesTheBookingsOwnTimes_NotTheStandard()
+    {
+        // FR-64: by now the guest has stated a time and the admin has had every chance to adjust it,
+        // so restating 14:00/12:00 would contradict what was agreed.
+        var c = BookingEmailTemplates.TwoWeekReminder(
+            "Anna", overnightCount: 8, dayGuestCount: 0, groupMealCount: 5,
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
+            new TimeOnly(8, 30), new TimeOnly(18, 0), "Åkerögården, Norrtälje", Ref,
+            assignedBuildingNames: []);
+
+        Assert.Contains("kl. 08:30", c.HtmlBody);
+        Assert.Contains("kl. 18:00", c.HtmlBody);
+        Assert.DoesNotContain("14:00", c.HtmlBody);
+        Assert.DoesNotContain("12:00", c.HtmlBody);
+    }
+
+    [Fact]
+    public void TwoWeekReminder_FallsBackToTheStandardTimes_WhenNoneWereStated()
+    {
+        var c = BookingEmailTemplates.TwoWeekReminder(
+            "Anna", overnightCount: 8, dayGuestCount: 0, groupMealCount: 5,
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
+            null, null, "Åkerögården, Norrtälje", Ref,
+            assignedBuildingNames: []);
+
+        Assert.Contains("kl. 14:00", c.HtmlBody);
+        Assert.Contains("kl. 12:00", c.HtmlBody);
+    }
+
+    [Fact]
+    public void TwoWeekReminder_LabelsTheMealCountAsTheGroups_NotAsPortions()
+    {
+        // The group eats one dish per meal (FR-105), so 5 means five meals, not five portions.
+        // "Antal beställda måltider: 5" for a party of 24 would read as a mistake.
+        var c = BookingEmailTemplates.TwoWeekReminder(
+            "Anna", overnightCount: 24, dayGuestCount: 0, groupMealCount: 5,
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
+            null, null, "Åkerögården, Norrtälje", Ref,
+            assignedBuildingNames: []);
+
+        Assert.Contains("Antal måltider för gruppen:</strong> 5", c.HtmlBody);
+    }
+
+    [Fact]
     public void TwoWeekReminder_WithNoAssignedBuildings_OmitsTheLodgingLineEntirely()
     {
         // A blank "Ert boende:" would read to the guest as a mistake rather than as absence.
         var c = BookingEmailTemplates.TwoWeekReminder(
-            "Anna", overnightCount: 8, dayGuestCount: 3, fullBoardMealCount: 20,
-            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4), "Åkerögården, Norrtälje", Ref,
+            "Anna", overnightCount: 8, dayGuestCount: 3, groupMealCount: 5,
+            new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
+            new TimeOnly(14, 0), new TimeOnly(12, 0), "Åkerögården, Norrtälje", Ref,
             assignedBuildingNames: []);
         Assert.DoesNotContain("Ert boende", c.HtmlBody);
     }

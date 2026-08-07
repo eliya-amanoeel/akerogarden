@@ -111,6 +111,34 @@ else
                                 <ValidationMessage For="() => StayModel!.CheckOut" />
                             </div>
                         </div>
+
+                        @* Stated arrival/departure times (FR-100, §2.8). A fixed dropdown, not a free
+                           text or a native time field: the point of collecting these was to stop
+                           getting "någon gång på eftermiddagen", so the control must not accept a
+                           value we cannot use. Pre-filled with the standard times, so the ordinary
+                           case is left alone. *@
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="s-checkin-time">Ungefärlig ankomsttid</label>
+                                <InputSelect id="s-checkin-time" @bind-Value="StayModel!.CheckInTime">
+                                    @foreach (var t in StatedTimePolicy.Options())
+                                    {
+                                        <option value="@StatedTimePolicy.Display(t)">@StatedTimePolicy.Display(t)</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                            <div class="form-group">
+                                <label for="s-checkout-time">Ungefärlig avresetid</label>
+                                <InputSelect id="s-checkout-time" @bind-Value="StayModel!.CheckOutTime">
+                                    @foreach (var t in StatedTimePolicy.Options())
+                                    {
+                                        <option value="@StatedTimePolicy.Display(t)">@StatedTimePolicy.Display(t)</option>
+                                    }
+                                </InputSelect>
+                            </div>
+                        </div>
+                        <p class="form-hint">Standard är incheckning @StatedTimePolicy.Display(MealOccasionResolver.StandardCheckInTime) och utcheckning @StatedTimePolicy.Display(MealOccasionResolver.StandardCheckOutTime). Behöver ni komma tidigare eller åka senare anger ni det här — vi hör av oss om det går att ordna.</p>
+
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="s-guests">Antal gäster (övernattning)</label>
@@ -123,7 +151,6 @@ else
                                     <option value="">Välj…</option>
                                     <option value="@MealPlan.FullBoardAll">Helpension för alla</option>
                                     <option value="@MealPlan.SelfCateringAll">Självhushåll för alla</option>
-                                    <option value="@MealPlan.Mixed">Blandat (anges per deltagare)</option>
                                 </InputSelect>
                                 <ValidationMessage For="() => StayModel!.MealPlan" />
                             </div>
@@ -133,7 +160,7 @@ else
                             <label for="s-dayguests">Antal dagsgäster <span class="field-opt">(valfritt)</span></label>
                             <InputNumber id="s-dayguests" min="0" @bind-Value="StayModel!.DayGuestCount" />
                             <ValidationMessage For="() => StayModel!.DayGuestCount" />
-                            <p class="form-hint">Dagsgäster gäller bara vid helpension eller blandad måltidsplan.</p>
+                            <p class="form-hint">Dagsgäster gäller bara vid helpension.</p>
                         </div>
                     </div>
 
@@ -301,6 +328,11 @@ else
         // (avoids the BL0008 null-overwrite trap on a failed-validation re-render).
         StayModel ??= new();
         GeneralModel ??= new();
+
+        // Pre-select the standard times (§2.8) so the ordinary case is one fewer decision. Only when
+        // nothing was posted — a re-render after failed validation must keep what the guest chose.
+        StayModel.CheckInTime ??= StatedTimePolicy.Display(MealOccasionResolver.StandardCheckInTime);
+        StayModel.CheckOutTime ??= StatedTimePolicy.Display(MealOccasionResolver.StandardCheckOutTime);
 
         _facilities = await FacilityService.GetActiveAsync();
 

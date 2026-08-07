@@ -103,72 +103,91 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
             </div>
 
             <EditForm Model="_form" FormName="completion" OnSubmit="HandleSubmit" method="post">
-                <h2>Deltagare med övernattning</h2>
-                <p class="sec-note">Namn krävs för alla deltagare. Sätt en standard för hela gruppen nedan, skriv namnen, och fäll bara ut dem som avviker.</p>
+                @* ── The group's meals (§4.1, FR-105) ────────────────────────────
+                   One choice per sitting for everybody. Nobody picks individually, so this sits
+                   above the roster rather than inside each participant row. *@
+                @if (_catered)
+                {
+                    <h2>Måltider för gruppen</h2>
+                    <p class="sec-note">Ni väljer en rätt per måltid som gäller hela gruppen. Individuella behov anges som allergier per person och som antal portioner längre ned.</p>
 
-                @* Group defaults: cascade one choice to every participant (JS). Without JS each row is
-                   filled individually — the panel simply does nothing. *@
-                <div class="group-default">
-                    <h3>Standard för hela gruppen</h3>
-                    <p>Gäller alla deltagare. Du kan ändra per person längre ned.</p>
-                    <div class="fbrow">
-                        @* Bound to the model (name + hidden companion) so its ticked state survives an
-                           add/remove-day-guest postback; still cascades to every participant via JS. *@
-                        <input type="checkbox" id="gd-fullboard" name="Form.GroupDefaultFullBoard" value="true"
-                               data-groupdefault-fullboard checked="@_form.GroupDefaultFullBoard" />
-                        <input type="hidden" name="Form.GroupDefaultFullBoard" value="false" />
-                        <label for="gd-fullboard">Helpension för alla (måltider ingår)</label>
-                    </div>
-                    @{
-                        // A group-default select per serving slot, aligned by slot index to the
-                        // participant rows so a value cascades to that same day/meal for everyone.
-                        var gdSlots = _slots.Select((s, si) => (Slot: s, SlotIndex: si)).ToList();
-                        bool HasChoice(MealSlot s) =>
-                            (s.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions).Count >= 2;
-                    }
-                    @if (gdSlots.Any(x => HasChoice(x.Slot)))
-                    {
-                        <p class="group-default__hint" data-groupdefault-days>Välj måltider per dag – de kopieras till alla deltagare. Justera per person längre ned vid behov.</p>
-                        <div class="meals group-default__days" data-groupdefault-days>
-                            @foreach (var dateGroup in gdSlots.GroupBy(x => x.Slot.Date))
-                            {
-                                @if (dateGroup.Any(x => HasChoice(x.Slot)))
-                                {
-                                    <div class="day">
-                                        <p class="day__date">@Capitalize(dateGroup.Key.ToString("dddd d MMMM", Sv))</p>
-                                        <div class="day__meals">
-                                            @foreach (var item in dateGroup.Where(x => HasChoice(x.Slot)))
-                                            {
-                                                var slotIndex = item.SlotIndex;
-                                                var options = item.Slot.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
-                                                var mealLabel = item.Slot.MealType == MealType.Lunch ? "Lunch" : "Middag";
-                                                var gdChosen = _form.GroupDefaultMeals.ElementAtOrDefault(slotIndex);
-                                                <div>
-                                                    <label for="gd-m@(slotIndex)">@mealLabel</label>
-                                                    <select class="inp" id="gd-m@(slotIndex)" name="Form.GroupDefaultMeals[@slotIndex]"
-                                                            data-groupdefault-slot="@slotIndex" data-meal="@item.Slot.MealType">
-                                                        <option value="">– välj –</option>
-                                                        @foreach (var o in options)
-                                                        {
-                                                            <option value="@o.Id" selected="@(gdChosen == o.Id.ToString())">@o.Name</option>
-                                                        }
-                                                    </select>
-                                                </div>
-                                            }
-                                        </div>
-                                    </div>
-                                }
-                            }
+                    <div class="group-default">
+                        <h3>Ankomst- och avresedagen</h3>
+                        <p>Välj vilka måltider ni vill ha den dag ni kommer och den dag ni åker. Ni väljer fritt — tiderna ni angett styr inte det här.</p>
+
+                        <div class="form-group">
+                            <span class="field-label">Ankomstdagen @Capitalize(_stayCheckIn.ToString("dddd d MMMM", Sv)) (ankomst @TimeText(_booking.CheckInTime, MealOccasionResolver.StandardCheckInTime))</span>
+                            <div class="diet">
+                                <label><input type="checkbox" name="Form.ArrivalBreakfast" value="true" checked="@_form.ArrivalBreakfast" data-edge-meal /><input type="hidden" name="Form.ArrivalBreakfast" value="false" /> Frukost</label>
+                                <label><input type="checkbox" name="Form.ArrivalLunch" value="true" checked="@_form.ArrivalLunch" data-edge-meal /><input type="hidden" name="Form.ArrivalLunch" value="false" /> Lunch</label>
+                                <label><input type="checkbox" name="Form.ArrivalDinner" value="true" checked="@_form.ArrivalDinner" data-edge-meal /><input type="hidden" name="Form.ArrivalDinner" value="false" /> Middag</label>
+                            </div>
                         </div>
-                        @* Hidden placeholders for the non-choice slots keep Form.GroupDefaultMeals a
-                           contiguous 0..N-1 collection, so the SSR binder round-trips the chosen values
-                           across an add/remove-day-guest postback (a gap at index 0 would drop them). *@
-                        @foreach (var item in gdSlots.Where(x => !HasChoice(x.Slot)))
+
+                        <div class="form-group">
+                            <span class="field-label">Avresedagen @Capitalize(_stayCheckOut.ToString("dddd d MMMM", Sv)) (avresa @TimeText(_booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime))</span>
+                            <div class="diet">
+                                <label><input type="checkbox" name="Form.DepartureBreakfast" value="true" checked="@_form.DepartureBreakfast" data-edge-meal /><input type="hidden" name="Form.DepartureBreakfast" value="false" /> Frukost</label>
+                                <label><input type="checkbox" name="Form.DepartureLunch" value="true" checked="@_form.DepartureLunch" data-edge-meal /><input type="hidden" name="Form.DepartureLunch" value="false" /> Lunch</label>
+                                <label><input type="checkbox" name="Form.DepartureDinner" value="true" checked="@_form.DepartureDinner" data-edge-meal /><input type="hidden" name="Form.DepartureDinner" value="false" /> Middag</label>
+                            </div>
+                        </div>
+                    </div>
+
+                    @* The full grid is always rendered and always posted; the server keeps only the
+                       sittings the group takes. completion-form.js hides the rest live — without JS
+                       they stay visible and any stray choice is discarded server-side. *@
+                    <div class="meals" data-group-meals>
+                        @foreach (var dateGroup in _sittings.GroupBy(x => x.Slot.Date))
                         {
-                            <input type="hidden" name="Form.GroupDefaultMeals[@item.SlotIndex]" value="" />
+                            var isArrival = dateGroup.Key == _stayCheckIn;
+                            var isDeparture = dateGroup.Key == _stayCheckOut;
+                            <div class="day">
+                                <p class="day__date">@Capitalize(dateGroup.Key.ToString("dddd d MMMM", Sv))</p>
+                                <div class="day__meals">
+                                    @foreach (var item in dateGroup)
+                                    {
+                                        var sittingIndex = item.SittingIndex;
+                                        var options = item.Slot.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
+                                        var mealLabel = item.Slot.MealType == MealType.Lunch ? "Lunch" : "Middag";
+                                        var chosen = _form.MealChoices.ElementAtOrDefault(sittingIndex);
+                                        var edge = isArrival ? "arrival" : isDeparture ? "departure" : null;
+                                        <div data-sitting="@sittingIndex" data-meal="@item.Slot.MealType"
+                                             data-edge="@edge" style="@(_occasions.IsSelectable(sittingIndex) ? "" : "display:none")">
+                                            <label for="m@(sittingIndex)">@mealLabel</label>
+                                            <select class="inp" id="m@(sittingIndex)" name="Form.MealChoices[@sittingIndex]"
+                                                    data-meal-select="@item.Slot.MealType">
+                                                <option value="">– välj –</option>
+                                                @foreach (var o in options)
+                                                {
+                                                    <option value="@o.Id" selected="@(chosen == o.Id.ToString())">@o.Name</option>
+                                                }
+                                            </select>
+                                        </div>
+                                    }
+                                </div>
+                            </div>
                         }
-                    }
-                </div>
+                    </div>
+
+                    <div class="form-group">
+                        <span class="field-label">Specialkost (antal portioner)</span>
+                        <p class="sec-note">Ange hur många i gruppen som behöver vegetarisk eller vegansk mat. Vi behöver bara antalet, inte vilka.</p>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="veg-count">Vegetariskt</label>
+                                <input class="inp" id="veg-count" type="number" min="0" name="Form.VegetarianCount" value="@_form.VegetarianCount" />
+                            </div>
+                            <div class="form-group">
+                                <label for="vegan-count">Veganskt</label>
+                                <input class="inp" id="vegan-count" type="number" min="0" name="Form.VeganCount" value="@_form.VeganCount" />
+                            </div>
+                        </div>
+                    </div>
+                }
+
+                <h2>Deltagare med övernattning</h2>
+                <p class="sec-note">Namn krävs för alla deltagare. Fäll ut en person bara om hen har en allergi att anmäla.</p>
 
                 <p class="completion-rowcount">@_form.Overnight.Count deltagare</p>
 
@@ -180,7 +199,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                         @* Collapse toggle (CSS-only, SSR-safe). Focusable so keyboard users can expand;
                            the visual label shows the focus ring. Name + age stay outside the collapse. *@
                         <input class="prow__toggle-cb" type="checkbox" id="exp-@index"
-                               aria-label="Visa måltider och kostbehov för deltagare @(index + 1)" />
+                               aria-label="Visa allergier för deltagare @(index + 1)" />
                         <div class="prow__head">
                             <span class="prow__badge">@(index + 1)</span>
                             @* No native `required`: let the server-side CompletionNormalizer + the styled
@@ -194,82 +213,34 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                     <option value="@age" selected="@(entry.AgeCategory == age)">@AgeLabel(age)</option>
                                 }
                             </select>
-                            <label class="prow__toggle" for="exp-@index"><span class="chev" aria-hidden="true">›</span> Måltider &amp; kost</label>
+                            @* The closed row must say whether an allergy is recorded. Hiding a
+                               safety field behind a toggle that looks identical either way is how a
+                               nut allergy gets entered, collapsed, and never seen again. Rendered
+                               server-side so it survives a postback; completion-form.js keeps it in
+                               step as boxes are ticked. *@
+                            <label class="prow__toggle" for="exp-@index" data-allergy-label="@index">
+                                <span class="chev" aria-hidden="true">›</span>
+                                <span data-allergy-summary="@index">@AllergyToggleText(entry)</span>
+                            </label>
                         </div>
                         <div class="prow__body">
-                            <div class="fbrow">
-                                @* Hidden companion so an unchecked box posts "false" (checkbox first, hidden second → checked wins). *@
-                                <input type="checkbox" id="p@(index)-fb" name="Form.Overnight[@index].IsFullBoard"
-                                       value="true" checked="@entry.IsFullBoard" data-fullboard-participant="@index" />
-                                <input type="hidden" name="Form.Overnight[@index].IsFullBoard" value="false" />
-                                <label for="p@(index)-fb">Helpension (måltider ingår)</label>
-                            </div>
-
-                            @if (_slots.Count > 0)
-                            {
-                                <span class="field-label">Måltidsval</span>
-                                <div class="meals" data-meals-participant="@index">
-                                    @{ var indexedSlots = _slots.Select((s, si) => (Slot: s, SlotIndex: si)).ToList(); }
-                                    @foreach (var dateGroup in indexedSlots.GroupBy(x => x.Slot.Date))
-                                    {
-                                        <div class="day">
-                                            <p class="day__date">@Capitalize(dateGroup.Key.ToString("dddd d MMMM", Sv))</p>
-                                            <div class="day__meals">
-                                                @foreach (var item in dateGroup)
-                                                {
-                                                    var slotIndex = item.SlotIndex;
-                                                    var slot = item.Slot;
-                                                    var options = slot.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
-                                                    var chosen = entry.MealChoices.ElementAtOrDefault(slotIndex);
-                                                    var mealLabel = slot.MealType == MealType.Lunch ? "Lunch" : "Middag";
-                                                    @if (options.Count >= 2)
-                                                    {
-                                                        <div>
-                                                            <label for="p@(index)-m@(slotIndex)">@mealLabel</label>
-                                                            <select class="inp" id="p@(index)-m@(slotIndex)" name="Form.Overnight[@index].MealChoices[@slotIndex]"
-                                                                    data-participant="@index" data-meal="@slot.MealType" data-slot="@slotIndex">
-                                                                <option value="">– välj –</option>
-                                                                @foreach (var o in options)
-                                                                {
-                                                                    <option value="@o.Id" selected="@(chosen == o.Id.ToString())">@o.Name</option>
-                                                                }
-                                                            </select>
-                                                        </div>
-                                                    }
-                                                    else if (options.Count == 1)
-                                                    {
-                                                        @* Single option → not a choice; show it and post it via a hidden field. *@
-                                                        var only = options[0];
-                                                        <div class="meal-fixed">
-                                                            <span class="mf-label">@mealLabel</span>
-                                                            <span class="mf-val">@only.Name <span class="mf-note">(serveras till alla)</span></span>
-                                                            <input type="hidden" name="Form.Overnight[@index].MealChoices[@slotIndex]" value="@only.Id" />
-                                                        </div>
-                                                    }
-                                                }
-                                            </div>
-                                        </div>
-                                    }
-                                </div>
-                            }
-
                             <div class="form-group">
-                                <span class="field-label">Kostbehov</span>
+                                <span class="field-label">Allergier</span>
                                 <div class="diet">
-                                    @foreach (var diet in DietaryOptions)
+                                    @foreach (var allergy in AllergyOptions)
                                     {
                                         <label>
-                                            <input type="checkbox" name="Form.Overnight[@index].Dietary" value="@diet"
-                                                   checked="@entry.Dietary.Contains(diet)" />
-                                            @DietaryLabel(diet)
+                                            <input type="checkbox" name="Form.Overnight[@index].Allergies" value="@allergy"
+                                                   checked="@entry.Allergies.Contains(allergy)" />
+                                            @AllergyLabel(allergy)
                                         </label>
                                     }
                                 </div>
                             </div>
 
                             <div class="form-group">
-                                <label for="p@(index)-notes">Kostanteckning (om "Annat" eller övrigt)</label>
-                                <textarea id="p@(index)-notes" name="Form.Overnight[@index].DietaryNotes" maxlength="200">@entry.DietaryNotes</textarea>
+                                <label for="p@(index)-notes">Allergianteckning (om "Annat" eller övrigt)</label>
+                                <textarea id="p@(index)-notes" name="Form.Overnight[@index].AllergyNotes" maxlength="200">@entry.AllergyNotes</textarea>
                             </div>
                         </div>
                     </div>
@@ -277,20 +248,25 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
 
                 @if (_dayGuestsApplicable)
                 {
-                    var stayCheckIn = _booking.CheckIn!.Value;
-                    var stayCheckOut = _booking.CheckOut!.Value;
                     <h2 id="dagsgaster">Dagsgäster</h2>
-                    <p class="sec-note">Deltar endast på måltider (ingen övernattning). Lägg till en rad per person och dag — måltiderna anpassas efter vald dag.</p>
+                    <p class="sec-note">Deltar endast på måltider (ingen övernattning). Lägg till en rad per person och dag. De äter samma rätt som gruppen.</p>
+
+                    @* Which meals day guests attend is one setting for the whole booking (§4.2) —
+                       the property does not see cases where one day guest eats more than another. *@
+                    <div class="form-group">
+                        <span class="field-label">Vilka måltider deltar dagsgästerna på?</span>
+                        <p class="sec-note">Gäller alla dagsgäster, oavsett vilken dag de kommer.</p>
+                        <div class="diet">
+                            <label><input type="checkbox" name="Form.DayGuestBreakfast" value="true" checked="@_form.DayGuestBreakfast" /><input type="hidden" name="Form.DayGuestBreakfast" value="false" /> Frukost</label>
+                            <label><input type="checkbox" name="Form.DayGuestLunch" value="true" checked="@_form.DayGuestLunch" /><input type="hidden" name="Form.DayGuestLunch" value="false" /> Lunch</label>
+                            <label><input type="checkbox" name="Form.DayGuestDinner" value="true" checked="@_form.DayGuestDinner" /><input type="hidden" name="Form.DayGuestDinner" value="false" /> Middag</label>
+                        </div>
+                    </div>
 
                     @for (var d = 0; d < _form.DayGuests.Count; d++)
                     {
                         var di = d;
                         var dg = _form.DayGuests[di];
-                        // Server-side initial meal visibility for this day guest's selected date (§4.1);
-                        // completion-form.js keeps it in sync when the date changes.
-                        var served = DateOnly.TryParse(dg.AttendanceDate, CultureInfo.InvariantCulture, out var dgDate)
-                            ? MealsByDayCalculator.ServedOn(dgDate, stayCheckIn, stayCheckOut)
-                            : new MealsServed(false, false, false);
                         <div class="pcard" role="group" aria-label="Dagsgäst @(di + 1)">
                             <div class="pcard__head">
                                 <span class="pcard__badge pcard__badge--day">D@(di + 1)</span>
@@ -315,65 +291,32 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
 
                                 <div class="form-group">
                                     <label for="d@(di)-date">Dag</label>
-                                    <select id="d@(di)-date" name="Form.DayGuests[@di].AttendanceDate" data-dg-date-participant="@di">
-                                        <option value="" data-breakfast="0" data-lunch="0" data-dinner="0">– välj dag –</option>
+                                    <select id="d@(di)-date" name="Form.DayGuests[@di].AttendanceDate">
+                                        <option value="">– välj dag –</option>
                                         @foreach (var date in _stayDates)
                                         {
                                             var iso = date.ToString("yyyy-MM-dd");
-                                            var dayServed = MealsByDayCalculator.ServedOn(date, stayCheckIn, stayCheckOut);
-                                            <option value="@iso" selected="@(dg.AttendanceDate == iso)"
-                                                    data-breakfast="@(dayServed.Breakfast ? "1" : "0")"
-                                                    data-lunch="@(dayServed.Lunch ? "1" : "0")"
-                                                    data-dinner="@(dayServed.Dinner ? "1" : "0")">@Capitalize(date.ToString("dddd d MMMM", Sv))</option>
+                                            <option value="@iso" selected="@(dg.AttendanceDate == iso)">@Capitalize(date.ToString("dddd d MMMM", Sv))</option>
                                         }
                                     </select>
                                 </div>
 
-                                <div class="fbrow" data-dg-meal="breakfast" data-dg-participant="@di" style="@(served.Breakfast ? "" : "display:none")">
-                                    <input type="checkbox" id="d@(di)-bf" name="Form.DayGuests[@di].AttendsBreakfast" value="true" checked="@dg.AttendsBreakfast" />
-                                    <input type="hidden" name="Form.DayGuests[@di].AttendsBreakfast" value="false" />
-                                    <label for="d@(di)-bf">Deltar på frukost</label>
-                                </div>
-
-                                <div class="form-row">
-                                    <div class="form-group" data-dg-meal="lunch" data-dg-participant="@di" style="@(served.Lunch ? "" : "display:none")">
-                                        <label for="d@(di)-lunch">Lunch (om deltar)</label>
-                                        <select id="d@(di)-lunch" name="Form.DayGuests[@di].LunchChoice">
-                                            <option value="">– ingen –</option>
-                                            @foreach (var o in _lunchOptions)
-                                            {
-                                                <option value="@o.Id" selected="@(dg.LunchChoice == o.Id.ToString())">@o.Name</option>
-                                            }
-                                        </select>
-                                    </div>
-                                    <div class="form-group" data-dg-meal="dinner" data-dg-participant="@di" style="@(served.Dinner ? "" : "display:none")">
-                                        <label for="d@(di)-dinner">Middag (om deltar)</label>
-                                        <select id="d@(di)-dinner" name="Form.DayGuests[@di].DinnerChoice">
-                                            <option value="">– ingen –</option>
-                                            @foreach (var o in _dinnerOptions)
-                                            {
-                                                <option value="@o.Id" selected="@(dg.DinnerChoice == o.Id.ToString())">@o.Name</option>
-                                            }
-                                        </select>
-                                    </div>
-                                </div>
-
                                 <div class="form-group">
-                                    <span class="field-label">Kostbehov</span>
+                                    <span class="field-label">Allergier</span>
                                     <div class="diet">
-                                        @foreach (var diet in DietaryOptions)
+                                        @foreach (var allergy in AllergyOptions)
                                         {
                                             <label>
-                                                <input type="checkbox" name="Form.DayGuests[@di].Dietary" value="@diet" checked="@dg.Dietary.Contains(diet)" />
-                                                @DietaryLabel(diet)
+                                                <input type="checkbox" name="Form.DayGuests[@di].Allergies" value="@allergy" checked="@dg.Allergies.Contains(allergy)" />
+                                                @AllergyLabel(allergy)
                                             </label>
                                         }
                                     </div>
                                 </div>
 
                                 <div class="form-group">
-                                    <label for="d@(di)-notes">Kostanteckning (om "Annat" eller övrigt)</label>
-                                    <textarea id="d@(di)-notes" name="Form.DayGuests[@di].DietaryNotes" maxlength="200">@dg.DietaryNotes</textarea>
+                                    <label for="d@(di)-notes">Allergianteckning (om "Annat" eller övrigt)</label>
+                                    <textarea id="d@(di)-notes" name="Form.DayGuests[@di].AllergyNotes" maxlength="200">@dg.AllergyNotes</textarea>
                                 </div>
                             </div>
                             <div class="pcard__actions">
@@ -499,21 +442,26 @@ else
     private CompletionAccess _access;
     private Booking? _booking;
 
-    private IReadOnlyList<MealSlot> _slots = [];
+    // Resolved from the *form's* edge-day flags, not the booking's, so the grid the guest sees
+    // matches what they just ticked rather than what was stored before the postback.
+    private ResolvedMealOccasions _occasions = ResolvedMealOccasions.Empty;
+    private IReadOnlyList<(MealSlot Slot, int SittingIndex)> _sittings = [];
     private List<MealOption> _lunchOptions = [];
     private List<MealOption> _dinnerOptions = [];
-    private int _lunchSlotCount;
-    private int _dinnerSlotCount;
+    private bool _catered;
     private bool _dayGuestsApplicable;
+    private DateOnly _stayCheckIn;
+    private DateOnly _stayCheckOut;
     private IReadOnlyList<DateOnly> _stayDates = [];
     private IReadOnlyList<AssignedLodging> _assignedBuildings = [];
     private IReadOnlyList<string> _errors = [];
     private bool _conferenceCleaningApplicable;
 
     private static readonly AgeCategory[] AgeCategories = [AgeCategory.Adult, AgeCategory.Child, AgeCategory.Infant];
-    private static readonly DietaryRequirement[] DietaryOptions =
-        [DietaryRequirement.Vegetarian, DietaryRequirement.Vegan, DietaryRequirement.GlutenFree,
-         DietaryRequirement.LactoseFree, DietaryRequirement.NutAllergy, DietaryRequirement.Other];
+    // Allergies only. Vegetarian/vegan are portion counts on the booking now (§4.6) — a preference
+    // is not a medical constraint and does not belong on a named person.
+    private static readonly Allergy[] AllergyOptions =
+        [Allergy.Gluten, Allergy.Lactose, Allergy.Nut, Allergy.Other];
 
     // _form is the model actually rendered/bound: the posted Form on a POST, else a seeded blank.
     private CompletionFormModel? _form;
@@ -526,17 +474,17 @@ else
 
         if (_booking is { CheckIn: not null, CheckOut: not null })
         {
-            _slots = MealsByDayCalculator.Slots(_booking.CheckIn.Value, _booking.CheckOut.Value);
-            _lunchSlotCount = _slots.Count(s => s.MealType == MealType.Lunch);
-            _dinnerSlotCount = _slots.Count(s => s.MealType == MealType.Dinner);
+            _stayCheckIn = _booking.CheckIn.Value;
+            _stayCheckOut = _booking.CheckOut.Value;
+            _catered = _booking.MealPlan == MealPlan.FullBoardAll;
 
             var options = await MealOptionService.GetActiveAsync();
             _lunchOptions = options.Where(o => o.MealType == MealType.Lunch).ToList();
             _dinnerOptions = options.Where(o => o.MealType == MealType.Dinner).ToList();
 
             // Day guests apply only for a catered plan (§4.2); the section is hidden otherwise.
-            _dayGuestsApplicable = _booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
-            _stayDates = EnumerateDates(_booking.CheckIn.Value, _booking.CheckOut.Value);
+            _dayGuestsApplicable = InquiryNormalizer.DayGuestsApplicable(_booking.MealPlan);
+            _stayDates = EnumerateDates(_stayCheckIn, _stayCheckOut);
 
             // The buildings the admin assigned before approval (FR-103), with their rooms, shown
             // read-only. Names come from the assignment snapshots (NFR-16) so a later rename of the
@@ -551,24 +499,30 @@ else
             // On POST the framework binds Form; on GET (or a post that bound no participant rows)
             // seed a blank form (one row per overnight guest). Guarding Overnight — not just Form —
             // is essential: the SSR binder can hand back a non-null Form with a null Overnight.
-            _form = Form is { Overnight: not null } ? Form : BuildEmptyForm(_booking, _slots.Count);
+            _form = Form is { Overnight: not null } ? Form : BuildEmptyForm(_booking);
 
-            // SSR model binding also leaves an un-posted checkbox/select group null (e.g. no dietary
+            // SSR model binding also leaves an un-posted checkbox group null (e.g. no allergy
             // ticked) — normalise to empty so the re-render and the submit never dereference null.
             foreach (var entry in _form.Overnight)
-            {
-                entry.MealChoices ??= [];
-                entry.Dietary ??= [];
-            }
+                entry.Allergies ??= [];
             _form.DayGuests ??= [];
             foreach (var dg in _form.DayGuests)
-                dg.Dietary ??= [];
+                dg.Allergies ??= [];
 
-            // The per-slot group defaults (presentation only) may bind back null or short on a POST;
-            // pad to the slot count so ElementAtOrDefault aligns by index on the re-render.
-            _form.GroupDefaultMeals ??= [];
-            while (_form.GroupDefaultMeals.Count < _slots.Count)
-                _form.GroupDefaultMeals.Add(null);
+            // Resolve from the form, not the booking: on a postback the guest may have just changed
+            // an edge-day meal, and the grid must reflect that choice rather than the stored one.
+            _occasions = MealOccasionResolver.Resolve(new MealOccasionInput(
+                _stayCheckIn, _stayCheckOut, _booking.MealPlan ?? MealPlan.SelfCateringAll,
+                _form.ArrivalBreakfast, _form.ArrivalLunch, _form.ArrivalDinner,
+                _form.DepartureBreakfast, _form.DepartureLunch, _form.DepartureDinner,
+                _form.DayGuestBreakfast, _form.DayGuestLunch, _form.DayGuestDinner));
+            _sittings = _occasions.AllSittings.Select((s, i) => (Slot: s, SittingIndex: i)).ToList();
+
+            // The posted choices may bind back null or short; pad to the full grid so
+            // ElementAtOrDefault aligns by sitting index on the re-render.
+            _form.MealChoices ??= [];
+            while (_form.MealChoices.Count < _occasions.AllSittings.Count)
+                _form.MealChoices.Add(null);
         }
 
         _loaded = true;
@@ -618,33 +572,38 @@ else
         return dates;
     }
 
-    private static CompletionFormModel BuildEmptyForm(Booking booking, int slotCount)
+    private static CompletionFormModel BuildEmptyForm(Booking booking)
     {
-        // Pre-fill each participant's full-board flag from the booking's meal plan (§4.1); the
-        // contact person can override per participant. SelfCateringAll defaults everyone to off.
-        var defaultFullBoard = booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
         var count = booking.OvernightGuestCount ?? 0;
 
         var form = new CompletionFormModel
         {
-            GroupDefaultFullBoard = defaultFullBoard,
-            GroupDefaultMeals = Enumerable.Repeat<string?>(null, slotCount).ToList(),
+            // Pre-filled from the booking's stored edge-day meals — the standard schedule set at
+            // inquiry (§4.1), which the guest is free to change here.
+            ArrivalBreakfast = booking.ArrivalBreakfast,
+            ArrivalLunch = booking.ArrivalLunch,
+            ArrivalDinner = booking.ArrivalDinner,
+            DepartureBreakfast = booking.DepartureBreakfast,
+            DepartureLunch = booking.DepartureLunch,
+            DepartureDinner = booking.DepartureDinner,
+            DayGuestBreakfast = booking.DayGuestBreakfast,
+            DayGuestLunch = booking.DayGuestLunch,
+            DayGuestDinner = booking.DayGuestDinner,
+            VegetarianCount = booking.VegetarianCount,
+            VeganCount = booking.VeganCount,
             IsOrganisation = booking.IsOrganisation,
             OrgName = booking.OrgName,
             OrgNumber = booking.OrgNumber,
             InvoiceAddress = booking.InvoiceAddress,
         };
         for (var i = 0; i < count; i++)
-        {
-            form.Overnight.Add(new OvernightParticipantEntry
-            {
-                AgeCategory = AgeCategory.Adult,
-                IsFullBoard = defaultFullBoard,
-                MealChoices = Enumerable.Repeat<string?>(null, slotCount).ToList(),
-            });
-        }
+            form.Overnight.Add(new OvernightParticipantEntry { AgeCategory = AgeCategory.Adult });
         return form;
     }
+
+    /// <summary>The booking's stated time, or the standard if it predates the field (§2.8).</summary>
+    private static string TimeText(TimeOnly? time, TimeOnly standard) =>
+        BookingDisplay.TimeLabel(time, standard);
 
     private static string Fmt(DateOnly? date) => date?.ToString("d MMMM yyyy", Sv) ?? "—";
 
@@ -659,14 +618,13 @@ else
         _ => age.ToString(),
     };
 
-    private static string DietaryLabel(DietaryRequirement diet) => diet switch
+    private static string AllergyLabel(Allergy allergy) => BookingDisplay.AllergyLabel(allergy);
+
+    /// <summary>What the collapsed participant row says about allergies: an invitation when there
+    /// are none, and the actual allergies when there are.</summary>
+    private static string AllergyToggleText(OvernightParticipantEntry entry)
     {
-        DietaryRequirement.Vegetarian => "Vegetarian",
-        DietaryRequirement.Vegan => "Vegan",
-        DietaryRequirement.GlutenFree => "Glutenintolerans",
-        DietaryRequirement.LactoseFree => "Laktosintolerans",
-        DietaryRequirement.NutAllergy => "Nötallergi",
-        DietaryRequirement.Other => "Annat",
-        _ => diet.ToString(),
-    };
+        var summary = BookingDisplay.AllergySummary(entry.Allergies ?? [], entry.AllergyNotes);
+        return summary == "—" ? "Lägg till allergi" : summary;
+    }
 }

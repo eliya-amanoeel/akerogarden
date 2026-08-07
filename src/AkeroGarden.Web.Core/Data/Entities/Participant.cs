@@ -8,12 +8,23 @@ namespace AkeroGarden.Web.Core.Data.Entities;
 /// <see cref="AttendanceDate"/> for meals). Entered by the booking's contact person on the
 /// completion form on the whole group's behalf, or by the admin in the panel.
 ///
-/// <para><b>No room assignment.</b> Participants carried a live <c>RoomId</c> plus a room-name
-/// snapshot until 2026-08-06 (FR-56, tombstoned). Who sleeps in which room was never information
-/// the property used, so the system now records only which <b>buildings</b> the group sleeps in —
-/// see <see cref="BookingBuildingAssignment"/> (§8.16, FR-103) — and the group divides itself among
-/// the rooms offline. <see cref="Room"/> survives as capacity reference data feeding the
-/// availability calendar, but is no longer an assignment target for anyone.</para>
+/// <para><b>A roster, not a decision record.</b> This entity answers <i>who is here, how old are
+/// they, and what can't they eat</i> — nothing else. Everything else it once carried turned out to
+/// be a booking-level decision stored per person, and each was removed rather than kept in sync:</para>
+/// <list type="bullet">
+///   <item><c>RoomId</c> / <c>RoomAssignmentSnapshot</c> — per-participant room assignment was
+///     withdrawn (FR-56 tombstoned). Who sleeps in which room was never information the property
+///     used, so the system records only which <b>buildings</b> the group sleeps in — see
+///     <see cref="BookingBuildingAssignment"/> (§8.16, FR-103) — and the group divides itself among
+///     the rooms offline. <see cref="Room"/> survives as capacity reference data feeding the
+///     availability calendar, but is no longer an assignment target for anyone.</item>
+///   <item><c>IsFullBoard</c> — catering is all-or-nothing per booking (§4.1), so this was a copy
+///     of <see cref="Booking.MealPlan"/> on every row.</item>
+///   <item><c>MealPreferences</c> — the group makes one choice per sitting (FR-105); see
+///     <see cref="BookingMealSelection"/>.</item>
+///   <item><c>AttendsBreakfast</c> — day-guest meal attendance is one booking-level setting
+///     (§4.2); overnight guests always attend, which is derived, not stored.</item>
+/// </list>
 /// </summary>
 public class Participant
 {
@@ -38,25 +49,15 @@ public class Participant
     /// participants; a visitor attending several days is entered as one record per date.</summary>
     public DateOnly? AttendanceDate { get; set; }
 
-    /// <summary>Pre-populated from the booking's <see cref="Booking.MealPlan"/>
-    /// (<c>FullBoardAll</c> → true, <c>SelfCateringAll</c> → false, <c>Mixed</c> → set per
-    /// participant); overridable by the contact person on the completion form and by the admin
-    /// in the panel (§4.1, FR-57). Self-catering participants have no meal selection.</summary>
-    public bool IsFullBoard { get; set; }
+    /// <summary>Multi-select medical constraints (§4.6, §8.5) — allergies and intolerances only;
+    /// dietary <i>preferences</i> are counts on the booking. Stored as a value-converted string
+    /// list — never queried in a WHERE, so no join table or array column is needed.
+    ///
+    /// <para>Special-category health data under GDPR art. 9: never duplicated into the audit trail
+    /// (NFR-37).</para></summary>
+    public List<Allergy> Allergies { get; set; } = [];
 
-    /// <summary>Day guests only — true if attending the breakfast buffet (§8.5, FR-58). Always
-    /// true for overnight guests (no selection needed — breakfast is included).</summary>
-    public bool AttendsBreakfast { get; set; }
-
-    /// <summary>Multi-select dietary requirements (§4.6, §8.5). Stored as a value-converted
-    /// string list — never queried in a WHERE, so no join table or array column is needed.</summary>
-    public List<DietaryRequirement> DietaryRequirements { get; set; } = [];
-
-    /// <summary>Free text for <see cref="DietaryRequirement.Other"/> (§4.6) — max 200 chars.</summary>
-    [StringLength(200, ErrorMessage = "Kostanteckningen får vara högst 200 tecken.")]
-    public string? DietaryNotes { get; set; }
-
-    /// <summary>The per-day meal selections for a full-board participant (§8.6). Empty for
-    /// self-catering participants and for day guests who do not attend a catered meal.</summary>
-    public List<MealPreference> MealPreferences { get; set; } = [];
+    /// <summary>Free text for <see cref="Allergy.Other"/> (§4.6) — max 200 chars.</summary>
+    [StringLength(200, ErrorMessage = "Allergianteckningen får vara högst 200 tecken.")]
+    public string? AllergyNotes { get; set; }
 }

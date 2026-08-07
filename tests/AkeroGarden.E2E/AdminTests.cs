@@ -672,6 +672,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 CheckOut = today.AddDays(72),
                 OvernightGuestCount = 4,
                 MealPlan = MealPlan.FullBoardAll,
+                ArrivalDinner = true,
+                DepartureBreakfast = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 DeleteAfter = today.AddYears(1),
@@ -725,6 +727,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 CheckOut = today.AddDays(62),
                 OvernightGuestCount = 6,
                 MealPlan = MealPlan.FullBoardAll,
+                ArrivalDinner = true,
+                DepartureBreakfast = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 DeleteAfter = today.AddYears(1),
@@ -941,6 +945,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 CheckOut = today.AddDays(62),
                 OvernightGuestCount = 2,
                 MealPlan = MealPlan.FullBoardAll,
+                ArrivalDinner = true,
+                DepartureBreakfast = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow,
                 DeleteAfter = today.AddYears(1),
@@ -952,7 +958,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 FullName = "Karin Radhus",
                 ParticipantType = ParticipantType.Overnight,
                 AgeCategory = AgeCategory.Adult,
-                DietaryRequirements = [DietaryRequirement.Vegetarian],
+                Allergies = [Allergy.Nut],
             });
             db.Participants.Add(new Participant
             {
@@ -984,16 +990,18 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Assertions.Expect(olleCard.Locator(".participant-view__name")).ToHaveTextAsync("Olle Radhus");
             await Assertions.Expect(olleCard.Locator("input")).Not.ToBeVisibleAsync();
 
-            // The other participant's dietary chip is visible from the summary alone, unedited.
-            await Assertions.Expect(karinCard.Locator(".chip")).ToContainTextAsync("Vegetarian");
+            // The other participant's allergy chip is visible from the summary alone, unedited.
+            await Assertions.Expect(karinCard.Locator(".chip")).ToContainTextAsync("Nötallergi");
 
             // Opening edit on Olle reveals the real bound input, prefilled with the current name.
             await olleCard.Locator(".edit-pencil").ClickAsync();
             var nameInput = olleCard.Locator("input").First;
             await Assertions.Expect(nameInput).ToHaveValueAsync("Olle Radhus");
 
+            // There is no save button on this page: a text field saves when you leave it, so Tab is
+            // the real gesture a user makes. Every other control saves on change.
             await nameInput.FillAsync("Olle Radhusson");
-            await Page.GetByRole(AriaRole.Button, new() { Name = "Spara deltagaruppgifter" }).ClickAsync();
+            await nameInput.PressAsync("Tab");
             await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("Deltagaruppgifterna är sparade.");
 
             // Honest cross-check: the edit actually reached the database, not just the DOM.
@@ -1001,8 +1009,13 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             var reloaded = await db.Participants.FindAsync(editedParticipantId);
             Assert.Equal("Olle Radhusson", reloaded!.FullName);
 
-            // Saving returns every row to its read view (closed, not left mid-edit).
-            await Assertions.Expect(olleCard.Locator("input")).Not.ToBeVisibleAsync();
+            // Saving does NOT close the editor — tabbing between fields must not eject you from the
+            // row you are working on. "Klar" is what closes it, and the read view shows the new name.
+            await Assertions.Expect(nameInput).ToBeVisibleAsync();
+            await olleCard.GetByRole(AriaRole.Button, new() { Name = "Klar" }).ClickAsync();
+            // Count rather than visibility: the edit view holds six inputs, and asserting "not
+            // visible" on a multi-match locator trips Playwright's strict mode instead of waiting.
+            await Assertions.Expect(olleCard.Locator("input")).ToHaveCountAsync(0);
             await Assertions.Expect(olleCard.Locator(".participant-view__name")).ToHaveTextAsync("Olle Radhusson");
         }
         finally

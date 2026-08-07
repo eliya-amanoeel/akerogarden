@@ -8,10 +8,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AkeroGarden.Integration;
 
 /// <summary>
-/// Integration coverage for the Phase 4 completion-flow data foundation against real PostgreSQL:
-/// Participant/MealPreference persistence (string enums, the multi-select dietary converter,
-/// snapshot fields — NFR-15/16), and the MealOption ← MealPreference hard-delete guard (FR-26) now
-/// that its referent exists. The Room/Building guards moved to
+/// Integration coverage for the completion-flow data foundation against real PostgreSQL:
+/// Participant/BookingMealSelection persistence (string enums, the multi-select allergy converter,
+/// snapshot fields — NFR-15/16), and the MealOption ← BookingMealSelection hard-delete guard
+/// (FR-26), which survived meal selection moving from participants to bookings. The Room/Building guards moved to
 /// <c>ReferenceDataDeleteGuardIntegrationTests</c> when they were repointed away from participant
 /// room assignment. Tests use unique names because the fixture's database is shared across the class.
 /// </summary>
@@ -62,7 +62,7 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
     // ── Persistence ─────────────────────────────────────────────────────────────
 
     [Fact]
-    public async Task Participant_PersistsEnumsAsStrings_AndRoundTripsDietaryList()
+    public async Task Participant_PersistsEnumsAsStrings_AndRoundTripsAllergyList()
     {
         var (_, _, _, db) = NewScope(out var scope);
         using var _s = scope;
@@ -76,10 +76,8 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
             FullName = "Bertil Berg",
             ParticipantType = ParticipantType.Overnight,
             AgeCategory = AgeCategory.Child,
-            IsFullBoard = true,
-            AttendsBreakfast = true,
-            DietaryRequirements = [DietaryRequirement.Vegetarian, DietaryRequirement.NutAllergy],
-            DietaryNotes = "Inga jordnötter tack",
+            Allergies = [Allergy.Lactose, Allergy.Nut],
+            AllergyNotes = "Inga jordnötter tack",
         };
         db.Participants.Add(participant);
         await db.SaveChangesAsync();
@@ -91,14 +89,12 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
 
         Assert.Equal(ParticipantType.Overnight, reloaded.ParticipantType);
         Assert.Equal(AgeCategory.Child, reloaded.AgeCategory);
-        Assert.Equal(
-            new[] { DietaryRequirement.Vegetarian, DietaryRequirement.NutAllergy },
-            reloaded.DietaryRequirements);
-        Assert.Equal("Inga jordnötter tack", reloaded.DietaryNotes);
+        Assert.Equal(new[] { Allergy.Lactose, Allergy.Nut }, reloaded.Allergies);
+        Assert.Equal("Inga jordnötter tack", reloaded.AllergyNotes);
     }
 
     [Fact]
-    public async Task Participant_StoresEnumsAndDietaryAsStrings_InDatabase()
+    public async Task Participant_StoresEnumsAndAllergiesAsStrings_InDatabase()
     {
         var (_, _, _, db) = NewScope(out var scope);
         using var _s = scope;
@@ -113,25 +109,25 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
             ParticipantType = ParticipantType.DayGuest,
             AgeCategory = AgeCategory.Adult,
             AttendanceDate = new DateOnly(2026, 8, 11),
-            DietaryRequirements = [DietaryRequirement.Vegan],
+            Allergies = [Allergy.Gluten],
         };
         db.Participants.Add(participant);
         await db.SaveChangesAsync();
 
         var raw = await db.Database
             .SqlQuery<ParticipantRaw>($"""
-                SELECT "ParticipantType" AS "Type", "AgeCategory" AS "Age", "DietaryRequirements" AS "Diet"
+                SELECT "ParticipantType" AS "Type", "AgeCategory" AS "Age", "Allergies" AS "Diet"
                 FROM "Participants" WHERE "Id" = {participant.Id}
                 """)
             .SingleAsync();
 
         Assert.Equal("DayGuest", raw.Type);
         Assert.Equal("Adult", raw.Age);
-        Assert.Equal("Vegan", raw.Diet);
+        Assert.Equal("Gluten", raw.Diet);
     }
 
     [Fact]
-    public async Task MealPreference_PersistsSnapshotAndMealTypeAsString()
+    public async Task BookingMealSelection_PersistsSnapshotAndMealTypeAsString()
     {
         var (_, _, meals, db) = NewScope(out var scope);
         using var _s = scope;
@@ -141,36 +137,50 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
         var option = new MealOption { Name = $"Fisk-{Guid.NewGuid():N}", MealType = MealType.Lunch };
         await meals.CreateAsync(option);
 
-        var participant = new Participant
+        booking.MealSelections.Add(new BookingMealSelection
         {
-            Id = Guid.NewGuid(),
-            BookingId = booking.Id,
-            FullName = "David Dahl",
-            ParticipantType = ParticipantType.Overnight,
-            AgeCategory = AgeCategory.Adult,
-            IsFullBoard = true,
-            AttendsBreakfast = true,
-        };
-        participant.MealPreferences.Add(new MealPreference
-        {
-            Id = Guid.NewGuid(),
             Date = new DateOnly(2026, 8, 11),
             MealType = MealType.Lunch,
             MealOptionId = option.Id,
             MealOptionSnapshot = option.Name,
         });
-        db.Participants.Add(participant);
         await db.SaveChangesAsync();
 
-        var reloaded = await db.MealPreferences.SingleAsync(m => m.ParticipantId == participant.Id);
+        var reloaded = await db.BookingMealSelections.SingleAsync(m => m.BookingId == booking.Id);
         Assert.Equal(MealType.Lunch, reloaded.MealType);
         Assert.Equal(option.Name, reloaded.MealOptionSnapshot);
+    }
+
+    [Fact]
+    public async Task BookingMealSelection_RejectsASecondChoiceForTheSameSitting()
+    {
+        // One dish per sitting for the whole group (FR-105) — enforced by a unique index, not only
+        // by the normalizer, so a duplicate cannot exist however it was written.
+        var (_, _, meals, db) = NewScope(out var scope);
+        using var _s = scope;
+
+        var booking = NewStayBooking();
+        db.Bookings.Add(booking);
+        var option = new MealOption { Name = $"Fisk-{Guid.NewGuid():N}", MealType = MealType.Lunch };
+        await meals.CreateAsync(option);
+
+        var date = new DateOnly(2026, 8, 11);
+        for (var i = 0; i < 2; i++)
+            booking.MealSelections.Add(new BookingMealSelection
+            {
+                Date = date,
+                MealType = MealType.Lunch,
+                MealOptionId = option.Id,
+                MealOptionSnapshot = option.Name,
+            });
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => db.SaveChangesAsync());
     }
 
     // ── Guards (FR-16 / FR-20 / FR-26) ───────────────────────────────────────────
 
     [Fact]
-    public async Task MealOption_HardDelete_Blocked_WhenReferencedByMealPreference()
+    public async Task MealOption_HardDelete_Blocked_WhenReferencedByABookingMealSelection()
     {
         var (_, _, meals, db) = NewScope(out var scope);
         using var _s = scope;
@@ -180,30 +190,20 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
         var option = new MealOption { Name = $"Korv-{Guid.NewGuid():N}", MealType = MealType.Dinner };
         await meals.CreateAsync(option);
 
-        var participant = new Participant
+        booking.MealSelections.Add(new BookingMealSelection
         {
-            Id = Guid.NewGuid(),
-            BookingId = booking.Id,
-            FullName = "Eva Ek",
-            ParticipantType = ParticipantType.Overnight,
-            AgeCategory = AgeCategory.Adult,
-            IsFullBoard = true,
-        };
-        participant.MealPreferences.Add(new MealPreference
-        {
-            Id = Guid.NewGuid(),
             Date = new DateOnly(2026, 8, 10),
             MealType = MealType.Dinner,
             MealOptionId = option.Id,
             MealOptionSnapshot = option.Name,
         });
-        db.Participants.Add(participant);
         await db.SaveChangesAsync();
 
         Assert.Equal(HardDeleteResult.Blocked, await meals.TryHardDeleteAsync(option.Id));
 
         // Removing the reference frees the option for deletion.
-        db.MealPreferences.RemoveRange(db.MealPreferences.Where(m => m.MealOptionId == option.Id));
+        db.BookingMealSelections.RemoveRange(
+            db.BookingMealSelections.Where(m => m.MealOptionId == option.Id));
         await db.SaveChangesAsync();
         Assert.Equal(HardDeleteResult.Deleted, await meals.TryHardDeleteAsync(option.Id));
     }

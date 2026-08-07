@@ -40,6 +40,21 @@ public class StayRequestInput : IValidatableObject
     [Required(ErrorMessage = "Utcheckningsdatum krävs.")]
     public DateOnly? CheckOut { get; set; }
 
+    /// <summary>The guest's intended arrival time (FR-100, §2.8) — a request, not a commitment.
+    /// Selected from a fixed dropdown (07:00–22:00, half-hourly) and carried as an <c>HH:mm</c>
+    /// string rather than a <see cref="TimeOnly"/>.
+    ///
+    /// <para><b>String for the same reason day-guest dates are</b> (see <c>DayGuestEntry</c>): a
+    /// select posts a plain string, and round-tripping a value type through the SSR binder has bitten
+    /// this codebase before. <see cref="Services.StatedTimePolicy.Normalize"/> parses it
+    /// server-side, where an out-of-range or off-the-half-hour value — which the dropdown cannot
+    /// produce — falls back to the standard time.</para></summary>
+    public string? CheckInTime { get; set; }
+
+    /// <summary>The guest's intended departure time (FR-100, §2.8). Same shape and handling as
+    /// <see cref="CheckInTime"/>.</summary>
+    public string? CheckOutTime { get; set; }
+
     [Required(ErrorMessage = "Antal gäster krävs.")]
     [Range(1, 1000, ErrorMessage = "Ange minst en gäst.")]
     public int? OvernightGuestCount { get; set; }

@@ -83,12 +83,16 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 
 /* Semantic (alerts, validation, status pills) */
 --color-ok:   #3f6a0f   --color-ok-bg:   rgba(113,176,2,.12)
---color-warn: #8a5a00   --color-warn-bg: rgba(214,158,46,.16)
+--color-warn: #7a4c00   --color-warn-bg: rgba(214,158,46,.16)
 --color-err:  #b3341a   --color-err-bg:  rgba(179,52,26,.09)
 --color-info: #6f4a1f   --color-info-bg: rgba(134,86,40,.10)
 ```
 
 **The green rule (accessibility-critical).** `#71b002` is a light lime — it **only passes WCAG AA as a fill with dark text** (`#71b002` + `#1e1c1a` = 6.5:1). As white-on-green it fails (2.65:1) and **must not be used that way**. As **text/links**, use the deepened `--color-primary-ink` `#3f6a0f` — it clears AA on **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` section tint (an earlier `#4c7a12` passed on off-white but missed 4.5:1 on the warm tint — caught by the axe E2E test). Darkening the *fill* toward white-text-legibility instead turns it olive — rejected; keep the bright fill + dark text.
+
+**The warm-tint rule (same trap, second occurrence).** `--color-warn` was deepened from `#8a5a00` to `#7a4c00` on 2026-08-07 for the identical reason. Because `--color-warn-bg` is **translucent**, a warn element's contrast is decided by the surface beneath it: the old pair measured 5.2:1 over white but **4.49:1** over the warm `#f0ebe1` tint — failing AA by a hundredth, which is where the `Väntar` status badge sits on `/bokningar` and `/kalender`. Caught by the axe E2E test, as the green was. `.alert--warn` had already been given `#7a4c00` as a local override, so the system was carrying the fix and the bug side by side; the token now holds it and the override is gone.
+
+> **The general rule these two share:** any semantic colour paired with a **translucent** `-bg` must clear 4.5:1 against **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` tint, because the same component appears on both. Checking only against white is how both of these shipped. The remaining semantic pairs (`ok`, `err`, `info`) have the same shape and have not been re-measured against the warm tint — do that before trusting them.
 
 Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · body `#4a4845` 11.9:1 · muted `#6f6a60` 5.0:1 · error `#b3341a` 5.7:1 · brown-on-white 6.2:1.
 

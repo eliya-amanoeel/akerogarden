@@ -44,7 +44,6 @@ public static class BookingDisplay
     {
         MealPlan.FullBoardAll => "Helpension för alla",
         MealPlan.SelfCateringAll => "Självhushåll för alla",
-        MealPlan.Mixed => "Blandat",
         _ => "—"
     };
 
@@ -78,28 +77,41 @@ public static class BookingDisplay
         _ => meal.ToString()
     };
 
-    public static string DietaryLabel(DietaryRequirement diet) => diet switch
+    public static string AllergyLabel(Allergy allergy) => allergy switch
     {
-        DietaryRequirement.None => "Inga",
-        DietaryRequirement.Vegetarian => "Vegetarian",
-        DietaryRequirement.Vegan => "Vegan",
-        DietaryRequirement.GlutenFree => "Glutenintolerans",
-        DietaryRequirement.LactoseFree => "Laktosintolerans",
-        DietaryRequirement.NutAllergy => "Nötallergi",
-        DietaryRequirement.Other => "Annat",
-        _ => diet.ToString()
+        Allergy.None => "Inga allergier",
+        Allergy.Gluten => "Glutenintolerans",
+        Allergy.Lactose => "Laktosintolerans",
+        Allergy.Nut => "Nötallergi",
+        Allergy.Other => "Annat",
+        _ => allergy.ToString()
     };
 
-    /// <summary>Joined Swedish dietary summary for a participant, appending free-text notes for
-    /// <see cref="DietaryRequirement.Other"/>. Returns "—" when there are no requirements.</summary>
-    public static string DietarySummary(IEnumerable<DietaryRequirement> requirements, string? notes)
+    /// <summary>Joined Swedish allergy summary for a participant, appending free-text notes for
+    /// <see cref="Allergy.Other"/>. Returns "—" when there are none.</summary>
+    public static string AllergySummary(IEnumerable<Allergy> allergies, string? notes)
     {
-        var relevant = requirements.Where(d => d != DietaryRequirement.None).ToList();
+        var relevant = allergies.Where(a => a != Allergy.None).ToList();
         if (relevant.Count == 0) return "—";
-        var parts = relevant.Select(d =>
-            d == DietaryRequirement.Other && !string.IsNullOrWhiteSpace(notes)
-                ? $"{DietaryLabel(d)} ({notes.Trim()})"
-                : DietaryLabel(d));
+        var parts = relevant.Select(a =>
+            a == Allergy.Other && !string.IsNullOrWhiteSpace(notes)
+                ? $"{AllergyLabel(a)} ({notes.Trim()})"
+                : AllergyLabel(a));
         return string.Join(", ", parts);
     }
+
+    /// <summary>The booking's dietary-preference counts as one Swedish line (§4.6) — "3 vegetariska,
+    /// 1 vegansk". Returns "—" when neither is requested.</summary>
+    public static string PreferenceSummary(int vegetarianCount, int veganCount)
+    {
+        var parts = new List<string>(2);
+        if (vegetarianCount > 0) parts.Add($"{vegetarianCount} vegetariska");
+        if (veganCount > 0) parts.Add($"{veganCount} veganska");
+        return parts.Count == 0 ? "—" : string.Join(", ", parts);
+    }
+
+    /// <summary>A stated check-in/check-out time (§2.8, FR-100), falling back to the standard when a
+    /// booking predates the field or never stated one.</summary>
+    public static string TimeLabel(TimeOnly? time, TimeOnly standard) =>
+        (time ?? standard).ToString("HH\\:mm");
 }

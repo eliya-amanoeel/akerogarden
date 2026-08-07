@@ -19,23 +19,35 @@ public class ListGeneratorTests
             ContactName = "Förening X",
             CheckIn = new DateOnly(2026, 8, 1),
             CheckOut = new DateOnly(2026, 8, 4),
+            MealPlan = MealPlan.FullBoardAll,
+            ArrivalDinner = true,
+            DepartureBreakfast = true,
+            DayGuestLunch = true,
+            VegetarianCount = 2,
         };
         for (var i = 0; i < participantCount; i++)
         {
-            var p = new Participant
+            booking.Participants.Add(new Participant
             {
                 FullName = $"Deltagare {i:000}",
                 ParticipantType = i % 5 == 0 ? ParticipantType.DayGuest : ParticipantType.Overnight,
                 AgeCategory = AgeCategory.Adult,
-                IsFullBoard = true,
-                AttendsBreakfast = true,
                 AttendanceDate = i % 5 == 0 ? new DateOnly(2026, 8, 2) : null,
-                DietaryRequirements = i % 3 == 0 ? [DietaryRequirement.Vegetarian] : [DietaryRequirement.None],
-            };
-            p.MealPreferences.Add(new MealPreference { Date = new DateOnly(2026, 8, 1), MealType = MealType.Dinner, MealOptionSnapshot = "Köttbullar" });
-            p.MealPreferences.Add(new MealPreference { Date = new DateOnly(2026, 8, 2), MealType = MealType.Lunch, MealOptionSnapshot = "Fisk" });
-            booking.Participants.Add(p);
+                // Allergies only — vegetarian/vegan are booking-level counts now (§4.6).
+                Allergies = i % 3 == 0 ? [Allergy.Nut] : [Allergy.None],
+            });
         }
+        // The group's one dish per sitting (FR-105), not one per person.
+        booking.MealSelections.Add(new BookingMealSelection
+        { Date = new DateOnly(2026, 8, 1), MealType = MealType.Dinner, MealOptionSnapshot = "Köttbullar" });
+        booking.MealSelections.Add(new BookingMealSelection
+        { Date = new DateOnly(2026, 8, 2), MealType = MealType.Lunch, MealOptionSnapshot = "Fisk" });
+        booking.MealSelections.Add(new BookingMealSelection
+        { Date = new DateOnly(2026, 8, 2), MealType = MealType.Dinner, MealOptionSnapshot = "Lax" });
+        booking.MealSelections.Add(new BookingMealSelection
+        { Date = new DateOnly(2026, 8, 3), MealType = MealType.Lunch, MealOptionSnapshot = "Soppa" });
+        booking.MealSelections.Add(new BookingMealSelection
+        { Date = new DateOnly(2026, 8, 3), MealType = MealType.Dinner, MealOptionSnapshot = "Pannkakor" });
         return ListShaper.Shape(booking);
     }
 
@@ -79,7 +91,7 @@ public class ListGeneratorTests
         Assert.Contains("Deltagare 000", cells);        // first participant
         Assert.Contains("Deltagare 001", cells);
         Assert.Contains("Deltagare 002", cells);
-        Assert.Contains("Vegetarian", cells);           // Deltagare 000's dietary requirement (i % 3 == 0)
+        Assert.Contains("Nötallergi", cells);           // Deltagare 000's allergy (i % 3 == 0)
     }
 
     [Fact]
@@ -123,10 +135,10 @@ public class ListGeneratorTests
         Assert.Contains("Köttbullar", prep);
         Assert.Contains("Fisk", prep);
 
-        // Sheet 2 (Kostbehov): only people with a dietary need, named, with the requirement.
+        // Sheet 2 (Kostbehov): only people with an allergy, named, with the allergy.
         var diets = SheetStrings(xlsx, "Kostbehov");
-        Assert.Contains("Deltagare 000", diets);        // i % 3 == 0 → Vegetarian
-        Assert.Contains("Vegetarian", diets);
+        Assert.Contains("Deltagare 000", diets);        // i % 3 == 0 → Nötallergi
+        Assert.Contains("Nötallergi", diets);
     }
 
     /// <summary>Re-opens a produced workbook and returns every used cell's string value on the named
@@ -154,5 +166,46 @@ public class ListGeneratorTests
         Assert.All([a, b, c, d], bytes => Assert.True(bytes.Length > 0));
         Assert.True(sw.Elapsed < TimeSpan.FromSeconds(10),
             $"NFR-10: 300-participant lists took {sw.Elapsed.TotalSeconds:F1}s (target < 10s).");
+    }
+
+    [Fact]
+    public void FoodList_CarriesTheDietaryPreferenceCounts_InBothFormats()
+    {
+        // FR-45 / §4.6: the kitchen needs how many portions to adapt. The counts name nobody, which
+        // is the point of storing them as counts.
+        var data = Data(3); // seeded with VegetarianCount = 2
+
+        var diets = SheetStrings(ListExcelGenerator.FoodPreferenceList(data), "Kostbehov");
+        Assert.Contains("Specialkost (antal portioner)", diets);
+        Assert.Contains(diets, c => c.Contains("2 vegetariska", StringComparison.Ordinal));
+        Assert.Contains(ListShaper.PreferenceNote, diets);
+
+        // The PDF is binary and QuestPDF offers no text extraction, so this asserts the shaped data
+        // reaches the generator and that the document still renders — stated rather than papered
+        // over, matching the coverage limit already recorded for the booking reference.
+        Assert.Equal(2, data.VegetarianCount);
+        var pdf = ListPdfGenerator.FoodPreferenceList(data);
+        Assert.Equal([0x25, 0x50, 0x44, 0x46], pdf.Take(4).ToArray());
+    }
+
+    [Fact]
+    public void FoodList_OmitsThePreferenceBlock_WhenNoPortionsAreRequested()
+    {
+        // An empty "Specialkost (antal portioner)" heading with nothing under it reads as an
+        // oversight rather than as "none requested".
+        var data = ListShaper.Shape(new Booking
+        {
+            BookingReference = "AG-2026-0043",
+            ContactName = "Förening Y",
+            CheckIn = new DateOnly(2026, 8, 1),
+            CheckOut = new DateOnly(2026, 8, 3),
+            MealPlan = MealPlan.FullBoardAll,
+            ArrivalDinner = true,
+            DepartureBreakfast = true,
+        });
+
+        var diets = SheetStrings(ListExcelGenerator.FoodPreferenceList(data), "Kostbehov");
+
+        Assert.DoesNotContain("Specialkost (antal portioner)", diets);
     }
 }

@@ -202,7 +202,6 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
             {
                 FullName = $"Deltagare {form.Overnight.Count + 1}",
                 AgeCategory = AgeCategory.Adult,
-                IsFullBoard = false,
             });
         }
         return form;

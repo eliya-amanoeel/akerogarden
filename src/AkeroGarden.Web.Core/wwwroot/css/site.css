@@ -20,7 +20,13 @@
 
     /* Semantic (alerts, validation, status) */
     --color-ok:    #3f6a0f;  --color-ok-bg:   rgba(113, 176, 2, 0.12);
-    --color-warn:  #8a5a00;  --color-warn-bg: rgba(214, 158, 46, 0.16);
+    /* Warn text is darkened to #7a4c00 (was #8a5a00) because --color-warn-bg is translucent, so a
+       warn element's real contrast depends on the surface under it. On white the old pair gave
+       5.2:1, but on the warm section tint (--color-bg-warm) it fell to 4.49:1 — failing WCAG AA by
+       a hundredth, which is exactly where the Väntar badge sits on /bokningar and /kalender. The
+       darker value clears both surfaces (6.5:1 and 5.6:1). It is not a new colour: .alert--warn
+       already hardcoded it, and now there is one definition instead of two. */
+    --color-warn:  #7a4c00;  --color-warn-bg: rgba(214, 158, 46, 0.16);
     --color-err:   #b3341a;  --color-err-bg:  rgba(179, 52, 26, 0.09);
     --color-info:  #6f4a1f;  --color-info-bg: rgba(134, 86, 40, 0.10);
 
@@ -1668,7 +1674,7 @@ fieldset.participant legend {
 .alert--info .alert__ic { background: #5a3d1f; color: var(--color-info-bg); }
 .alert--error { background: var(--color-err-bg); border-color: rgba(179, 52, 26, 0.32); color: #8f2915; }
 .alert--error .alert__ic { background: #8f2915; color: var(--color-err-bg); }
-.alert--warn { background: var(--color-warn-bg); border-color: rgba(214, 158, 46, 0.4); color: #7a4c00; }
+.alert--warn { background: var(--color-warn-bg); border-color: rgba(214, 158, 46, 0.4); color: var(--color-warn); }
 .alert--warn .alert__ic { background: #8a5a00; color: #fff; font-style: normal; }
 /* Bulleted items inside an alert (e.g. multiple approval warnings) */
 .alert__list { margin: 0.35rem 0 0; padding-left: 1.1rem; }

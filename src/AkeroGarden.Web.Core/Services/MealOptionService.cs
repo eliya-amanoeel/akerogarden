@@ -97,10 +97,11 @@ public class MealOptionService(ApplicationDbContext db, IAuditWriter audit)
     public static bool CanHardDelete(int referenceCount) => referenceCount == 0;
 
     /// <summary>
-    /// Counts references that block a hard-delete (FR-26): meal preferences pointing at this
-    /// option via the live <see cref="MealPreference.MealOptionId"/> link (§8.6). Wired in Phase 4
-    /// now that MealPreference exists.
+    /// Counts references that block a hard-delete (FR-26): booking meal selections pointing at this
+    /// option via the live <see cref="BookingMealSelection.MealOptionId"/> link (§8.6). The guard
+    /// survived meal selection moving from participants to bookings unchanged in meaning — it still
+    /// counts live references, just against the booking-level rows.
     /// </summary>
     private Task<int> CountReferencesAsync(Guid mealOptionId) =>
-        db.MealPreferences.CountAsync(mp => mp.MealOptionId == mealOptionId);
+        db.BookingMealSelections.CountAsync(ms => ms.MealOptionId == mealOptionId);
 }

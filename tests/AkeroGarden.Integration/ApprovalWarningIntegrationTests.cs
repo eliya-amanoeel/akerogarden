@@ -8,9 +8,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AkeroGarden.Integration;
 
 /// <summary>
-/// The non-blocking pre-approval guard (Phase 7): before "Godkänn", the admin is warned when the
-/// requested stay overlaps a block or the overnight count exceeds the beds available for the dates.
-/// Approval itself is never blocked — this only computes the warning shown on the booking detail.
+/// The non-blocking pre-approval guard: before "Godkänn", the admin is warned when the requested
+/// stay overlaps a block, the overnight count exceeds the beds available for the dates, or the guest
+/// stated an arrival/departure time that deviates from the standard (FR-101). Approval itself is
+/// never blocked — this only computes the warning shown on the booking detail.
 /// </summary>
 public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 {
@@ -42,7 +43,12 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
     private sealed record Seeded(Guid BookingId, Guid BuildingId);
 
     private static async Task<Seeded> SeedBookingAsync(
-        IServiceProvider provider, DateOnly checkIn, DateOnly checkOut, int overnightGuests, params int[] bedCounts)
+        IServiceProvider provider, DateOnly checkIn, DateOnly checkOut, int overnightGuests, params int[] bedCounts) =>
+        await SeedBookingAsync(provider, checkIn, checkOut, overnightGuests, null, null, bedCounts);
+
+    private static async Task<Seeded> SeedBookingAsync(
+        IServiceProvider provider, DateOnly checkIn, DateOnly checkOut, int overnightGuests,
+        string? checkInTime, string? checkOutTime, params int[] bedCounts)
     {
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -66,6 +72,8 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
             CheckIn = checkIn,
             CheckOut = checkOut,
             OvernightGuestCount = overnightGuests,
+            CheckInTime = checkInTime,
+            CheckOutTime = checkOutTime,
             MealPlan = MealPlan.SelfCateringAll,
             AcceptPrivacyPolicy = true,
         }, createdByAdmin: true);
@@ -188,5 +196,141 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
         Assert.True(warning.CapacityExceeded); // the whole property is blocked → 0 beds available
         Assert.Equal(0, warning.AvailableBeds);
         Assert.Contains("Hela anläggningen", warning.BlockDescriptions[0]);
+    }
+
+    // ── FR-101: stated times that deviate from the standard ──────────────────────
+
+    [Fact]
+    public async Task Standard_times_give_no_deviation_warning()
+    {
+        var provider = NewProvider();
+        var seeded = await SeedBookingAsync(
+            provider, new DateOnly(2027, 3, 1), new DateOnly(2027, 3, 3), 2, "14:00", "12:00", 10);
+
+        var warning = await WarningsAsync(provider, seeded.BookingId);
+
+        Assert.False(warning.HasTimeDeviation);
+        Assert.Empty(warning.TimeDeviations);
+        Assert.False(warning.Any);
+    }
+
+    [Fact]
+    public async Task An_early_arrival_is_warned_about_without_blocking_approval()
+    {
+        var provider = NewProvider();
+        var seeded = await SeedBookingAsync(
+            provider, new DateOnly(2027, 3, 10), new DateOnly(2027, 3, 12), 2, "08:00", "12:00", 10);
+
+        var warning = await WarningsAsync(provider, seeded.BookingId);
+
+        Assert.True(warning.HasTimeDeviation);
+        Assert.Equal("Incheckning 08:00 avviker från standard 14:00.", Assert.Single(warning.TimeDeviations));
+        Assert.True(warning.Any);
+
+        // Non-blocking: approval still succeeds (same pattern as FR-75).
+        using var scope = provider.CreateScope();
+        var result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(seeded.BookingId);
+        Assert.True(result.Succeeded);
+    }
+
+    [Fact]
+    public async Task A_late_departure_is_warned_about_too()
+    {
+        var provider = NewProvider();
+        var seeded = await SeedBookingAsync(
+            provider, new DateOnly(2027, 3, 20), new DateOnly(2027, 3, 22), 2, "14:00", "20:00", 10);
+
+        var warning = await WarningsAsync(provider, seeded.BookingId);
+
+        Assert.Equal("Utcheckning 20:00 avviker från standard 12:00.", Assert.Single(warning.TimeDeviations));
+    }
+
+    [Fact]
+    public async Task Both_times_deviating_are_reported_separately()
+    {
+        var provider = NewProvider();
+        var seeded = await SeedBookingAsync(
+            provider, new DateOnly(2027, 4, 1), new DateOnly(2027, 4, 3), 2, "09:30", "18:00", 10);
+
+        var warning = await WarningsAsync(provider, seeded.BookingId);
+
+        Assert.Equal(2, warning.TimeDeviations.Count);
+        Assert.Contains(warning.TimeDeviations, w => w.StartsWith("Incheckning 09:30", StringComparison.Ordinal));
+        Assert.Contains(warning.TimeDeviations, w => w.StartsWith("Utcheckning 18:00", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task A_time_the_dropdown_cannot_produce_is_rejected_and_stored_as_the_standard()
+    {
+        // Server-authoritative (FR-100): a crafted 08:15 is not snapped to 08:00 — that would invent
+        // a request the guest never made — it is treated as no time validly stated.
+        var provider = NewProvider();
+        var seeded = await SeedBookingAsync(
+            provider, new DateOnly(2027, 4, 10), new DateOnly(2027, 4, 12), 2, "08:15", "25:00", 10);
+
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var booking = await db.Bookings.FindAsync(seeded.BookingId);
+
+        Assert.Equal(MealOccasionResolver.StandardCheckInTime, booking!.CheckInTime);
+        Assert.Equal(MealOccasionResolver.StandardCheckOutTime, booking.CheckOutTime);
+
+        var warning = await WarningsAsync(provider, seeded.BookingId);
+        Assert.False(warning.HasTimeDeviation);
+    }
+
+    // ── Nothing assigned yet ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Before_any_building_is_assigned_the_warning_says_so_instead_of_comparing_beds()
+    {
+        // With nothing assigned the available-bed count is zero, so a capacity comparison would fire
+        // on every new booking — arithmetic, not information. A warning that is always present is one
+        // the admin learns to skip, and this strip also carries the FR-101 time deviations.
+        var provider = NewProvider();
+        var seeded = await SeedUnassignedBookingAsync(
+            provider, new DateOnly(2027, 5, 1), new DateOnly(2027, 5, 3), overnightGuests: 2);
+
+        var warning = await WarningsAsync(provider, seeded.BookingId);
+
+        Assert.True(warning.NoLodgingAssigned);
+        Assert.False(warning.CapacityExceeded);
+        Assert.True(warning.Any);
+    }
+
+    [Fact]
+    public async Task Once_a_building_is_assigned_the_no_lodging_warning_clears()
+    {
+        var provider = NewProvider();
+        var seeded = await SeedBookingAsync(
+            provider, new DateOnly(2027, 5, 10), new DateOnly(2027, 5, 12), 2, 10);
+
+        var warning = await WarningsAsync(provider, seeded.BookingId);
+
+        Assert.False(warning.NoLodgingAssigned);
+        Assert.False(warning.CapacityExceeded);
+        Assert.False(warning.Any);
+    }
+
+    /// <summary>A stay request with no building assignment at all — the state every booking is in
+    /// between submission and the admin's first decision.</summary>
+    private static async Task<Seeded> SeedUnassignedBookingAsync(
+        IServiceProvider provider, DateOnly checkIn, DateOnly checkOut, int overnightGuests)
+    {
+        using var scope = provider.CreateScope();
+        var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
+
+        var booking = await bookings.CreateStayRequestAsync(new StayRequestInput
+        {
+            ContactName = "Otilldelad",
+            ContactEmail = $"otilldelad-{Guid.NewGuid():N}@test.se",
+            CheckIn = checkIn,
+            CheckOut = checkOut,
+            OvernightGuestCount = overnightGuests,
+            MealPlan = MealPlan.SelfCateringAll,
+            AcceptPrivacyPolicy = true,
+        }, createdByAdmin: true);
+
+        return new Seeded(booking.Id, Guid.Empty);
     }
 }

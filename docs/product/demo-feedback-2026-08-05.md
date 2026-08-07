@@ -105,7 +105,7 @@ preferences become a count on the booking.
 | # | Decision | Outcome |
 |---|---|---|
 | Q1 | Does per-participant `IsFullBoard` survive? | **No — `Mixed` is removed entirely.** A booking is either full-board for all or self-catering for all. `MealPlan` drops to two values and `Participant.IsFullBoard` disappears, being fully derivable from the booking |
-| Q2 | Group choice per day, or one for the stay? | **Per (day, meal sitting)** — the group eats whatever it wants each day, as long as it is the same for everyone. The existing "same for all days" shortcut is retained |
+| Q2 | Group choice per day, or one for the stay? | **Per (day, meal sitting)** — the group eats whatever it wants each day, as long as it is the same for everyone. *(This row said the existing "same for all days" shortcut was retained. Corrected 2026-08-07 during the build: no such control existed. It was replaced by the per-day group-default panel in **Phase 8** (`536b17c`) — which cascaded one choice across **participants**, per day — and §4.1 was not updated to match, so the phrase had been stale for about four weeks before this document quoted it. Retired rather than rebuilt; group-level selection achieves its purpose by construction. See §4.1.)* |
 | Q3 | Day guests | **Named, with one meal-attendance setting shared by all day guests on the booking**, eating what the group eats. See the forced change below |
 | Q4 | Does `MealPreference` survive? | **Yes, re-parented from `Participant` to `Booking`** — one row per (booking, date, meal type) holding `MealOptionId` + snapshot. Renamed **`BookingMealSelection`**, since "preference" stops being true |
 | Q5 | Dietary requirements | **Split into allergies vs. preferences** — see below |

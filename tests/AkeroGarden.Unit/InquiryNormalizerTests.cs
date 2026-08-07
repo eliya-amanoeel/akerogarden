@@ -11,7 +11,6 @@ public class InquiryNormalizerTests
 {
     [Theory]
     [InlineData(MealPlan.FullBoardAll, 5, 5)]
-    [InlineData(MealPlan.Mixed, 3, 3)]
     [InlineData(MealPlan.FullBoardAll, null, null)]
     public void NormalizeDayGuestCount_KeepsCount_WhenMealsApply(MealPlan plan, int? input, int? expected)
     {
@@ -22,6 +21,17 @@ public class InquiryNormalizerTests
     public void NormalizeDayGuestCount_DropsCount_ForSelfCatering()
     {
         Assert.Null(InquiryNormalizer.NormalizeDayGuestCount(MealPlan.SelfCateringAll, 7));
+    }
+
+    [Theory]
+    [InlineData(MealPlan.FullBoardAll, true)]
+    [InlineData(MealPlan.SelfCateringAll, false)]
+    [InlineData(null, false)]
+    public void DayGuestsApplicable_OnlyForFullBoard(MealPlan? plan, bool expected)
+    {
+        // The one place this rule lives — it was previously restated in BookingService, the
+        // normalizer and the completion page, so a change had to be found in three files.
+        Assert.Equal(expected, InquiryNormalizer.DayGuestsApplicable(plan));
     }
 
     [Fact]

@@ -65,13 +65,61 @@ else
                         <span class="detail-acc__chev" aria-hidden="true">▾</span>
                     </summary>
                     <div class="detail-acc__body">
+                        @* The stated times (§2.8, FR-100) belong with the rest of the stay, and are
+                           edited here rather than in a second place further down — showing a value
+                           in one place and editing it in another is how the two drift apart. *@
                         <dl class="kv">
-                            <dt>Incheckning</dt><dd>@(_booking.CheckIn?.ToString("yyyy-MM-dd") ?? "—")</dd>
-                            <dt>Utcheckning</dt><dd>@(_booking.CheckOut?.ToString("yyyy-MM-dd") ?? "—")</dd>
+                            <dt>Incheckning</dt>
+                            <dd>
+                                @(_booking.CheckIn?.ToString("yyyy-MM-dd") ?? "—")
+                                <span class="sub">kl. @StatedTimePolicy.Display(_booking.CheckInTime, MealOccasionResolver.StandardCheckInTime)</span>
+                            </dd>
+                            <dt>Utcheckning</dt>
+                            <dd>
+                                @(_booking.CheckOut?.ToString("yyyy-MM-dd") ?? "—")
+                                <span class="sub">kl. @StatedTimePolicy.Display(_booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime)</span>
+                            </dd>
                             <dt>Övernattande</dt><dd>@(_booking.OvernightGuestCount?.ToString() ?? "—")</dd>
                             <dt>Dagsgäster</dt><dd>@(_booking.DayGuestCount?.ToString() ?? "—")</dd>
                             <dt>Måltidsplan</dt><dd>@BookingDisplay.MealPlanLabel(_booking.MealPlan)</dd>
                         </dl>
+
+                        @* No save button: every control on this page applies immediately, as the
+                           building assignment below already does. A form with a Spara button is for
+                           composing a new record (the reference-data pages); this is an in-place
+                           adjustment to a booking that already exists. *@
+                        @if (_booking.BookingType == BookingType.StayRequest)
+                        {
+                            @if (!_editingTimes)
+                            {
+                                <button type="button" class="edit-pencil" @onclick="() => _editingTimes = true">✎ Ändra tider</button>
+                            }
+                            else
+                            {
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="edit-checkin-time">Incheckningstid</label>
+                                        <select id="edit-checkin-time" @bind="_checkInTime" @bind:after="SaveTimes">
+                                            @foreach (var t in StatedTimePolicy.Options())
+                                            {
+                                                <option value="@StatedTimePolicy.Display(t)">@StatedTimePolicy.Display(t)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="edit-checkout-time">Utcheckningstid</label>
+                                        <select id="edit-checkout-time" @bind="_checkOutTime" @bind:after="SaveTimes">
+                                            @foreach (var t in StatedTimePolicy.Options())
+                                            {
+                                                <option value="@StatedTimePolicy.Display(t)">@StatedTimePolicy.Display(t)</option>
+                                            }
+                                        </select>
+                                    </div>
+                                </div>
+                                <p class="form-hint">Gästens önskemål, inte ett åtagande — eventuellt tillägg kommer ni överens om utanför systemet.</p>
+                                <button type="button" class="btn-outline btn-sm" @onclick="() => _editingTimes = false">Klar</button>
+                            }
+                        }
 
                         @if (_booking.FacilitySelections.Count > 0)
                         {
@@ -140,17 +188,111 @@ else
                 </details>
             }
 
-            @* ── Participants (after guest submission — FR-48) ────────── *@
-            @if (_edits.Count > 0)
+            @* ── The group's meals (after submission — FR-48/105) ─────────
+               Its own section, not a block inside "Deltagare": meals are a booking-level fact now.
+               Every control saves on change — see the Vistelse note above for the rule. *@
+            @if (_participantEdits.Count > 0 && _booking.MealPlan == MealPlan.FullBoardAll)
+            {
+                <details class="detail-acc">
+                    <summary class="detail-acc__head">
+                        <h2 class="detail-acc__title">Måltider</h2>
+                        <span class="detail-acc__meta">@MealSummary</span>
+                        <span class="detail-acc__chev" aria-hidden="true">▾</span>
+                    </summary>
+                    <div class="detail-acc__body">
+                        <fieldset class="participant">
+                            <legend>Vilka måltider gruppen äter</legend>
+
+                            @* Only the arrival and departure day are a choice — a full day in the
+                               middle always has all three meals (§4.1), so it has no checkboxes. *@
+                            <div class="form-group">
+                                <span class="label">Ankomstdag (@_booking.CheckIn?.ToString("yyyy-MM-dd"))</span>
+                                @foreach (var meal in ArrivalMeals)
+                                {
+                                    <label class="form-check">
+                                        <input type="checkbox" checked="@IsEdgeMealOn(meal)"
+                                               @onchange="e => ToggleEdgeMeal(meal, (bool)(e.Value ?? false))" />
+                                        @EdgeMealLabel(meal)
+                                    </label>
+                                }
+                            </div>
+
+                            <div class="form-group">
+                                <span class="label">Avresedag (@_booking.CheckOut?.ToString("yyyy-MM-dd"))</span>
+                                @foreach (var meal in DepartureMeals)
+                                {
+                                    <label class="form-check">
+                                        <input type="checkbox" checked="@IsEdgeMealOn(meal)"
+                                               @onchange="e => ToggleEdgeMeal(meal, (bool)(e.Value ?? false))" />
+                                        @EdgeMealLabel(meal)
+                                    </label>
+                                }
+                            </div>
+
+                            @if (_participants.Any(p => p.ParticipantType == ParticipantType.DayGuest))
+                            {
+                                @* These do not decide whether a meal happens — only whether the day
+                                   guests are counted for one that already does. Nothing is deleted. *@
+                                <div class="form-group">
+                                    <span class="label">Dagsgästernas måltider (gäller alla dagsgäster)</span>
+                                    <label class="form-check"><input type="checkbox" @bind="_mealEdit.DayGuestBreakfast" @bind:after="SaveGroupMeals" /> Frukost</label>
+                                    <label class="form-check"><input type="checkbox" @bind="_mealEdit.DayGuestLunch" @bind:after="SaveGroupMeals" /> Lunch</label>
+                                    <label class="form-check"><input type="checkbox" @bind="_mealEdit.DayGuestDinner" @bind:after="SaveGroupMeals" /> Middag</label>
+                                </div>
+                            }
+                        </fieldset>
+
+                        @* One dropdown per meal the group is having — including one just added above
+                           that has no dish yet. Rendering only the meals with a stored dish left a
+                           newly-added one with no way to choose at all. *@
+                        @if (_mealEdit.Meals.Count > 0)
+                        {
+                            <fieldset class="participant">
+                                <legend>Gruppens rätter</legend>
+                                @foreach (var mealEdit in _mealEdit.Meals)
+                                {
+                                    var options = mealEdit.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
+                                    <div class="form-row">
+                                        <label>@mealEdit.Date.ToString("yyyy-MM-dd") @(mealEdit.MealType == MealType.Lunch ? "lunch" : "middag")</label>
+                                        <select @bind="mealEdit.MealOptionId" @bind:after="SaveGroupMeals">
+                                            <option value="">– ej vald –</option>
+                                            @foreach (var o in options)
+                                            {
+                                                <option value="@o.Id">@o.Name</option>
+                                            }
+                                        </select>
+                                    </div>
+                                }
+                            </fieldset>
+                        }
+
+                        <fieldset class="participant">
+                            <legend>Specialkost (antal portioner)</legend>
+                            <div class="form-row">
+                                <label for="veg-count">Vegetariskt</label>
+                                <input id="veg-count" type="number" min="0" @bind="_mealEdit.VegetarianCount" @bind:after="SaveGroupMeals" />
+                            </div>
+                            <div class="form-row">
+                                <label for="vegan-count">Veganskt</label>
+                                <input id="vegan-count" type="number" min="0" @bind="_mealEdit.VeganCount" @bind:after="SaveGroupMeals" />
+                            </div>
+                            <p class="form-hint">Antalet ingår i tillagningsantalen — så många portioner tillagas vegetariskt respektive veganskt, inte utöver.</p>
+                        </fieldset>
+                    </div>
+                </details>
+            }
+
+            @* ── Participants (after submission — FR-48) ───────────────── *@
+            @if (_participantEdits.Count > 0)
             {
                 <details class="detail-acc" open>
                     <summary class="detail-acc__head">
                         <h2 class="detail-acc__title">Deltagare</h2>
-                        <span class="detail-acc__meta">@_edits.Count st@(DietCount > 0 ? $" · {DietCount} specialkost" : "")</span>
+                        <span class="detail-acc__meta">@_participantEdits.Count st@(AllergyCount > 0 ? $" · {AllergyCount} allergier" : "")</span>
                         <span class="detail-acc__chev" aria-hidden="true">▾</span>
                     </summary>
                     <div class="detail-acc__body">
-                        @foreach (var edit in _edits)
+                        @foreach (var edit in _participantEdits)
                         {
                             var participant = _participants.First(p => p.Id == edit.Id);
                             var isOvernight = participant.ParticipantType == ParticipantType.Overnight;
@@ -169,25 +311,17 @@ else
                                         </div>
                                         <div class="participant-view__meta">
                                             @AgeLabel(edit.AgeCategory)
-                                            @if (!isOvernight && edit.AttendsBreakfast)
-                                            {
-                                                @:· Deltar på frukost
-                                            }
-                                            @if (edit.Meals.Count > 0)
-                                            {
-                                                @:· @edit.Meals.Count måltidsval
-                                            }
                                         </div>
-                                        @if (edit.Dietary.Count > 0 || !string.IsNullOrWhiteSpace(edit.DietaryNotes))
+                                        @if (edit.Allergies.Count > 0 || !string.IsNullOrWhiteSpace(edit.AllergyNotes))
                                         {
                                             <div class="participant-view__diet">
-                                                @foreach (var diet in edit.Dietary)
+                                                @foreach (var allergy in edit.Allergies)
                                                 {
-                                                    <span class="chip">@DietaryLabel(diet)</span>
+                                                    <span class="chip">@AllergyLabel(allergy)</span>
                                                 }
-                                                @if (!string.IsNullOrWhiteSpace(edit.DietaryNotes))
+                                                @if (!string.IsNullOrWhiteSpace(edit.AllergyNotes))
                                                 {
-                                                    <span class="chip">@edit.DietaryNotes</span>
+                                                    <span class="chip">@edit.AllergyNotes</span>
                                                 }
                                             </div>
                                         }
@@ -195,14 +329,15 @@ else
                                 }
                                 else
                                 {
+                                    @* Text fields save when you leave them, not on every keystroke. *@
                                     <div class="form-group">
                                         <label>Namn</label>
-                                        <input @bind="edit.FullName" maxlength="200" />
+                                        <input @bind="edit.FullName" @bind:after="SaveParticipants" maxlength="200" />
                                     </div>
 
                                     <div class="form-group">
                                         <label>Ålderskategori</label>
-                                        <select @bind="edit.AgeCategory">
+                                        <select @bind="edit.AgeCategory" @bind:after="SaveParticipants">
                                             @foreach (var age in AgeCategories)
                                             {
                                                 <option value="@age">@AgeLabel(age)</option>
@@ -210,57 +345,27 @@ else
                                         </select>
                                     </div>
 
-                                    @if (!isOvernight)
-                                    {
-                                        <div class="form-group">
-                                            <label><input type="checkbox" @bind="edit.AttendsBreakfast" /> Deltar på frukost</label>
-                                        </div>
-                                    }
-
-                                    @if (edit.Meals.Count > 0)
-                                    {
-                                        <div class="form-group">
-                                            <span class="label">Måltider</span>
-                                            @foreach (var mealEdit in edit.Meals)
-                                            {
-                                                var meal = participant.MealPreferences.First(m => m.Id == mealEdit.Id);
-                                                var options = meal.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
-                                                <div class="form-row">
-                                                    <label>@meal.Date.ToString("yyyy-MM-dd") @(meal.MealType == MealType.Lunch ? "lunch" : "middag")</label>
-                                                    <select @bind="mealEdit.MealOptionId">
-                                                        @foreach (var o in options)
-                                                        {
-                                                            <option value="@o.Id">@o.Name</option>
-                                                        }
-                                                    </select>
-                                                </div>
-                                            }
-                                        </div>
-                                    }
-
                                     <div class="form-group">
-                                        <span class="label">Kostbehov</span>
-                                        @foreach (var diet in DietaryOptions)
+                                        <span class="label">Allergier</span>
+                                        @foreach (var allergy in AllergyOptions)
                                         {
                                             <label class="form-check">
-                                                <input type="checkbox" checked="@edit.Dietary.Contains(diet)"
-                                                       @onchange="e => ToggleDietary(edit, diet, (bool)(e.Value ?? false))" />
-                                                @DietaryLabel(diet)
+                                                <input type="checkbox" checked="@edit.Allergies.Contains(allergy)"
+                                                       @onchange="e => ToggleAllergy(edit, allergy, (bool)(e.Value ?? false))" />
+                                                @AllergyLabel(allergy)
                                             </label>
                                         }
                                     </div>
 
                                     <div class="form-group">
-                                        <label>Kostanteckning</label>
-                                        <input @bind="edit.DietaryNotes" maxlength="200" />
+                                        <label>Allergianteckning</label>
+                                        <input @bind="edit.AllergyNotes" @bind:after="SaveParticipants" maxlength="200" />
                                     </div>
 
                                     <button type="button" class="btn-outline btn-sm" @onclick="() => ToggleParticipantEdit(edit.Id)">Klar</button>
                                 }
                             </fieldset>
                         }
-
-                        <button class="btn" @onclick="SaveParticipants">Spara deltagaruppgifter</button>
                     </div>
                 </details>
             }
@@ -343,9 +448,19 @@ else
                                     {
                                         <li>Datumen överlappar en eller flera blockeringar: @string.Join("; ", _approvalWarning.BlockDescriptions). Rumsväljaren kan bli tom för gästen.</li>
                                     }
+                                    @if (_approvalWarning.NoLodgingAssigned)
+                                    {
+                                        <li>Ingen byggnad är tilldelad ännu. Tilldela boende innan du godkänner.</li>
+                                    }
                                     @if (_approvalWarning.CapacityExceeded)
                                     {
                                         <li>Antal övernattande gäster (@_approvalWarning.RequestedGuests) överstiger tillgängliga bäddar (@_approvalWarning.AvailableBeds) för perioden.</li>
+                                    }
+                                    @* FR-101: a stated time the guest will assume was approved along
+                                       with the booking, unless someone raises it. *@
+                                    @foreach (var deviation in _approvalWarning.TimeDeviations)
+                                    {
+                                        <li>@deviation Kom överens om eventuellt tillägg med gästen innan du godkänner.</li>
                                     }
                                 </ul>
                                 <p class="form-hint">Du kan ändå godkänna — detta är endast en varning.</p>
@@ -442,6 +557,15 @@ else
                    Danger="PendingIsDanger"
                    OnConfirm="ConfirmPending"
                    OnCancel="() => _pending = null" />
+
+    @* Removing a meal deletes the dish agreed for it — the one irreversible action among the
+       otherwise freely reversible controls in the Måltider section. *@
+    <ConfirmDialog Visible="_pendingRemoval is not null"
+                   Title="Ta bort måltiden?"
+                   Message="@(_pendingRemoval is { } m ? RemovalMessage(m) : null)"
+                   ConfirmText="Ta bort måltiden"
+                   OnConfirm="ConfirmRemoval"
+                   OnCancel="() => _pendingRemoval = null" />
 }
 
 @code {
@@ -512,9 +636,19 @@ else
     private string? _cancelReason;
     private CancellationInitiator _cancelInitiator = CancellationInitiator.GuestInitiated;
 
-    // Participant editing (FR-48).
+    // Guest-data editing (FR-48). Three models for three sections, each saving on change — see the
+    // Vistelse note in the markup for why there are no save buttons on this page.
     private List<Participant> _participants = [];
-    private List<ParticipantEdit> _edits = [];
+    private List<BookingMealSelection> _mealSelections = [];
+    private List<ParticipantEdit> _participantEdits = [];
+    private GroupMealEdit _mealEdit = new();
+    private string? _checkInTime;
+    private string? _checkOutTime;
+    private bool _editingTimes;
+
+    // Removing a meal deletes the dish agreed for it, so it is confirmed first — the same gate the
+    // rest of the admin puts on anything irreversible.
+    private EdgeMeal? _pendingRemoval;
 
     // Building assignment (FR-103, §8.16).
     private IReadOnlyList<BuildingAvailability> _assignable = [];
@@ -524,13 +658,113 @@ else
     private List<MealOption> _dinnerOptions = [];
     private readonly HashSet<Guid> _editingParticipants = [];
 
-    private int DietCount => _edits.Count(e => e.Dietary.Count > 0);
+    private int AllergyCount => _participantEdits.Count(e => e.Allergies.Count > 0);
+
+    /// <summary>Summary for the collapsed Måltider header — how many meals the group takes and how
+    /// many still need a dish, so an undecided meal is visible without opening the section.</summary>
+    private string MealSummary
+    {
+        get
+        {
+            var taken = _mealEdit.Meals.Count;
+            var undecided = _mealEdit.Meals.Count(m => m.MealOptionId is null);
+            return undecided > 0 ? $"{taken} måltider · {undecided} utan vald rätt" : $"{taken} måltider";
+        }
+    }
+
+    /// <summary>The six meals a group may or may not take (§4.1). Middle days are not among them:
+    /// a full day always has all three, so there is nothing to choose.</summary>
+    private enum EdgeMeal { ArrivalBreakfast, ArrivalLunch, ArrivalDinner, DepartureBreakfast, DepartureLunch, DepartureDinner }
+
+    private static readonly EdgeMeal[] ArrivalMeals =
+        [EdgeMeal.ArrivalBreakfast, EdgeMeal.ArrivalLunch, EdgeMeal.ArrivalDinner];
+    private static readonly EdgeMeal[] DepartureMeals =
+        [EdgeMeal.DepartureBreakfast, EdgeMeal.DepartureLunch, EdgeMeal.DepartureDinner];
+
+    private static string EdgeMealLabel(EdgeMeal meal) => meal switch
+    {
+        EdgeMeal.ArrivalBreakfast or EdgeMeal.DepartureBreakfast => "Frukost",
+        EdgeMeal.ArrivalLunch or EdgeMeal.DepartureLunch => "Lunch",
+        _ => "Middag",
+    };
+
+    private bool IsEdgeMealOn(EdgeMeal meal) => meal switch
+    {
+        EdgeMeal.ArrivalBreakfast => _mealEdit.ArrivalBreakfast,
+        EdgeMeal.ArrivalLunch => _mealEdit.ArrivalLunch,
+        EdgeMeal.ArrivalDinner => _mealEdit.ArrivalDinner,
+        EdgeMeal.DepartureBreakfast => _mealEdit.DepartureBreakfast,
+        EdgeMeal.DepartureLunch => _mealEdit.DepartureLunch,
+        _ => _mealEdit.DepartureDinner,
+    };
+
+    private void SetEdgeMeal(EdgeMeal meal, bool on)
+    {
+        switch (meal)
+        {
+            case EdgeMeal.ArrivalBreakfast: _mealEdit.ArrivalBreakfast = on; break;
+            case EdgeMeal.ArrivalLunch: _mealEdit.ArrivalLunch = on; break;
+            case EdgeMeal.ArrivalDinner: _mealEdit.ArrivalDinner = on; break;
+            case EdgeMeal.DepartureBreakfast: _mealEdit.DepartureBreakfast = on; break;
+            case EdgeMeal.DepartureLunch: _mealEdit.DepartureLunch = on; break;
+            default: _mealEdit.DepartureDinner = on; break;
+        }
+    }
+
+    /// <summary>The (day, meal) a checkbox governs, or null for breakfast — a buffet, never a dish,
+    /// so unticking it can never lose a choice.</summary>
+    private (DateOnly Date, MealType MealType)? EdgeMealSlot(EdgeMeal meal)
+    {
+        if (_booking?.CheckIn is not { } checkIn || _booking.CheckOut is not { } checkOut) return null;
+        return meal switch
+        {
+            EdgeMeal.ArrivalLunch => (checkIn, MealType.Lunch),
+            EdgeMeal.ArrivalDinner => (checkIn, MealType.Dinner),
+            EdgeMeal.DepartureLunch => (checkOut, MealType.Lunch),
+            EdgeMeal.DepartureDinner => (checkOut, MealType.Dinner),
+            _ => null,
+        };
+    }
+
+    private string RemovalMessage(EdgeMeal meal)
+    {
+        var slot = EdgeMealSlot(meal);
+        var label = slot is { } s2 && s2.MealType == MealType.Lunch ? "lunchen" : "middagen";
+        var day = ArrivalMeals.Contains(meal) ? "ankomstdagen" : "avresedagen";
+        return $"Gruppen äter då inte {label} på {day}, och den valda rätten tas bort. "
+             + "Sätter ni tillbaka måltiden får ni välja rätt på nytt.";
+    }
+
+    /// <summary>Applies a meal tick. Removing a meal that has a dish agreed asks first; everything
+    /// else applies immediately, like the rest of this page.</summary>
+    private async Task ToggleEdgeMeal(EdgeMeal meal, bool on)
+    {
+        if (!on && EdgeMealSlot(meal) is { } slot
+            && _mealEdit.Meals.Any(m => m.Date == slot.Date && m.MealType == slot.MealType && m.MealOptionId is not null))
+        {
+            _pendingRemoval = meal;
+            return;
+        }
+
+        SetEdgeMeal(meal, on);
+        await SaveGroupMeals();
+    }
+
+    private async Task ConfirmRemoval()
+    {
+        if (_pendingRemoval is { } meal)
+        {
+            SetEdgeMeal(meal, false);
+            _pendingRemoval = null;
+            await SaveGroupMeals();
+        }
+    }
 
     private static readonly AgeCategory[] AgeCategories =
         [AgeCategory.Adult, AgeCategory.Child, AgeCategory.Infant];
-    private static readonly DietaryRequirement[] DietaryOptions =
-        [DietaryRequirement.Vegetarian, DietaryRequirement.Vegan, DietaryRequirement.GlutenFree,
-         DietaryRequirement.LactoseFree, DietaryRequirement.NutAllergy, DietaryRequirement.Other];
+    // Allergies only — vegetarian/vegan are booking-level portion counts now, not per-person (§4.6).
+    private static readonly Allergy[] AllergyOptions =
+        [Allergy.Gluten, Allergy.Lactose, Allergy.Nut, Allergy.Other];
 
     private int DaysToCheckIn =>
         _booking?.CheckIn is null ? int.MaxValue
@@ -565,41 +799,70 @@ else
             : ApprovalWarning.None;
 
         // Participants exist only after the guest submits (DetailsComplete+). Load them plus the
-        // meal options the admin editor needs.
+        // group's meal selections and the meal options the admin editor needs.
         var withParticipants = await BookingService.GetWithParticipantsAsync(Id);
         _participants = withParticipants?.Participants.OrderBy(p => p.ParticipantType).ToList() ?? [];
+        _mealSelections = withParticipants?.MealSelections
+            .OrderBy(m => m.Date).ThenBy(m => m.MealType).ToList() ?? [];
 
         if (_participants.Count > 0)
         {
             var options = await MealOptionService.GetActiveAsync();
             _lunchOptions = options.Where(o => o.MealType == MealType.Lunch).ToList();
             _dinnerOptions = options.Where(o => o.MealType == MealType.Dinner).ToList();
-            _edits = _participants.Select(ToEdit).ToList();
+            _participantEdits = ToParticipantEdits(_participants);
+            _mealEdit = ToMealEdit(_booking, _mealSelections);
         }
         else
         {
-            _edits = [];
+            _participantEdits = [];
+            _mealEdit = new GroupMealEdit();
         }
+
+        _checkInTime = StatedTimePolicy.Display(_booking.CheckInTime, MealOccasionResolver.StandardCheckInTime);
+        _checkOutTime = StatedTimePolicy.Display(_booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime);
     }
 
-    private static ParticipantEdit ToEdit(Participant p) => new()
+    private static List<ParticipantEdit> ToParticipantEdits(IReadOnlyList<Participant> participants) =>
+        participants.Select(p => new ParticipantEdit
+        {
+            Id = p.Id,
+            FullName = p.FullName,
+            AgeCategory = p.AgeCategory,
+            Allergies = [.. p.Allergies],
+            AllergyNotes = p.AllergyNotes,
+        }).ToList();
+
+    /// <summary>One entry per meal the group is having — built from the resolved meals, not from the
+    /// stored dishes, so a meal with nothing chosen still gets a dropdown.</summary>
+    private static GroupMealEdit ToMealEdit(Booking b, IReadOnlyList<BookingMealSelection> meals) => new()
     {
-        Id = p.Id,
-        FullName = p.FullName,
-        AgeCategory = p.AgeCategory,
-        AttendsBreakfast = p.AttendsBreakfast,
-        Dietary = [.. p.DietaryRequirements],
-        DietaryNotes = p.DietaryNotes,
-        Meals = p.MealPreferences
-            .OrderBy(m => m.Date).ThenBy(m => m.MealType)
-            .Select(m => new MealEdit { Id = m.Id, MealOptionId = m.MealOptionId })
+        Meals = MealOccasionResolver.Resolve(b).SelectionSlots
+            .Select(slot => new MealChoiceEdit
+            {
+                Date = slot.Date,
+                MealType = slot.MealType,
+                MealOptionId = meals.FirstOrDefault(m => m.Date == slot.Date && m.MealType == slot.MealType)?.MealOptionId,
+            })
             .ToList(),
+        ArrivalBreakfast = b.ArrivalBreakfast,
+        ArrivalLunch = b.ArrivalLunch,
+        ArrivalDinner = b.ArrivalDinner,
+        DepartureBreakfast = b.DepartureBreakfast,
+        DepartureLunch = b.DepartureLunch,
+        DepartureDinner = b.DepartureDinner,
+        DayGuestBreakfast = b.DayGuestBreakfast,
+        DayGuestLunch = b.DayGuestLunch,
+        DayGuestDinner = b.DayGuestDinner,
+        VegetarianCount = b.VegetarianCount,
+        VeganCount = b.VeganCount,
     };
 
-    private static void ToggleDietary(ParticipantEdit edit, DietaryRequirement diet, bool on)
+    private async Task ToggleAllergy(ParticipantEdit edit, Allergy allergy, bool on)
     {
-        if (on) { if (!edit.Dietary.Contains(diet)) edit.Dietary.Add(diet); }
-        else edit.Dietary.Remove(diet);
+        if (on) { if (!edit.Allergies.Contains(allergy)) edit.Allergies.Add(allergy); }
+        else edit.Allergies.Remove(allergy);
+        await SaveParticipants();
     }
 
     private void ToggleParticipantEdit(Guid participantId)
@@ -649,23 +912,26 @@ else
         _ => age.ToString(),
     };
 
-    private static string DietaryLabel(DietaryRequirement diet) => diet switch
-    {
-        DietaryRequirement.Vegetarian => "Vegetarian",
-        DietaryRequirement.Vegan => "Vegan",
-        DietaryRequirement.GlutenFree => "Glutenintolerans",
-        DietaryRequirement.LactoseFree => "Laktosintolerans",
-        DietaryRequirement.NutAllergy => "Nötallergi",
-        DietaryRequirement.Other => "Annat",
-        _ => diet.ToString(),
-    };
-
+    private static string AllergyLabel(Allergy allergy) => BookingDisplay.AllergyLabel(allergy);
 
     private async Task SaveParticipants()
     {
-        await BookingService.SaveParticipantEditsAsync(Id, _edits);
+        await BookingService.SaveParticipantRosterAsync(Id, _participantEdits);
         _message = "Deltagaruppgifterna är sparade.";
-        _editingParticipants.Clear();
+        await Load();
+    }
+
+    private async Task SaveGroupMeals()
+    {
+        await BookingService.SaveGroupMealsAsync(Id, _mealEdit);
+        _message = "Måltiderna är sparade.";
+        await Load();
+    }
+
+    private async Task SaveTimes()
+    {
+        await BookingService.SaveStatedTimesAsync(Id, _checkInTime, _checkOutTime);
+        _message = "Tiderna är sparade.";
         await Load();
     }
 

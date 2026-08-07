@@ -102,11 +102,11 @@ public static class ListPdfGenerator
                             cd.RelativeColumn(1.6f); // Namn
                             cd.RelativeColumn(1f);   // Typ
                             cd.RelativeColumn(2f);   // Kostbehov
-                            cd.RelativeColumn(3.4f); // Måltider
+                            cd.RelativeColumn(3.4f); // Närvaro
                         });
                         table.Header(h =>
                         {
-                            foreach (var head in new[] { "Namn", "Typ", "Kostbehov", "Måltider" })
+                            foreach (var head in new[] { "Namn", "Typ", "Kostbehov", "Närvaro" })
                                 h.Cell().Element(HeaderCell).Text(head).Bold();
                         });
                         foreach (var s in data.SpecialDiets)
@@ -114,9 +114,19 @@ public static class ListPdfGenerator
                             table.Cell().Element(BodyCell).Text(s.Name);
                             table.Cell().Element(BodyCell).Text(s.Type);
                             table.Cell().Element(BodyCell).Text(s.Dietary);
-                            table.Cell().Element(BodyCell).Text(s.Meals);
+                            table.Cell().Element(BodyCell).Text(s.Attendance);
                         }
                     });
+                }
+
+                // ── Section 3: dietary preference counts (§4.6, FR-45) ──
+                // Under the allergy list rather than in the header: this is what the cook reads when
+                // working out how many portions to adapt, and the header is scanned once.
+                if (data.VegetarianCount > 0 || data.VeganCount > 0)
+                {
+                    col.Item().PaddingTop(16).Text("Specialkost (antal portioner)").Bold().FontSize(12);
+                    col.Item().PaddingTop(4).Text(BookingDisplay.PreferenceSummary(data.VegetarianCount, data.VeganCount));
+                    col.Item().PaddingTop(2).Text(ListShaper.PreferenceNote).Italic().FontColor(Colors.Grey.Darken1);
                 }
             });
 

@@ -4,6 +4,7 @@ using System.Text;
 using AkeroGarden.Web.Core.Data;
 using AkeroGarden.Web.Core.Data.Entities;
 using AkeroGarden.Web.Core.Models;
+using AkeroGarden.Web.Core.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 using Testcontainers.PostgreSql;
@@ -134,9 +135,9 @@ public sealed class E2EFixture : IAsyncLifetime
         building.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = building.Id, Name = "Sovsal", BedCount = 40, IsActive = true });
         ctx.Buildings.Add(building);
 
-        // Two lunch options (a real choice → per-day selects + a group-default lunch select) and a
-        // single dinner option (no choice → rendered as fixed text + a hidden field). Lets the E2E
-        // exercise both the group-default cascade and the single-option path honestly.
+        // Two lunch options (a real choice, so the "samma rätt alla dagar" shortcut has something to
+        // copy) and a single dinner option. Every sitting renders the same way now — one dropdown for
+        // the whole group (FR-105) — so a one-option meal is simply a dropdown with one entry.
         ctx.MealOptions.AddRange(
             new MealOption { Id = Guid.NewGuid(), Name = "Rotfruktssoppa", MealType = MealType.Lunch, IsActive = true },
             new MealOption { Id = Guid.NewGuid(), Name = "Ugnsbakad lax", MealType = MealType.Lunch, IsActive = true },
@@ -158,6 +159,12 @@ public sealed class E2EFixture : IAsyncLifetime
             CheckOut = checkIn.AddDays(2),
             OvernightGuestCount = 2,
             MealPlan = MealPlan.FullBoardAll,
+            // The standard-schedule edge-day meals a real inquiry is created with (§4.1): arrival
+            // dinner, departure breakfast. A 2-night stay therefore takes 3 sittings.
+            ArrivalDinner = true,
+            DepartureBreakfast = true,
+            CheckInTime = MealOccasionResolver.StandardCheckInTime,
+            CheckOutTime = MealOccasionResolver.StandardCheckOutTime,
             CompletionToken = token,
             CompletionTokenExpiry = DateTime.UtcNow.AddDays(14),
             CreatedAt = DateTime.UtcNow,
@@ -319,6 +326,18 @@ public sealed class E2EFixture : IAsyncLifetime
         psi.Environment["Smtp__FromName"] = "Åkerögården";
         psi.Environment["Smtp__MaxSendAttempts"] = "1";
         psi.Environment["Smtp__RetryDelayMs"] = "0";
+
+        // The inquiry rate limiter (NFR-04) counts per client in Redis — and the E2E host talks to
+        // the *developer's* Redis, not a container of its own, so its counters outlive the test run.
+        // Every submitting test shares one client address (127.0.0.1), so the real 5-per-10-minutes
+        // limit is reached by the suite itself and, worse, carries over into the next run: the funnel
+        // test would start failing simply because you ran the suite twice.
+        //
+        // A per-run key prefix isolates each run, and a high ceiling keeps the suite from throttling
+        // itself. The limiter is still wired and exercised — the *limit* is proven against real Redis
+        // in RateLimiterIntegrationTests, which is where that assertion belongs.
+        psi.Environment["RateLimit__KeyPrefix"] = $"ratelimit:e2e:{Guid.NewGuid():N}:";
+        psi.Environment["RateLimit__MaxRequests"] = "1000";
 
         var app = new Process { StartInfo = psi, EnableRaisingEvents = true };
         app.OutputDataReceived += (_, e) => Capture(label, e.Data);

@@ -80,6 +80,24 @@ dotnet run --project src/AkeroGarden.Web.Public
 
 For seeding local reference data, see [`infra/ops/seeding.md`](infra/ops/seeding.md).
 
+### Seeing a scheduled email locally
+
+The 14-day reminder, completion nudge, link-expiry warning and pre-deletion warning are all sent by
+the daily background job, which fires once a day at `Jobs:DailyRunHourLocal` — **03:00 Europe/Stockholm
+by default, and always in Stockholm time regardless of the machine's zone**. Waiting for that is not a
+workflow, so:
+
+```bash
+DemoSeed__Reset=true Jobs__RunOnStartup=true dotnet run --project src/AkeroGarden.Web.Admin
+```
+
+`Jobs:RunOnStartup` runs the jobs once immediately, then hands back to the normal schedule. It is off
+by default and must never be set in production. `DemoSeed:Reset` wipes app data (the admin user
+survives) and reseeds — including one `DetailsComplete` booking with check-in exactly 14 days out and
+deliberately non-standard times, which is the booking the reminder actually picks up.
+
+Mail lands in Mailpit at <http://localhost:8025>.
+
 ## Tests
 
 Tests are written **with** each feature, not after. All three tiers run in CI and any failure fails the

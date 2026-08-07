@@ -4,11 +4,11 @@ using AkeroGarden.Web.Core.Data.Entities;
 namespace AkeroGarden.Web.Core.Services;
 
 /// <summary>
-/// Shapes a booking's participants + meal preferences into the two admin download lists
+/// Shapes a booking's participants + the group's meal selections into the two admin download lists
 /// (requirements.md FR-44/45), built entirely off the <b>snapshot</b> fields
-/// (<see cref="MealPreference.MealOptionSnapshot"/>) so a downloaded list reflects exactly what was
-/// agreed even if reference data changed since (NFR-15/16). Pure and unit-testable; the PDF/Excel
-/// generators render the returned rows.
+/// (<see cref="BookingMealSelection.MealOptionSnapshot"/>) so a downloaded list reflects exactly
+/// what was agreed even if reference data changed since (NFR-15/16). Pure and unit-testable; the
+/// PDF/Excel generators render the returned rows.
 ///
 /// <para>The per-participant <b>Rum</b> column was removed 2026-08-06: the system no longer records
 /// who sleeps in which room (FR-56 tombstoned). Lodging is a booking-level fact now — the assigned
@@ -32,6 +32,13 @@ public static class ListShaper
     public const string SpecialDietNote =
         "Obs: personerna nedan ingår redan i tillagningsantalen — deras portion ska anpassas, inte läggas till.";
 
+    /// <summary>Caption for the dietary-preference counts (§4.6). Says the same thing as
+    /// <see cref="SpecialDietNote"/> for a different reason: these are portions of the group's own
+    /// dish prepared differently, not extra plates. The group is deliberately not named — the whole
+    /// point of storing a count is that nobody needs to know which individuals they are.</summary>
+    public const string PreferenceNote =
+        "Antalet ingår i tillagningsantalen ovan — så många portioner ska tillagas vegetariskt respektive veganskt, inte utöver.";
+
     /// <summary>Lists are downloadable once the guest has submitted their details and the booking is
     /// still live or finished (FR-44/45) — DetailsComplete, Active, or Completed.</summary>
     public static bool IsAvailableFor(BookingStatus status) =>
@@ -52,7 +59,7 @@ public static class ListShaper
             Attendance: p.ParticipantType == ParticipantType.DayGuest && p.AttendanceDate is { } d
                 ? d.ToString("yyyy-MM-dd", Sv)
                 : "—",
-            Dietary: BookingDisplay.DietarySummary(p.DietaryRequirements, p.DietaryNotes))
+            Dietary: BookingDisplay.AllergySummary(p.Allergies, p.AllergyNotes))
         ).ToList();
 
         return new BookingListData(
@@ -62,106 +69,113 @@ public static class ListShaper
             CheckOut: booking.CheckOut,
             Participants: participantRows,
             Prep: BuildPrep(booking),
-            SpecialDiets: BuildSpecialDiets(ordered));
+            SpecialDiets: BuildSpecialDiets(ordered),
+            VegetarianCount: booking.VegetarianCount,
+            VeganCount: booking.VeganCount);
     }
 
     /// <summary>The kitchen prep summary (FR-45): one row per (day, meal, option) with a headcount —
     /// "Tis 21/7 · Lunch · Köttbullar · 78" — plus a per-day breakfast headcount. Counts include
-    /// everyone (the special-diets list is the cross-reference for which portions need adapting).</summary>
+    /// everyone (the special-diets list is the cross-reference for which portions need adapting).
+    ///
+    /// <para>The group eats one dish per sitting (FR-105), so each meal yields exactly one row: the
+    /// dish, and how many are sitting down to it. That headcount is the point — the choice moved to
+    /// booking level, but the kitchen still needs the number, which is now computed from who is
+    /// present rather than counted off individual selections.</para></summary>
     private static IReadOnlyList<PrepRow> BuildPrep(Booking booking)
     {
         var rows = new List<PrepRow>();
         if (booking.CheckIn is not { } checkIn || booking.CheckOut is not { } checkOut || checkOut <= checkIn)
             return rows;
 
-        // Aggregate the chosen lunch/dinner options across all participants: (date, meal, option) → count.
-        var mealCounts = booking.Participants
-            .SelectMany(p => p.MealPreferences)
-            .GroupBy(m => (m.Date, m.MealType, Option: m.MealOptionSnapshot ?? "—"))
-            .ToDictionary(g => g.Key, g => g.Count());
+        var occasions = MealOccasionResolver.Resolve(booking);
+        var chosen = booking.MealSelections.ToDictionary(
+            m => new MealSlot(m.Date, m.MealType),
+            m => string.IsNullOrWhiteSpace(m.MealOptionSnapshot) ? "—" : m.MealOptionSnapshot);
 
         for (var date = checkIn; date <= checkOut; date = date.AddDays(1))
         {
-            var served = MealsByDayCalculator.ServedOn(date, checkIn, checkOut);
+            var served = occasions.ServedOn(date);
+            if (!served.Any)
+                continue;
+
+            var dayGuestMeals = occasions.DayGuestMealsOn(date);
             var dayLabel = MealDateHeader(date);
 
-            // Breakfast is a buffet (no option) — just a headcount of who attends that day.
+            // Breakfast is a buffet (no option) — just a headcount of who eats it that day.
             if (served.Breakfast)
             {
-                var breakfastCount = booking.Participants.Count(p => p.AttendsBreakfast && AttendsOn(p, date, checkIn, checkOut));
+                var breakfastCount = CountEating(booking, date, dayGuestMeals.Breakfast);
                 if (breakfastCount > 0)
                     rows.Add(new PrepRow(dayLabel, "Frukost", "Frukostbuffé", breakfastCount));
             }
 
-            // Lunch then dinner: one row per chosen option, most-ordered first.
-            foreach (var (mealType, label, isServed) in new[]
+            // Lunch then dinner: the group's one dish, and how many eat it.
+            foreach (var (mealType, label, isServed, dayGuestsEat) in new[]
             {
-                (MealType.Lunch, "Lunch", served.Lunch),
-                (MealType.Dinner, "Middag", served.Dinner),
+                (MealType.Lunch, "Lunch", served.Lunch, dayGuestMeals.Lunch),
+                (MealType.Dinner, "Middag", served.Dinner, dayGuestMeals.Dinner),
             })
             {
                 if (!isServed)
                     continue;
 
-                var options = mealCounts
-                    .Where(kv => kv.Key.Date == date && kv.Key.MealType == mealType)
-                    .OrderByDescending(kv => kv.Value)
-                    .ThenBy(kv => kv.Key.Option, StringComparer.CurrentCulture);
-                foreach (var kv in options)
-                    rows.Add(new PrepRow(dayLabel, label, kv.Key.Option, kv.Value));
+                var count = CountEating(booking, date, dayGuestsEat);
+                if (count == 0)
+                    continue;
+
+                // A sitting the group takes but has not chosen a dish for yet (the admin can add or
+                // drop an edge-day meal after submission, FR-48) still needs its headcount shown —
+                // an absent row would read as "nobody eats", which is a different and wrong claim.
+                var option = chosen.TryGetValue(new MealSlot(date, mealType), out var name) ? name : "Ej vald";
+                rows.Add(new PrepRow(dayLabel, label, option, count));
             }
         }
 
         return rows;
     }
 
-    /// <summary>The special-diets list (FR-45): only participants with a dietary requirement or note,
-    /// named, with their per-day meals so the kitchen can prepare the right alternative.</summary>
+    /// <summary>How many people eat a given meal on <paramref name="date"/>: every overnight guest
+    /// present, plus the day guests attending that date when day guests eat that sitting (§4.2).</summary>
+    private static int CountEating(Booking booking, DateOnly date, bool dayGuestsEat) =>
+        booking.Participants.Count(p => p.ParticipantType == ParticipantType.Overnight)
+        + (dayGuestsEat
+            ? booking.Participants.Count(p =>
+                p.ParticipantType == ParticipantType.DayGuest && p.AttendanceDate == date)
+            : 0);
+
+    /// <summary>The allergy list (FR-45): only participants with an allergy or a note, named, with
+    /// the days they are present, so the kitchen knows who needs an adapted plate and when.
+    ///
+    /// <para>The per-person meal column is gone: everybody eats the same dish at each sitting
+    /// (FR-105), so it would repeat the prep summary on every row. What the kitchen needs from this
+    /// list is <i>who</i> and <i>which days</i>.</para></summary>
     private static IReadOnlyList<SpecialDietRow> BuildSpecialDiets(IReadOnlyList<Participant> ordered) =>
         ordered
-            .Where(HasSpecialDiet)
+            .Where(HasAllergy)
             .Select(p => new SpecialDietRow(
                 Name: p.FullName,
                 Type: BookingDisplay.ParticipantTypeLabel(p.ParticipantType),
-                Dietary: SpecialDietSummary(p),
-                Meals: FormatPersonMeals(p.MealPreferences)))
+                Dietary: AllergyListSummary(p),
+                Attendance: p.ParticipantType == ParticipantType.DayGuest && p.AttendanceDate is { } d
+                    ? MealDateHeader(d)
+                    : "Hela vistelsen"))
             .ToList();
 
-    private static bool HasSpecialDiet(Participant p) =>
-        (p.DietaryRequirements?.Any(d => d != DietaryRequirement.None) ?? false)
-        || !string.IsNullOrWhiteSpace(p.DietaryNotes);
+    private static bool HasAllergy(Participant p) =>
+        (p.Allergies?.Any(a => a != Allergy.None) ?? false)
+        || !string.IsNullOrWhiteSpace(p.AllergyNotes);
 
-    /// <summary>The dietary summary for the kitchen list. <see cref="BookingDisplay.DietarySummary"/>
-    /// only folds the free-text note into the "Annat" requirement; here — a safety list — any note is
-    /// surfaced even when it stands alone or accompanies a different requirement.</summary>
-    private static string SpecialDietSummary(Participant p)
+    /// <summary>The allergy summary for the kitchen list. <see cref="BookingDisplay.AllergySummary"/>
+    /// only folds the free-text note into the "Annat" entry; here — a safety list — any note is
+    /// surfaced even when it stands alone or accompanies a different allergy.</summary>
+    private static string AllergyListSummary(Participant p)
     {
-        var summary = BookingDisplay.DietarySummary(p.DietaryRequirements, p.DietaryNotes);
-        var note = p.DietaryNotes?.Trim();
+        var summary = BookingDisplay.AllergySummary(p.Allergies, p.AllergyNotes);
+        var note = p.AllergyNotes?.Trim();
         if (string.IsNullOrEmpty(note) || summary.Contains(note, StringComparison.Ordinal))
             return summary;
         return summary == "—" ? note : $"{summary} · {note}";
-    }
-
-    /// <summary>Is this participant present for meals on <paramref name="date"/>? Overnight guests are
-    /// present the whole stay; a day guest only on their single attendance date.</summary>
-    private static bool AttendsOn(Participant p, DateOnly date, DateOnly checkIn, DateOnly checkOut) =>
-        p.ParticipantType == ParticipantType.DayGuest
-            ? p.AttendanceDate == date
-            : date >= checkIn && date <= checkOut;
-
-    /// <summary>One person's meals as compact per-day lines: "Tis 21/7: Lunch Köttbullar, Middag Lax".</summary>
-    private static string FormatPersonMeals(IEnumerable<MealPreference> meals)
-    {
-        var lines = meals
-            .GroupBy(m => m.Date)
-            .OrderBy(g => g.Key)
-            .Select(g => $"{MealDateHeader(g.Key)}: " + string.Join(", ", g
-                .OrderBy(m => m.MealType)
-                .Select(m => $"{BookingDisplay.MealTypeLabel(m.MealType)} {m.MealOptionSnapshot}")));
-
-        var joined = string.Join("\n", lines);
-        return joined.Length == 0 ? "—" : joined;
     }
 
     /// <summary>Compact day label, e.g. "Mån 1/6".</summary>
@@ -172,16 +186,16 @@ public static class ListShaper
     }
 }
 
-/// <summary>A row in the participant list (FR-44) — headcount/room/dietary oriented.</summary>
+/// <summary>A row in the participant list (FR-44) — headcount/attendance/allergy oriented.</summary>
 public record ParticipantRow(string Name, string Type, string Age, string Attendance, string Dietary);
 
 /// <summary>A row in the Matlista kitchen prep summary (FR-45): a dish to prepare and how many —
 /// <c>(Day, Meal, Option, Count)</c>. No names (see <see cref="SpecialDietRow"/> for those).</summary>
 public record PrepRow(string Day, string Meal, string Option, int Count);
 
-/// <summary>A named participant with a special dietary need (FR-45): their requirement/notes summary
-/// and their per-day meals, so the kitchen knows who needs an adapted plate and of what.</summary>
-public record SpecialDietRow(string Name, string Type, string Dietary, string Meals);
+/// <summary>A named participant with an allergy (FR-45): their allergy/notes summary and when they
+/// are present, so the kitchen knows who needs an adapted plate and on which days.</summary>
+public record SpecialDietRow(string Name, string Type, string Dietary, string Attendance);
 
 /// <summary>The shaped data behind both downloadable lists for one booking.</summary>
 public record BookingListData(
@@ -191,4 +205,6 @@ public record BookingListData(
     DateOnly? CheckOut,
     IReadOnlyList<ParticipantRow> Participants,
     IReadOnlyList<PrepRow> Prep,
-    IReadOnlyList<SpecialDietRow> SpecialDiets);
+    IReadOnlyList<SpecialDietRow> SpecialDiets,
+    int VegetarianCount,
+    int VeganCount);

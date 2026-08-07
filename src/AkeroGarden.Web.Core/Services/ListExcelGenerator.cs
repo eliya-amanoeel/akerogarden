@@ -15,7 +15,7 @@ public static class ListExcelGenerator
 {
     private static readonly string[] ParticipantHeaders = ["Namn", "Typ", "Ålder", "Närvaro", "Kostbehov"];
     private static readonly string[] PrepHeaders = ["Dag", "Måltid", "Rätt", "Antal"];
-    private static readonly string[] SpecialDietHeaders = ["Namn", "Typ", "Kostbehov", "Måltider"];
+    private static readonly string[] SpecialDietHeaders = ["Namn", "Typ", "Kostbehov", "Närvaro"];
 
     public static byte[] ParticipantList(BookingListData data)
     {
@@ -35,19 +35,31 @@ public static class ListExcelGenerator
                 ? [["Inga måltider anmälda.", "", "", ""]]
                 : data.Prep.Select(r => new[] { r.Day, r.Meal, r.Option, r.Count.ToString() }));
 
-        // Sheet 2 — special-diet handling: only the people who need it, named, with their meals.
+        // Sheet 2 — allergy handling: only the people who need it, named, with the days they attend,
+        // followed by the booking's dietary-preference counts (§4.6, FR-45). The counts sit under the
+        // named list rather than in the header because that is where the cook works out how many
+        // portions to adapt; they name nobody, which is the whole point of storing a count.
+        string[]? preferences = data.VegetarianCount > 0 || data.VeganCount > 0
+            ? [
+                "Specialkost (antal portioner)",
+                BookingDisplay.PreferenceSummary(data.VegetarianCount, data.VeganCount),
+                ListShaper.PreferenceNote,
+              ]
+            : null;
+
         WriteSheet(workbook, "Kostbehov", "Kostbehov & allergier", data, SpecialDietHeaders,
             data.SpecialDiets.Count == 0
                 ? [["Inga särskilda kostbehov anmälda.", "", "", ""]]
-                : data.SpecialDiets.Select(s => new[] { s.Name, s.Type, s.Dietary, s.Meals }),
-            note: data.SpecialDiets.Count == 0 ? null : ListShaper.SpecialDietNote);
+                : data.SpecialDiets.Select(s => new[] { s.Name, s.Type, s.Dietary, s.Attendance }),
+            note: data.SpecialDiets.Count == 0 ? null : ListShaper.SpecialDietNote,
+            trailer: preferences);
 
         return Save(workbook);
     }
 
     private static void WriteSheet(
         XLWorkbook workbook, string sheetName, string title, BookingListData data,
-        string[] headers, IEnumerable<string[]> rows, string? note = null)
+        string[] headers, IEnumerable<string[]> rows, string? note = null, string[]? trailer = null)
     {
         var ws = workbook.Worksheets.Add(sheetName);
 
@@ -83,13 +95,27 @@ public static class ListExcelGenerator
         ws.SheetView.FreezeRows(headerRow);
         ws.Range(headerRow, 1, headerRow, headers.Length).SetAutoFilter();
 
-        // The per-person "Måltider" cell can hold multiple lines ("Tis 21/7: …\nOns 22/7: …") — wrap
-        // so all show, and top-align the body. Harmless for the single-line sheets.
+        // Body cells can hold multiple lines — wrap so all show, and top-align. Harmless for the
+        // single-line sheets.
         if (lastRow >= headerRow + 1)
         {
             var body = ws.Range(headerRow + 1, 1, lastRow, headers.Length).Style;
             body.Alignment.WrapText = true;
             body.Alignment.Vertical = XLAlignmentVerticalValues.Top;
+        }
+
+        // Trailing block after a blank row — outside the table so the autofilter does not sort it
+        // into the named rows.
+        if (trailer is { Length: > 0 })
+        {
+            var t = lastRow + 2;
+            ws.Cell(t, 1).Value = trailer[0];
+            ws.Cell(t, 1).Style.Font.Bold = true;
+            for (var i = 1; i < trailer.Length; i++)
+            {
+                ws.Cell(t + i, 1).Value = trailer[i];
+                if (i == trailer.Length - 1) ws.Cell(t + i, 1).Style.Font.Italic = true;
+            }
         }
         ws.Columns().AdjustToContents();
         ws.Rows().AdjustToContents();

@@ -27,6 +27,16 @@ public class DailyJobRunner(
             return;
         }
 
+        // Development seam (Jobs:RunOnStartup): one pass now, then the normal schedule. Without it a
+        // scheduled email cannot be seen locally without waiting for the next occurrence of the run
+        // hour — which is in Stockholm time, so "set it to the next hour" is not even reliable
+        // advice. Off by default; never set in production.
+        if (_opts.RunOnStartup)
+        {
+            logger.LogInformation("Jobs:RunOnStartup är på — kör jobben en gång direkt innan schemat tar över.");
+            await RunAllJobsAsync(stoppingToken);
+        }
+
         while (!stoppingToken.IsCancellationRequested)
         {
             var delay = TimeUntilNextRun();

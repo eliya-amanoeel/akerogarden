@@ -18,8 +18,12 @@ public static class CompletionTokenPolicy
     /// <summary>Minimum validity floor from issue, regardless of how close check-in is (§2.6).</summary>
     public static readonly TimeSpan MinLifetimeFloor = TimeSpan.FromHours(48);
 
-    /// <summary>Standard check-in time (§2.8) — the instant "14 days before check-in" counts from.</summary>
-    public static readonly TimeOnly StandardCheckInTime = new(14, 0);
+    /// <summary>Standard check-in time (§2.8) — the instant "14 days before check-in" counts from.
+    /// Deliberately the <b>standard</b> time and not the booking's own stated one (FR-100): link
+    /// expiry is an administrative deadline, and letting a guest's 08:00 arrival quietly shorten
+    /// their window would be a surprising side effect of an unrelated field. Aliased rather than
+    /// redeclared so there is one definition of "14:00" in the system.</summary>
+    public static readonly TimeOnly StandardCheckInTime = MealOccasionResolver.StandardCheckInTime;
 
     /// <summary>
     /// Generates a cryptographically random, URL-safe token with at least 128 bits of entropy

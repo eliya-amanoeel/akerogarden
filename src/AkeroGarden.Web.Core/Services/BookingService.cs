@@ -54,6 +54,11 @@ public class BookingService(
             ContactPhone = string.IsNullOrWhiteSpace(input.ContactPhone) ? null : input.ContactPhone.Trim(),
             CheckIn = input.CheckIn,
             CheckOut = input.CheckOut,
+            // The stated times are a request the admin may adjust (§2.8). Re-validated here rather
+            // than trusted from the form: a value the dropdown cannot produce falls back to the
+            // standard (FR-100).
+            CheckInTime = StatedTimePolicy.Normalize(input.CheckInTime, MealOccasionResolver.StandardCheckInTime),
+            CheckOutTime = StatedTimePolicy.Normalize(input.CheckOutTime, MealOccasionResolver.StandardCheckOutTime),
             OvernightGuestCount = input.OvernightGuestCount,
             // SelfCateringAll has no catered meals, so day guests do not apply (§4.2) — enforced
             // server-side regardless of what the form submitted.
@@ -70,6 +75,12 @@ public class BookingService(
             DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
                 BookingStatus.Pending, submissionDate, input.CheckOut, submissionDate),
         };
+
+        // Pre-fill the edge-day meals from the standard schedule (§4.1) so the booking has a
+        // coherent meal state from creation — the Matlista and the reminder email never have to
+        // read "this group eats nothing" while the completion form is still outstanding. The guest
+        // overrides these at completion; from then on the stored flags are the truth.
+        MealOccasionResolver.ApplyStandardEdgeDefaults(booking);
 
         // Snapshot the agreed name + price so later edits to the reference data don't change
         // what the guest selected (NFR-33/34).
@@ -202,14 +213,14 @@ public class BookingService(
     }
 
     /// <summary>
-    /// Submits the completion form (FR-55/57/59/60/61/62). Re-validates the link server-side (token
-    /// found, Approved, unexpired — never trusting the earlier GET), then validates + builds the
-    /// overnight participants and their per-day meal preferences with snapshots via the pure
-    /// <see cref="CompletionNormalizer"/>, updates org/invoice details, transitions
-    /// <c>Approved → DetailsComplete</c> through <see cref="BookingStateMachine"/>, and notifies the
-    /// admin (FR-61). The token string is retained — single-use is enforced by the status gate
-    /// (once <c>DetailsComplete</c> the link reports AlreadyCompleted, C10), not by erasing it.
-    /// Day guests (§4.2) and room assignment (FR-56) are added in later slices.
+    /// Submits the completion form (FR-55/57/59/60/61/62/105). Re-validates the link server-side
+    /// (token found, Approved, unexpired — never trusting the earlier GET), then validates + builds
+    /// the participant roster, the group's meal selections with snapshots, the edge-day meal
+    /// occasions and the dietary-preference counts via the pure <see cref="CompletionNormalizer"/>,
+    /// updates org/invoice details, transitions <c>Approved → DetailsComplete</c> through
+    /// <see cref="BookingStateMachine"/>, and notifies the admin (FR-61). The token string is
+    /// retained — single-use is enforced by the status gate (once <c>DetailsComplete</c> the link
+    /// reports AlreadyCompleted, C10), not by erasing it.
     /// </summary>
     public async Task<CompletionSubmitResult> SubmitCompletionAsync(
         string token, CompletionFormModel form, DateTime nowUtc)
@@ -233,14 +244,22 @@ public class BookingService(
         if (booking.CheckIn is null || booking.CheckOut is null)
             return CompletionSubmitResult.LinkFailed(CompletionAccess.NotActive);
 
-        var slots = MealsByDayCalculator.Slots(booking.CheckIn.Value, booking.CheckOut.Value);
         var expectedOvernight = booking.OvernightGuestCount ?? 0;
 
         // Day guests apply only for a catered meal plan (§4.2); for SelfCateringAll they are dropped
         // server-side regardless of what was posted.
-        var dayGuestsApplicable = booking.MealPlan is MealPlan.FullBoardAll or MealPlan.Mixed;
+        var dayGuestsApplicable = InquiryNormalizer.DayGuestsApplicable(booking.MealPlan);
 
-        var errors = CompletionNormalizer.Validate(form, slots, expectedOvernight);
+        // Resolve the meal occasions from the *submitted* edge-day choices rather than the stored
+        // ones — the guest is choosing them right now, and the form must be validated against what
+        // it actually says. The flags are written to the booking below, only once it is valid.
+        var occasions = MealOccasionResolver.Resolve(new MealOccasionInput(
+            booking.CheckIn.Value, booking.CheckOut.Value, booking.MealPlan ?? MealPlan.SelfCateringAll,
+            form.ArrivalBreakfast, form.ArrivalLunch, form.ArrivalDinner,
+            form.DepartureBreakfast, form.DepartureLunch, form.DepartureDinner,
+            form.DayGuestBreakfast, form.DayGuestLunch, form.DayGuestDinner));
+
+        var errors = CompletionNormalizer.Validate(form, occasions, expectedOvernight);
         if (dayGuestsApplicable)
             errors = [.. errors, .. CompletionNormalizer.ValidateDayGuests(
                 form.DayGuests ?? [], booking.CheckIn.Value, booking.CheckOut.Value)];
@@ -251,15 +270,44 @@ public class BookingService(
         var activeOptions = await db.MealOptions.Where(m => m.IsActive).ToListAsync();
         var optionsById = activeOptions.ToDictionary(o => o.Id);
 
-        var participants = CompletionNormalizer.BuildParticipants(form, slots, optionsById);
+        var participants = CompletionNormalizer.BuildParticipants(form);
         if (dayGuestsApplicable)
-            participants.AddRange(CompletionNormalizer.BuildDayGuests(
-                form.DayGuests ?? [], optionsById, booking.CheckIn.Value, booking.CheckOut.Value));
+            participants.AddRange(CompletionNormalizer.BuildDayGuests(form.DayGuests ?? []));
         foreach (var participant in participants)
         {
             participant.BookingId = booking.Id;
             booking.Participants.Add(participant);
         }
+
+        // The group's one choice per sitting (FR-105), with option-name snapshots (NFR-15). A
+        // self-catering booking resolves to no sittings, so this is empty for it.
+        // Leave Id unset, as BuildParticipants does. Assigning one here makes EF treat the new row
+        // as an existing entity when it is discovered on an already-tracked booking, so it issues an
+        // UPDATE that matches nothing rather than an INSERT.
+        foreach (var selection in CompletionNormalizer.BuildMealSelections(form, occasions, optionsById))
+        {
+            selection.BookingId = booking.Id;
+            booking.MealSelections.Add(selection);
+        }
+
+        // Persist the meal occasions the selections were built against, so the stored flags and the
+        // stored rows can never disagree. A self-catering booking keeps them all false — there is no
+        // meal to attend (§4.1/§4.2), whatever the form posted.
+        var catered = booking.MealPlan == MealPlan.FullBoardAll;
+        booking.ArrivalBreakfast = catered && form.ArrivalBreakfast;
+        booking.ArrivalLunch = catered && form.ArrivalLunch;
+        booking.ArrivalDinner = catered && form.ArrivalDinner;
+        booking.DepartureBreakfast = catered && form.DepartureBreakfast;
+        booking.DepartureLunch = catered && form.DepartureLunch;
+        booking.DepartureDinner = catered && form.DepartureDinner;
+        booking.DayGuestBreakfast = dayGuestsApplicable && form.DayGuestBreakfast;
+        booking.DayGuestLunch = dayGuestsApplicable && form.DayGuestLunch;
+        booking.DayGuestDinner = dayGuestsApplicable && form.DayGuestDinner;
+
+        // Dietary preferences as counts, not per-person flags (§4.6) — validated against the
+        // headcount above.
+        booking.VegetarianCount = catered ? form.VegetarianCount : 0;
+        booking.VeganCount = catered ? form.VeganCount : 0;
 
         // Org/invoice (FR-60) — only retained when the booking is invoiced to an organisation.
         booking.IsOrganisation = form.IsOrganisation;
@@ -499,11 +547,31 @@ public class BookingService(
             .ToList();
         var availableBeds = BuildingExclusionCalculator.Evaluate(assigned, blocks).Sum(b => b.AvailableBedCount);
 
+        // Stated arrival/departure times that deviate from the standard (FR-101). Non-blocking, and
+        // deliberately on the same warning strip as the block/capacity notices: an approved booking
+        // would otherwise imply the guest's 08:00 arrival was approved too, and the surcharge
+        // conversation would never happen.
+        var timeDeviations = new List<string>(2);
+        if (StatedTimePolicy.Deviation("Incheckning", booking.CheckInTime,
+                MealOccasionResolver.StandardCheckInTime) is { } checkInDeviation)
+            timeDeviations.Add(checkInDeviation);
+        if (StatedTimePolicy.Deviation("Utcheckning", booking.CheckOutTime,
+                MealOccasionResolver.StandardCheckOutTime) is { } checkOutDeviation)
+            timeDeviations.Add(checkOutDeviation);
+
+        // With nothing assigned the bed count is zero, so a capacity comparison would warn on every
+        // single booking — "2 guests exceed 0 beds" is arithmetic, not information, and a warning
+        // that is always present is one the admin learns to skip past. The strip carries the
+        // deviation warnings too, so that habit is expensive. Say the true thing instead.
+        var nothingAssigned = assignedBuildingIds.Count == 0;
+
         return new ApprovalWarning(
-            CapacityExceeded: guests > availableBeds,
+            CapacityExceeded: !nothingAssigned && guests > availableBeds,
+            NoLodgingAssigned: nothingAssigned,
             RequestedGuests: guests,
             AvailableBeds: availableBeds,
-            BlockDescriptions: await DescribeBlocksAsync(blocks));
+            BlockDescriptions: await DescribeBlocksAsync(blocks),
+            TimeDeviations: timeDeviations);
     }
 
     /// <summary>
@@ -836,27 +904,30 @@ public class BookingService(
     /// <summary>Sets a booking's internal admin notes (FR-39).</summary>
     // ── Participant data (admin, post-submission — FR-48/56) ───────────────────────
 
-    /// <summary>Loads a booking with its participants + meal preferences (admin participant view/edit).</summary>
+    /// <summary>Loads a booking with its participants + the group's meal selections (admin
+    /// participant view/edit).</summary>
     public async Task<Booking?> GetWithParticipantsAsync(Guid id) =>
         await db.Bookings
-            .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
+            .Include(b => b.Participants)
+            .Include(b => b.MealSelections)
             .SingleOrDefaultAsync(b => b.Id == id);
 
     /// <summary>
-    /// Applies the admin's post-submission edits to a booking's participants (FR-48): names, age,
-    /// dietary, day-guest breakfast, and corrections to existing meal choices. <b>No status change
-    /// and no guest reopen</b> — this is the only post-submission edit path (C10). Room assignment
-    /// is no longer among these fields (FR-56 tombstoned); lodging is recorded per booking against
-    /// buildings instead (FR-103).
+    /// Applies the admin's post-submission edits to the <b>participant roster</b> (FR-48): names,
+    /// age category and allergies. <b>No status change and no guest reopen</b> (C10).
+    ///
+    /// <para>Split from the meal and time edits deliberately. Those are booking-level facts shown in
+    /// their own sections of the panel, and a single save spanning all three would write values the
+    /// admin never opened — a "Spara deltagaruppgifter" button that also rewrote arrival times is
+    /// the kind of quiet side effect that is impossible to notice until it is wrong.</para>
     /// </summary>
-    public async Task SaveParticipantEditsAsync(Guid bookingId, IReadOnlyList<ParticipantEdit> edits)
+    public async Task SaveParticipantRosterAsync(Guid bookingId, IReadOnlyList<ParticipantEdit> edits)
     {
         var booking = await db.Bookings
-            .Include(b => b.Participants).ThenInclude(p => p.MealPreferences)
+            .Include(b => b.Participants)
             .SingleOrDefaultAsync(b => b.Id == bookingId);
         if (booking is null) return;
 
-        var optionsById = (await db.MealOptions.Where(m => m.IsActive).ToListAsync()).ToDictionary(o => o.Id);
         var editsById = edits.ToDictionary(e => e.Id);
 
         foreach (var participant in booking.Participants)
@@ -865,34 +936,129 @@ public class BookingService(
 
             participant.FullName = (edit.FullName ?? string.Empty).Trim();
             participant.AgeCategory = edit.AgeCategory;
-            participant.DietaryRequirements = edit.Dietary ?? [];
-            participant.DietaryNotes = string.IsNullOrWhiteSpace(edit.DietaryNotes) ? null : edit.DietaryNotes.Trim();
-
-            if (participant.ParticipantType == ParticipantType.DayGuest)
-                participant.AttendsBreakfast = edit.AttendsBreakfast;
-
-            // Correct existing meal choices only (right type + active) — the set of days is fixed.
-            foreach (var mealEdit in edit.Meals)
-            {
-                var meal = participant.MealPreferences.FirstOrDefault(m => m.Id == mealEdit.Id);
-                if (meal is null) continue;
-                if (!optionsById.TryGetValue(mealEdit.MealOptionId, out var option)) continue;
-                if (option.MealType != meal.MealType) continue;
-                meal.MealOptionId = option.Id;
-                meal.MealOptionSnapshot = option.Name;
-            }
+            participant.Allergies = edit.Allergies ?? [];
+            participant.AllergyNotes = string.IsNullOrWhiteSpace(edit.AllergyNotes)
+                ? null
+                : edit.AllergyNotes.Trim();
         }
 
         booking.UpdatedAt = DateTime.UtcNow;
-        // Count only — never participant names/dietary values (NFR-37).
+        // Count only — never participant names or allergy values (NFR-37).
         await RecordBookingAuditAsync(booking, AuditAction.ParticipantsEdited,
             $"Deltagaruppgifter uppdaterades ({booking.Participants.Count} deltagare).");
         await db.SaveChangesAsync();
+    }
 
-        // Room assignment may have just been set/changed above — refresh the sleeping-building
-        // cleaning selections to match (§8.12, FR-93). Needs the save above: it reads persisted
-        // RoomId values via ResolveSleepingCleaningSelectionsAsync's own query.
-        await ResolveSleepingCleaningSelectionsAsync(booking);
+    /// <summary>
+    /// Applies the admin's edits to the group's meals (FR-48/105): which meals the group takes on
+    /// the arrival and departure day, which meals day guests attend, the dish chosen at each
+    /// sitting, and the dietary-preference counts.
+    ///
+    /// <para>Changing an edge-day flag changes which sittings exist, so the stored dishes are
+    /// reconciled against them: dropping a meal deletes its dish, because a dish for a meal nobody
+    /// attends would keep appearing on the kitchen list. Adding a meal leaves the new sitting
+    /// <i>unchosen</i> rather than defaulting it — the Matlista prints it as "Ej vald" with its
+    /// headcount so someone decides, instead of the system inventing an agreement.</para>
+    /// </summary>
+    public async Task SaveGroupMealsAsync(Guid bookingId, GroupMealEdit edit)
+    {
+        var booking = await db.Bookings
+            .Include(b => b.MealSelections)
+            .SingleOrDefaultAsync(b => b.Id == bookingId);
+        if (booking is null) return;
+
+        var optionsById = (await db.MealOptions.Where(m => m.IsActive).ToListAsync()).ToDictionary(o => o.Id);
+
+        // Only a catered booking has meals at all (§4.1) — a self-catering one keeps every flag and
+        // count at zero however the form was posted. Applied before the dishes are reconciled,
+        // because these flags decide which meals exist.
+        var catered = booking.MealPlan == MealPlan.FullBoardAll;
+        booking.ArrivalBreakfast = catered && edit.ArrivalBreakfast;
+        booking.ArrivalLunch = catered && edit.ArrivalLunch;
+        booking.ArrivalDinner = catered && edit.ArrivalDinner;
+        booking.DepartureBreakfast = catered && edit.DepartureBreakfast;
+        booking.DepartureLunch = catered && edit.DepartureLunch;
+        booking.DepartureDinner = catered && edit.DepartureDinner;
+        booking.DayGuestBreakfast = catered && edit.DayGuestBreakfast;
+        booking.DayGuestLunch = catered && edit.DayGuestLunch;
+        booking.DayGuestDinner = catered && edit.DayGuestDinner;
+        booking.VegetarianCount = catered ? Math.Max(0, edit.VegetarianCount) : 0;
+        booking.VeganCount = catered ? Math.Max(0, edit.VeganCount) : 0;
+
+        // Reconcile the stored dishes against the meals the booking now has. Working from the
+        // resolved meals rather than from the posted list is what lets a dish be set for a meal that
+        // had none — the case the admin creates by ticking an edge-day meal.
+        var meals = MealOccasionResolver.Resolve(booking).SelectionSlots;
+        var chosenBySlot = edit.Meals.ToDictionary(m => new MealSlot(m.Date, m.MealType), m => m.MealOptionId);
+
+        foreach (var slot in meals)
+        {
+            var existing = booking.MealSelections.FirstOrDefault(m => m.Date == slot.Date && m.MealType == slot.MealType);
+            var chosen = chosenBySlot.TryGetValue(slot, out var optionId) ? optionId : existing?.MealOptionId;
+
+            // Not decided yet — a legitimate in-between state for the admin (unlike the guest's
+            // submission, which must be complete). Any dish previously agreed for this meal is left
+            // alone rather than cleared, so an unfilled dropdown cannot wipe a real choice.
+            if (chosen is not { } id || !optionsById.TryGetValue(id, out var option) || option.MealType != slot.MealType)
+                continue;
+
+            if (existing is null)
+            {
+                booking.MealSelections.Add(new BookingMealSelection
+                {
+                    BookingId = booking.Id,
+                    Date = slot.Date,
+                    MealType = slot.MealType,
+                    MealOptionId = option.Id,
+                    MealOptionSnapshot = option.Name,
+                });
+            }
+            else
+            {
+                existing.MealOptionId = option.Id;
+                existing.MealOptionSnapshot = option.Name;
+            }
+        }
+
+        // A dish for a meal the group no longer takes has to go with the meal — otherwise the
+        // Matlista keeps cooking for a sitting nobody attends.
+        var validSlots = meals.ToHashSet();
+        var orphaned = booking.MealSelections
+            .Where(m => !validSlots.Contains(new MealSlot(m.Date, m.MealType)))
+            .ToList();
+        foreach (var selection in orphaned)
+        {
+            booking.MealSelections.Remove(selection);
+            db.BookingMealSelections.Remove(selection);
+        }
+
+        booking.UpdatedAt = DateTime.UtcNow;
+        // Dish names are reference data, not guest data — safe to count, but nothing personal (NFR-37).
+        await RecordBookingAuditAsync(booking, AuditAction.ParticipantsEdited,
+            $"Gruppens måltider uppdaterades ({booking.MealSelections.Count} valda rätter).");
+        await db.SaveChangesAsync();
+    }
+
+    /// <summary>
+    /// Applies the admin's adjustment to the guest's stated arrival/departure times (FR-48, §2.8).
+    /// An omitted or unusable value leaves the stored one alone rather than resetting it to the
+    /// standard — a form that did not post the field must not silently rewrite what the guest asked
+    /// for. The times are a request either way: nothing here prices or approves one.
+    /// </summary>
+    public async Task SaveStatedTimesAsync(Guid bookingId, string? checkInTime, string? checkOutTime)
+    {
+        var booking = await db.Bookings.FindAsync(bookingId);
+        if (booking is null) return;
+
+        if (StatedTimePolicy.TryParse(checkInTime, out var parsedCheckIn)) booking.CheckInTime = parsedCheckIn;
+        if (StatedTimePolicy.TryParse(checkOutTime, out var parsedCheckOut)) booking.CheckOutTime = parsedCheckOut;
+
+        booking.UpdatedAt = DateTime.UtcNow;
+        // Times are the guest's own stated data, but not identifying — safe to record (NFR-37).
+        await RecordBookingAuditAsync(booking, AuditAction.ParticipantsEdited,
+            $"Angivna tider uppdaterades (incheckning {StatedTimePolicy.Display(booking.CheckInTime, MealOccasionResolver.StandardCheckInTime)}, "
+            + $"utcheckning {StatedTimePolicy.Display(booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime)}).");
+        await db.SaveChangesAsync();
     }
 
     public async Task SetAdminNotesAsync(Guid id, string? notes)
@@ -934,12 +1100,15 @@ public record BuildingAssignmentResult(bool Succeeded, string? Error)
 }
 
 /// <summary>Non-blocking pre-approval warnings (Phase 7) shown on the admin booking detail: the stay
-/// overlaps one or more blocks, and/or the overnight count exceeds the beds the assigned buildings
-/// offer over the dates.</summary>
+/// overlaps one or more blocks, the overnight count exceeds the beds the assigned buildings offer
+/// over the dates, and/or the guest stated an arrival or departure time that deviates from the
+/// standard (FR-101). None of them block approval — each exists so a conversation is not missed.</summary>
 public record ApprovalWarning(
-    bool CapacityExceeded, int RequestedGuests, int AvailableBeds, IReadOnlyList<string> BlockDescriptions)
+    bool CapacityExceeded, bool NoLodgingAssigned, int RequestedGuests, int AvailableBeds,
+    IReadOnlyList<string> BlockDescriptions, IReadOnlyList<string> TimeDeviations)
 {
-    public static readonly ApprovalWarning None = new(false, 0, 0, []);
+    public static readonly ApprovalWarning None = new(false, false, 0, 0, [], []);
     public bool OverlapsBlock => BlockDescriptions.Count > 0;
-    public bool Any => CapacityExceeded || OverlapsBlock;
+    public bool HasTimeDeviation => TimeDeviations.Count > 0;
+    public bool Any => CapacityExceeded || NoLodgingAssigned || OverlapsBlock || HasTimeDeviation;
 }

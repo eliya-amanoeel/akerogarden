@@ -10,8 +10,9 @@ namespace AkeroGarden.Web.Core.Services;
 /// deliberate Phase 2 → Phase 3 seam (the calculator is not reimplemented here).
 ///
 /// <para>Occupancy uses nightly semantics: a stay occupies the nights from check-in up to, but
-/// not including, check-out (guests leave at 12:00, so the check-out date's bed is free). Blocks
-/// are inclusive of both their start and end dates.</para>
+/// not including, check-out. The check-out date's bed is free of *guests* — but the date is not
+/// bookable, because it opens the booking's turnover window (<see cref="TurnoverWindow"/>,
+/// FR-106). Blocks are inclusive of both their start and end dates.</para>
 /// </summary>
 public class OccupancyProvider(ApplicationDbContext db)
 {
@@ -28,10 +29,15 @@ public class OccupancyProvider(ApplicationDbContext db)
     {
         var activeRooms = await db.Rooms.Where(r => r.IsActive).ToListAsync();
 
+        // Reach back past `from`: a stay that ended just before the window still holds turnover
+        // days inside it (FR-106). Loading only the stays overlapping [from, to] — the old
+        // `CheckOut > from` — would silently free the window's first days.
+        var earliestCheckOut = TurnoverWindow.EarliestCheckOutAffecting(from);
+
         var occupying = await db.Bookings
             .Where(b => OccupyingStatuses.Contains(b.Status)
                 && b.CheckIn != null && b.CheckOut != null
-                && b.CheckIn <= to && b.CheckOut > from)
+                && b.CheckIn <= to && b.CheckOut >= earliestCheckOut)
             .ToListAsync();
 
         var blocks = await db.BlockedPeriods
@@ -64,7 +70,13 @@ public class OccupancyProvider(ApplicationDbContext db)
         for (var date = from; date <= to; date = date.AddDays(1))
         {
             var activeBlocks = blocks.Where(b => b.StartDate <= date && b.EndDate >= date).ToList();
-            var wholeProperty = activeBlocks.Any(b => b.Scope == BlockScope.WholeProperty);
+
+            // Reasons that force the date unavailable irrespective of headcount (FR-10, FR-106).
+            var unavailable = UnavailableReason.None;
+            if (activeBlocks.Any(b => b.Scope == BlockScope.WholeProperty))
+                unavailable |= UnavailableReason.WholePropertyBlock;
+            if (occupyingBookings.Any(b => b.CheckOut is { } checkOut && TurnoverWindow.Covers(checkOut, date)))
+                unavailable |= UnavailableReason.Turnover;
 
             // Union the rooms taken out by building/room blocks so overlapping blocks don't
             // double-count a room's beds.
@@ -85,7 +97,7 @@ public class OccupancyProvider(ApplicationDbContext db)
                 .Sum(b => b.OvernightGuestCount ?? 0);
 
             states[date] = AvailabilityCalculator.Evaluate(
-                new DateAvailabilityInput(booked, totalCapacity, bedsRemoved, wholeProperty));
+                new DateAvailabilityInput(booked, totalCapacity, bedsRemoved, unavailable));
         }
 
         return states;

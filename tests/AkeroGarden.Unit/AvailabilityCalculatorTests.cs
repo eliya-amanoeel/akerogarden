@@ -13,9 +13,12 @@ public class AvailabilityCalculatorTests
     private const int Capacity = 79; // total property beds today (§3.1)
 
     private static AvailabilityState Evaluate(
-        int booked, int totalCapacity = Capacity, int partialBlockBeds = 0, bool wholeBlock = false) =>
+        int booked,
+        int totalCapacity = Capacity,
+        int partialBlockBeds = 0,
+        UnavailableReason unavailable = UnavailableReason.None) =>
         AvailabilityCalculator.Evaluate(
-            new DateAvailabilityInput(booked, totalCapacity, partialBlockBeds, wholeBlock));
+            new DateAvailabilityInput(booked, totalCapacity, partialBlockBeds, unavailable));
 
     [Fact]
     public void EmptyDate_NoBookingsNoBlocks_IsFree()
@@ -51,13 +54,60 @@ public class AvailabilityCalculatorTests
     [Fact]
     public void WholePropertyBlock_IsFullyBooked_EvenWithNoBookings()
     {
-        Assert.Equal(AvailabilityState.FullyBooked, Evaluate(booked: 0, wholeBlock: true));
+        Assert.Equal(
+            AvailabilityState.FullyBooked,
+            Evaluate(booked: 0, unavailable: UnavailableReason.WholePropertyBlock));
     }
 
     [Fact]
     public void WholePropertyBlock_OverridesEverything()
     {
-        Assert.Equal(AvailabilityState.FullyBooked, Evaluate(booked: 3, partialBlockBeds: 10, wholeBlock: true));
+        Assert.Equal(
+            AvailabilityState.FullyBooked,
+            Evaluate(booked: 3, partialBlockBeds: 10, unavailable: UnavailableReason.WholePropertyBlock));
+    }
+
+    [Fact]
+    public void Turnover_IsFullyBooked_EvenWithNoBookings()
+    {
+        // The turnover window holds the date on its own — no guests are counted on a cleaning day
+        // (the departing group's nights have already ended). FR-106.
+        Assert.Equal(
+            AvailabilityState.FullyBooked,
+            Evaluate(booked: 0, unavailable: UnavailableReason.Turnover));
+    }
+
+    [Fact]
+    public void Turnover_SmallGroupOnLargeProperty_IsFullyBooked_NotPartially()
+    {
+        // The defect §7.2 exists to prevent: a ten-person group leaving a 79-bed property. Judged
+        // on headcount alone this reads Partially booked — apparently still bookable. The reason
+        // must win before capacity is ever compared, or FR-106 silently does nothing.
+        Assert.Equal(
+            AvailabilityState.FullyBooked,
+            Evaluate(booked: 10, totalCapacity: 79, unavailable: UnavailableReason.Turnover));
+    }
+
+    [Fact]
+    public void Turnover_AndWholePropertyBlock_Together_IsFullyBooked()
+    {
+        // Reasons are a set, not a choice — both applying is ordinary, not a conflict.
+        Assert.Equal(
+            AvailabilityState.FullyBooked,
+            Evaluate(booked: 0, unavailable: UnavailableReason.Turnover | UnavailableReason.WholePropertyBlock));
+    }
+
+    [Fact]
+    public void NoReason_LeavesStateToTheCapacityComparison()
+    {
+        // Guards the inverse of the rule above: UnavailableReason.None must not force anything, or
+        // every date would read fully booked.
+        Assert.Equal(
+            AvailabilityState.PartiallyBooked,
+            Evaluate(booked: 10, totalCapacity: 79, unavailable: UnavailableReason.None));
+        Assert.Equal(
+            AvailabilityState.Free,
+            Evaluate(booked: 0, totalCapacity: 79, unavailable: UnavailableReason.None));
     }
 
     [Fact]

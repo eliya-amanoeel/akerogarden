@@ -605,7 +605,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 |---|---|
 | FR-35 | The admin panel shall be accessible only to authenticated admin users; all authenticated admins have equal access to all features |
 | FR-36 | The admin panel shall display a list of all bookings, filterable by status, date range, and booking type, and searchable by booking reference (FR-92) |
-| FR-37 | The admin panel shall display a calendar view of bookings and blocked periods |
+| FR-37 | The admin panel shall display a calendar view of bookings and blocked periods. Each occupying booking shall also show its **turnover days** (FR-106) — the two days it holds on the public calendar — so the admin can see which dates guests are being shown as unavailable without re-deriving the rule by hand. Bookings that occupy nothing (`Pending` and terminal statuses) show no turnover days, since they reserve none; showing them would make this view contradict the public calendar it describes. Both surfaces read one shared definition of the window, so they cannot drift apart |
 | FR-38 | The admin shall be able to approve or deny an inquiry. Approving a stay request with overnight guests requires at least one lodging building to be assigned first (FR-103). The approval confirmation dialog shall state the guest email address the completion link will be sent to — a manually created booking is never acknowledged by email (FR-47), so a mistyped address would otherwise go unnoticed until the 14-days-before-check-in admin alert (FR-63) |
 | FR-39 | The admin shall be able to add internal notes to any booking |
 | FR-40 | The admin shall be able to create, edit, and delete blocked periods |

@@ -50,12 +50,72 @@ public class OccupancyProviderTests
     }
 
     [Fact]
-    public void CheckOutDay_IsNotOccupied()
+    public void CheckOutDay_HoldsNoGuests_ButIsUnavailableForTurnover()
     {
-        // Stay 8–10 occupies nights of the 8th and 9th; the 10th (check-out) is free again.
-        var bookings = new[] { Occupying(new(2026, 6, 8), new(2026, 6, 10), 10) };
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 6, 9), Rooms(10), bookings, []));
-        Assert.Equal(AvailabilityState.Free, StateOn(new(2026, 6, 10), Rooms(10), bookings, []));
+        // Nightly semantics are unchanged — the check-out day counts no guests — but the day is no
+        // longer bookable: it opens the turnover window (FR-106). A small group on a large property
+        // separates the two causes: if the 10th were judged on headcount it would read Partially
+        // booked, since two guests do not fill ten beds.
+        var bookings = new[] { Occupying(new(2026, 6, 8), new(2026, 6, 10), 2) };
+        var rooms = Rooms(10);
+
+        // Nights of the 8th and 9th: occupied by two of ten beds → partially booked.
+        Assert.Equal(AvailabilityState.PartiallyBooked, StateOn(new(2026, 6, 8), rooms, bookings, []));
+        Assert.Equal(AvailabilityState.PartiallyBooked, StateOn(new(2026, 6, 9), rooms, bookings, []));
+
+        // Check-out day and the day after: fully unavailable on the turnover reason alone.
+        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 6, 10), rooms, bookings, []));
+        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 6, 11), rooms, bookings, []));
+
+        // The next group may arrive on the 12th.
+        Assert.Equal(AvailabilityState.Free, StateOn(new(2026, 6, 12), rooms, bookings, []));
+    }
+
+    [Fact]
+    public void FullProperty_TurnoverExtendsBeyondTheStay()
+    {
+        // The same window applies when the group did fill the property — the buffer is not a
+        // consequence of leftover capacity.
+        var bookings = new[] { Occupying(new(2026, 7, 1), new(2026, 7, 5), 10) };
+        var rooms = Rooms(10);
+
+        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 7, 4), rooms, bookings, []));
+        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 7, 5), rooms, bookings, []));
+        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 7, 6), rooms, bookings, []));
+        Assert.Equal(AvailabilityState.Free, StateOn(new(2026, 7, 7), rooms, bookings, []));
+    }
+
+    [Fact]
+    public void StayEndingBeforeTheRange_StillHoldsTheRangesFirstDay()
+    {
+        // The window's first day belongs to a stay that ended the day before it opened. Callers
+        // must hand ComputeStates that booking (see TurnoverWindow.EarliestCheckOutAffecting) —
+        // this pins the behaviour once it is passed in; the integration test pins the query.
+        var from = new DateOnly(2026, 8, 10);
+        var bookings = new[] { Occupying(new(2026, 8, 5), from.AddDays(-1), 2) };
+
+        var states = OccupancyProvider.ComputeStates(from, from.AddDays(2), Rooms(10), bookings, []);
+
+        Assert.Equal(AvailabilityState.FullyBooked, states[from]);          // day after check-out
+        Assert.Equal(AvailabilityState.Free, states[from.AddDays(1)]);      // window closed
+    }
+
+    [Fact]
+    public void TurnoverWindowsOfAdjacentBookings_DoNotFreeEachOther()
+    {
+        // Two stays whose windows overlap: the second group arrives the day the first group's
+        // window closes. Every date from the first check-out onward must stay unavailable.
+        var first = Occupying(new(2026, 9, 1), new(2026, 9, 4), 2);
+        var second = Occupying(new(2026, 9, 6), new(2026, 9, 9), 2);
+        var rooms = Rooms(10);
+        var bookings = new[] { first, second };
+
+        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 9, 4), rooms, bookings, []));   // turnover 1
+        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 9, 5), rooms, bookings, []));   // turnover 1
+        Assert.Equal(AvailabilityState.PartiallyBooked, StateOn(new(2026, 9, 6), rooms, bookings, [])); // stay 2 begins
+        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 9, 9), rooms, bookings, []));   // turnover 2
+        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 9, 10), rooms, bookings, []));  // turnover 2
+        Assert.Equal(AvailabilityState.Free, StateOn(new(2026, 9, 11), rooms, bookings, []));
     }
 
     [Theory]

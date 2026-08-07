@@ -10,7 +10,11 @@
 <PageTitle>Kalendervy — Åkerögården Admin</PageTitle>
 
 <AdminHeader Title="Kalendervy" />
-<p class="form-hint">Kommande bokningar och blockeringar. (Listvy — grafisk kalender är en framtida förbättring.)</p>
+<p class="form-hint">
+    Kommande bokningar och blockeringar. Städdagarna hålls automatiskt otillgängliga i den publika
+    kalendern — utcheckningsdagen och dagen efter — och behöver inte blockeras för hand.
+    (Listvy — grafisk kalender är en framtida förbättring; där kan städdagarna märkas ut i rutnätet.)
+</p>
 
 <h2 class="admin-subsection">Bokningar</h2>
 @if (_bookings is null)
@@ -26,7 +30,7 @@ else
     <div class="admin-table-wrap">
         <table class="admin-table">
             <thead>
-                <tr><th>Incheckning</th><th>Utcheckning</th><th>Sällskap</th><th class="num">Gäster</th><th>Status</th><th></th></tr>
+                <tr><th>Incheckning</th><th>Utcheckning</th><th>Städdagar</th><th>Sällskap</th><th class="num">Gäster</th><th>Status</th><th></th></tr>
             </thead>
             <tbody>
                 @foreach (var b in _bookings)
@@ -34,6 +38,7 @@ else
                     <tr>
                         <td class="mono">@b.CheckIn?.ToString("yyyy-MM-dd")</td>
                         <td class="mono">@b.CheckOut?.ToString("yyyy-MM-dd")</td>
+                        <td class="mono">@TurnoverLabel(b)</td>
                         <td><a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a></td>
                         <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
                         <td><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></td>
@@ -52,6 +57,7 @@ else
                 <Fields>
                     <div><dt>Incheckning</dt><dd>@b.CheckIn?.ToString("yyyy-MM-dd")</dd></div>
                     <div><dt>Utcheckning</dt><dd>@b.CheckOut?.ToString("yyyy-MM-dd")</dd></div>
+                    <div><dt>Städdagar</dt><dd>@TurnoverLabel(b)</dd></div>
                     <div><dt>Gäster</dt><dd>@(b.OvernightGuestCount?.ToString() ?? "—")</dd></div>
                 </Fields>
             </AdminDataCard>
@@ -107,6 +113,21 @@ else
     private List<BlockedPeriod>? _blocks;
 
     private void GoToBooking(Guid id) => Nav.NavigateTo($"/bokningar/{id}");
+
+    /// <summary>
+    /// The two days this booking holds for cleaning (FR-106) — the same window the public calendar
+    /// shows as fully booked. Read from <see cref="TurnoverWindow"/> so the two surfaces cannot
+    /// drift; this page does not re-derive the rule.
+    ///
+    /// <para>This list is unfiltered by status (it shows Pending and terminal bookings too, with a
+    /// badge), but only an <em>occupying</em> booking actually holds days on the public calendar.
+    /// A denied or cancelled booking reserves nothing, so it shows no cleaning days — printing
+    /// them would make this page contradict the calendar it is describing.</para>
+    /// </summary>
+    private static string TurnoverLabel(Booking b) =>
+        b.CheckOut is { } checkOut && OccupancyProvider.OccupyingStatuses.Contains(b.Status)
+            ? $"{checkOut:yyyy-MM-dd} – {TurnoverWindow.LastDay(checkOut):yyyy-MM-dd}"
+            : "—";
 
     protected override async Task OnInitializedAsync()
     {

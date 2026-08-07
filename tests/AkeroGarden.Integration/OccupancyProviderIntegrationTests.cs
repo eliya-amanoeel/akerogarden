@@ -108,6 +108,65 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
+    public async Task TurnoverWindow_MakesCheckOutDayAndTheDayAfter_FullyBooked()
+    {
+        var provider = NewProvider(out var scope, out var db);
+        using var _s = scope;
+        await SeedBuildingWithBedsAsync(db, 5, 5);
+
+        // Two guests against a property with beds to spare: judged on headcount these days would
+        // read Partially booked. They must read Fully booked on the turnover reason (FR-106, §7.2).
+        var checkIn = new DateOnly(2027, 7, 5);
+        var checkOut = new DateOnly(2027, 7, 8);
+        await AddBookingAsync(db, Booking(BookingStatus.Approved, checkIn, checkOut, 2));
+
+        var states = await provider.GetStatesAsync(checkIn, checkOut.AddDays(2));
+
+        Assert.Equal(AvailabilityState.PartiallyBooked, states[checkIn]);
+        Assert.Equal(AvailabilityState.FullyBooked, states[checkOut]);
+        Assert.Equal(AvailabilityState.FullyBooked, states[checkOut.AddDays(1)]);
+        Assert.Equal(AvailabilityState.Free, states[checkOut.AddDays(2)]);
+    }
+
+    [Fact]
+    public async Task StayEndingBeforeTheRange_IsStillLoaded_AndHoldsTheRangesFirstDay()
+    {
+        var provider = NewProvider(out var scope, out var db);
+        using var _s = scope;
+        await SeedBuildingWithBedsAsync(db, 5, 5);
+
+        // The booking's whole stay — and its check-out — sit before the requested window. Its
+        // turnover window still reaches the window's first day. A query loading only the stays
+        // overlapping [from, to] drops this booking entirely and reports the day Free, which is
+        // exactly the silent failure this test exists to catch.
+        var checkOut = new DateOnly(2027, 8, 12);
+        await AddBookingAsync(db, Booking(BookingStatus.Approved, new DateOnly(2027, 8, 9), checkOut, 2));
+
+        var from = checkOut.AddDays(1);
+        var states = await provider.GetStatesAsync(from, from.AddDays(1));
+
+        Assert.Equal(AvailabilityState.FullyBooked, states[from]);
+        Assert.Equal(AvailabilityState.Free, states[from.AddDays(1)]);
+    }
+
+    [Fact]
+    public async Task PendingBooking_CreatesNoTurnoverWindow()
+    {
+        var provider = NewProvider(out var scope, out var db);
+        using var _s = scope;
+        await SeedBuildingWithBedsAsync(db, 5, 5);
+
+        // Turnover follows occupancy: an inquiry nobody has approved reserves no cleaning days.
+        var checkOut = new DateOnly(2027, 9, 14);
+        await AddBookingAsync(db, Booking(BookingStatus.Pending, new DateOnly(2027, 9, 11), checkOut, 2));
+
+        var states = await provider.GetStatesAsync(checkOut, checkOut.AddDays(1));
+
+        Assert.Equal(AvailabilityState.Free, states[checkOut]);
+        Assert.Equal(AvailabilityState.Free, states[checkOut.AddDays(1)]);
+    }
+
+    [Fact]
     public async Task GetStatesAsync_ReturnsAStatePerDateInRange()
     {
         var provider = NewProvider(out var scope, out var db);

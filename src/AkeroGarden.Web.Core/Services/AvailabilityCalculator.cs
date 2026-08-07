@@ -9,6 +9,30 @@ public enum AvailabilityState
 }
 
 /// <summary>
+/// Why a date is unavailable regardless of how many beds are free — the reasons that cannot be
+/// expressed as a guest count (FR-10).
+///
+/// <para>Modelled as a set rather than a single flag deliberately. Reasons of this kind are not
+/// interchangeable with occupancy: a ten-person group's turnover days would read *partially*
+/// booked if turnover were smuggled in as headcount, and inflating the count to fake a full
+/// property would put fiction in the calculation. Adding a future reason is additive here —
+/// <see cref="AvailabilityCalculator.Evaluate"/> asks whether *any* reason applies and never has
+/// to be reopened.</para>
+/// </summary>
+[Flags]
+public enum UnavailableReason
+{
+    /// <summary>Nothing forces the date unavailable; state follows from guests against capacity.</summary>
+    None = 0,
+
+    /// <summary>A <c>WholeProperty</c> block covers the date (FR-21).</summary>
+    WholePropertyBlock = 1,
+
+    /// <summary>The date falls in an occupying booking's cleaning/turnover window (FR-106).</summary>
+    Turnover = 2
+}
+
+/// <summary>
 /// Pre-aggregated occupancy inputs for a single date, from which
 /// <see cref="AvailabilityCalculator"/> derives the public state (FR-10).
 /// The caller (a Phase 3 provider backed by real bookings + blocks) is responsible
@@ -21,15 +45,18 @@ public enum AvailabilityState
 /// </param>
 /// <param name="TotalCapacity">Total property capacity in beds — the sum of active rooms' bed counts (79 today).</param>
 /// <param name="BedsRemovedByPartialBlocks">
-/// Beds removed by <c>Building</c>- or <c>Room</c>-scoped blocks active on this date. A whole-property
-/// block is signalled separately by <paramref name="WholePropertyBlock"/>, not here.
+/// Beds removed by <c>Building</c>- or <c>Room</c>-scoped blocks active on this date. Reasons that
+/// force the date unavailable outright are signalled by <paramref name="Unavailable"/>, not here.
 /// </param>
-/// <param name="WholePropertyBlock">True when a <c>WholeProperty</c> block covers this date.</param>
+/// <param name="Unavailable">
+/// The set of reasons forcing this date unavailable irrespective of headcount — a whole-property
+/// block, a turnover window, or both. <see cref="UnavailableReason.None"/> when neither applies.
+/// </param>
 public readonly record struct DateAvailabilityInput(
     int BookedGuestCount,
     int TotalCapacity,
     int BedsRemovedByPartialBlocks,
-    bool WholePropertyBlock);
+    UnavailableReason Unavailable);
 
 /// <summary>
 /// Pure computation of a date's public availability state from pre-aggregated occupancy
@@ -48,8 +75,9 @@ public static class AvailabilityCalculator
     /// <summary>Derives the public state for a single date per FR-10's rules.</summary>
     public static AvailabilityState Evaluate(DateAvailabilityInput input)
     {
-        // A whole-property block makes the date fully unavailable regardless of anything else.
-        if (input.WholePropertyBlock)
+        // Any reason forcing unavailability wins outright, before beds are ever compared —
+        // this is what makes a small group's turnover days read *fully* booked (FR-106).
+        if (input.Unavailable != UnavailableReason.None)
             return AvailabilityState.FullyBooked;
 
         var effectiveCapacity = EffectiveCapacity(input.TotalCapacity, input.BedsRemovedByPartialBlocks);

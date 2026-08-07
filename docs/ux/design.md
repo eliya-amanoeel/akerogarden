@@ -92,7 +92,10 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 
 **The warm-tint rule (same trap, second occurrence).** `--color-warn` was deepened from `#8a5a00` to `#7a4c00` on 2026-08-07 for the identical reason. Because `--color-warn-bg` is **translucent**, a warn element's contrast is decided by the surface beneath it: the old pair measured 5.2:1 over white but **4.49:1** over the warm `#f0ebe1` tint — failing AA by a hundredth, which is where the `Väntar` status badge sits on `/bokningar` and `/kalender`. Caught by the axe E2E test, as the green was. `.alert--warn` had already been given `#7a4c00` as a local override, so the system was carrying the fix and the bug side by side; the token now holds it and the override is gone.
 
-> **The general rule these two share:** any semantic colour paired with a **translucent** `-bg` must clear 4.5:1 against **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` tint, because the same component appears on both. Checking only against white is how both of these shipped. The remaining semantic pairs (`ok`, `err`, `info`) have the same shape and have not been re-measured against the warm tint — do that before trusting them.
+> **The general rule these two share:** any semantic colour paired with a **translucent** `-bg` must clear 4.5:1 against **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` tint, because the same component appears on both. Checking only against white is how both of these shipped. **Measured 2026-08-07 — all four now clear 4.5:1 on both surfaces**, but the margins are not equal:
+`info` 5.79, `warn` 5.55, `ok` 4.91, and **`err` 4.53 — three hundredths of headroom**. Anything that
+darkens what sits behind `err` tips it under. Tracked in
+[`../temp/open-items.md`](../temp/open-items.md).
 
 Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · body `#4a4845` 11.9:1 · muted `#6f6a60` 5.0:1 · error `#b3341a` 5.7:1 · brown-on-white 6.2:1.
 

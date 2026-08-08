@@ -36,6 +36,46 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/$"));
     }
 
+    /// <summary>Logs in as an arbitrary account, without asserting where it lands — the landing page
+    /// is role-dependent (FR-104) and is itself the thing under test in the Samordnare journey.</summary>
+    private async Task LoginAsAsync(string email, string password)
+    {
+        await Page.GotoAsync("/login");
+        await Page.FillAsync("#email", email);
+        await Page.FillAsync("#password", password);
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Logga in" }).ClickAsync();
+    }
+
+    /// <summary>
+    /// Signing in again from an already-signed-in session must work — the path an admin takes to
+    /// switch accounts, by going to /login without logging out first.
+    ///
+    /// <para>Regression guard: /login signs the current user out during its render, but that only
+    /// queues the cookie deletion; <c>HttpContext.User</c> stayed signed-in for the rest of that
+    /// render, so the form's antiforgery token was minted for the old identity and the subsequent
+    /// anonymous POST was rejected with "A valid antiforgery token was not provided with the
+    /// request". The submit failed and the user sat on /login with no idea why.</para>
+    /// </summary>
+    [Fact]
+    public async Task Signing_in_again_while_already_signed_in_succeeds()
+    {
+        await LoginAsync();
+
+        await Page.GotoAsync("/login");
+        await Page.FillAsync("#email", E2EFixture.AdminEmail);
+        await Page.FillAsync("#password", E2EFixture.AdminPassword);
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Logga in" }).ClickAsync();
+
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/$"));
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Översikt" })).ToBeVisibleAsync();
+    }
+
+    private async Task LogoutAsync()
+    {
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Logga ut" }).ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/login"));
+    }
+
     [Fact]
     public async Task Login_lands_on_operational_dashboard()
     {
@@ -245,7 +285,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     /// with resend/remove actions; resend keeps it pending; remove deletes the row. No SMTP
     /// server in E2E (see E2EFixture), so this only asserts the UI state, not email delivery.
     /// Phase 11: the invite form moved from an always-visible card into the same slide-in panel
-    /// pattern as every other reference-data page — "+ Bjud in administratör" opens it.</summary>
+    /// pattern as every other reference-data page — "+ Bjud in användare" opens it.</summary>
     [Fact]
     public async Task Admin_can_resend_and_remove_a_pending_invite()
     {
@@ -255,7 +295,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await Page.GotoAsync("/konton");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
-        await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in administratör" }).ClickAsync();
+        await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in användare" }).ClickAsync();
         var panel = Page.Locator(".admin-panel");
         await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
         await Page.FillAsync("#invite-email", email);
@@ -294,7 +334,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await LoginAsync();
             await Page.GotoAsync("/konton");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-            await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in administratör" }).ClickAsync();
+            await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in användare" }).ClickAsync();
             var panel = Page.Locator(".admin-panel");
             await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
             await Page.FillAsync("#invite-email", email);
@@ -345,6 +385,151 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         finally
         {
             await using var db = Fixture.NewDbContext();
+            await db.Users.Where(u => u.Email == email).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>
+    /// FR-104 end to end, in a real browser with a real Identity cookie: an Administratör invites a
+    /// Samordnare account, that account activates, logs in, and is then held inside its own corner of
+    /// the admin panel.
+    ///
+    /// <para>This is the journey the integration matrix cannot cover — it substitutes the sign-in, so
+    /// it never exercises the login redirect, the navigation an actual coordinator sees, or the
+    /// cookie handler's redirect to the no-permission page. Each assertion below names the failure it
+    /// guards against, because most of them are silent: landing on "/" would show an access-denied
+    /// wall immediately after logging in, and a stray nav link is a dead end rather than a leak.</para>
+    /// </summary>
+    [Fact]
+    public async Task Samordnare_account_lands_on_its_own_lists_and_cannot_reach_bookings()
+    {
+        var email = $"{Guid.NewGuid():N}@akerogarden.se";
+        const string password = "E2e-Samordnare-Pass1!";
+        var bookingId = Guid.NewGuid();
+        var reference = $"AG-E2E-{Guid.NewGuid():N}"[..20];
+
+        try
+        {
+            // A booking with downloadable lists. Seeded by this test rather than taken from the
+            // fixture because the fixture seeds none in DetailsComplete — one only appears if the
+            // completion-submit test happens to have run first, which would make this order-dependent.
+            var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(60);
+            await using (var db = Fixture.NewDbContext())
+            {
+                db.Bookings.Add(new Booking
+                {
+                    Id = bookingId,
+                    BookingReference = reference,
+                    BookingType = BookingType.StayRequest,
+                    Status = BookingStatus.DetailsComplete,
+                    ContactName = "Karin Karlsson",
+                    ContactEmail = "karin@example.se",
+                    CheckIn = checkIn,
+                    CheckOut = checkIn.AddDays(2),
+                    OvernightGuestCount = 1,
+                    MealPlan = MealPlan.SelfCateringAll,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow,
+                    DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),
+                    Participants =
+                    {
+                        new Participant
+                        {
+                            Id = Guid.NewGuid(),
+                            FullName = "Karin Karlsson",
+                            ParticipantType = ParticipantType.Overnight,
+                            AgeCategory = AgeCategory.Adult,
+                        }
+                    }
+                });
+                await db.SaveChangesAsync();
+            }
+
+            // 1. An Administratör invites the account with the Samordnare role.
+            await LoginAsync();
+            await Page.GotoAsync("/konton");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in användare" }).ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
+            await Page.FillAsync("#invite-email", email);
+            await Page.SelectOptionAsync("#invite-role", "Samordnare");
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Skicka inbjudan" }).ClickAsync();
+
+            // The row must show the chosen role — picking Samordnare and silently creating a full
+            // administrator is the worst possible outcome of this page, and nothing else would show it.
+            await Assertions.Expect(Page.Locator("tr", new() { HasText = email }))
+                .ToContainTextAsync("Samordnare");
+
+            // 2. Activate it through the real setup link.
+            var resp = await Page.APIRequest.GetAsync($"/e2e/setup-link?email={Uri.EscapeDataString(email)}");
+            Assert.True(resp.Ok, $"setup-link seam returned {resp.Status}");
+            await Page.GotoAsync(new Uri(await resp.TextAsync()).PathAndQuery);
+            await Page.FillAsync("#firstName", "Sara");
+            await Page.FillAsync("#lastName", "Samordnare");
+            await Page.FillAsync("#phone", "070-111 22 33");
+            await Page.FillAsync("#password", password);
+            await Page.FillAsync("#confirm", password);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Aktivera konto" }).ClickAsync();
+            await Assertions.Expect(Page.GetByText("Ditt konto är aktiverat.")).ToBeVisibleAsync();
+
+            // 3. Log in as the coordinator, straight from the still-signed-in admin session — no
+            //    logout first, deliberately: that is how someone actually switches accounts, and it
+            //    is the path that surfaced the /login antiforgery bug.
+            //    The landing page must be /listor — "/" is the dashboard, so landing there would put
+            //    them on an access-denied page the instant they log in.
+            await LoginAsAsync(email, password);
+            await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/listor$"));
+
+            // 4. The navigation offers only what this role can actually open. A leftover link is a
+            //    dead end, not a leak — but it is the kind of thing nobody notices until a user clicks.
+            var nav = Page.Locator("#admin-nav-links");
+            await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Deltagar- och matlistor" })).ToBeVisibleAsync();
+            await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Bokningar" })).ToHaveCountAsync(0);
+            await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Administratörskonton" })).ToHaveCountAsync(0);
+            await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Översikt" })).ToHaveCountAsync(0);
+
+            // 5. Typing the URL is the real test of the boundary — the pages are gated, not the links.
+            foreach (var forbidden in new[] { "/", "/konton", "/bokningar", $"/bokningar/{bookingId}" })
+            {
+                await Page.GotoAsync(forbidden);
+                await Assertions.Expect(Page).ToHaveURLAsync(
+                    new System.Text.RegularExpressions.Regex(@"/ingen-behorighet"));
+                // Not the login form: they are signed in, and being told to log in again reads as a
+                // broken session rather than a permission boundary.
+                await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Du har inte behörighet" }))
+                    .ToBeVisibleAsync();
+            }
+
+            // 6. What the role is *for*: find the booking and actually get the file out.
+            await Page.GotoAsync("/listor");
+            await Assertions.Expect(Page.GetByText(reference).First).ToBeVisibleAsync();
+
+            // No guest contact data on the way to the download (D4).
+            await Assertions.Expect(Page.GetByText("karin@example.se")).ToHaveCountAsync(0);
+            await Assertions.Expect(Page.GetByText("Karin Karlsson")).ToHaveCountAsync(0);
+
+            await Page.GetByRole(AriaRole.Link, new() { Name = "Öppna →" }).First.ClickAsync();
+            await Assertions.Expect(Page).ToHaveURLAsync(
+                new System.Text.RegularExpressions.Regex($"/listor/{bookingId}"));
+
+            var download = await Page.RunAndWaitForDownloadAsync(async () =>
+                await Page.Locator("dd").First.GetByRole(AriaRole.Link, new() { Name = "PDF" }).ClickAsync());
+
+            // The reference is in the filename (FR-92) — without it every booking downloads as the
+            // same "deltagarlista.pdf" and they collide in the downloads folder.
+            Assert.Contains(reference, download.SuggestedFilename);
+            var path = await download.PathAsync();
+            Assert.False(string.IsNullOrEmpty(path), "the PDF link produced no file");
+            Assert.True(new FileInfo(path!).Length > 0, "the downloaded PDF was empty");
+
+            await LogoutAsync();
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Participants.Where(p => p.BookingId == bookingId).ExecuteDeleteAsync();
+            await db.Bookings.Where(b => b.Id == bookingId).ExecuteDeleteAsync();
             await db.Users.Where(u => u.Email == email).ExecuteDeleteAsync();
         }
     }

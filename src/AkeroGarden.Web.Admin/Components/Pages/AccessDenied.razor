@@ -1,0 +1,38 @@
+@* Where the auth cookie's AccessDeniedPath sends a logged-in user who lacks the role for a page
+   (FR-104). Before this existed, AccessDeniedPath pointed at /login — so being denied a page showed
+   an already-signed-in user the login form, which reads as "your session broke" rather than "that
+   page isn't yours". Uses the bare login layout: the nav belongs to pages the user can actually use.
+
+   The way out is AdminRoles.LandingPathFor, not a hardcoded "/", because "/" is the dashboard and
+   sending a Samordnare user there would bounce them straight back to this page. *@
+@page "/ingen-behorighet"
+@layout AdminLoginLayout
+@attribute [Authorize]
+
+<PageTitle>Ingen behörighet — Åkerögården</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <div class="utility">
+            <p class="utility__code">403</p>
+            <h1>Du har inte behörighet</h1>
+            <p>Ditt konto har inte åtkomst till den här sidan. Kontakta en administratör om du tror att det är fel.</p>
+            <div class="utility__actions">
+                <a href="@_landingPath" class="btn">Tillbaka</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    [CascadingParameter]
+    private Task<AuthenticationState>? AuthState { get; set; }
+
+    private string _landingPath = "/";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (AuthState is not null)
+            _landingPath = AdminRoles.LandingPathFor((await AuthState).User);
+    }
+}

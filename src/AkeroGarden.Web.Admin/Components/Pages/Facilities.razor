@@ -5,7 +5,7 @@
 @inject FacilityService FacilityService
 @inject IImageStorage ImageStorage
 @inject PhysicalBuildingService PhysicalBuildingService
-@attribute [Authorize]
+@attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Faciliteter — Åkerögården Admin</PageTitle>
 

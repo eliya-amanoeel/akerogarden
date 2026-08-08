@@ -11,7 +11,7 @@ a future reader can tell a deliberate choice from an accident. The agreed workin
 every agreed change in `requirements.md`, `erd.md`, `architecture.md`,
 `implementation-plan.md` and `docs/legal/` **before any code is written**; (4) implement.
 
-**Framed and fully decided:** 1a (group-wide meals), 2a (building assignment), 2b (`Samordning` role), 3 (check-in/check-out times), 4a (turnover days), 6a (token-expiry nudge), 6b (email in approve dialog), 6c (footer fix), 6d (payment checkboxes removed).
+**Framed and fully decided:** 1a (group-wide meals), 2a (building assignment), 2b (`Samordnare` role), 3 (check-in/check-out times), 4a (turnover days), 6a (token-expiry nudge), 6b (email in approve dialog), 6c (footer fix), 6d (payment checkboxes removed).
 **Design corrections carried alongside (§7):** meal-occasion source of truth; availability "unavailable reasons".
 **Deferred:** 1b (participant-name upload, after launch — decided, not drifted).
 **Deferred:** 5a (review feature — postponed as a future feature, decided not drifted).
@@ -363,14 +363,14 @@ describes as manual.
 | # | Decision | Outcome |
 |---|---|---|
 | D1 | Page-level separation or conditional rendering? | **Page-level.** The role gets its own bookings list and list-download view, and **no access to `BookingDetail` at all**. Conditionally hiding fragments inside a 37 KB page means every future addition needs a role check, and one miss leaks guest contact data. Authorise by page, never by fragment |
-| D2 | Role names | **`Administratör`** (existing, full access) and **`Samordning`** (new, restricted) |
+| D2 | Role names | **`Administratör`** (existing, full access) and **`Samordnare`** (new, restricted). *Named `Samordning` when this was decided; changed to `Samordnare` during implementation, before anything was deployed, because the other role names a person and this one named an activity* |
 | D3 | Which bookings are visible? | **Only those where lists exist** — `DetailsComplete`, `Active`, `Completed` (already the gate in `ListShaper`, FR-44/45). No pending inquiries, no denied or cancelled bookings. Limits exposure for free |
 | D4 | Guest contact details visible? | **No.** Booking reference, dates and headcount only — enough to pick the right booking. Participant names and allergies live *inside the lists*, which is the point of the role; the contact person's email and phone are not theirs to have |
 | D5 | Who assigns the role? | **Any `Administratör`**, via the existing invite lifecycle (FR-74) — role chosen at invite time, changeable afterwards. No super-admin tier; too few accounts to justify one |
 | D6 | Audit | Role assignment and change are audited. `AuditAction` already carries the `Admin*` verbs from Slice B, so this is one new verb |
 | D7 | Privacy policy | **Must be updated before the jurist review.** The role reads participant names and special-category dietary data (GDPR art. 9), widening who processes guest data |
 
-**Do not forget the landing page.** The admin host's `/` is the dashboard, which `Samordning`
+**Do not forget the landing page.** The admin host's `/` is the dashboard, which `Samordnare`
 must not see. That role's landing page is its own list view — small, and easy to miss until
 someone logs in and hits an authorisation wall on the home page.
 
@@ -936,7 +936,7 @@ and recreating **both** staging and production databases per `infra/ops/db-acces
 | `erd.md` | New booking↔building entity; `MealPreference` → `BookingMealSelection` re-parented; `Participant` shrinks | Redraw |
 | `architecture.md` | Two admin roles; no new external services | Light |
 | `implementation-plan.md` | New work section; **migration-exception expiry moved 10c → 10d**; phase → requirements map | Moderate |
-| `docs/ux/design.md` | Completion-form restructure; admin building assignment; `Samordning` pages | Moderate |
+| `docs/ux/design.md` | Completion-form restructure; admin building assignment; `Samordnare` pages | Moderate |
 | `docs/legal/Integritetspolicy.md` | **2b only** (art. 9 data, new processor role). 6d is legally inert | ⚠️ Jurist gate |
 | `docs/legal/Boknings-och-ordningsvillkor.md` | Possibly item 3 — check-in/check-out times are contractual | ⚠️ Verify |
 | `.claude/CLAUDE.md` | Migration-exception expiry; entity list | Small |

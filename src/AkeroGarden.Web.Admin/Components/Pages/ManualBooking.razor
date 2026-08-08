@@ -7,7 +7,7 @@
 @inject BookingService BookingService
 @inject FacilityService FacilityService
 @inject NavigationManager Nav
-@attribute [Authorize]
+@attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Skapa bokning — Åkerögården Admin</PageTitle>
 

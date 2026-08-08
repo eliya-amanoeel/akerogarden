@@ -525,7 +525,7 @@ demo and asked for these changes, and launching the version they critiqued is no
 | 1a | Meal selection becomes one choice per sitting **for the whole group**; `Mixed` meal plan removed; dietary requirements split into per-person **allergies** and booking-level **preference counts**; `MealPreference` → `BookingMealSelection`, re-parented to `Booking` (FR-105, FR-55/57/58) |
 | 1b | Participant-name file upload — **deferred to after launch**, as an explicit decision. See the feedback document for why an undecided deferral would have blocked the jurist review and therefore the launch |
 | 2a | Per-participant room assignment replaced by admin **building assignment before approval** (FR-103, §8.16); FR-56 retired; `Room` survives as capacity data only |
-| 2b | Second admin role **`Samordning`**, restricted to the two per-booking lists, page-separated from `BookingDetail` (FR-104). Un-defers the role-based-permissions entry formerly in §10 |
+| 2b | Second admin role **`Samordnare`**, restricted to the two per-booking lists, page-separated from `BookingDetail` (FR-104). Un-defers the role-based-permissions entry formerly in §10 |
 | 3 | Guest states **check-in/check-out times** at inquiry (FR-100/101); arrival- and departure-day meals become chosen data rather than derived from fixed times |
 | 4a | The check-out date **and the following day** are shown unavailable — two clear turnover days, computed not stored (FR-106) |
 | 5a | The "review feature" — **postponed as a future feature** (2026-08-06), out of launch scope. Never identified beyond the client's phrase; the decision fork is recorded in the feedback document and in `requirements.md` §10. Deciding it out rather than leaving it parked also removes the only item in this set that could have required new Azure infrastructure |
@@ -560,7 +560,7 @@ collide in the same files, and the obvious order is the wrong one:
 | **3c** | — inquiry form + times | Time pickers (30-min steps, 07:00–22:00, defaults 14:00/12:00, FR-100); `MealPlan` dropdown loses `Mixed`; day-guest visibility rule; **consolidate the triplicated `dayGuestsApplicable` rule** (audit finding — currently in `BookingService`, `InquiryNormalizer` and `CompleteBooking.razor`); FR-101 admin non-standard-time warning | |
 | **3d** | — lists + emails | `ListShaper` prep counts from booking-level selections; preference counts on the Matlista (FR-45); reminder email carries the booking's own times and the assigned buildings (FR-64) | |
 | **4** | **Turnover days** *(4a + §7.2 + audit C4, M1)* | §7.2 — make "unavailable" a first-class set of reasons in `AvailabilityCalculator` rather than one boolean; turnover window computed from booking dates (FR-106); apply to the public calendar **and** `AdminCalendar` | Independent of the data model. **§7.2 is what makes it work at all** — extending the date range alone leaves a small group's turnover days reading *partially* booked. **`AdminCalendar` does not use `OccupancyProvider`** (audit M1), so it is a second code path that must be updated deliberately |
-| **5** | **`Samordning` role** *(2b + audit H2)* | Role seeding at startup + `Administratör` backfilled onto existing/seeded admins (**audit H2 — no role is created or assigned today**); `AdminInviteService` carries a role; per-page authorisation; the restricted booking list + list-download view; its own landing page (the admin host's `/` is the dashboard, which this role must not see); role-change audit verb | Independent of the data model, but touches admin pages — so it follows slice 2 rather than colliding with it |
+| **5** | **`Samordnare` role** *(2b + audit H2)* | Role seeding at startup + `Administratör` backfilled onto existing/seeded admins (**audit H2 — no role is created or assigned today**); `AdminInviteService` carries a role; per-page authorisation; the restricted booking list + list-download view; its own landing page (the admin host's `/` is the dashboard, which this role must not see); role-change audit verb | Independent of the data model, but touches admin pages — so it follows slice 2 rather than colliding with it |
 | **6** | **Notifications polish** *(6a + 6b)* | Link-expiry warning email + `LinkExpiryWarningSentAt` + `DailyJobRunner` step (FR-99); guest email address in the approve `ConfirmDialog` (FR-38/6b) | Small, independent, no schema coupling beyond one timestamp |
 | **7** | **Baseline + cutover prep** *(schema, DBs, gate)* | Regenerate the migration baseline **once**; drop and recreate the staging **and** production databases per `infra/ops/db-access-runbook.md`; reseed; final doc reconciliation; **completion gate** | One regeneration, not one per slice. A regenerated baseline **cannot** apply over an existing schema — `MigrateAsync` tries to `CREATE TABLE` over the old tables and the container dies on the 230s startup timeout (staging, 2026-07-14) |
 
@@ -573,11 +573,11 @@ collide in the same files, and the obvious order is the wrong one:
   rejection (2); both rewritten hard-delete guards, asserting a **blocked** result, not merely
   that the call returns (2); cleaning-zone resolution from assigned buildings incl.
   re-resolution when the assignment changes (2); completion submission end-to-end on the new
-  shape (3b); list generation against booking-level selections (3d); `Samordning` authorisation
+  shape (3b); list generation against booking-level selections (3d); `Samordnare` authorisation
   — a role that **cannot** reach `BookingDetail` or guest contact data (5).
 - **E2E** — the booking funnel end-to-end on the new completion form, driven to the
   acknowledgement rather than merely rendering; the admin approval path including the
-  assignment precondition; a `Samordning` login reaching only its own pages.
+  assignment precondition; a `Samordnare` login reaching only its own pages.
 - **Deletions are not free.** Removing `RoomConflictDetector`, `RoomAvailabilityService`,
   `SetPaymentFlagsAsync` and the per-participant meal paths also removes their tests. Confirm
   each removed test was covering behaviour that genuinely no longer exists, rather than

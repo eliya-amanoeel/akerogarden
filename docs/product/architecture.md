@@ -14,7 +14,7 @@ This is a system/component view — how the public site, admin panel, background
 | Web framework | .NET 10 LTS Blazor — Static SSR (public), Interactive Server (admin) |
 | Data access | EF Core + PostgreSQL |
 | Database hosting | Azure Database for PostgreSQL Flexible Server (Burstable B1ms), VNet-only |
-| Auth | ASP.NET Core Identity (email + password, admin panel only) — two roles: `Administratör` (full) and `Samordning` (list-download only, FR-104) |
+| Auth | ASP.NET Core Identity (email + password, admin panel only) — two roles: `Administratör` (full) and `Samordnare` (list-download only, FR-104) |
 | App hosting | Azure App Service, Basic B1 (Linux) |
 | Rate limiting | Azure Managed Redis (Balanced B0) |
 | File/image storage | Azure Blob Storage (Hot tier, LRS) |
@@ -39,7 +39,7 @@ flowchart TB
             Public["Blazor Static SSR\n(home, priser, calendar, inquiry form,\nmagic-link completion)\nno Identity · no SignalR · no admin code"]
         end
         subgraph AdminSite["Admin site — admin.akerogarden.se"]
-            AdminApp["Admin panel\nBlazor Interactive Server\nIdentity login · roles:\nAdministratör / Samordning"]
+            AdminApp["Admin panel\nBlazor Interactive Server\nIdentity login · roles:\nAdministratör / Samordnare"]
             BgJob["In-process BackgroundService\n(Always On)\nreminders · GDPR retention · pre-deletion warnings"]
         end
     end
@@ -88,7 +88,7 @@ flowchart TB
 
 2. **Rendering modes differ by surface.** Public pages are Blazor **Static SSR** — no persistent circuit, cheapest to serve, matches the read-mostly/inquiry-form nature of the public site. The admin panel is Blazor **Interactive Server** — a live SignalR circuit per session, justified by the admin panel's CRUD-heavy, stateful interactions (§1.5).
 
-3. **Guests never authenticate.** There is no guest account system. The only guest-facing "auth" is the magic-link token issued at booking approval: single-use, ≥128-bit entropy, expiring at the earliest of 30 days after issue or 14 days before check-in (floor 48h) — §2.6, FR-51–54, NFR-03. Admin auth is the only real login surface, via ASP.NET Core Identity (§6.4, FR-70–74), carrying two roles — `Administratör` with full access and `Samordning` restricted to the two per-booking list downloads (FR-104). Authorisation is enforced **per page**: `Samordning` has its own booking list and download view and no access to the booking detail page at all, rather than sharing a page with parts conditionally hidden. Hiding fragments would mean every future addition to that page needed a role check, and a single omission would leak guest contact data.
+3. **Guests never authenticate.** There is no guest account system. The only guest-facing "auth" is the magic-link token issued at booking approval: single-use, ≥128-bit entropy, expiring at the earliest of 30 days after issue or 14 days before check-in (floor 48h) — §2.6, FR-51–54, NFR-03. Admin auth is the only real login surface, via ASP.NET Core Identity (§6.4, FR-70–74), carrying two roles — `Administratör` with full access and `Samordnare` restricted to the two per-booking list downloads (FR-104). Authorisation is enforced **per page**: `Samordnare` has its own booking list and download view and no access to the booking detail page at all, rather than sharing a page with parts conditionally hidden. Hiding fragments would mean every future addition to that page needed a role check, and a single omission would leak guest contact data.
 
 4. **The background job is in-process, not a separate service.** Scheduled work (14-day reminders, completion nudges, completion-link expiry warnings (FR-99), GDPR retention deletes, 30-day pre-deletion warnings) runs as an in-process hosted `BackgroundService` inside the **admin** site's process (Phase 10b — it lives only on the admin host, so it runs in exactly one process; the public site is purely request-serving), kept alive by **Always On** (B1 supports it). An external scheduler (Azure Functions timer trigger or Logic App) was evaluated and deferred — §10, FR-69/91/98. It authors `AuditLog` rows with `ActorType = System`.
 

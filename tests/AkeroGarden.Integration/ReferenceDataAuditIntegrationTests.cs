@@ -126,7 +126,8 @@ public class ReferenceDataAuditIntegrationTests : IClassFixture<DbFixture>
             var invites = scope.ServiceProvider.GetRequiredService<AdminInviteService>();
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-            await invites.InviteAsync(email);
+            await DbFixture.EnsureAdminRolesAsync(scope.ServiceProvider);
+            await invites.InviteAsync(email, AdminRoles.Administrator);
             var user = (await users.FindByEmailAsync(email))!;
             userId = Guid.Parse(user.Id);
 
@@ -169,7 +170,8 @@ public class ReferenceDataAuditIntegrationTests : IClassFixture<DbFixture>
         {
             var invites = scope.ServiceProvider.GetRequiredService<AdminInviteService>();
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            await invites.InviteAsync(email);
+            await DbFixture.EnsureAdminRolesAsync(scope.ServiceProvider);
+            await invites.InviteAsync(email, AdminRoles.Administrator);
             userId = Guid.Parse((await users.FindByEmailAsync(email))!.Id);
 
             var result = await invites.RemoveInviteAsync(userId.ToString());

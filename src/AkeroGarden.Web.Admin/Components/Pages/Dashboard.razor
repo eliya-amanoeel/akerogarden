@@ -6,7 +6,7 @@
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject NavigationManager Nav
-@attribute [Authorize]
+@attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Översikt — Åkerögården Admin</PageTitle>
 

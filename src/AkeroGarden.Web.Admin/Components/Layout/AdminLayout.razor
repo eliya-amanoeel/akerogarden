@@ -16,7 +16,9 @@
            layout with the checkbox unchecked → the menu closes on navigate. *@
         <input type="checkbox" id="admin-nav-toggle" class="admin-nav__checkbox" aria-label="Öppna meny" />
         <div class="admin-nav__bar">
-            <a class="admin-nav__brand" href="/" aria-label="Till översikten">
+            @* Role-aware (FR-104): "/" is the dashboard, so for Samordnare the logo would otherwise
+               be a one-click route into an access-denied page from every screen they have. *@
+            <a class="admin-nav__brand" href="@_landingPath" aria-label="Till startsidan">
                 <Logo Variant="LogoVariant.OnDark" />
             </a>
             <label for="admin-nav-toggle" class="admin-nav__toggle">
@@ -25,27 +27,40 @@
             </label>
         </div>
 
+        @* Every link below points at a page the current role may actually open. This is navigation,
+           not authorisation — each page carries its own [Authorize(Roles = …)], so hiding a link
+           here can never be what keeps anyone out (FR-104, D1). Typing the URL still gets denied. *@
         <div id="admin-nav-links" class="admin-nav__links" data-enhance-nav="false">
-            <ul>
-                <li>@NavLink("/", "Översikt", exact: true)</li>
-                <li>@NavLink("/bokningar", "Bokningar", count: _pendingCount)</li>
-                <li>@NavLink("/kalender", "Kalendervy")</li>
-                <li>@NavLink("/blockeringar", "Blockeringar")</li>
-            </ul>
+            @if (_isAdministrator)
+            {
+                <ul>
+                    <li>@NavLink("/", "Översikt", exact: true)</li>
+                    <li>@NavLink("/bokningar", "Bokningar", count: _pendingCount)</li>
+                    <li>@NavLink("/kalender", "Kalendervy")</li>
+                    <li>@NavLink("/blockeringar", "Blockeringar")</li>
+                    <li>@NavLink("/listor", "Deltagar- och matlistor")</li>
+                </ul>
 
-            <div class="admin-nav__group">Referensdata</div>
-            <ul>
-                <li>@NavLink("/byggnader", "Byggnader")</li>
-                <li>@NavLink("/matalternativ", "Matalternativ")</li>
-                <li>@NavLink("/faciliteter", "Faciliteter")</li>
-                <li>@NavLink("/priser", "Priser")</li>
-                <li>@NavLink("/stadszoner", "Städzoner")</li>
-            </ul>
+                <div class="admin-nav__group">Referensdata</div>
+                <ul>
+                    <li>@NavLink("/byggnader", "Byggnader")</li>
+                    <li>@NavLink("/matalternativ", "Matalternativ")</li>
+                    <li>@NavLink("/faciliteter", "Faciliteter")</li>
+                    <li>@NavLink("/priser", "Priser")</li>
+                    <li>@NavLink("/stadszoner", "Städzoner")</li>
+                </ul>
 
-            <div class="admin-nav__group">System</div>
-            <ul>
-                <li>@NavLink("/konton", "Administratörskonton")</li>
-            </ul>
+                <div class="admin-nav__group">System</div>
+                <ul>
+                    <li>@NavLink("/konton", "Administratörskonton")</li>
+                </ul>
+            }
+            else
+            {
+                <ul>
+                    <li>@NavLink("/listor", "Deltagar- och matlistor")</li>
+                </ul>
+            }
 
             <div class="admin-nav__foot">
                 <div class="admin-nav__user">@_userName</div>
@@ -72,6 +87,8 @@
 @code {
     private int _pendingCount;
     private string? _userName;
+    private bool _isAdministrator;
+    private string _landingPath = "/";
 
     [CascadingParameter]
     private Task<Microsoft.AspNetCore.Components.Authorization.AuthenticationState>? AuthState { get; set; }
@@ -85,7 +102,15 @@
         {
             var state = await AuthState;
             _userName = state.User.Identity?.Name;
+            _isAdministrator = state.User.IsInRole(AdminRoles.Administrator);
+            _landingPath = AdminRoles.LandingPathFor(state.User);
         }
+
+        // The badge counts bookings awaiting a reply — an Administratör-only concern, and Samordnare
+        // has no nav entry to hang it on. Skipping the query also keeps booking data out of a
+        // request rendered for a role that may not see it.
+        if (!_isAdministrator)
+            return;
 
         // Use a dedicated scope (own DbContext) for the badge count: the layout and the page both
         // resolve the scoped BookingService from the same circuit scope, so their OnInitializedAsync

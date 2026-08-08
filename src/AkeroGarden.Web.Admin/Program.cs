@@ -72,7 +72,10 @@ builder.Services.AddAntiforgery(options =>
 builder.Services.ConfigureApplicationCookie(options =>
 {
     options.LoginPath = "/login";
-    options.AccessDeniedPath = "/login";
+    // Signed in but lacking the role for a page (FR-104) — a distinct outcome from "not signed in",
+    // so it gets its own page. Pointing this at /login showed an already-authenticated user the
+    // login form, which looks like a broken session rather than a permission boundary.
+    options.AccessDeniedPath = "/ingen-behorighet";
     options.Cookie.HttpOnly = true;
     options.Cookie.SecurePolicy = builder.Environment.IsDevelopment()
         ? CookieSecurePolicy.SameAsRequest
@@ -177,7 +180,11 @@ if (app.Environment.IsDevelopment() && app.Configuration.GetValue<bool>("E2ETest
 // available once details are submitted (DetailsComplete or later).
 const string XlsxContentType = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
-var lists = app.MapGroup("/bokningar/{id:guid}").RequireAuthorization();
+// Both roles may download (FR-104) — Samordnare reaches these from /listor/{id}, Administratör from
+// the booking detail page. Spelled out as roles rather than "any authenticated user" so a role added
+// later does not inherit access to guest names and allergies by default.
+var lists = app.MapGroup("/bokningar/{id:guid}")
+    .RequireAuthorization(policy => policy.RequireAuthenticatedUser().RequireRole(AdminRoles.All));
 lists.MapGet("/deltagarlista.pdf", (Guid id, BookingService bookings) =>
     BuildListAsync(id, bookings, "deltagarlista", ".pdf", "application/pdf", ListPdfGenerator.ParticipantList));
 lists.MapGet("/deltagarlista.xlsx", (Guid id, BookingService bookings) =>

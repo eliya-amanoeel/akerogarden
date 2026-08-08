@@ -1,0 +1,80 @@
+@* Restricted list view (FR-104) — the Samordnare landing page, and the same view an
+   Administratör can open to see exactly what the coordinator sees.
+
+   Deliberately Static SSR: it lists and links, nothing more, so it needs no circuit.
+   Deliberately free of guest contact data — no Sällskap column, no email, no phone (D4). The
+   booking reference and the dates are what you need to pick the right booking; the names live
+   inside the downloaded lists, which is the whole point of the role. *@
+@page "/listor"
+@layout AdminLayout
+@using AkeroGarden.Web.Core.Data.Entities
+@inject BookingService BookingService
+@attribute [Authorize(Roles = AdminRoles.Both)]
+
+<PageTitle>Deltagar- och matlistor — Åkerögården Admin</PageTitle>
+
+<AdminHeader Title="Deltagar- och matlistor" />
+
+<p class="form-hint">Deltagarlistor och matlistor för bokningar där gästen har lämnat sina uppgifter.</p>
+
+@if (_bookings is null)
+{
+    <p class="admin-empty">Laddar…</p>
+}
+else if (_bookings.Count == 0)
+{
+    <p class="admin-empty">Det finns inga bokningar med listor än.</p>
+}
+else
+{
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Referens</th>
+                    <th>Datum</th>
+                    <th class="num">Gäster</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var b in _bookings)
+                {
+                    <tr>
+                        <td class="mono"><a class="rowlink" href="/listor/@b.Id">@b.BookingReference</a></td>
+                        <td class="mono">@DateRange(b)</td>
+                        <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
+                        <td class="rowactions"><a class="btn-ghost" href="/listor/@b.Id">Öppna →</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="data-cards">
+        @foreach (var b in _bookings)
+        {
+            <AdminDataCard Title="@b.BookingReference">
+                <Sub>@DateRange(b)</Sub>
+                <Fields>
+                    <div><dt>Gäster</dt><dd>@(b.OvernightGuestCount?.ToString() ?? "—")</dd></div>
+                </Fields>
+                <Actions>
+                    <a class="btn-ghost btn-sm" href="/listor/@b.Id">Öppna listor →</a>
+                </Actions>
+            </AdminDataCard>
+        }
+    </div>
+}
+
+@code {
+    private List<Booking>? _bookings;
+
+    private static string DateRange(Booking b) =>
+        b.CheckIn is not null && b.CheckOut is not null
+            ? $"{b.CheckIn:yyyy-MM-dd} – {b.CheckOut:yyyy-MM-dd}"
+            : "—";
+
+    protected override async Task OnInitializedAsync() =>
+        _bookings = await BookingService.GetBookingsWithListsAsync();
+}

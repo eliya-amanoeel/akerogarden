@@ -3,7 +3,7 @@
 @rendermode InteractiveServer
 @using AkeroGarden.Web.Core.Data.Entities
 @inject PriceRuleService PriceRuleService
-@attribute [Authorize]
+@attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Priser — Åkerögården Admin</PageTitle>
 

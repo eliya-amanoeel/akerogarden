@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Npgsql;
 using Testcontainers.PostgreSql;
 
 namespace AkeroGarden.Integration.Infrastructure;
@@ -22,6 +23,16 @@ public sealed class DbFixture : IAsyncLifetime
         services.AddDbContext<ApplicationDbContext>(opts =>
             opts.UseNpgsql(ConnectionString));
 
+        AddSharedServices(services);
+        configure?.Invoke(services);
+
+        return services.BuildServiceProvider();
+    }
+
+    /// <summary>Everything except the DbContext, so <see cref="BuildServices"/> and
+    /// <see cref="BuildIsolatedServicesAsync"/> can never drift into registering different things.</summary>
+    private static void AddSharedServices(IServiceCollection services)
+    {
         services.AddIdentity<ApplicationUser, IdentityRole>(opts =>
             {
                 opts.Password.RequiredLength = 12;
@@ -43,10 +54,52 @@ public sealed class DbFixture : IAsyncLifetime
         services.AddSingleton(TimeProvider.System);
         services.AddScoped<IAuditActorAccessor, TestAuditActorAccessor>();
         services.AddScoped<IAuditWriter, AuditWriter>();
+    }
 
+    /// <summary>
+    /// Services pointed at a brand-new, freshly migrated database inside the same container.
+    /// For tests whose subject is the state of the whole table rather than one row — seeding is the
+    /// case that forced this: <c>AdminSeeder</c> only creates the first admin when *no* user exists,
+    /// so two such tests sharing <see cref="BuildServices"/>' database would pass or fail depending
+    /// on which xUnit happened to run first. Costs one migration per call; use it only where
+    /// emptiness is the precondition.
+    /// </summary>
+    public async Task<IServiceProvider> BuildIsolatedServicesAsync(Action<IServiceCollection>? configure = null)
+    {
+        var name = $"test_{Guid.NewGuid():N}";
+
+        await using (var admin = new NpgsqlConnection(ConnectionString))
+        {
+            await admin.OpenAsync();
+            await using var create = new NpgsqlCommand($"CREATE DATABASE \"{name}\"", admin);
+            await create.ExecuteNonQueryAsync();
+        }
+
+        var connectionString = new NpgsqlConnectionStringBuilder(ConnectionString) { Database = name }.ToString();
+
+        var services = new ServiceCollection();
+        services.AddDbContext<ApplicationDbContext>(opts => opts.UseNpgsql(connectionString));
+        AddSharedServices(services);
         configure?.Invoke(services);
+        var provider = services.BuildServiceProvider();
 
-        return services.BuildServiceProvider();
+        using var scope = provider.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.MigrateAsync();
+        return provider;
+    }
+
+    /// <summary>
+    /// Puts both FR-104 roles in AspNetRoles. Any test that invites or assigns a role needs this
+    /// first: <c>UserManager.AddToRoleAsync</c> throws when the role is not in the store, so an
+    /// invite fails outright on an empty role table. In the running app <c>AdminSeeder</c> does it
+    /// on startup; these tests construct services directly, so they do it themselves. Idempotent.
+    /// </summary>
+    public static async Task EnsureAdminRolesAsync(IServiceProvider scopedProvider)
+    {
+        var roleManager = scopedProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        foreach (var role in AdminRoles.All)
+            if (!await roleManager.RoleExistsAsync(role))
+                await roleManager.CreateAsync(new IdentityRole(role));
     }
 
     public async Task InitializeAsync()

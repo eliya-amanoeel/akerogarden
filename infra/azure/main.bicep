@@ -269,6 +269,7 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
       ] : [
         {
           // Bootstraps the first admin on startup if no users exist (AdminSeeder) — admin site only.
+          // The same startup pass also creates the two FR-104 roles; no setting governs that.
           name: 'Seed__AdminEmail'
           value: seedAdminEmail
         }

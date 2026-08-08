@@ -6,7 +6,7 @@
 @inject BlockedPeriodService BlockedPeriodService
 @inject BuildingService BuildingService
 @inject RoomService RoomService
-@attribute [Authorize]
+@attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Blockeringar — Åkerögården Admin</PageTitle>
 

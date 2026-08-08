@@ -1,5 +1,6 @@
 @page "/login"
 @layout AdminLoginLayout
+@using System.Security.Claims
 @using Microsoft.AspNetCore.Authentication
 @using Microsoft.AspNetCore.Identity
 @inject SignInManager<ApplicationUser> SignInManager
@@ -61,6 +62,16 @@
     {
         _model ??= new();
         await HttpContext.SignOutAsync(IdentityConstants.ApplicationScheme);
+
+        // SignOutAsync only queues the cookie deletion on the response — it leaves HttpContext.User
+        // as the signed-in principal for the rest of this render. The antiforgery token in the form
+        // below is bound to whoever HttpContext.User is, so without this line an already-signed-in
+        // admin visiting /login gets a token stamped with their identity, then posts it as an
+        // anonymous request (their cookie is gone by then) and the submit is rejected with "A valid
+        // antiforgery token was not provided". Drop the identity here so the token matches the
+        // request that will carry it. Found by the Samordnare E2E, which is the first test to reach
+        // /login while logged in — the switch-accounts path a real admin takes.
+        HttpContext.User = new ClaimsPrincipal(new ClaimsIdentity());
     }
 
     private async Task HandleLogin()
@@ -77,7 +88,13 @@
 
         if (result.Succeeded)
         {
-            Nav.NavigateTo("/");
+            // Role-aware landing (FR-104): "/" is the dashboard, which Samordnare must not see.
+            // The cookie has just been issued but this request's principal is still anonymous, so
+            // ask the user store for the roles and apply the shared rule to them.
+            var users = SignInManager.UserManager;
+            Nav.NavigateTo(AdminRoles.LandingPath(
+                isAdministrator: user is not null && await users.IsInRoleAsync(user, AdminRoles.Administrator),
+                isCoordinator: user is not null && await users.IsInRoleAsync(user, AdminRoles.Coordinator)));
             return;
         }
 

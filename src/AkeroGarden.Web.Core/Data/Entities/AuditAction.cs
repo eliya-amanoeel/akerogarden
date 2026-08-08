@@ -36,4 +36,5 @@ public enum AuditAction
     AdminAccountActivated,
     AdminAccountDeactivated,
     AdminAccountSetupCompleted,
+    AdminRoleChanged,
 }

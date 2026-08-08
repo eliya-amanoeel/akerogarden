@@ -4,13 +4,16 @@
 @using Microsoft.AspNetCore.Identity
 @inject UserManager<ApplicationUser> UserManager
 @inject AdminInviteService InviteService
-@attribute [Authorize]
+@attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Administratörskonton — Åkerögården Admin</PageTitle>
 
 <AdminHeader Title="Administratörskonton" />
 
-<p class="form-hint">Hantera administratörskonton och inbjudningar till adminpanelen.</p>
+@* "administratör" was the only kind of account there was until FR-104. The invite wording is
+   neutral now — picking Samordnare under a button labelled "Bjud in administratör" would say the
+   opposite of what it does. The page keeps its name: these are still the adminpanel's accounts. *@
+<p class="form-hint">Hantera konton och inbjudningar till adminpanelen. Rollen avgör vad kontot kommer åt.</p>
 
 @if (_users is null)
 {
@@ -21,7 +24,7 @@ else
     <Toast @bind-Message="_message" />
 
     <div class="admin-toolbar">
-        <button type="button" class="btn" @onclick="OpenInvitePanel">+ Bjud in administratör</button>
+        <button type="button" class="btn" @onclick="OpenInvitePanel">+ Bjud in användare</button>
     </div>
 
     <div class="admin-table-wrap">
@@ -31,6 +34,7 @@ else
                     <th>Namn</th>
                     <th>E-postadress</th>
                     <th>Telefon</th>
+                    <th>Roll</th>
                     <th>Status</th>
                     <th></th>
                 </tr>
@@ -42,6 +46,26 @@ else
                         <td>@(HasName(user) ? $"{user.FirstName} {user.LastName}".Trim() : "—")</td>
                         <td><span class="rowlink">@user.Email</span>@if (user.Id == _currentUserId) {<span class="chip" style="margin-left:0.5rem">Du</span>}</td>
                         <td>@(string.IsNullOrWhiteSpace(user.PhoneNumber) ? "—" : user.PhoneNumber)</td>
+                        @* Applies on change, no save button — the same house rule the reference-data
+                           and building-assignment controls follow. Your own role is read-only:
+                           demoting yourself would remove this page, and with it the way back. *@
+                        <td>
+                            @if (user.Id == _currentUserId)
+                            {
+                                @RoleOf(user)
+                            }
+                            else
+                            {
+                                <select aria-label="@($"Roll för {user.Email}")"
+                                        value="@RoleOf(user)"
+                                        @onchange="e => ChangeRole(user, e.Value?.ToString())">
+                                    @foreach (var role in AdminRoles.All)
+                                    {
+                                        <option value="@role" selected="@(RoleOf(user) == role)">@role</option>
+                                    }
+                                </select>
+                            }
+                        </td>
                         <td>
                             @if (user.SetupCompletedAt is null)
                             {
@@ -111,6 +135,26 @@ else
                 </Sub>
                 <Fields>
                     <div><dt>Telefon</dt><dd>@(string.IsNullOrWhiteSpace(user.PhoneNumber) ? "—" : user.PhoneNumber)</dd></div>
+                    <div>
+                        <dt>Roll</dt>
+                        <dd>
+                            @if (user.Id == _currentUserId)
+                            {
+                                @RoleOf(user)
+                            }
+                            else
+                            {
+                                <select aria-label="@($"Roll för {user.Email}")"
+                                        value="@RoleOf(user)"
+                                        @onchange="e => ChangeRole(user, e.Value?.ToString())">
+                                    @foreach (var role in AdminRoles.All)
+                                    {
+                                        <option value="@role" selected="@(RoleOf(user) == role)">@role</option>
+                                    }
+                                </select>
+                            }
+                        </dd>
+                    </div>
                 </Fields>
                 <Actions>
                     @if (user.SetupCompletedAt is null)
@@ -140,13 +184,23 @@ else
 
     <EditForm Model="_invite" OnValidSubmit="SendInvite">
         <DataAnnotationsValidator />
-        <AdminPanel Visible="_invitePanelOpen" Title="Bjud in administratör" OnClose="CloseInvitePanel">
+        <AdminPanel Visible="_invitePanelOpen" Title="Bjud in användare" OnClose="CloseInvitePanel">
             <ChildContent>
                 <Toast @bind-Message="_panelError" />
                 <div class="form-group">
                     <label for="invite-email">E-postadress</label>
                     <InputText id="invite-email" @bind-Value="_invite.Email" type="email" />
                     <ValidationMessage For="() => _invite.Email" />
+                </div>
+                <div class="form-group">
+                    <label for="invite-role">Roll</label>
+                    <InputSelect id="invite-role" @bind-Value="_invite.Role">
+                        @foreach (var role in AdminRoles.All)
+                        {
+                            <option value="@role">@role</option>
+                        }
+                    </InputSelect>
+                    <p class="form-hint">@RoleHint(_invite.Role)</p>
                 </div>
             </ChildContent>
             <Footer>
@@ -167,11 +221,38 @@ else
         !(string.IsNullOrWhiteSpace(u.FirstName) && string.IsNullOrWhiteSpace(u.LastName));
 
     private List<ApplicationUser>? _users;
+    private Dictionary<string, string?> _roles = [];
     private string? _currentUserId;
     private string? _message;
     private InviteModel _invite = new();
     private bool _invitePanelOpen;
     private string? _panelError;
+
+    /// <summary>What each role actually means, in the invite panel — the names alone do not say that
+    /// one of them is a full administrator and the other sees only two lists.</summary>
+    private static string RoleHint(string role) => role == AdminRoles.Coordinator
+        ? "Ser endast deltagarlistor och matlistor för bokningar där gästen lämnat sina uppgifter. Ingen åtkomst till bokningar, gästuppgifter, referensdata eller konton."
+        : "Full åtkomst till hela adminpanelen.";
+
+    private string RoleOf(ApplicationUser user) =>
+        _roles.GetValueOrDefault(user.Id) ?? AdminRoles.Administrator;
+
+    private async Task ChangeRole(ApplicationUser user, string? role)
+    {
+        if (string.IsNullOrWhiteSpace(role) || !await InviteService.SetRoleAsync(user, role))
+            return; // unchanged or rejected — SetRoleAsync audits only a real change (FR-96)
+
+        _roles[user.Id] = role;
+        _message = $"{user.Email} har nu rollen {role}.";
+    }
+
+    private async Task LoadUsersAsync()
+    {
+        _users = UserManager.Users.OrderBy(u => u.Email).ToList();
+        _roles = [];
+        foreach (var user in _users)
+            _roles[user.Id] = await InviteService.GetRoleAsync(user);
+    }
 
     private void OpenInvitePanel()
     {
@@ -193,7 +274,7 @@ else
     {
         var auth = await AuthState;
         _currentUserId = UserManager.GetUserId(auth.User);
-        _users = UserManager.Users.OrderBy(u => u.Email).ToList();
+        await LoadUsersAsync();
     }
 
     private async Task Deactivate(ApplicationUser user)
@@ -210,7 +291,7 @@ else
 
     private async Task SendInvite()
     {
-        var result = await InviteService.InviteAsync(_invite.Email);
+        var result = await InviteService.InviteAsync(_invite.Email, _invite.Role);
 
         // CreateFailed keeps the panel open so the admin can fix it — shown via the panel-scoped
         // Toast, not the page-level one, since the panel (z-index 1001) would otherwise sit on
@@ -223,11 +304,11 @@ else
 
         _message = result.Outcome == InviteOutcome.BlockedActivated
             ? "Det finns redan ett konto med den e-postadressen."
-            : $"Inbjudan skickad till {_invite.Email}.";
+            : $"Inbjudan skickad till {_invite.Email} ({_invite.Role}).";
 
         CloseInvitePanel();
         _invite = new();
-        _users = UserManager.Users.OrderBy(u => u.Email).ToList();
+        await LoadUsersAsync();
     }
 
     private async Task ResendInvite(ApplicationUser user)
@@ -259,7 +340,7 @@ else
             _ => "Inbjudan kunde inte tas bort — kontot hittades inte."
         };
 
-        _users = UserManager.Users.OrderBy(u => u.Email).ToList();
+        await LoadUsersAsync();
     }
 
     private sealed class InviteModel
@@ -267,5 +348,9 @@ else
         [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "E-postadress krävs.")]
         [System.ComponentModel.DataAnnotations.EmailAddress(ErrorMessage = "Ange en giltig e-postadress.")]
         public string Email { get; set; } = string.Empty;
+
+        /// <summary>Defaults to the full role — the overwhelmingly common invite, and the pre-FR-104
+        /// behaviour, so an admin who ignores the dropdown gets what they used to get.</summary>
+        public string Role { get; set; } = AdminRoles.Administrator;
     }
 }

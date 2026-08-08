@@ -1,0 +1,70 @@
+@* One booking's two lists (FR-104) — the download page Samordnare reaches from /listor, and the
+   only per-booking page that role may open. It deliberately shows the booking reference, the dates
+   and the headcount and nothing else: enough to confirm you are downloading the right booking
+   before you download it, with no contact details, no notes and no booking actions (D1/D4).
+
+   The status gate lives in GetBookingWithListsAsync, so guessing the id of a pending, denied or
+   cancelled booking renders the same "not found" as a made-up id — it never confirms it exists.
+
+   Header shape (crumb + .admin-detail-head) mirrors BookingDetail so the two read as one system. *@
+@page "/listor/{Id:guid}"
+@layout AdminLayout
+@using AkeroGarden.Web.Core.Data.Entities
+@inject BookingService BookingService
+@attribute [Authorize(Roles = AdminRoles.Both)]
+
+<PageTitle>@(_booking?.BookingReference ?? "Deltagar- och matlistor") — Åkerögården Admin</PageTitle>
+
+@if (_booking is null)
+{
+    <AdminHeader>
+        <TitleContent><span class="crumb"><a href="/listor">Deltagar- och matlistor</a></span></TitleContent>
+    </AdminHeader>
+    <p class="admin-empty">@(_loaded ? "Bokningen kunde inte hittas, eller har inga listor." : "Laddar…")</p>
+}
+else
+{
+    <AdminHeader>
+        <TitleContent><span class="crumb"><a href="/listor">Deltagar- och matlistor</a> / @_booking.BookingReference</span></TitleContent>
+    </AdminHeader>
+
+    <div class="admin-detail-head">
+        <h1>@_booking.BookingReference</h1>
+        <span class="chip mono">@DateRange(_booking)</span>
+        <span class="chip">@(_booking.OvernightGuestCount?.ToString() ?? "—") gäster</span>
+    </div>
+
+    <section class="card">
+        <div class="card__head"><h2>Listor</h2></div>
+        <dl class="kv">
+            <dt>Deltagarlista</dt>
+            <dd>
+                <a href="/bokningar/@_booking.Id/deltagarlista.pdf">PDF</a> ·
+                <a href="/bokningar/@_booking.Id/deltagarlista.xlsx">Excel</a>
+            </dd>
+            <dt>Matlista</dt>
+            <dd>
+                <a href="/bokningar/@_booking.Id/matlista.pdf">PDF</a> ·
+                <a href="/bokningar/@_booking.Id/matlista.xlsx">Excel</a>
+            </dd>
+        </dl>
+    </section>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private Booking? _booking;
+    private bool _loaded;
+
+    private static string DateRange(Booking b) =>
+        b.CheckIn is not null && b.CheckOut is not null
+            ? $"{b.CheckIn:yyyy-MM-dd} – {b.CheckOut:yyyy-MM-dd}"
+            : "—";
+
+    protected override async Task OnInitializedAsync()
+    {
+        _booking = await BookingService.GetBookingWithListsAsync(Id);
+        _loaded = true;
+    }
+}

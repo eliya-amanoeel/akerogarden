@@ -109,7 +109,7 @@ Both sites in an environment have VNet integration into `app-subnet`, in the sam
    ```
    (In PowerShell, drop the `\` line-continuations and put each command on one line.)
    *(Resource names are hardcoded to staging here deliberately — see the stop box. This is the one section that is **not** environment-parameterised.)*
-3. **Restart the App Service.** On boot it runs `MigrateAsync` against the now-empty database and builds the fresh schema; `AdminSeeder` reseeds the admin account from the `Seed:AdminEmail/Password` app settings. First load is slow (~60–90 s: cold start + migrations).
+3. **Restart the App Service.** On boot it runs `MigrateAsync` against the now-empty database and builds the fresh schema; `AdminSeeder` creates both roles (`Administratör`, `Samordnare` — FR-104) and reseeds the admin account from the `Seed:AdminEmail/Password` app settings, holding `Administratör`. Any account left without a role is adopted into `Administratör` on the same pass, so a database restored from before FR-104 does not lock its admins out. First load is slow (~60–90 s: cold start + migrations).
 
 > This wipes **all** staging data. To reset only the *data* while keeping the schema/migrations intact, don't use this — use `DemoSeed:Reset=true` (the app's own reseed path) or the SSH route above for row-level SQL.
 

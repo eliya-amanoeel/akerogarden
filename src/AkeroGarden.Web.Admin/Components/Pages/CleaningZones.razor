@@ -4,7 +4,7 @@
 @using AkeroGarden.Web.Core.Data.Entities
 @inject CleaningZoneService CleaningZoneService
 @inject PhysicalBuildingService PhysicalBuildingService
-@attribute [Authorize]
+@attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Städzoner — Åkerögården Admin</PageTitle>
 

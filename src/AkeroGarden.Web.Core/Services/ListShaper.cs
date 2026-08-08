@@ -39,10 +39,19 @@ public static class ListShaper
     public const string PreferenceNote =
         "Antalet ingår i tillagningsantalen ovan — så många portioner ska tillagas vegetariskt respektive veganskt, inte utöver.";
 
+    /// <summary>
+    /// The statuses a list exists for (FR-44/45) — the single definition of "a booking with lists".
+    /// It is also the exact set of bookings <see cref="Data.AdminRoles.Coordinator"/> may see
+    /// (FR-104), which is why it is an array and not just the pattern below: the restricted list
+    /// query filters on it in SQL. Widening this widens that role's reach — check both.
+    /// </summary>
+    public static readonly BookingStatus[] AvailableStatuses =
+        [BookingStatus.DetailsComplete, BookingStatus.Active, BookingStatus.Completed];
+
     /// <summary>Lists are downloadable once the guest has submitted their details and the booking is
     /// still live or finished (FR-44/45) — DetailsComplete, Active, or Completed.</summary>
     public static bool IsAvailableFor(BookingStatus status) =>
-        status is BookingStatus.DetailsComplete or BookingStatus.Active or BookingStatus.Completed;
+        AvailableStatuses.Contains(status);
 
     public static BookingListData Shape(Booking booking)
     {

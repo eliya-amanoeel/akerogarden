@@ -1,3 +1,4 @@
+using System.Net;
 using AkeroGarden.Web.Core.Data;
 using AkeroGarden.Web.Core.Data.Entities;
 using Microsoft.AspNetCore.DataProtection;
@@ -30,20 +31,28 @@ public class AdminInviteService(
         => audit.RecordAsync(action, AccountEntity, Guid.Parse(user.Id), summary, actor: actor);
 
     /// <summary>
-    /// Invites a new admin, or — if the email already belongs to a still-pending
-    /// invite — resends it. Blocked only when the email belongs to an already-activated account.
+    /// Invites a new admin in the given role (FR-104), or — if the email already belongs to a
+    /// still-pending invite — resends it, applying <paramref name="role"/> in case the inviter
+    /// picked a different one this time. Blocked only when the email belongs to an
+    /// already-activated account.
     /// </summary>
-    public async Task<InviteResult> InviteAsync(string email)
+    public async Task<InviteResult> InviteAsync(string email, string role)
     {
+        if (!AdminRoles.All.Contains(role))
+            return InviteResult.CreateFailed($"Okänd roll: {role}.");
+
         var existing = await userManager.FindByEmailAsync(email);
         if (existing is not null)
         {
             if (existing.SetupCompletedAt is not null)
                 return InviteResult.BlockedActivated;
 
+            // A pending invite has never been used, so re-picking the role is a correction of the
+            // original invite rather than a role change — no separate AdminRoleChanged entry.
+            await ApplyRoleAsync(existing, role);
             await SendInviteEmailAsync(existing);
             await RecordAccountAuditAsync(existing, AuditAction.AdminInviteResent,
-                $"Inbjudan skickades på nytt till: {email}.");
+                $"Inbjudan skickades på nytt till: {email} (roll: {role}).");
             await db.SaveChangesAsync();
             return InviteResult.Sent;
         }
@@ -60,11 +69,54 @@ public class AdminInviteService(
         if (!createResult.Succeeded)
             return InviteResult.CreateFailed(string.Join(" ", createResult.Errors.Select(e => e.Description)));
 
+        await ApplyRoleAsync(newUser, role);
         await SendInviteEmailAsync(newUser);
         await RecordAccountAuditAsync(newUser, AuditAction.AdminInvited,
-            $"Administratör bjöds in: {email}.");
+            $"Konto bjöds in: {email} (roll: {role}).");
         await db.SaveChangesAsync();
         return InviteResult.Sent;
+    }
+
+    /// <summary>The account's role (FR-104), or null for a role-less account — which the seeder's
+    /// backfill should have eliminated, so a null here means something created a user behind
+    /// <see cref="AdminSeeder"/>'s back.</summary>
+    public async Task<string?> GetRoleAsync(ApplicationUser user) =>
+        (await userManager.GetRolesAsync(user)).FirstOrDefault();
+
+    /// <summary>
+    /// Changes an existing account's role (FR-104). Audited under its own verb (FR-96) because a
+    /// role change silently widens or narrows what that person can see — the one account action
+    /// with no visible trace on the account itself. No-ops when the role is unchanged, so a
+    /// re-save never writes a misleading audit row.
+    /// </summary>
+    public async Task<bool> SetRoleAsync(ApplicationUser user, string role)
+    {
+        if (!AdminRoles.All.Contains(role))
+            return false;
+
+        var current = await GetRoleAsync(user);
+        if (current == role)
+            return false;
+
+        await ApplyRoleAsync(user, role);
+        await RecordAccountAuditAsync(user, AuditAction.AdminRoleChanged,
+            $"Rollen ändrades för {user.Email}: {current ?? "ingen roll"} → {role}.");
+        await db.SaveChangesAsync();
+        return true;
+    }
+
+    /// <summary>Makes <paramref name="role"/> the account's only role. Identity allows many roles
+    /// per user; FR-104 defines exactly one, and two roles at once would make the restricted role
+    /// meaningless (role checks are an OR).</summary>
+    private async Task ApplyRoleAsync(ApplicationUser user, string role)
+    {
+        var current = await userManager.GetRolesAsync(user);
+        var stale = current.Where(r => r != role).ToList();
+        if (stale.Count > 0)
+            await userManager.RemoveFromRolesAsync(user, stale);
+
+        if (!current.Contains(role))
+            await userManager.AddToRoleAsync(user, role);
     }
 
     /// <summary>Regenerates and resends the setup link for an already-known pending user.</summary>
@@ -154,14 +206,28 @@ public class AdminInviteService(
     private async Task SendInviteEmailAsync(ApplicationUser user)
     {
         var setupUrl = await GenerateSetupLinkAsync(user);
+        var isCoordinator = await GetRoleAsync(user) == AdminRoles.Coordinator;
 
+        // A Samordnare invitee only ever sees the two lists, so telling them they may "administrate
+        // the booking system" would misdescribe the account they are about to activate.
+        var subject = isCoordinator
+            ? "Du har fått ett konto för deltagar- och matlistor — Åkerögården"
+            : "Du har bjudits in som administratör — Åkerögården";
+
+        var intro = isCoordinator
+            ? "Du har fått ett konto i Åkerögårdens bokningssystem för att hämta deltagarlistor och matlistor."
+            : "Du har bjudits in att administrera Åkerögårdens bokningssystem.";
+
+        // Descriptive link text, not the raw URL — the setup link is a data-protected token roughly
+        // 400 characters long, and printing it dumps a wall of gibberish into the email. Matches how
+        // every booking email already links ("Slutför din bokning här").
         await emailService.SendAsync(
             user.Email!,
             user.Email!,
-            "Du har bjudits in som administratör — Åkerögården",
-            $"<p>Du har bjudits in att administrera Åkerögårdens bokningssystem.</p>" +
+            subject,
+            $"<p>{intro}</p>" +
             $"<p>Klicka på länken nedan för att välja ditt lösenord och aktivera ditt konto. Länken gäller i 1 timme.</p>" +
-            $"<p><a href=\"{setupUrl}\">{setupUrl}</a></p>");
+            $"<p><a href=\"{WebUtility.HtmlEncode(setupUrl)}\">Aktivera ditt konto</a></p>");
     }
 }
 

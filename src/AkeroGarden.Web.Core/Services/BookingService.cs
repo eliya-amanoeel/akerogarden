@@ -453,6 +453,28 @@ public class BookingService(
         return await query.OrderByDescending(b => b.CreatedAt).ToListAsync();
     }
 
+    /// <summary>
+    /// Bookings that have downloadable lists (FR-44/45) — the only bookings the
+    /// <see cref="Data.AdminRoles.Coordinator"/> role may see at all (FR-104). Filtering happens in
+    /// SQL rather than in the page so a pending, denied or cancelled booking is never loaded into a
+    /// process that would render it; the status set is <see cref="ListShaper.AvailableStatuses"/>,
+    /// the same one the download endpoints enforce.
+    /// </summary>
+    public async Task<List<Booking>> GetBookingsWithListsAsync() =>
+        await db.Bookings
+            .Where(b => ListShaper.AvailableStatuses.Contains(b.Status))
+            .OrderByDescending(b => b.CheckIn)
+            .ToListAsync();
+
+    /// <summary>
+    /// A single booking that has downloadable lists, or null. The status gate is part of the query
+    /// rather than a check the caller performs afterwards, so a restricted page cannot forget it and
+    /// render a pending or cancelled booking to someone who guessed an id.
+    /// </summary>
+    public async Task<Booking?> GetBookingWithListsAsync(Guid id) =>
+        await db.Bookings
+            .FirstOrDefaultAsync(b => b.Id == id && ListShaper.AvailableStatuses.Contains(b.Status));
+
     /// <summary>Count of bookings still awaiting a first admin response (both stay requests and
     /// general inquiries) — drives the admin nav badge and the "Väntar på svar" dashboard queue.</summary>
     public async Task<int> GetPendingCountAsync() =>

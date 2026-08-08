@@ -6,7 +6,7 @@
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject MealOptionService MealOptionService
-@attribute [Authorize]
+@attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Bokning — Åkerögården Admin</PageTitle>
 

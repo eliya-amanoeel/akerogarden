@@ -433,7 +433,7 @@ else
                             <span class="alert__ic" aria-hidden="true">!</span>
                             <div>
                                 <b>Kort varsel — @DaysToCheckIn dagar till incheckning</b>
-                                <div>Slutförandelänken förkortas till 48 timmar. Överväg att kontakta gästen direkt.</div>
+                                <div>Slutförandelänken gäller bara fram till tre dagar före incheckning. Överväg att kontakta gästen direkt.</div>
                             </div>
                         </div>
                     }
@@ -446,7 +446,11 @@ else
                                 <ul class="alert__list">
                                     @if (_approvalWarning.OverlapsBlock)
                                     {
-                                        <li>Datumen överlappar en eller flera blockeringar: @string.Join("; ", _approvalWarning.BlockDescriptions). Rumsväljaren kan bli tom för gästen.</li>
+                                        @* The consequence is the assignment box below, not the guest's
+                                           form: the completion form's room picker was retired with
+                                           FR-56, and a block now stops the building being assigned at
+                                           all (FR-102) — which is what the admin sees greyed out. *@
+                                        <li>Datumen överlappar en eller flera blockeringar: @string.Join("; ", _approvalWarning.BlockDescriptions). Berörda byggnader går inte att tilldela.</li>
                                     }
                                     @if (_approvalWarning.NoLodgingAssigned)
                                     {
@@ -485,9 +489,23 @@ else
 
                 @if (_booking.Status == BookingStatus.Approved)
                 {
-                    <p class="action-note"><strong>Slutförandelänk giltig till:</strong><br />@(_booking.CompletionTokenExpiry?.ToLocalTime().ToString("yyyy-MM-dd HH:mm") ?? "—")</p>
+                    @* A far-out booking is approved without a link (FR-51/108), so this panel has a
+                       third state. A bare "—" against "giltig till" would read as a link that failed
+                       to send rather than one deliberately not issued yet. *@
+                    @if (_booking.CompletionTokenExpiry is { } linkExpiry)
+                    {
+                        <p class="action-note"><strong>Slutförandelänk giltig till:</strong><br />@linkExpiry.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</p>
+                    }
+                    else
+                    {
+                        <p class="action-note"><strong>Slutförandelänk:</strong><br />Skickas automatiskt cirka sex veckor före ankomst.</p>
+                    }
                     <div class="rail-actions" style="margin-top:0.6rem">
-                        <button class="btn-outline" @onclick="() => _pending = PendingBookingAction.Regenerate">Återutfärda och skicka länk på nytt</button>
+                        @* FR-49: the same button sends the link early to a guest who asks for it
+                           before the automatic issue, so its label cannot assume a previous link. *@
+                        <button class="btn-outline" @onclick="() => _pending = PendingBookingAction.Regenerate">
+                            @(_booking.CompletionTokenExpiry is null ? "Skicka slutförandelänk nu" : "Återutfärda och skicka länk på nytt")
+                        </button>
                     </div>
                 }
 
@@ -584,6 +602,7 @@ else
         PendingBookingAction.Deny => "Avslå bokning",
         PendingBookingAction.Cancel => "Avboka bokning",
         PendingBookingAction.MarkCompleted => "Markera som avslutad",
+        PendingBookingAction.Regenerate when _booking?.CompletionTokenExpiry is null => "Skicka slutförandelänk",
         PendingBookingAction.Regenerate => "Återutfärda slutförandelänk",
         _ => ""
     };
@@ -593,10 +612,21 @@ else
         // The address is stated here, not just "till gästen" (FR-38): a manually created booking is
         // never acknowledged by email (FR-47), so this dialog is the first and only moment a typo in
         // the address is visible to anyone before the link is sent to it.
-        PendingBookingAction.Approve => $"Bokningen godkänns och ett e-postmeddelande med slutförandelänk skickas till {_booking?.ContactEmail}. Vill du fortsätta?",
+        //
+        // What the email contains depends on how far out check-in is (FR-51/108) — promising a link
+        // that approval will not issue would send the admin looking for a mail that never went.
+        PendingBookingAction.Approve when ApprovalWillSendLink =>
+            $"Bokningen godkänns och ett e-postmeddelande med slutförandelänk skickas till {_booking?.ContactEmail}. Vill du fortsätta?",
+        PendingBookingAction.Approve =>
+            $"Bokningen godkänns och ett bekräftelsemejl skickas till {_booking?.ContactEmail}. "
+            + "Slutförandelänken skickas automatiskt cirka sex veckor före ankomst. Vill du fortsätta?",
         PendingBookingAction.Deny => "Bokningen avslås och gästen underrättas via e-post. Vill du fortsätta?",
         PendingBookingAction.Cancel => "Bokningen avbokas och gästen underrättas via e-post. Vill du fortsätta?",
         PendingBookingAction.MarkCompleted => "Bokningen markeras som avslutad och ett tackmejl skickas till gästen. Vill du fortsätta?",
+        // Before the automatic issue there is no previous link to replace (FR-49/108), so "en ny"
+        // would be describing something the guest has never had.
+        PendingBookingAction.Regenerate when _booking?.CompletionTokenExpiry is null =>
+            "Slutförandelänken skickas till gästen via e-post redan nu, före det automatiska utskicket. Vill du fortsätta?",
         PendingBookingAction.Regenerate => "En ny slutförandelänk skickas till gästen via e-post. Vill du fortsätta?",
         _ => ""
     };
@@ -607,6 +637,7 @@ else
         PendingBookingAction.Deny => "Avslå",
         PendingBookingAction.Cancel => "Avboka",
         PendingBookingAction.MarkCompleted => "Markera avslutad",
+        PendingBookingAction.Regenerate when _booking?.CompletionTokenExpiry is null => "Skicka länk",
         PendingBookingAction.Regenerate => "Skicka ny länk",
         _ => "Bekräfta"
     };
@@ -775,6 +806,13 @@ else
 
     private bool IsCheckInWithin14Days => DaysToCheckIn <= 14;
 
+    // Whether approving now issues a link at all (FR-51/108). Read from CompletionTokenPolicy rather
+    // than comparing against a 40 written here, so the dialog and the email can never disagree about
+    // what the guest is being promised.
+    private bool ApprovalWillSendLink =>
+        _booking?.CheckIn is { } checkIn
+        && CompletionTokenPolicy.ShouldIssueOn(DateOnly.FromDateTime(DateTime.UtcNow), checkIn);
+
     private bool CanCancel => _booking is not null &&
         BookingStateMachine.CanTransition(_booking.Status, BookingStatus.Cancelled);
 
@@ -942,11 +980,15 @@ else
     {
         var result = await BookingService.ApproveAsync(Id);
         if (!result.Succeeded) { _message = ToastMessage.Error(result.Error); return; }
-        // Both branches report a booking that was approved — the shortened-link case is a caveat on
-        // a completed action, not a failure, so it stays a success toast.
-        _message = ToastMessage.Ok(result.ShortExpiryWarning
-            ? $"Bokningen är godkänd. Slutförandelänken är förkortad och går ut {result.TokenExpiry?.ToLocalTime():yyyy-MM-dd HH:mm} — kontakta gästen vid behov."
-            : $"Bokningen är godkänd och e-post med slutförandelänk är skickad (giltig till {result.TokenExpiry?.ToLocalTime():yyyy-MM-dd HH:mm}).");
+        // Every branch reports a booking that was approved — a shortened or deferred link is a caveat
+        // on a completed action, not a failure, so all three stay success toasts. A null TokenExpiry
+        // means no link was issued at all (FR-51/108); stating an expiry there would print an empty
+        // date and imply a mail the guest never received.
+        _message = ToastMessage.Ok(result.TokenExpiry is null
+            ? "Bokningen är godkänd och ett bekräftelsemejl är skickat. Slutförandelänken skickas automatiskt cirka sex veckor före ankomst."
+            : result.ShortExpiryWarning
+                ? $"Bokningen är godkänd. Slutförandelänken är förkortad och går ut {result.TokenExpiry?.ToLocalTime():yyyy-MM-dd HH:mm} — kontakta gästen vid behov."
+                : $"Bokningen är godkänd och e-post med slutförandelänk är skickad (giltig till {result.TokenExpiry?.ToLocalTime():yyyy-MM-dd HH:mm}).");
         await Load();
     }
 

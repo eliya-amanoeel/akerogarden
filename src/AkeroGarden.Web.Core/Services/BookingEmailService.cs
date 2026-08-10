@@ -58,21 +58,42 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             .OrderBy(n => n, StringComparer.CurrentCulture)
             .ToList();
 
-    /// <summary>Approval email with the completion magic link and its exact expiry (FR-52).
-    /// Requires <see cref="Booking.CompletionToken"/> and <see cref="Booking.CompletionTokenExpiry"/> to be set.</summary>
+    /// <summary>Approval email (FR-52). Carries the completion magic link and its exact expiry when
+    /// one was issued; a booking approved more than 40 days before check-in has no token yet
+    /// (FR-51/108) and the email says the link follows later instead.
+    ///
+    /// <para>The variant is decided from the booking's own state rather than a parameter, so an
+    /// unissued link cannot be reported to the guest as an issued one by a caller that got the
+    /// argument wrong.</para></summary>
     public Task SendApprovalAsync(Booking booking)
     {
-        if (string.IsNullOrEmpty(booking.CompletionToken) || booking.CompletionTokenExpiry is null)
-            throw new InvalidOperationException("Godkännandemejl kräver en genererad slutförandelänk och utgångstid.");
+        var hasLink = !string.IsNullOrEmpty(booking.CompletionToken) && booking.CompletionTokenExpiry is not null;
 
         var content = BookingEmailTemplates.Approval(
             booking.ContactName,
-            BuildCompletionUrl(booking.CompletionToken),
-            booking.CompletionTokenExpiry.Value,
+            hasLink ? BuildCompletionUrl(booking.CompletionToken!) : null,
+            hasLink ? booking.CompletionTokenExpiry : null,
             booking.BookingReference,
             AssignedBuildingNames(booking),
             booking.CheckInTime,
             booking.CheckOutTime);
+        return SendToGuestAsync(booking, content);
+    }
+
+    /// <summary>Tells the guest the completion form is now open (FR-108) — sent by the daily issuance
+    /// job when check-in comes within 40 days of a booking approved too far ahead to be given a link
+    /// at the time, and by the admin's manual resend (FR-49). Requires
+    /// <see cref="Booking.CompletionToken"/> and <see cref="Booking.CompletionTokenExpiry"/> to be set.</summary>
+    public Task SendCompletionLinkAvailableAsync(Booking booking)
+    {
+        if (string.IsNullOrEmpty(booking.CompletionToken) || booking.CompletionTokenExpiry is null)
+            throw new InvalidOperationException("Länkmejlet kräver en genererad slutförandelänk och utgångstid.");
+
+        var content = BookingEmailTemplates.CompletionLinkAvailable(
+            booking.ContactName,
+            BuildCompletionUrl(booking.CompletionToken),
+            booking.CompletionTokenExpiry.Value,
+            booking.BookingReference);
         return SendToGuestAsync(booking, content);
     }
 

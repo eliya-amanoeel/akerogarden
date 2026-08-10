@@ -82,7 +82,7 @@ For seeding local reference data, see [`infra/ops/seeding.md`](infra/ops/seeding
 
 ### Seeing a scheduled email locally
 
-The 14-day reminder, completion nudge, link-expiry warning and pre-deletion warning are all sent by
+The pre-arrival reminder, completion nudge, completion-link issuance and pre-deletion warning are all sent by
 the daily background job, which fires once a day at `Jobs:DailyRunHourLocal` — **03:00 Europe/Stockholm
 by default, and always in Stockholm time regardless of the machine's zone**. Waiting for that is not a
 workflow, so:

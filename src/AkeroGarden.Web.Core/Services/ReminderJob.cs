@@ -5,15 +5,24 @@ using Microsoft.EntityFrameworkCore;
 namespace AkeroGarden.Web.Core.Services;
 
 /// <summary>
-/// The 14-day reminder job (requirements.md §9, FR-63/64). On each daily run it finds every
-/// reminder-eligible booking whose check-in is within the next 14 days and that has not yet been
-/// reminded (<c>ReminderEmailSentAt</c> guards a once-only send), then, per status:
+/// The two 14-days-before-check-in emails (requirements.md §9, FR-63/64). On each daily run it
+/// asks two <b>independent</b> questions of every booking whose check-in falls inside the window:
 /// <list type="bullet">
-///   <item><c>DetailsComplete</c>/<c>Active</c> — sends the standard guest reminder (FR-64).</item>
-///   <item>still <c>Approved</c> — regenerates the completion token (fresh link ≥48 h, invalidating
-///   the prior one), sends the guest a completion nudge, and alerts the admin (FR-63).</item>
+///   <item><c>DetailsComplete</c>/<c>Active</c> and not yet reminded — send the pre-arrival reminder
+///   with the address and the booking's own times, guarded by <c>ReminderEmailSentAt</c>.</item>
+///   <item>still <c>Approved</c>, not yet nudged, and the link went out more than three days ago —
+///   reissue the link, nudge the guest and alert the admin, guarded by
+///   <c>CompletionNudgeSentAt</c>.</item>
 /// </list>
-/// "Today" is evaluated in Europe/Stockholm.
+///
+/// <para><b>Two flags, not one.</b> The two branches are mutually exclusive within a single run — a
+/// booking is either still <c>Approved</c> or it is not — so what the split fixes is not one run but
+/// two: a booking nudged at 14 days that then submits at 12 must still receive the pre-arrival email
+/// at 10. While both emails shared <c>ReminderEmailSentAt</c>, the nudge consumed it on the first run
+/// and the second found it already set, so that guest never got the address or the times at all —
+/// every booking approved inside the 14-day window lost it. Do not merge the flags back.</para>
+///
+/// <para>"Today" is evaluated in Europe/Stockholm.</para>
 /// </summary>
 public class ReminderJob(
     ApplicationDbContext db,
@@ -35,10 +44,10 @@ public class ReminderJob(
             .Include(b => b.Participants)
             .Include(b => b.MealSelections) // the group's chosen dishes, counted in the reminder (FR-64)
             .Include(b => b.BuildingAssignments) // named in the reminder (FR-64)
-            .Where(b => b.ReminderEmailSentAt == null
-                        && b.CheckIn != null
+            .Where(b => b.CheckIn != null
                         && b.CheckIn >= today
                         && b.CheckIn <= windowEnd
+                        && (b.ReminderEmailSentAt == null || b.CompletionNudgeSentAt == null)
                         && (b.Status == BookingStatus.Approved
                             || b.Status == BookingStatus.DetailsComplete
                             || b.Status == BookingStatus.Active))
@@ -49,24 +58,31 @@ public class ReminderJob(
 
         foreach (var booking in due)
         {
-            if (ReminderSchedule.IsNudgeVariant(booking.Status))
+            if (ReminderSchedule.IsPreArrivalReminderDue(
+                    booking.Status, booking.CheckIn, booking.ReminderEmailSentAt, today))
             {
-                // Regenerate the link first so the nudge never carries an already-expired token (I13).
-                bookings.RegenerateCompletionToken(booking);
-                // System actor (FR-63/95): the automated nudge reissued the link — no admin involved.
-                await audit.RecordAsync(AuditAction.CompletionLinkRegenerated, nameof(Booking), booking.Id,
-                    "Slutförandelänk återutfärdades automatiskt av 14-dagarspåminnelsen.",
+                await emails.SendTwoWeekReminderAsync(booking);
+                booking.ReminderEmailSentAt = now;
+                standard++;
+            }
+
+            if (ReminderSchedule.IsCompletionNudgeDue(
+                    booking.Status, booking.CheckIn, booking.CompletionNudgeSentAt,
+                    booking.CompletionLinkSentAt, today, now))
+            {
+                // Reissue first so the nudge never carries an already-expired link (I13). This also
+                // sets CompletionLinkSentAt — harmless here, since the nudge is guarded by its own
+                // flag and will not re-evaluate its own grace period.
+                bookings.IssueCompletionLink(booking, now);
+                // System actor (FR-63/95): the automated nudge issued the link — no admin involved.
+                await audit.RecordAsync(AuditAction.CompletionLinkIssued, nameof(Booking), booking.Id,
+                    "Slutförandelänk utfärdades automatiskt av 14-dagarspåminnelsen.",
                     booking.Id, booking.BookingReference, AuditActor.System);
                 await emails.SendCompletionNudgeAsync(booking);
                 await emails.SendAdminGuestNotCompletedAsync(booking);
+                booking.CompletionNudgeSentAt = now;
                 nudged++;
             }
-            else
-            {
-                await emails.SendTwoWeekReminderAsync(booking);
-                standard++;
-            }
-            booking.ReminderEmailSentAt = now; // dedupe marker — reminder fires once
         }
 
         await db.SaveChangesAsync(cancellationToken);
@@ -74,5 +90,5 @@ public class ReminderJob(
     }
 }
 
-/// <summary>Outcome of one <see cref="ReminderJob"/> run — standard-reminder and nudge counts.</summary>
+/// <summary>Outcome of one <see cref="ReminderJob"/> run — pre-arrival-reminder and nudge counts.</summary>
 public record ReminderRunSummary(int StandardReminders, int Nudges);

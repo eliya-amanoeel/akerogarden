@@ -59,11 +59,30 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
                  })
             Assert.Contains(expected, statuses);
 
-        // Live in-progress states carry no retention date; terminal states do (FR-91).
-        var approved = await db.Bookings.SingleAsync(b => b.Status == BookingStatus.Approved);
-        Assert.Null(approved.DeleteAfter);
+        // Live in-progress states carry no retention date; terminal states do (FR-91). Three bookings
+        // are seeded Approved, one per stage of link issuance (FR-108), so each is picked by contact
+        // rather than by status.
+        var approvedAll = await db.Bookings.Where(b => b.Status == BookingStatus.Approved).ToListAsync();
+        Assert.All(approvedAll, b => Assert.Null(b.DeleteAfter));
+
+        // 1. Link already issued and sent.
+        var approved = Assert.Single(approvedAll, b => b.ContactEmail == "johan.bergstrom@example.com");
         Assert.NotNull(approved.CompletionToken);
         Assert.True(approved.CompletionTokenExpiry > DateTime.UtcNow);
+        Assert.NotNull(approved.CompletionLinkSentAt); // dates the link for the nudge grace (FR-63)
+
+        // 2. Check-in exactly at the lead time and no link yet — what the issuance job picks up.
+        var awaitingLink = Assert.Single(approvedAll, b => b.ContactEmail == "elsa.wikander@example.com");
+        Assert.Null(awaitingLink.CompletionToken);
+        Assert.Null(awaitingLink.CompletionLinkSentAt);
+        Assert.True(CompletionTokenPolicy.ShouldIssueOn(
+            DateOnly.FromDateTime(DateTime.UtcNow), awaitingLink.CheckIn!.Value));
+
+        // 3. Far beyond the window — no link, and none due yet.
+        var farOut = Assert.Single(approvedAll, b => b.ContactEmail == "nils.akerlund@example.com");
+        Assert.Null(farOut.CompletionToken);
+        Assert.False(CompletionTokenPolicy.ShouldIssueOn(
+            DateOnly.FromDateTime(DateTime.UtcNow), farOut.CheckIn!.Value));
 
         var completed = await db.Bookings.SingleAsync(b => b.Status == BookingStatus.Completed);
         Assert.NotNull(completed.DeleteAfter);

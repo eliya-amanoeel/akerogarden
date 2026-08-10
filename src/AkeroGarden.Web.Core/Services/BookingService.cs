@@ -524,9 +524,12 @@ public class BookingService(
     // ── Status transitions (§2.5 — enforced via BookingStateMachine) ───────────────
 
     /// <summary>
-    /// Approves a Pending stay request (FR-38): generates the completion token + expiry
-    /// (§2.6), sends the approval email (FR-52), and reports whether check-in is close enough
-    /// that the link is shortened to the 48-hour floor (FR-75).
+    /// Approves a Pending stay request (FR-38), sends the approval email (FR-52), and reports whether
+    /// check-in is close enough that the link is shortened (FR-75).
+    ///
+    /// <para>A completion token is generated only when check-in is 40 days away or sooner (FR-51/108,
+    /// §2.6); approved further ahead, <see cref="ApproveResult.TokenExpiry"/> is null and the guest is
+    /// told the link follows later. Callers must not assume an approval produced a link.</para>
     /// </summary>
     public async Task<ApproveResult> ApproveAsync(Guid id)
     {
@@ -554,12 +557,30 @@ public class BookingService(
         }
 
         var now = DateTime.UtcNow;
-        booking.CompletionToken = CompletionTokenPolicy.GenerateToken();
-        booking.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(now, booking.CheckIn.Value);
+
+        // The link is issued when the guest can use it, not when the booking is approved (FR-51/108,
+        // §2.6). A group booking a year out cannot name its participants yet, and a link issued now
+        // would expire long before they could — so approval more than 40 days ahead stores no token
+        // and CompletionLinkIssuanceJob issues one when check-in comes within the window.
+        var linkIssued = CompletionTokenPolicy.ShouldIssueOn(DateOnly.FromDateTime(now), booking.CheckIn.Value);
+        if (linkIssued)
+            IssueCompletionLink(booking, now);
+
         booking.Status = BookingStatus.Approved;
         booking.DeleteAfter = null; // live in-progress state (FR-91)
         booking.UpdatedAt = now;
         await RecordBookingAuditAsync(booking, AuditAction.BookingApproved, "Bokningen godkändes.");
+
+        // Audited separately from the approval itself, and only when a link was actually issued
+        // (FR-95). Since FR-108 made that conditional, "was this guest ever sent a link, and when"
+        // is no longer answerable from the approval entry alone — every other issuing path records
+        // one, so without this the trail would be silent about the most common one.
+        if (linkIssued)
+        {
+            await RecordBookingAuditAsync(booking, AuditAction.CompletionLinkIssued,
+                "Slutförandelänk utfärdades och skickades vid godkännandet.");
+        }
+
         await db.SaveChangesAsync();
 
         // The approval email names the assigned buildings (FR-103). The booking was loaded with
@@ -925,8 +946,14 @@ public class BookingService(
     }
 
     /// <summary>
-    /// Regenerates and resends the completion magic link while the booking is still awaiting
-    /// completion (status Approved) — invalidating any previous link (FR-49, §2.6).
+    /// Issues and sends a fresh completion magic link while the booking is still awaiting completion
+    /// (status Approved) — invalidating any previous link (FR-49, §2.6). Works whether or not a link
+    /// was ever issued: this is how a guest who already knows their participants gets the form before
+    /// the automatic issue at 40 days (FR-108).
+    ///
+    /// <para>Sends the "link is now available" email, not the approval email. The guest of a far-out
+    /// booking read the approval months ago; re-sending it would announce the same approval twice and
+    /// restate deposit terms that have not changed.</para>
     /// </summary>
     public async Task<SaveResult> RegenerateCompletionLinkAsync(Guid id)
     {
@@ -937,31 +964,39 @@ public class BookingService(
         if (booking.CheckIn is null)
             return SaveResult.Fail("Bokningen saknar incheckningsdatum.");
 
-        RegenerateCompletionToken(booking);
-        await RecordBookingAuditAsync(booking, AuditAction.CompletionLinkRegenerated,
-            "Slutförandelänk återutfärdades och skickades till gästen.");
+        IssueCompletionLink(booking, DateTime.UtcNow);
+        // "utfärdades", not "återutfärdades": this path also sends the first link a far-out booking
+        // ever gets (FR-49/108), so wording that assumes a previous one would be wrong half the time.
+        await RecordBookingAuditAsync(booking, AuditAction.CompletionLinkIssued,
+            "Slutförandelänk utfärdades och skickades manuellt till gästen.");
         await db.SaveChangesAsync();
 
-        await emails.SendApprovalAsync(booking);
+        await emails.SendCompletionLinkAvailableAsync(booking);
         logger.LogInformation("Booking {BookingId} completion link regenerated", booking.Id);
         return SaveResult.Success;
     }
 
     /// <summary>
-    /// Generates a fresh completion token + expiry on the booking (§2.6), invalidating any previous
-    /// link, without saving or sending mail — the shared core used both by
-    /// <see cref="RegenerateCompletionLinkAsync"/> (admin resend, approval email) and by the 14-day
-    /// reminder job's still-<c>Approved</c> nudge (FR-63). Caller persists and sends the appropriate mail.
+    /// Puts a fresh completion token, its expiry and the send marker on the booking (§2.6),
+    /// invalidating any previous link — without saving or sending mail. The <b>single</b> place a
+    /// link is issued: approval (FR-51), the daily issuance job (FR-108), the admin resend (FR-49)
+    /// and the completion nudge (FR-63) all route through it, so a new field never has to be
+    /// remembered in four places. Caller persists and sends the appropriate mail.
+    ///
+    /// <para><c>CompletionLinkSentAt</c> is set here rather than after the mail is dispatched because
+    /// email failures are logged and swallowed by design (NFR-13) — there is no send confirmation to
+    /// wait for. It marks "a link was issued and mailed", which is what the nudge grace period and
+    /// the issuance job both need, and matches how the reminder flags already behave.</para>
     /// </summary>
-    public void RegenerateCompletionToken(Booking booking)
+    public void IssueCompletionLink(Booking booking, DateTime nowUtc)
     {
         if (booking.CheckIn is null)
             throw new InvalidOperationException("Slutförandelänk kräver ett incheckningsdatum.");
 
-        var now = DateTime.UtcNow;
         booking.CompletionToken = CompletionTokenPolicy.GenerateToken();
-        booking.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(now, booking.CheckIn.Value);
-        booking.UpdatedAt = now;
+        booking.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(nowUtc, booking.CheckIn.Value);
+        booking.CompletionLinkSentAt = nowUtc;
+        booking.UpdatedAt = nowUtc;
     }
 
     /// <summary>Sets a booking's internal admin notes (FR-39).</summary>

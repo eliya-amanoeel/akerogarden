@@ -8,10 +8,10 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AkeroGarden.Integration;
 
 /// <summary>
-/// Integration coverage for the 14-day reminder job against real PostgreSQL (§9, FR-63/64): the
-/// standard reminder for DetailsComplete+, the regenerate-link + nudge + admin-alert variant for
-/// still-Approved bookings, once-only firing (ReminderEmailSentAt), and correct exclusion of
-/// out-of-window / ineligible / past-check-in bookings.
+/// Integration coverage for the two 14-day emails against real PostgreSQL (§9, FR-63/64): the
+/// pre-arrival reminder for DetailsComplete+, the regenerate-link + nudge + admin-alert path for
+/// still-Approved bookings, the nudge's 3-day grace period, once-only firing of each under its own
+/// flag, and correct exclusion of out-of-window / ineligible / past-check-in bookings.
 /// </summary>
 public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
 {
@@ -47,7 +47,10 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         BookingStatus status,
         DateOnly checkIn,
         bool withToken = false,
-        bool withParticipant = false)
+        bool withParticipant = false,
+        DateTime? linkSentAt = null,
+        DateTime? nudgeSentAt = null,
+        DateTime? reminderSentAt = null)
     {
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -64,6 +67,9 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
             MealPlan = MealPlan.FullBoardAll,
             CompletionToken = withToken ? "old-token" : null,
             CompletionTokenExpiry = withToken ? DateTime.UtcNow.AddDays(1) : null,
+            CompletionLinkSentAt = linkSentAt,
+            CompletionNudgeSentAt = nudgeSentAt,
+            ReminderEmailSentAt = reminderSentAt,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
         };
@@ -119,7 +125,8 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
     {
         var provider = NewProvider(out var email);
         var today = new DateOnly(2026, 7, 5);
-        var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: today.AddDays(10), withToken: true);
+        var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: today.AddDays(10),
+            withToken: true, linkSentAt: DateTime.UtcNow.AddDays(-10)); // link long past its grace
 
         var summary = await RunAsync(provider, today);
 
@@ -128,10 +135,104 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
 
         var booking = await ReloadAsync(provider, id);
         Assert.NotEqual("old-token", booking.CompletionToken); // regenerated (I13)
-        Assert.NotNull(booking.ReminderEmailSentAt);
+        Assert.NotNull(booking.CompletionNudgeSentAt);
+        Assert.Null(booking.ReminderEmailSentAt); // the nudge must not consume the pre-arrival flag
 
         Assert.Contains(email.Sent, e => e.ToAddress != "admin@test.se" && e.Subject.Contains("slutför dina"));       // guest nudge
         Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se" && e.Subject.Contains("inte slutfört"));       // admin alert
+
+        // Second run does not re-nudge.
+        var second = await RunAsync(provider, today);
+        Assert.Equal(0, second.Nudges);
+    }
+
+    [Fact]
+    public async Task TheNudgesFreshLink_RunsToThreeDaysBeforeCheckIn()
+    {
+        // Dates are relative to the real clock on purpose: the nudge computes its expiry from
+        // TimeProvider, so a fixed seeded 'today' would compare against a check-in months in the
+        // past and the assertion would be meaningless.
+        //
+        // The nudge is the "you are late" email, and the link it carries used to last 48 hours
+        // because the 03:00 run read as earlier than the 14:00 check-in instant. It must give the
+        // same window a late approval gets (FR-53).
+        var provider = NewProvider(out _);
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var checkIn = today.AddDays(ReminderSchedule.LeadDays);
+        var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: checkIn,
+            withToken: true, linkSentAt: DateTime.UtcNow.AddDays(-10));
+
+        Assert.Equal(1, (await RunAsync(provider, today)).Nudges);
+
+        var expiry = (await ReloadAsync(provider, id)).CompletionTokenExpiry!.Value;
+        var expected = checkIn.ToDateTime(CompletionTokenPolicy.StandardCheckInTime, DateTimeKind.Utc)
+                       - CompletionTokenPolicy.LateIssueLeadTime;
+
+        Assert.Equal(expected, expiry);
+        Assert.True(expiry - DateTime.UtcNow > TimeSpan.FromDays(10),
+            $"the nudge link expires {expiry:u}, leaving the guest under ten days to respond");
+    }
+
+    [Fact]
+    public async Task Nudge_IsHeldForThreeDaysAfterTheLinkIsSent_ThenFires()
+    {
+        // FR-63: approved at 15:00 must not be told at 03:00 the next morning that they have not
+        // filled in their details. The nudge is deferred, not skipped — so the second run, once the
+        // grace has passed on the same unchanged booking, must send it.
+        var provider = NewProvider(out var email);
+        var today = new DateOnly(2026, 7, 5);
+        var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: today.AddDays(10),
+            withToken: true, linkSentAt: DateTime.UtcNow.AddHours(-13));
+
+        var first = await RunAsync(provider, today);
+
+        Assert.Equal(0, first.Nudges);
+        Assert.Empty(email.Sent);
+        Assert.Null((await ReloadAsync(provider, id)).CompletionNudgeSentAt);
+
+        // Age the link past the grace; nothing else about the booking changes.
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var b = await db.Bookings.SingleAsync(x => x.Id == id);
+            b.CompletionLinkSentAt = DateTime.UtcNow - ReminderSchedule.NudgeGrace.Add(TimeSpan.FromHours(1));
+            await db.SaveChangesAsync();
+        }
+
+        var second = await RunAsync(provider, today.AddDays(1));
+
+        Assert.Equal(1, second.Nudges);
+        Assert.NotNull((await ReloadAsync(provider, id)).CompletionNudgeSentAt);
+    }
+
+    [Fact]
+    public async Task NudgedGuestWhoThenSubmits_StillReceivesThePreArrivalReminder()
+    {
+        // The defect the two flags exist to fix. While one flag guarded both emails, the nudge set it
+        // and this guest never received the address or their stated times at all.
+        var provider = NewProvider(out var email);
+        var today = new DateOnly(2026, 7, 5);
+        var checkIn = today.AddDays(14);
+        var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: checkIn,
+            withToken: true, linkSentAt: DateTime.UtcNow.AddDays(-10), withParticipant: true);
+
+        var nudgeRun = await RunAsync(provider, today);
+        Assert.Equal(1, nudgeRun.Nudges);
+
+        // The guest fills in the form two days later.
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var b = await db.Bookings.SingleAsync(x => x.Id == id);
+            b.Status = BookingStatus.DetailsComplete;
+            await db.SaveChangesAsync();
+        }
+
+        var reminderRun = await RunAsync(provider, today.AddDays(2));
+
+        Assert.Equal(1, reminderRun.StandardReminders);
+        Assert.NotNull((await ReloadAsync(provider, id)).ReminderEmailSentAt);
+        Assert.Contains(email.Sent, e => e.Subject.Contains("Påminnelse inför"));
     }
 
     [Fact]

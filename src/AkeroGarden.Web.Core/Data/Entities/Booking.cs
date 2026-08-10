@@ -215,7 +215,29 @@ public class Booking
     /// re-send it (FR-66).</summary>
     public DateTime? DeletionWarningEmailSentAt { get; set; }
 
-    /// <summary>Set when the automated 14-days-before-check-in reminder (the standard reminder, or
-    /// the completion nudge if still Approved) is sent, so the daily job fires it exactly once (FR-63).</summary>
+    /// <summary>Set when the <b>pre-arrival reminder</b> is sent 14 days before check-in (FR-63/64),
+    /// so the daily job fires it exactly once. Covers that email only — the completion nudge has its
+    /// own flag; see <see cref="CompletionNudgeSentAt"/> for why they must never share one.</summary>
     public DateTime? ReminderEmailSentAt { get; set; }
+
+    /// <summary>Set whenever a completion link is emailed to the guest — by the approval email, by
+    /// the automatic issue roughly six weeks before check-in (FR-108), by an admin resend (FR-49), or
+    /// by the completion nudge (FR-63). It dates the link for the nudge's 3-day grace period, and
+    /// that is its only use.
+    ///
+    /// <para><b>Deliberately not what the issuance job keys on.</b> That job asks whether a
+    /// <i>usable</i> link exists (FR-108), because a link that was sent and has since expired leaves
+    /// the guest exactly as stranded as one that was never sent — which is what an admin sending the
+    /// link early on a far-out booking produces.</para></summary>
+    public DateTime? CompletionLinkSentAt { get; set; }
+
+    /// <summary>Set when the <b>completion nudge</b> is sent 14 days before check-in to a booking
+    /// still awaiting completion (FR-63); fires exactly once.
+    ///
+    /// <para><b>Tracked separately from <see cref="ReminderEmailSentAt"/> on purpose.</b> One booking
+    /// may legitimately receive both, and while the two shared a flag a guest who was nudged and then
+    /// submitted was marked "reminded" and never received the pre-arrival email with the address and
+    /// times at all — every booking approved inside the 14-day window lost it. Do not merge them
+    /// back.</para></summary>
+    public DateTime? CompletionNudgeSentAt { get; set; }
 }

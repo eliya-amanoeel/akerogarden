@@ -357,7 +357,8 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddFacility(pending, utflykt);
         db.Bookings.Add(pending);
 
-        // 2. Approved — token issued, guest yet to complete details (valid magic link).
+        // 2. Approved — token issued, guest yet to complete details (valid magic link). Check-in is
+        // inside the 40-day issue window, so this is a booking approval would have given a link to.
         var approved = StayRequest(
             "Johan Bergström", "johan.bergstrom@example.com", "073-222 33 44",
             today.AddDays(30), today.AddDays(33), overnight: 24, dayGuests: 6,
@@ -365,6 +366,9 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         approved.Status = BookingStatus.Approved;
         approved.CompletionToken = CompletionTokenPolicy.GenerateToken();
         approved.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(nowUtc, approved.CheckIn!.Value);
+        // Dated back past the nudge grace (FR-63) so this booking is not sitting inside a grace
+        // window. What keeps the issuance job off it is the live expiry above, not this field.
+        approved.CompletionLinkSentAt = nowUtc.AddDays(-6);
         approved.Message = "Konfirmationsläger för församlingen.";
         approved.AdminNotes = "Ringde och bekräftade antal – återkommer med matval via länken.";
         // A non-standard stated arrival (§2.8) so the admin panel's FR-101 deviation warning has
@@ -375,6 +379,32 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddBuilding(approved, vato1);
         AddBuilding(approved, vato2);
         db.Bookings.Add(approved);
+
+        // 2b. Approved with check-in exactly at the issue lead time and no link yet — the one booking
+        // CompletionLinkIssuanceJob actually picks up (FR-108), so the "you can now fill in your
+        // details" email can be seen in a seeded environment without waiting weeks.
+        var awaitingLink = StayRequest(
+            "Elsa Wikander", "elsa.wikander@example.com", "070-909 10 11",
+            today.AddDays(CompletionTokenPolicy.IssueLeadDays), today.AddDays(CompletionTokenPolicy.IssueLeadDays + 2),
+            overnight: 8, dayGuests: 0, MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-40));
+        awaitingLink.Status = BookingStatus.Approved;
+        awaitingLink.DeleteAfter = null; // live state
+        awaitingLink.Message = "Släktträff – vi återkommer med namn när det närmar sig.";
+        AddBuilding(awaitingLink, blido);
+        db.Bookings.Add(awaitingLink);
+
+        // 2c. Approved far beyond the window — no link, and none due yet. This is the booking whose
+        // action rail should read "Skickas automatiskt cirka sex veckor före ankomst" rather than
+        // showing a blank expiry.
+        var farOut = StayRequest(
+            "Nils Åkerlund", "nils.akerlund@example.com", "073-121 31 41",
+            today.AddDays(120), today.AddDays(123), overnight: 16, dayGuests: 0,
+            MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-2));
+        farOut.Status = BookingStatus.Approved;
+        farOut.DeleteAfter = null; // live state
+        farOut.Message = "Företagsretreat nästa år.";
+        AddBuilding(farOut, vato1);
+        db.Bookings.Add(farOut);
 
         // 3. DetailsComplete — guest submitted the completion form (participants + the group's meal
         // choices + cleaning, FR-93). Occupies rooms in both Tjockö and Singö — both map to the same Lilla

@@ -129,6 +129,43 @@ public class BookingEmailTemplatesTests
     }
 
     [Fact]
+    public void Approval_BeyondTheIssueWindow_CarriesNoLinkAndPromisesOneLater()
+    {
+        // FR-52/108: a booking approved more than 40 days out has no token, so the email must not
+        // show a link or an expiry — it tells the guest nothing is required of them yet.
+        var c = BookingEmailTemplates.Approval(
+            "Anna", magicLinkUrl: null, expiryUtc: null, Ref, ["Smedjan"],
+            new TimeOnly(14, 0), new TimeOnly(12, 0));
+
+        Assert.DoesNotContain("/slutfor/", c.HtmlBody);
+        Assert.DoesNotContain("Länken är giltig", c.HtmlBody);
+        Assert.Contains("sex veckor före ankomst", c.HtmlBody);
+        Assert.Contains("behöver ni inte göra något", c.HtmlBody);
+
+        // Everything that does not depend on the link is unchanged.
+        Assert.Contains("Smedjan", c.HtmlBody);
+        Assert.Contains("20 %", c.HtmlBody);
+        Assert.Contains(Ref, c.HtmlBody);
+    }
+
+    [Fact]
+    public void CompletionLinkAvailable_CarriesTheLinkExpiryAndReference()
+    {
+        var expiry = new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc);
+        var c = BookingEmailTemplates.CompletionLinkAvailable(
+            "Anna", "https://akerogarden.se/slutfor/TOKEN", expiry, Ref);
+
+        Assert.Contains("https://akerogarden.se/slutfor/TOKEN", c.HtmlBody);
+        Assert.Contains("2026", c.HtmlBody);   // exact expiry in plain text (§2.6)
+        Assert.Contains(Ref, c.HtmlBody);
+        Assert.Contains(Ref, c.Subject);
+
+        // Not a second approval: the deposit terms belong to the approval email only.
+        Assert.DoesNotContain("20 %", c.HtmlBody);
+        Assert.DoesNotContain("godkänd", c.HtmlBody);
+    }
+
+    [Fact]
     public void Cancellation_PropertyInitiated_StatesFullRefund()
     {
         var c = BookingEmailTemplates.Cancellation("Anna", CancellationInitiator.PropertyInitiated, DepositOutcome.FullRefund, Ref);

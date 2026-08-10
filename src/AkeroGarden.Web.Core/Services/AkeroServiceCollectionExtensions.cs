@@ -104,6 +104,12 @@ public static class AkeroServiceCollectionExtensions
     {
         services.Configure<JobOptions>(configuration.GetSection("Jobs"));
         services.AddScoped<IScheduledJob, RetentionJob>();
+        // Issuance runs before the reminder sweep. The two normally fire 26 days apart, but if the
+        // issuance job has been down and a link-less booking reaches 14 days, this ordering gives it
+        // the link first — the nudge then sees a link sent seconds ago and defers on its grace period
+        // rather than telling the same guest, in the same minute, both "here is your link" and "you
+        // have not filled in your details".
+        services.AddScoped<IScheduledJob, CompletionLinkIssuanceJob>();
         services.AddScoped<IScheduledJob, ReminderJob>();
         services.AddHostedService<DailyJobRunner>();
         return services;

@@ -167,6 +167,10 @@ public sealed class E2EFixture : IAsyncLifetime
             CheckOutTime = MealOccasionResolver.StandardCheckOutTime,
             CompletionToken = token,
             CompletionTokenExpiry = DateTime.UtcNow.AddDays(14),
+            // A seeded link is a link that was sent (FR-108), dated outside the nudge grace (FR-63).
+            // The live expiry above is what keeps the issuance job from replacing the very tokens
+            // these tests navigate to.
+            CompletionLinkSentAt = DateTime.UtcNow.AddDays(-5),
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),

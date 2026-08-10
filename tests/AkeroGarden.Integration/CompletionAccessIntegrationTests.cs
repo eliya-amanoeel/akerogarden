@@ -39,17 +39,25 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
         });
     }
 
-    /// <summary>Creates a Pending stay, approves it, and returns (bookingId, token).</summary>
+    /// <summary>
+    /// Creates a Pending stay, approves it, and returns (bookingId, token).
+    ///
+    /// <para>Check-in is deliberately inside the 40-day issue window and relative to today: approval
+    /// only mints a token when the guest could actually use it (FR-51/108), so a fixed far-future
+    /// date would approve without one and every caller here would then be evaluating a null token —
+    /// reporting NotFound rather than the access state it means to test.</para>
+    /// </summary>
     private static async Task<(Guid Id, string Token)> ApprovedBookingAsync(IServiceProvider provider)
     {
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+        var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30);
         var booking = await service.CreateStayRequestAsync(new StayRequestInput
         {
             ContactName = "Gäst",
             ContactEmail = $"guest-{Guid.NewGuid():N}@test.se",
-            CheckIn = new DateOnly(2026, 12, 1),
-            CheckOut = new DateOnly(2026, 12, 4),
+            CheckIn = checkIn,
+            CheckOut = checkIn.AddDays(3),
             OvernightGuestCount = 4,
             MealPlan = MealPlan.FullBoardAll,
             AcceptPrivacyPolicy = true
@@ -59,8 +67,12 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
         // Approval requires a lodging assignment (FR-103/D1).
         await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
         await service.ApproveAsync(booking.Id);
-        var token = (await db.Bookings.FindAsync(booking.Id))!.CompletionToken!;
-        return (booking.Id, token);
+
+        // Asserted, not null-forgiven: a `!` here turns "approval issued no link" into a NotFound
+        // three tests down, which is how this helper broke silently once already.
+        var token = (await db.Bookings.FindAsync(booking.Id))!.CompletionToken;
+        Assert.False(string.IsNullOrEmpty(token), "approval did not issue a completion link");
+        return (booking.Id, token!);
     }
 
     [Fact]

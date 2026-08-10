@@ -246,6 +246,12 @@ namespace AkeroGarden.Web.Core.Migrations
                     b.Property<TimeOnly?>("CheckOutTime")
                         .HasColumnType("time without time zone");
 
+                    b.Property<DateTime?>("CompletionLinkSentAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CompletionNudgeSentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("CompletionToken")
                         .HasColumnType("text");
 

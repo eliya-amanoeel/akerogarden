@@ -47,18 +47,24 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         });
     }
 
+    /// <summary>
+    /// Creates a Pending stay with a lodging assignment, ready to approve. <paramref name="checkIn"/>
+    /// defaults to well beyond the 40-day issue window, so approving it issues no completion link
+    /// (FR-51/108) — pass a nearer date to exercise the link-issued audit row.
+    /// </summary>
     private static async Task<(Guid Id, string GuestEmail, string Reference)> CreatePendingStayAsync(
-        IServiceProvider provider)
+        IServiceProvider provider, DateOnly? checkIn = null)
     {
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
         var guestEmail = $"guest-{Guid.NewGuid():N}@test.se";
+        var arrival = checkIn ?? DateOnly.FromDateTime(DateTime.UtcNow).AddDays(180);
         var booking = await service.CreateStayRequestAsync(new StayRequestInput
         {
             ContactName = "Gäst Gästsson",
             ContactEmail = guestEmail,
-            CheckIn = new DateOnly(2026, 12, 1),
-            CheckOut = new DateOnly(2026, 12, 4),
+            CheckIn = arrival,
+            CheckOut = arrival.AddDays(3),
             OvernightGuestCount = 3,
             MealPlan = MealPlan.FullBoardAll,
             AcceptPrivacyPolicy = true
@@ -110,6 +116,50 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         Assert.Equal(reference, row.BookingReferenceSnapshot);
         Assert.DoesNotContain(guestEmail, row.Summary);
         Assert.DoesNotContain("Gästsson", row.Summary); // guest name never in the trail (NFR-37)
+    }
+
+    [Fact]
+    public async Task Approve_WithinTheIssueWindow_AlsoWritesALinkIssuedRow()
+    {
+        // Every other path that hands a guest a link records one (FR-95). Since FR-108 made the link
+        // at approval conditional, without this row "was this guest ever sent a link, and when" is
+        // unanswerable for the most common case of all.
+        var provider = NewProvider();
+        var (id, guestEmail, reference) = await CreatePendingStayAsync(
+            provider, checkIn: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30));
+
+        using (var scope = provider.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+
+        var row = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.CompletionLinkIssued));
+        Assert.Equal(AuditActorType.Admin, row.ActorType);
+        Assert.Equal(reference, row.BookingReferenceSnapshot);
+
+        // The trail records that a link went out, never the link itself — the token is a
+        // password-free credential, and the guest's address is PII (NFR-37, §6.9).
+        Assert.DoesNotContain(guestEmail, row.Summary);
+        Assert.DoesNotContain("Gästsson", row.Summary);
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var token = (await db.Bookings.FindAsync(id))!.CompletionToken!;
+            Assert.DoesNotContain(token, row.Summary);
+        }
+    }
+
+    [Fact]
+    public async Task Approve_BeyondTheIssueWindow_WritesNoLinkIssuedRow()
+    {
+        // No link was issued, so claiming one was would be a false record — and the trail is the
+        // thing you consult precisely when the guest says they never received it.
+        var provider = NewProvider();
+        var (id, _, _) = await CreatePendingStayAsync(provider); // 180 days out
+
+        using (var scope = provider.CreateScope())
+            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+
+        Assert.Single(await AuditRowsAsync(provider, id, AuditAction.BookingApproved));
+        Assert.Empty(await AuditRowsAsync(provider, id, AuditAction.CompletionLinkIssued));
     }
 
     [Fact]

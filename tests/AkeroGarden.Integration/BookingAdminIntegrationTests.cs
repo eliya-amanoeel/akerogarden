@@ -85,24 +85,56 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task Approve_GeneratesToken_SetsApproved_AndSendsApprovalEmail()
+    public async Task Approve_WithinIssueWindow_GeneratesToken_SetsApproved_AndSendsApprovalEmail()
     {
         var provider = NewProvider(out var email);
-        var id = await CreatePendingStayAsync(provider, checkIn: new DateOnly(2026, 12, 1));
+        // Inside the 40-day issue window but outside the 14-day short-expiry one (FR-51/75/108).
+        var id = await CreatePendingStayAsync(provider, checkIn: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30));
 
         ApproveResult result;
         using (var scope = provider.CreateScope())
             result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
 
         Assert.True(result.Succeeded);
-        Assert.False(result.ShortExpiryWarning); // check-in far away
+        Assert.False(result.ShortExpiryWarning);
+        Assert.NotNull(result.TokenExpiry);
 
         var booking = await ReloadAsync(provider, id);
         Assert.Equal(BookingStatus.Approved, booking.Status);
         Assert.False(string.IsNullOrEmpty(booking.CompletionToken));
         Assert.NotNull(booking.CompletionTokenExpiry);
+        Assert.NotNull(booking.CompletionLinkSentAt);
         Assert.Null(booking.DeleteAfter); // live state
-        Assert.Contains(email.Sent, e => e.Subject.Contains("godkänd"));
+
+        var approval = Assert.Single(email.Sent, e => e.Subject.Contains("godkänd"));
+        Assert.Contains("/slutfor/", approval.HtmlBody);
+    }
+
+    [Fact]
+    public async Task Approve_BeyondIssueWindow_IssuesNoLink_AndTheEmailPromisesOneLater()
+    {
+        // FR-51/52/108: a group booking six months out cannot name its participants yet, so no token
+        // is stored and the approval email carries no link — it says one follows nearer the stay.
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider, checkIn: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(180));
+
+        ApproveResult result;
+        using (var scope = provider.CreateScope())
+            result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+
+        Assert.True(result.Succeeded);
+        Assert.Null(result.TokenExpiry);
+
+        var booking = await ReloadAsync(provider, id);
+        Assert.Equal(BookingStatus.Approved, booking.Status);
+        Assert.Null(booking.CompletionToken);
+        Assert.Null(booking.CompletionTokenExpiry);
+        Assert.Null(booking.CompletionLinkSentAt); // what the issuance job looks for
+
+        // The guest is still told they are approved — but with no link and no expiry to miss.
+        var approval = Assert.Single(email.Sent, e => e.Subject.Contains("godkänd"));
+        Assert.DoesNotContain("/slutfor/", approval.HtmlBody);
+        Assert.Contains("sex veckor före ankomst", approval.HtmlBody);
     }
 
     [Fact]
@@ -291,7 +323,8 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     public async Task RegenerateLink_ReplacesToken_AndRequiresApproved()
     {
         var provider = NewProvider(out _);
-        var id = await CreatePendingStayAsync(provider);
+        // Inside the issue window, so approval really does produce a first token to replace.
+        var id = await CreatePendingStayAsync(provider, checkIn: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30));
 
         using var scope = provider.CreateScope();
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
@@ -300,10 +333,38 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         await svc.ApproveAsync(id);
         var first = (await ReloadAsync(provider, id)).CompletionToken;
+        Assert.False(string.IsNullOrEmpty(first));
+
         Assert.True((await svc.RegenerateCompletionLinkAsync(id)).Succeeded);
         var second = (await ReloadAsync(provider, id)).CompletionToken;
 
+        Assert.False(string.IsNullOrEmpty(second));
         Assert.NotEqual(first, second);
+    }
+
+    [Fact]
+    public async Task RegenerateLink_SendsTheLinkEarly_ToABookingThatHasNoneYet()
+    {
+        // FR-49/108: this is how a guest who already knows their participants gets the form before
+        // the automatic issue at 40 days. It must send the "you can fill in your details" email, not
+        // a second copy of the approval the guest read months ago.
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider, checkIn: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(180));
+
+        using var scope = provider.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+        await svc.ApproveAsync(id);
+        Assert.Null((await ReloadAsync(provider, id)).CompletionToken); // precondition: no link yet
+
+        Assert.True((await svc.RegenerateCompletionLinkAsync(id)).Succeeded);
+
+        var booking = await ReloadAsync(provider, id);
+        Assert.False(string.IsNullOrEmpty(booking.CompletionToken));
+        Assert.NotNull(booking.CompletionLinkSentAt);
+
+        var linkMail = Assert.Single(email.Sent, e => e.Subject.Contains("fylla i era uppgifter"));
+        Assert.Contains("/slutfor/", linkMail.HtmlBody);
+        Assert.Single(email.Sent, e => e.Subject.Contains("godkänd")); // the approval was not re-sent
     }
 
     [Fact]

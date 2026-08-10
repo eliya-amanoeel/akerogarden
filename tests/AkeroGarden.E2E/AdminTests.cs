@@ -864,8 +864,11 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 Status = BookingStatus.Pending,
                 ContactName = "Utan Byggnad",
                 ContactEmail = "utanbyggnad@example.se",
-                CheckIn = today.AddDays(70),
-                CheckOut = today.AddDays(72),
+                // Inside the 40-day issue window on purpose: a successful approval here *would* have
+                // issued a link (FR-51/108), so the null-token assertion below still proves the guard
+                // blocked it. Seeded further out, that assertion would pass either way.
+                CheckIn = today.AddDays(30),
+                CheckOut = today.AddDays(32),
                 OvernightGuestCount = 4,
                 MealPlan = MealPlan.FullBoardAll,
                 ArrivalDinner = true,
@@ -957,6 +960,13 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             // Dialog opens; cancelling must leave the booking Pending (Godkänn still offered).
             var dialog = Page.GetByRole(AriaRole.Dialog);
             await Assertions.Expect(dialog).ToBeVisibleAsync();
+
+            // Check-in is 60 days out, so approval issues no link (FR-51/108) and the dialog must not
+            // promise one. It still names the address, which is the point of stating it (FR-38).
+            await Assertions.Expect(dialog).ToContainTextAsync("godkann@example.se");
+            await Assertions.Expect(dialog).ToContainTextAsync("cirka sex veckor före ankomst");
+            await Assertions.Expect(dialog).Not.ToContainTextAsync("med slutförandelänk skickas");
+
             await dialog.GetByRole(AriaRole.Button, new() { Name = "Avbryt" }).ClickAsync();
             await Assertions.Expect(dialog).Not.ToBeVisibleAsync();
             await Assertions.Expect(approve).ToBeVisibleAsync();
@@ -973,6 +983,84 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Page.GetByRole(AriaRole.Dialog)
                 .GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true }).ClickAsync();
             await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("godkänd");
+
+            // …and the toast tells the truth about the link rather than printing a blank expiry.
+            await Assertions.Expect(Page.Locator(".form-status"))
+                .ToContainTextAsync("cirka sex veckor före ankomst");
+
+            await using (var db = Fixture.NewDbContext())
+            {
+                var booking = (await db.Bookings.FindAsync(id))!;
+                Assert.Equal(BookingStatus.Approved, booking.Status);
+                Assert.Null(booking.CompletionToken);
+                Assert.Null(booking.CompletionLinkSentAt);
+            }
+
+            // The action rail explains the missing link instead of showing an empty "giltig till".
+            // Narrowed twice on purpose: the success toast carries the same sentence, and the
+            // building-assignment box is a second .action-note — either alone still matches two
+            // elements and fails on strict mode.
+            await Assertions.Expect(Page.Locator(".action-note", new() { HasText = "Slutförandelänk" }))
+                .ToContainTextAsync("Skickas automatiskt cirka sex veckor före ankomst");
+            await Assertions.Expect(
+                Page.GetByRole(AriaRole.Button, new() { Name = "Skicka slutförandelänk nu" }))
+                .ToBeVisibleAsync();
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Bookings.Where(b => b.Id == id).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>
+    /// The other half of the approve dialog's conditional: a booking inside the 40-day window is
+    /// promised a link, because approving it really does send one (FR-51/108). Cancels rather than
+    /// approves — the transition itself is covered above.
+    /// </summary>
+    [Fact]
+    public async Task Approve_dialog_promises_the_link_when_check_in_is_inside_the_issue_window()
+    {
+        var id = Guid.NewGuid();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Bookings.Add(new Booking
+            {
+                Id = id,
+                BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
+                BookingType = BookingType.StayRequest,
+                Status = BookingStatus.Pending,
+                ContactName = "Nära Incheckning",
+                ContactEmail = "nara@example.se",
+                CheckIn = today.AddDays(30),
+                CheckOut = today.AddDays(32),
+                OvernightGuestCount = 6,
+                MealPlan = MealPlan.FullBoardAll,
+                ArrivalDinner = true,
+                DepartureBreakfast = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                DeleteAfter = today.AddYears(1),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync($"/bokningar/{id}");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true }).ClickAsync();
+
+            var dialog = Page.GetByRole(AriaRole.Dialog);
+            await Assertions.Expect(dialog).ToBeVisibleAsync();
+            await Assertions.Expect(dialog).ToContainTextAsync("med slutförandelänk skickas till nara@example.se");
+            await Assertions.Expect(dialog).Not.ToContainTextAsync("cirka sex veckor före ankomst");
+
+            await dialog.GetByRole(AriaRole.Button, new() { Name = "Avbryt" }).ClickAsync();
         }
         finally
         {

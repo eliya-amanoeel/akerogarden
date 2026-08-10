@@ -246,9 +246,16 @@ public static class BookingEmailTemplates
             + "Ni fördelar själva gruppen mellan rummen.</p>";
     }
 
-    /// <summary>Approval email — magic link, exact expiry in plain text, the assigned lodging
-    /// buildings (FR-103), deposit/cancellation policy (§9, FR-52), and the booking's own check-in
-    /// and check-out times.
+    /// <summary>Approval email — the assigned lodging buildings (FR-103), deposit/cancellation policy
+    /// (§9, FR-52), and the booking's own check-in and check-out times.
+    ///
+    /// <para><b>Two variants, chosen by whether a link exists.</b> A booking approved 40 days or less
+    /// before check-in carries the magic link and its exact expiry in plain text. Approved further
+    /// ahead, no token is issued at all (FR-51/108) — passing null for
+    /// <paramref name="magicLinkUrl"/>/<paramref name="expiryUtc"/> replaces the link paragraph with
+    /// a statement that the form opens roughly six weeks before the stay and that nothing is required
+    /// until then. The two are one template rather than two because everything else on the page —
+    /// lodging, deposit terms, times — is identical, and a copy would drift.</para>
     ///
     /// <para><b>The booking's times, not the 14:00/12:00 standard.</b> The admin is warned about a
     /// deviating time at the approve button (FR-101) and can adjust it first (FR-48), so whatever is
@@ -256,7 +263,7 @@ public static class BookingEmailTemplates
     /// 08:00 would be confusing without correcting anything — they would still expect 08:00 — and
     /// omitting the line entirely corrects it no better.</para></summary>
     public static EmailContent Approval(
-        string contactName, string magicLinkUrl, DateTime expiryUtc, string bookingReference,
+        string contactName, string? magicLinkUrl, DateTime? expiryUtc, string bookingReference,
         IReadOnlyList<string> assignedBuildingNames, TimeOnly? checkInTime, TimeOnly? checkOutTime)
     {
         var body = new StringBuilder();
@@ -264,14 +271,42 @@ public static class BookingEmailTemplates
         body.Append("<p>Din bokningsförfrågan är godkänd! För att slutföra din bokning behöver du fylla i uppgifter om deltagare och måltider.</p>");
         body.Append(ReferenceLine(bookingReference));
         body.Append(LodgingLine(assignedBuildingNames));
-        body.Append($"<p><a href=\"{Enc(magicLinkUrl)}\">Slutför din bokning här</a></p>");
-        body.Append($"<p>Länken är giltig till och med <strong>{FormatDateTime(expiryUtc)}</strong>. Fyll i uppgifterna före dess.</p>");
+        if (magicLinkUrl is not null && expiryUtc is not null)
+        {
+            body.Append($"<p><a href=\"{Enc(magicLinkUrl)}\">Slutför din bokning här</a></p>");
+            body.Append($"<p>Länken är giltig till och med <strong>{FormatDateTime(expiryUtc.Value)}</strong>. Fyll i uppgifterna före dess.</p>");
+        }
+        else
+        {
+            body.Append("<p>En länk för att fylla i uppgifter om deltagare och måltider skickas till er cirka sex veckor före ankomst. Fram till dess behöver ni inte göra något.</p>");
+        }
+
         body.Append("<h3>Handpenning och avbokning</h3>");
         body.Append("<p>En handpenning på 20 % av totalsumman betalas för att bekräfta bokningen. Resterande 80 % faktureras före ankomst.</p>");
         body.Append("<p>Vid avbokning mer än två månader före ankomst återbetalas handpenningen i sin helhet. Vid avbokning två månader eller mindre före ankomst återbetalas inte handpenningen.</p>");
         body.Append($"<p>Incheckning sker kl. {Enc(StatedTimePolicy.Display(checkInTime, MealOccasionResolver.StandardCheckInTime))} "
             + $"och utcheckning kl. {Enc(StatedTimePolicy.Display(checkOutTime, MealOccasionResolver.StandardCheckOutTime))}.</p>");
         return new EmailContent(WithReference("Din bokning är godkänd – slutför dina uppgifter", bookingReference), body.ToString());
+    }
+
+    /// <summary>The completion link is now available (§9, FR-108) — sent when check-in comes within
+    /// 40 days of a booking that was approved too far ahead to be given a link at the time, and by an
+    /// admin resend (FR-49).
+    ///
+    /// <para>Deliberately <b>not</b> the approval email again: that one announces the approval and
+    /// restates the deposit terms, both of which the guest already read months ago. Re-sending it
+    /// would read as a second approval of the same booking.</para></summary>
+    public static EmailContent CompletionLinkAvailable(
+        string contactName, string magicLinkUrl, DateTime expiryUtc, string bookingReference)
+    {
+        var body = new StringBuilder();
+        body.Append(Greeting(contactName));
+        body.Append("<p>Nu är det dags att fylla i uppgifter om deltagare och måltider inför er vistelse hos Åkerögården.</p>");
+        body.Append(ReferenceLine(bookingReference));
+        body.Append($"<p><a href=\"{Enc(magicLinkUrl)}\">Slutför din bokning här</a></p>");
+        body.Append($"<p>Länken är giltig till och med <strong>{FormatDateTime(expiryUtc)}</strong>. Fyll i uppgifterna före dess.</p>");
+        body.Append("<p>Ha gärna namn på alla deltagare och eventuella allergier till hands när ni fyller i.</p>");
+        return new EmailContent(WithReference("Nu kan ni fylla i era uppgifter", bookingReference), body.ToString());
     }
 
     /// <summary>Standard 14-day reminder to the guest (§9, FR-64) — participant/day-guest counts,

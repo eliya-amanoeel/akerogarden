@@ -70,3 +70,19 @@ never was. The items those references describe — the staging cold-start lag wa
 go-live content blockers — are either resolved or tracked in their phase.
 
 **To fix:** either drop the references, or move the surviving items here and delete the phrase.
+
+---
+
+## 4. Kaldeiska Kursgård should be added on the start page (Public)
+
+**Found:** 2026-08-07 · **Severity:** cosmetic
+
+**To fix:** add that text somewhere we agree upon
+
+---
+
+## 4. Logo
+
+**Found:** 2026-08-07 · **Severity:** cosmetic
+
+**To fix:** Update the logo.

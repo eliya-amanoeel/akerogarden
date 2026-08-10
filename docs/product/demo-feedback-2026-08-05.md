@@ -11,7 +11,7 @@ a future reader can tell a deliberate choice from an accident. The agreed workin
 every agreed change in `requirements.md`, `erd.md`, `architecture.md`,
 `implementation-plan.md` and `docs/legal/` **before any code is written**; (4) implement.
 
-**Framed and fully decided:** 1a (group-wide meals), 2a (building assignment), 2b (`Samordnare` role), 3 (check-in/check-out times), 4a (turnover days), 6a (token-expiry nudge), 6b (email in approve dialog), 6c (footer fix), 6d (payment checkboxes removed).
+**Framed and fully decided:** 1a (group-wide meals), 2a (building assignment), 2b (`Samordnare` role), 3 (check-in/check-out times), 4a (turnover days), 6a (**superseded 2026-08-09 — deferred link issuance instead of a nudge; see the block after §6a's framing**), 6b (email in approve dialog), 6c (footer fix), 6d (payment checkboxes removed).
 **Design corrections carried alongside (§7):** meal-occasion source of truth; availability "unavailable reasons".
 **Deferred:** 1b (participant-name upload, after launch — decided, not drifted).
 **Deferred:** 5a (review feature — postponed as a future feature, decided not drifted).
@@ -686,7 +686,53 @@ template.
 
 **Check while implementing:** what the expired-link page actually says. If it is a bare error
 rather than "this link has expired — contact us and we will send a new one", that is a poor
-moment for a guest to land on.
+moment for a guest to land on. *(Checked 2026-08-09 — it already reads "Länken har gått ut …
+Kontakta oss så skickar vi en ny länk", with a Kontakt button. No work needed.)*
+
+### 6a — SUPERSEDED 2026-08-09, before any of it was built
+
+**The warning email is not being built. FR-99 is retired; FR-108 replaces it.**
+
+Walking every approval-to-arrival case showed the framing above was treating a symptom. The
+dead link is not a general condition — it occurs in exactly one case, and the expiry formula
+says why. The link expires at the earlier of *issue + 30 days* and *check-in − 14 days*, so:
+
+| Booking approved | What happens |
+|---|---|
+| more than ~6 weeks before check-in | link dies at issue + 30 days, then silence until the 14-day nudge — the gap 6a described |
+| 2–6 weeks before check-in | the link survives to the 14-day nudge, which replaces it — **no gap at all** |
+| less than 2 weeks before check-in | 48-hour link (the floor), separate problem — see below |
+
+So the fix is not to announce the death. It is to stop issuing a link months before the guest
+can use it: **no link at approval when check-in is more than 40 days away; a daily job issues
+one at 40 days** (FR-108). 40 is the latest point at which the 30-day ceiling still outlives
+the 14-day cut-off, so an issued link always survives to the nudge. There is then nothing left
+to warn about. It also fixes something the warning never addressed — a group booking a year
+ahead was being told to name its participants and pick its meals within 30 days, which it
+cannot do.
+
+**A guest-triggered "request my link" button was considered and rejected.** It preserves early
+self-service, but adds a second public unauthenticated endpoint that emails a third party —
+an abuse surface needing its own rate limiting and its own expiry — for a gain the existing
+admin resend (FR-49) already covers by phone.
+
+**Three further defects surfaced while walking those cases**, none of them client requests and
+none previously known. All are in scope and all now have requirements:
+
+1. **One flag guarded both 14-day emails.** `ReminderEmailSentAt` was set whichever of the two
+   fired, so a guest who was nudged and then submitted the form **never received the pre-arrival
+   email with the address and arrival times**. Not an edge case — it is every booking approved
+   inside the 14-day window. Split into two flags (FR-63, §8.1).
+2. **The nudge fires the morning after a late approval.** The job looks for any booking arriving
+   within 14 days that has not been reminded, so a booking approved 10 days out is nudged at
+   03:00 the next day: "your booking is approved" in the afternoon, "you have not filled in your
+   details" overnight. Now held for 3 days after the link is sent (FR-63).
+3. **The 48-hour floor is too short.** A booking approved 10 days out gave the guest two days to
+   collect everyone's names and allergies. The link now runs to 3 days before check-in (FR-53).
+
+**And one gap of our own, unrelated to the link:** the guest receives **no email at all** on
+submitting the completion form — only info@ does. They now get their own confirmation of what
+they entered (FR-107).
 
 ### 6b. Manually created bookings are silent — BLOCKS-LAUNCH, framed
 
@@ -932,7 +978,7 @@ and recreating **both** staging and production databases per `infra/ops/db-acces
 
 | Document | Touched by | Scale |
 |---|---|---|
-| `requirements.md` | §1 stakeholders (2b) · §2.5 flow (6d) · §2.6 (6a) · §2.8 (3) · §3.3 (C3) · §4.1/4.2/4.6 (1a) · §5.5 (2a) · §8.1/8.5/8.6/8.10/8.11/8.12 (1a, 2a, 6d) · §9 emails (3, 6a) · §10 deferred list (2b) · FR-16/20/21/42/56/57/64/93/95 · NFR-16 | Largest |
+| `requirements.md` | §1 stakeholders (2b) · §2.5 flow (6d) · §2.6 (6a, rewritten 2026-08-09) · §2.8 (3) · §3.3 (C3) · §4.1/4.2/4.6 (1a) · §5.5 (2a) · §8.1/8.5/8.6/8.10/8.11/8.12 (1a, 2a, 6d, 6f) · §9 emails (3, 6a, 6e, 6f) · §10 deferred list (2b) · FR-16/20/21/42/51/52/53/56/57/63/64/75/93/95 · new FR-107/108, retires FR-99 · NFR-16 | Largest |
 | `erd.md` | New booking↔building entity; `MealPreference` → `BookingMealSelection` re-parented; `Participant` shrinks | Redraw |
 | `architecture.md` | Two admin roles; no new external services | Light |
 | `implementation-plan.md` | New work section; **migration-exception expiry moved 10c → 10d**; phase → requirements map | Moderate |

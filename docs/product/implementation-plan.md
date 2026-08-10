@@ -154,7 +154,7 @@ Only slice 1 introduces a migration — all four lifecycle entities land togethe
 **Scope & deliverables:**
 
 - **Participant and MealPreference** entities + migration, with snapshot fields populated on save (NFR-15/16). New fixed-value enums: `AgeCategory` (`Adult`/`Child`/`Infant`), `ParticipantType` (`Overnight`/`DayGuest`), `DietaryRequirement` (§4.6, multi-select) plus free-text `DietaryNotes` (≤200 chars). *(The two selection entities `BookingFacilitySelection`/`BookingCleaningSelection` already landed in Phase 3 slice 1 — they are not Phase 4 work; the earlier draft of this section listed all four, which was stale.)*
-- **Token-authenticated completion page** (URL token is the sole auth; single-use; expiry per §2.6 with the 48-hour floor; admin resend/regenerate while `Approved`). `CompletionTokenPolicy`, token generation on approval, the approval email link to `/slutfor/{token}`, and admin `RegenerateCompletionLinkAsync` were all built in Phase 3 — Phase 4 **consumes** them and builds the page they point at.
+- **Token-authenticated completion page** (URL token is the sole auth; single-use; expiry per §2.6; admin resend/regenerate while `Approved`). `CompletionTokenPolicy`, token generation on approval, the approval email link to `/slutfor/{token}`, and admin `RegenerateCompletionLinkAsync` were all built in Phase 3 — Phase 4 **consumes** them and builds the page they point at.
 - **Completion form:**
   - Per overnight participant: name, age category, full-board override, **meals per applicable day** (meals-by-day rule: arrival = dinner, middle = lunch+dinner, departure = none), dietary needs, and room assignment when `GuestChoosesRooms`.
   - Per day guest: name, age category, single attendance date, breakfast checkbox, lunch/dinner if attending, dietary needs.
@@ -529,8 +529,10 @@ demo and asked for these changes, and launching the version they critiqued is no
 | 3 | Guest states **check-in/check-out times** at inquiry (FR-100/101); arrival- and departure-day meals become chosen data rather than derived from fixed times |
 | 4a | The check-out date **and the following day** are shown unavailable — two clear turnover days, computed not stored (FR-106) |
 | 5a | The "review feature" — **postponed as a future feature** (2026-08-06), out of launch scope. Never identified beyond the client's phrase; the decision fork is recorded in the feedback document and in `requirements.md` §10. Deciding it out rather than leaving it parked also removes the only item in this set that could have required new Azure infrastructure |
-| 6a | Warning email before the completion link expires (FR-99) |
+| 6a | Originally a warning email before the completion link expires (FR-99). **Superseded 2026-08-09 before it was built** — the link is now issued ~40 days before check-in instead of at approval (FR-108), which removes the dead-link gap the warning was meant to announce. FR-99 retired |
 | 6b | Guest email address shown in the approve confirmation dialog (FR-38) |
+| 6e | *(Added 2026-08-09, found while framing 6a — not a client request.)* The guest receives **no email at all** when they submit the completion form; only the admin does. They now get their own confirmation of what they entered (FR-107) |
+| 6f | *(Added 2026-08-09, found while framing 6a — a defect.)* One flag guarded **both** 14-day emails, so a guest who was nudged and then completed the form never received the pre-arrival email with the address and times. Separate flags (FR-63, §8.1), plus a 3-day grace before nudging and a usable link window for late approvals (FR-53) |
 | 6c | Stale SRS version footer corrected |
 | 6d | The four deposit/final-payment tracking checkboxes removed (FR-42 retired) |
 | §7 | **Two design corrections, ours not the client's:** give the meal-occasion set a single resolved source of truth instead of leaving one derived and one stored; and make "unavailable" a first-class set of reasons in the availability calculator instead of one boolean |
@@ -561,20 +563,26 @@ collide in the same files, and the obvious order is the wrong one:
 | **3d** | — lists + emails | `ListShaper` prep counts from booking-level selections; preference counts on the Matlista (FR-45); reminder email carries the booking's own times and the assigned buildings (FR-64) | |
 | **4** | **Turnover days** *(4a + §7.2 + audit C4, M1)* | §7.2 — make "unavailable" a first-class set of reasons in `AvailabilityCalculator` rather than one boolean; turnover window computed from booking dates (FR-106); apply to the public calendar **and** `AdminCalendar` | Independent of the data model. **§7.2 is what makes it work at all** — extending the date range alone leaves a small group's turnover days reading *partially* booked. **`AdminCalendar` does not use `OccupancyProvider`** (audit M1), so it is a second code path that must be updated deliberately |
 | **5** | **`Samordnare` role** *(2b + audit H2)* | Role seeding at startup + `Administratör` backfilled onto existing/seeded admins (**audit H2 — no role is created or assigned today**); `AdminInviteService` carries a role; per-page authorisation; the restricted booking list + list-download view; its own landing page (the admin host's `/` is the dashboard, which this role must not see); role-change audit verb | Independent of the data model, but touches admin pages — so it follows slice 2 rather than colliding with it |
-| **6** | **Notifications polish** *(6a + 6b)* | Link-expiry warning email + `LinkExpiryWarningSentAt` + `DailyJobRunner` step (FR-99); guest email address in the approve `ConfirmDialog` (FR-38/6b) | Small, independent, no schema coupling beyond one timestamp |
-| **7** | **Baseline + cutover prep** *(schema, DBs, gate)* | Regenerate the migration baseline **once**; drop and recreate the staging **and** production databases per `infra/ops/db-access-runbook.md`; reseed; final doc reconciliation; **completion gate** | One regeneration, not one per slice. A regenerated baseline **cannot** apply over an existing schema — `MigrateAsync` tries to `CREATE TABLE` over the old tables and the container dies on the 230s startup timeout (staging, 2026-07-14) |
+| **6** | **Notification polish** *(6b + 6e)* | Guest email address stated in the approve `ConfirmDialog` (FR-38); guest confirmation email on completion-form submission (FR-107) — new template, sent alongside the existing admin notification (FR-61) | Small, self-contained, **no schema change at all**. Both are single additions to code paths slice 3 already settled |
+| **7** | **Link issuance + reminder fixes** *(6a superseded + 6f)* | Defer link issuance: no token at approval when check-in is >40 days away, approval email says the link comes later, daily job issues + emails it at 40 days (FR-51/52/108, §2.6); **split `ReminderEmailSentAt` into pre-arrival vs. `CompletionNudgeSentAt`** (FR-63); 3-day grace before the nudge via new `CompletionLinkSentAt`; late-approval link window runs to 3 days before check-in instead of 48 h from issue (FR-53) | Depends on nothing else, but changes the schema (two new fields, one removed concept) and rewrites `ReminderJob` — so it sits **after** slice 6's additive-only work and **before** the baseline regen that collapses its migration |
+| **8** | **Baseline + cutover prep** *(schema, DBs, gate)* | Regenerate the migration baseline **once**; drop and recreate the staging **and** production databases per `infra/ops/db-access-runbook.md`; reseed; final doc reconciliation; **completion gate** | One regeneration, not one per slice. A regenerated baseline **cannot** apply over an existing schema — `MigrateAsync` tries to `CREATE TABLE` over the old tables and the container dies on the 230s startup timeout (staging, 2026-07-14) |
 
 **Testing per slice** (NFR-26–28, written *with* the slice, never after):
 
 - **Unit** — the meal-occasion resolver (3a), the turnover-window computation and the
-  unavailable-reason evaluation (4), the capacity warning threshold (2), the expiry-warning
-  cutoff (6).
+  unavailable-reason evaluation (4), the capacity warning threshold (2), the token-expiry
+  computation incl. the late-approval window, the 40-day issuance cutoff and the 3-day nudge
+  grace (7).
 - **Integration** — building assignment incl. the approval precondition and the blocked-building
   rejection (2); both rewritten hard-delete guards, asserting a **blocked** result, not merely
   that the call returns (2); cleaning-zone resolution from assigned buildings incl.
   re-resolution when the assignment changes (2); completion submission end-to-end on the new
   shape (3b); list generation against booking-level selections (3d); `Samordnare` authorisation
-  — a role that **cannot** reach `BookingDetail` or guest contact data (5).
+  — a role that **cannot** reach `BookingDetail` or guest contact data (5); the guest
+  confirmation email actually sent on submission, asserting its content and that the admin
+  notification is unchanged (6); the reminder job driven across a full approval-to-arrival
+  timeline (7) — a far-out approval receiving no link, then a link at 40 days; a nudged guest
+  who then submits still receiving the pre-arrival email; and no nudge inside the grace period.
 - **E2E** — the booking funnel end-to-end on the new completion form, driven to the
   acknowledgement rather than merely rendering; the admin approval path including the
   assignment precondition; a `Samordnare` login reaching only its own pages.
@@ -585,7 +593,10 @@ collide in the same files, and the obvious order is the wrong one:
 
 **Exit criteria:**
 
-- Every FR-99–106 implemented; FR-42, FR-56 and FR-59 have no remaining code path.
+- Every FR-100–108 implemented; FR-42, FR-56, FR-59 and FR-99 have no remaining code path.
+- No booking can hold a completion link that expires while the guest still needs it, and the
+  two 14-day emails are independently deduplicated (FR-63) — proven by an integration test that
+  walks a booking from approval to arrival, not by inspection.
 - The audit findings are closed **in code**, not only in prose: the hard-delete guards fail
   loudly rather than counting zero (C1); a blocked building cannot be assigned (C3); turnover
   days render as *fully* booked on **both** calendars (C4/M1); no orphaned `RoomId` references.
@@ -682,7 +693,7 @@ collide in the same files, and the obvious order is the wrong one:
 | 9 Pre-go-live | FR-74 (admin invite lifecycle) | feedback-driven pre-launch polish |
 | 10a/10b Staging re-provisioning & host separation | FR-70 (host separation — 10b) | — |
 | 10c Production pre-stage | — | NFR-12,29,31 |
-| *(Demo feedback 2026-08-05 — not a phase)* | FR-99–106; retires FR-42, FR-56; amends FR-03,10,16,20,21,38,55,57,58,64,93,95 | NFR-15,16 (snapshots re-pointed) |
+| *(Demo feedback 2026-08-05 — not a phase)* | FR-100–108; retires FR-42, FR-56, FR-99; amends FR-03,10,16,20,21,38,51,52,53,55,57,58,63,64,75,93,95 | NFR-15,16 (snapshots re-pointed) |
 | 10d Cutover & launch | — | NFR-20–24 (privacy policy) · residual go-live (reachability, managed SSL) |
 | 11 Post-production hardening & handover | FR-95,96,98 (audit trail; FR-97 UI deferred) | operational maturity (alerts, logging, security review), NFR-36,37 (audit trail), FR-16/20/26/30/88 (delete-confirm UX) |
 

@@ -10,7 +10,7 @@
 
 - För att skicka en bokningsförfrågan fyller ni i bokningsformuläret på akerogarden.se.
 - Bokningsförfrågan är inte bindande förrän den har godkänts av oss och ni har mottagit en bokningsbekräftelse.
-- Efter godkännande skickas en länk där kompletterande uppgifter (deltagarlista, måltidsval, rumsönskemål) ska fyllas i.
+- Efter godkännande skickas en länk där kompletterande uppgifter (deltagarlista, måltidsval, ankomst- och avresetid) ska fyllas i. Ligger ankomsten längre fram än cirka sex veckor skickas länken först när det närmar sig — bokningsbekräftelsen anger detta.
 
 ## 2. Handpenning och betalning
 

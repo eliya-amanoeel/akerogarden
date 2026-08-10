@@ -162,8 +162,8 @@ else
     private Guid? _editingId;
     private bool _isCreating;
     private bool _panelOpen;
-    private string? _message;
-    private string? _panelError;
+    private ToastMessage? _message;
+    private ToastMessage? _panelError;
 
     private bool CurrentIsActive => _editingId is not null && (_priceRules?.FirstOrDefault(p => p.Id == _editingId)?.IsActive ?? false);
 
@@ -218,12 +218,12 @@ else
         if (_isCreating)
         {
             await PriceRuleService.CreateAsync(_form);
-            _message = $"Priset \"{_form.Label}\" har lagts till.";
+            _message = ToastMessage.Ok($"Priset \"{_form.Label}\" har lagts till.");
         }
         else
         {
             await PriceRuleService.UpdateAsync(_form);
-            _message = $"Priset \"{_form.Label}\" har uppdaterats.";
+            _message = ToastMessage.Ok($"Priset \"{_form.Label}\" har uppdaterats.");
         }
 
         ClosePanel();
@@ -236,9 +236,9 @@ else
         var p = _priceRules!.First(x => x.Id == _editingId);
         var next = !p.IsActive;
         await PriceRuleService.SetActiveAsync(p.Id, next);
-        _message = next
+        _message = ToastMessage.Ok(next
             ? $"Priset \"{p.Label}\" har aktiverats."
-            : $"Priset \"{p.Label}\" har inaktiverats.";
+            : $"Priset \"{p.Label}\" har inaktiverats.");
         ClosePanel();
         await Load();
     }
@@ -262,7 +262,7 @@ else
         _pendingDelete = null;
 
         await PriceRuleService.DeleteAsync(p.Id);
-        _message = $"Priset \"{p.Label}\" har tagits bort.";
+        _message = ToastMessage.Ok($"Priset \"{p.Label}\" har tagits bort.");
         ClosePanel();
         await Load();
     }

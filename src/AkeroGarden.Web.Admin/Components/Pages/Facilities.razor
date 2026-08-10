@@ -173,8 +173,8 @@ else
     private Guid? _editingId;
     private bool _isCreating;
     private bool _panelOpen;
-    private string? _message;
-    private string? _panelError;
+    private ToastMessage? _message;
+    private ToastMessage? _panelError;
     private string? _imageError;
     private bool _uploading;
 
@@ -268,12 +268,12 @@ else
         if (_isCreating)
         {
             await FacilityService.CreateAsync(_form);
-            _message = $"Faciliteten \"{_form.Name}\" har lagts till.";
+            _message = ToastMessage.Ok($"Faciliteten \"{_form.Name}\" har lagts till.");
         }
         else
         {
             await FacilityService.UpdateAsync(_form);
-            _message = $"Faciliteten \"{_form.Name}\" har uppdaterats.";
+            _message = ToastMessage.Ok($"Faciliteten \"{_form.Name}\" har uppdaterats.");
         }
 
         ClosePanel();
@@ -286,9 +286,9 @@ else
         var f = _facilities!.First(x => x.Id == _editingId);
         var next = !f.IsActive;
         await FacilityService.SetActiveAsync(f.Id, next);
-        _message = next
+        _message = ToastMessage.Ok(next
             ? $"Faciliteten \"{f.Name}\" har aktiverats."
-            : $"Faciliteten \"{f.Name}\" har inaktiverats.";
+            : $"Faciliteten \"{f.Name}\" har inaktiverats.");
         ClosePanel();
         await Load();
     }
@@ -314,9 +314,9 @@ else
         var result = await FacilityService.TryHardDeleteAsync(f.Id);
         _message = result switch
         {
-            HardDeleteResult.Deleted => $"Faciliteten \"{f.Name}\" har tagits bort.",
-            HardDeleteResult.Blocked => $"Faciliteten \"{f.Name}\" kan inte tas bort eftersom den används av en bokning. Inaktivera den i stället.",
-            _ => $"Faciliteten \"{f.Name}\" kunde inte hittas."
+            HardDeleteResult.Deleted => ToastMessage.Ok($"Faciliteten \"{f.Name}\" har tagits bort."),
+            HardDeleteResult.Blocked => ToastMessage.Error($"Faciliteten \"{f.Name}\" kan inte tas bort eftersom den används av en bokning. Inaktivera den i stället."),
+            _ => ToastMessage.Error($"Faciliteten \"{f.Name}\" kunde inte hittas.")
         };
         ClosePanel();
         await Load();

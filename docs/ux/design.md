@@ -86,6 +86,9 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 --color-warn: #7a4c00   --color-warn-bg: rgba(214,158,46,.16)
 --color-err:  #b3341a   --color-err-bg:  rgba(179,52,26,.09)
 --color-info: #6f4a1f   --color-info-bg: rgba(134,86,40,.10)
+
+/* Error on an error ground — text darkened for AA, plus the border alpha its components share */
+--color-err-text: #8f2915   --color-err-line: rgba(179,52,26,.32)
 ```
 
 **The green rule (accessibility-critical).** `#71b002` is a light lime — it **only passes WCAG AA as a fill with dark text** (`#71b002` + `#1e1c1a` = 6.5:1). As white-on-green it fails (2.65:1) and **must not be used that way**. As **text/links**, use the deepened `--color-primary-ink` `#3f6a0f` — it clears AA on **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` section tint (an earlier `#4c7a12` passed on off-white but missed 4.5:1 on the warm tint — caught by the axe E2E test). Darkening the *fill* toward white-text-legibility instead turns it olive — rejected; keep the bright fill + dark text.
@@ -96,6 +99,19 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 `info` 5.79, `warn` 5.55, `ok` 4.91, and **`err` 4.53 — three hundredths of headroom**. Anything that
 darkens what sits behind `err` tips it under. Tracked in
 [`../temp/open-items.md`](../temp/open-items.md).
+>
+> **The corollary: a translucent `-bg` belongs to inline components only.** On anything
+`position: fixed` the surface underneath is not a known ground — it is whatever the page happens to
+be scrolled to — so the contrast cannot be reasoned about at all, and page content shows straight
+through the panel. Give floating elements an opaque background: either an existing solid token, or
+the intended tint **flattened** onto its base. The error toast shipped translucent on 2026-08-10 for
+exactly this reason (`#ebdbcf` is its `--color-err-bg` flattened onto `--color-bg-warm`). Verified
+2026-08-10: every other fixed/sticky element is opaque; the only translucent ones are
+`.modal-overlay` and `.admin-scrim`, where that is the point.
+
+**The duplication rule (when a hardcoded value must become a token).** A colour a component hardcodes locally is acceptable while it has exactly **one** user. The moment a second rule needs the same value, it becomes a token — one definition, every rule pointing at it. This is not tidiness; it is how the warn bug above survived: `.alert--warn` already carried the corrected `#7a4c00` as a local override while the token still held the failing `#8a5a00`, so the system shipped the fix and the bug side by side, and neither one knew about the other. It nearly repeated on 2026-08-10 — `#8f2915` (error text on `--color-err-bg`) was hardcoded in two `.alert--error` rules and a third was about to copy it, along with a fourth ad-hoc alpha of the same red. It became `--color-err-text` and `--color-err-line` instead.
+
+> **Before adding a variant, grep `site.css` for the literal you are about to type.** If it is already there, promote it rather than repeating it. Known remaining instances of this drift, not yet cleaned up: `.alert--info` hardcodes `#5a3d1f` in two rules with no token, and `.btn-outline.btn-danger` carries a fourth alpha of the error red. Queued for the design-system audit in Phase 11.
 
 Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · body `#4a4845` 11.9:1 · muted `#6f6a60` 5.0:1 · error `#b3341a` 5.7:1 · brown-on-white 6.2:1.
 

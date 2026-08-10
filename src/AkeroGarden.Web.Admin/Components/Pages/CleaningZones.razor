@@ -203,8 +203,8 @@ else
     private Guid? _editingId;
     private bool _isCreating;
     private bool _panelOpen;
-    private string? _message;
-    private string? _panelError;
+    private ToastMessage? _message;
+    private ToastMessage? _panelError;
 
     private bool CurrentIsActive => _editingId is not null && (_zones?.FirstOrDefault(z => z.Id == _editingId)?.IsActive ?? false);
 
@@ -309,13 +309,13 @@ else
 
         if (!result.Succeeded)
         {
-            _panelError = result.Error;
+            _panelError = ToastMessage.Error(result.Error);
             return;
         }
 
-        _message = _isCreating
+        _message = ToastMessage.Ok(_isCreating
             ? $"Städzonen \"{_form.Name}\" har lagts till."
-            : $"Städzonen \"{_form.Name}\" har uppdaterats.";
+            : $"Städzonen \"{_form.Name}\" har uppdaterats.");
 
         ClosePanel();
         await Load();
@@ -327,9 +327,9 @@ else
         var z = _zones!.First(x => x.Id == _editingId);
         var next = !z.IsActive;
         await CleaningZoneService.SetActiveAsync(z.Id, next);
-        _message = next
+        _message = ToastMessage.Ok(next
             ? $"Städzonen \"{z.Name}\" har aktiverats."
-            : $"Städzonen \"{z.Name}\" har inaktiverats.";
+            : $"Städzonen \"{z.Name}\" har inaktiverats.");
         ClosePanel();
         await Load();
     }
@@ -355,9 +355,9 @@ else
         var result = await CleaningZoneService.TryHardDeleteAsync(z.Id);
         _message = result switch
         {
-            HardDeleteResult.Deleted => $"Städzonen \"{z.Name}\" har tagits bort.",
-            HardDeleteResult.Blocked => $"Städzonen \"{z.Name}\" kan inte tas bort eftersom den används av en bokning. Inaktivera den i stället.",
-            _ => $"Städzonen \"{z.Name}\" kunde inte hittas."
+            HardDeleteResult.Deleted => ToastMessage.Ok($"Städzonen \"{z.Name}\" har tagits bort."),
+            HardDeleteResult.Blocked => ToastMessage.Error($"Städzonen \"{z.Name}\" kan inte tas bort eftersom den används av en bokning. Inaktivera den i stället."),
+            _ => ToastMessage.Error($"Städzonen \"{z.Name}\" kunde inte hittas.")
         };
         ClosePanel();
         await Load();

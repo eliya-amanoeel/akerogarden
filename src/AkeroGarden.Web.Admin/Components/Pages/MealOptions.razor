@@ -148,8 +148,8 @@ else
     private Guid? _editingId;
     private bool _isCreating;
     private bool _panelOpen;
-    private string? _message;
-    private string? _panelError;
+    private ToastMessage? _message;
+    private ToastMessage? _panelError;
 
     private bool CurrentIsActive => _editingId is not null && (_mealOptions?.FirstOrDefault(m => m.Id == _editingId)?.IsActive ?? false);
 
@@ -203,12 +203,12 @@ else
         if (_isCreating)
         {
             await MealOptionService.CreateAsync(_form);
-            _message = $"Matalternativet \"{_form.Name}\" har lagts till.";
+            _message = ToastMessage.Ok($"Matalternativet \"{_form.Name}\" har lagts till.");
         }
         else
         {
             await MealOptionService.UpdateAsync(_form);
-            _message = $"Matalternativet \"{_form.Name}\" har uppdaterats.";
+            _message = ToastMessage.Ok($"Matalternativet \"{_form.Name}\" har uppdaterats.");
         }
 
         ClosePanel();
@@ -221,9 +221,9 @@ else
         var m = _mealOptions!.First(x => x.Id == _editingId);
         var next = !m.IsActive;
         await MealOptionService.SetActiveAsync(m.Id, next);
-        _message = next
+        _message = ToastMessage.Ok(next
             ? $"Matalternativet \"{m.Name}\" har aktiverats."
-            : $"Matalternativet \"{m.Name}\" har inaktiverats.";
+            : $"Matalternativet \"{m.Name}\" har inaktiverats.");
         ClosePanel();
         await Load();
     }
@@ -249,9 +249,9 @@ else
         var result = await MealOptionService.TryHardDeleteAsync(m.Id);
         _message = result switch
         {
-            HardDeleteResult.Deleted => $"Matalternativet \"{m.Name}\" har tagits bort.",
-            HardDeleteResult.Blocked => $"Matalternativet \"{m.Name}\" kan inte tas bort eftersom det används av en bokning. Inaktivera det i stället.",
-            _ => $"Matalternativet \"{m.Name}\" kunde inte hittas."
+            HardDeleteResult.Deleted => ToastMessage.Ok($"Matalternativet \"{m.Name}\" har tagits bort."),
+            HardDeleteResult.Blocked => ToastMessage.Error($"Matalternativet \"{m.Name}\" kan inte tas bort eftersom det används av en bokning. Inaktivera det i stället."),
+            _ => ToastMessage.Error($"Matalternativet \"{m.Name}\" kunde inte hittas.")
         };
         ClosePanel();
         await Load();

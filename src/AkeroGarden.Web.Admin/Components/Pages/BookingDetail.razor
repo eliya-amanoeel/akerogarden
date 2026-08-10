@@ -590,7 +590,10 @@ else
 
     private string PendingMessage => _pending switch
     {
-        PendingBookingAction.Approve => "Bokningen godkänns och ett e-postmeddelande med slutförandelänk skickas till gästen. Vill du fortsätta?",
+        // The address is stated here, not just "till gästen" (FR-38): a manually created booking is
+        // never acknowledged by email (FR-47), so this dialog is the first and only moment a typo in
+        // the address is visible to anyone before the link is sent to it.
+        PendingBookingAction.Approve => $"Bokningen godkänns och ett e-postmeddelande med slutförandelänk skickas till {_booking?.ContactEmail}. Vill du fortsätta?",
         PendingBookingAction.Deny => "Bokningen avslås och gästen underrättas via e-post. Vill du fortsätta?",
         PendingBookingAction.Cancel => "Bokningen avbokas och gästen underrättas via e-post. Vill du fortsätta?",
         PendingBookingAction.MarkCompleted => "Bokningen markeras som avslutad och ett tackmejl skickas till gästen. Vill du fortsätta?",
@@ -628,7 +631,7 @@ else
 
     private Booking? _booking;
     private bool _loaded;
-    private string? _message;
+    private ToastMessage? _message;
     private ApprovalWarning _approvalWarning = ApprovalWarning.None;
 
     private string? _notes;
@@ -900,7 +903,7 @@ else
         }
 
         _assignmentError = null;
-        _message = "Byggnadstilldelningen är sparad.";
+        _message = ToastMessage.Ok("Byggnadstilldelningen är sparad.");
         await Load();
     }
 
@@ -917,38 +920,40 @@ else
     private async Task SaveParticipants()
     {
         await BookingService.SaveParticipantRosterAsync(Id, _participantEdits);
-        _message = "Deltagaruppgifterna är sparade.";
+        _message = ToastMessage.Ok("Deltagaruppgifterna är sparade.");
         await Load();
     }
 
     private async Task SaveGroupMeals()
     {
         await BookingService.SaveGroupMealsAsync(Id, _mealEdit);
-        _message = "Måltiderna är sparade.";
+        _message = ToastMessage.Ok("Måltiderna är sparade.");
         await Load();
     }
 
     private async Task SaveTimes()
     {
         await BookingService.SaveStatedTimesAsync(Id, _checkInTime, _checkOutTime);
-        _message = "Tiderna är sparade.";
+        _message = ToastMessage.Ok("Tiderna är sparade.");
         await Load();
     }
 
     private async Task Approve()
     {
         var result = await BookingService.ApproveAsync(Id);
-        if (!result.Succeeded) { _message = result.Error; return; }
-        _message = result.ShortExpiryWarning
+        if (!result.Succeeded) { _message = ToastMessage.Error(result.Error); return; }
+        // Both branches report a booking that was approved — the shortened-link case is a caveat on
+        // a completed action, not a failure, so it stays a success toast.
+        _message = ToastMessage.Ok(result.ShortExpiryWarning
             ? $"Bokningen är godkänd. Slutförandelänken är förkortad och går ut {result.TokenExpiry?.ToLocalTime():yyyy-MM-dd HH:mm} — kontakta gästen vid behov."
-            : $"Bokningen är godkänd och e-post med slutförandelänk är skickad (giltig till {result.TokenExpiry?.ToLocalTime():yyyy-MM-dd HH:mm}).";
+            : $"Bokningen är godkänd och e-post med slutförandelänk är skickad (giltig till {result.TokenExpiry?.ToLocalTime():yyyy-MM-dd HH:mm}).");
         await Load();
     }
 
     private async Task Deny()
     {
         var result = await BookingService.DenyAsync(Id, _denyReason ?? "");
-        _message = result.Succeeded ? "Bokningen är avslagen och gästen har underrättats." : result.Error;
+        _message = result.Succeeded ? ToastMessage.Ok("Bokningen är avslagen och gästen har underrättats.") : ToastMessage.Error(result.Error);
         if (result.Succeeded) _denyReason = null;
         await Load();
     }
@@ -956,14 +961,14 @@ else
     private async Task Close()
     {
         var result = await BookingService.CloseAsync(Id);
-        _message = result.Succeeded ? "Förfrågan är markerad som besvarad." : result.Error;
+        _message = result.Succeeded ? ToastMessage.Ok("Förfrågan är markerad som besvarad.") : ToastMessage.Error(result.Error);
         await Load();
     }
 
     private async Task Cancel()
     {
         var result = await BookingService.CancelAsync(Id, _cancelInitiator, _cancelReason);
-        _message = result.Succeeded ? "Bokningen är avbokad och gästen har underrättats." : result.Error;
+        _message = result.Succeeded ? ToastMessage.Ok("Bokningen är avbokad och gästen har underrättats.") : ToastMessage.Error(result.Error);
         if (result.Succeeded) _cancelReason = null;
         await Load();
     }
@@ -971,27 +976,27 @@ else
     private async Task Regenerate()
     {
         var result = await BookingService.RegenerateCompletionLinkAsync(Id);
-        _message = result.Succeeded ? "En ny slutförandelänk är skickad till gästen." : result.Error;
+        _message = result.Succeeded ? ToastMessage.Ok("En ny slutförandelänk är skickad till gästen.") : ToastMessage.Error(result.Error);
         await Load();
     }
 
     private async Task MarkArrived()
     {
         var result = await BookingService.MarkArrivedAsync(Id);
-        _message = result.Succeeded ? "Bokningen är markerad som anländ." : result.Error;
+        _message = result.Succeeded ? ToastMessage.Ok("Bokningen är markerad som anländ.") : ToastMessage.Error(result.Error);
         await Load();
     }
 
     private async Task MarkCompleted()
     {
         var result = await BookingService.MarkCompletedAsync(Id);
-        _message = result.Succeeded ? "Bokningen är markerad som avslutad och ett tackmejl har skickats till gästen." : result.Error;
+        _message = result.Succeeded ? ToastMessage.Ok("Bokningen är markerad som avslutad och ett tackmejl har skickats till gästen.") : ToastMessage.Error(result.Error);
         await Load();
     }
 
     private async Task SaveNotes()
     {
         await BookingService.SetAdminNotesAsync(Id, _notes);
-        _message = "Anteckningarna är sparade.";
+        _message = ToastMessage.Ok("Anteckningarna är sparade.");
     }
 }

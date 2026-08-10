@@ -223,10 +223,10 @@ else
     private List<ApplicationUser>? _users;
     private Dictionary<string, string?> _roles = [];
     private string? _currentUserId;
-    private string? _message;
+    private ToastMessage? _message;
     private InviteModel _invite = new();
     private bool _invitePanelOpen;
-    private string? _panelError;
+    private ToastMessage? _panelError;
 
     /// <summary>What each role actually means, in the invite panel — the names alone do not say that
     /// one of them is a full administrator and the other sees only two lists.</summary>
@@ -243,7 +243,7 @@ else
             return; // unchanged or rejected — SetRoleAsync audits only a real change (FR-96)
 
         _roles[user.Id] = role;
-        _message = $"{user.Email} har nu rollen {role}.";
+        _message = ToastMessage.Ok($"{user.Email} har nu rollen {role}.");
     }
 
     private async Task LoadUsersAsync()
@@ -280,13 +280,13 @@ else
     private async Task Deactivate(ApplicationUser user)
     {
         await InviteService.SetAccountActiveAsync(user, false); // audited (FR-96)
-        _message = $"{user.Email} har inaktiverats.";
+        _message = ToastMessage.Ok($"{user.Email} har inaktiverats.");
     }
 
     private async Task Activate(ApplicationUser user)
     {
         await InviteService.SetAccountActiveAsync(user, true); // audited (FR-96)
-        _message = $"{user.Email} har aktiverats.";
+        _message = ToastMessage.Ok($"{user.Email} har aktiverats.");
     }
 
     private async Task SendInvite()
@@ -298,13 +298,15 @@ else
         // top of and hide the page toast (z-index 1000; both are bottom-right).
         if (result.Outcome == InviteOutcome.CreateFailed)
         {
-            _panelError = result.Error;
+            _panelError = ToastMessage.Error(result.Error);
             return;
         }
 
+        // BlockedActivated means no invitation was sent — an active account already holds that
+        // address — so it reports a failed action, not a completed one.
         _message = result.Outcome == InviteOutcome.BlockedActivated
-            ? "Det finns redan ett konto med den e-postadressen."
-            : $"Inbjudan skickad till {_invite.Email} ({_invite.Role}).";
+            ? ToastMessage.Error("Det finns redan ett konto med den e-postadressen.")
+            : ToastMessage.Ok($"Inbjudan skickad till {_invite.Email} ({_invite.Role}).");
 
         CloseInvitePanel();
         _invite = new();
@@ -314,7 +316,7 @@ else
     private async Task ResendInvite(ApplicationUser user)
     {
         await InviteService.ResendInviteAsync(user);
-        _message = $"Ny inbjudan skickad till {user.Email}.";
+        _message = ToastMessage.Ok($"Ny inbjudan skickad till {user.Email}.");
     }
 
     private ApplicationUser? _pendingRemove;
@@ -335,9 +337,9 @@ else
 
         _message = result switch
         {
-            HardDeleteResult.Deleted => $"Inbjudan för {user.Email} har tagits bort.",
-            HardDeleteResult.Blocked => "Inbjudan kunde inte tas bort — kontot har redan aktiverats.",
-            _ => "Inbjudan kunde inte tas bort — kontot hittades inte."
+            HardDeleteResult.Deleted => ToastMessage.Ok($"Inbjudan för {user.Email} har tagits bort."),
+            HardDeleteResult.Blocked => ToastMessage.Error("Inbjudan kunde inte tas bort — kontot har redan aktiverats."),
+            _ => ToastMessage.Error("Inbjudan kunde inte tas bort — kontot hittades inte.")
         };
 
         await LoadUsersAsync();

@@ -5,18 +5,31 @@
    sitting on top of later UI (this is what caused the Byggnader panel/toast z-index bug). *@
 @implements IDisposable
 
-@if (!string.IsNullOrEmpty(Message))
+@if (Message is { } toast && !string.IsNullOrEmpty(toast.Text))
 {
-    <p role="status" class="form-status">@Message</p>
+    @* role="alert" for a failure so a screen reader announces it immediately rather than waiting
+       for a pause — matching the urgency the colour now carries visually. *@
+    <p role="@(toast.IsError ? "alert" : "status")"
+       class="form-status@(toast.IsError ? " form-status--error" : "")">
+        @toast.Text
+        @if (toast.IsError)
+        {
+            @* An error does not auto-dismiss, so it needs a way out. Without one this fixed
+               bottom-right box would sit over the page indefinitely — the same lingering-toast
+               problem the 5s timeout was introduced to solve (the Byggnader panel z-index bug). *@
+            <button type="button" class="form-status__close" @onclick="Dismiss"
+                    aria-label="Stäng meddelandet">×</button>
+        }
+    </p>
 }
 
 @code {
     private static readonly TimeSpan Duration = TimeSpan.FromSeconds(5);
 
-    [Parameter] public string? Message { get; set; }
-    [Parameter] public EventCallback<string?> MessageChanged { get; set; }
+    [Parameter] public ToastMessage? Message { get; set; }
+    [Parameter] public EventCallback<ToastMessage?> MessageChanged { get; set; }
 
-    private string? _shownMessage;
+    private ToastMessage? _shownMessage;
     private CancellationTokenSource? _cts;
 
     protected override async Task OnParametersSetAsync()
@@ -29,7 +42,14 @@
         _cts?.Dispose();
         _cts = null;
 
-        if (string.IsNullOrEmpty(Message))
+        if (Message is null || string.IsNullOrEmpty(Message.Text))
+            return;
+
+        // An error stays until the next action replaces it. A failed action leaves nothing else
+        // behind on the page, so a toast that clears itself after five seconds can leave the admin
+        // believing the action went through (reported 2026-08-10). Successes still auto-dismiss —
+        // there the page itself already shows the result.
+        if (Message.IsError)
             return;
 
         var cts = new CancellationTokenSource();
@@ -45,6 +65,12 @@
         {
             // Superseded by a newer message (or the component was torn down) before the timeout elapsed.
         }
+    }
+
+    private async Task Dismiss()
+    {
+        _shownMessage = null;
+        await MessageChanged.InvokeAsync(null);
     }
 
     public void Dispose()

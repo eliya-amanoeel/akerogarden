@@ -150,8 +150,8 @@ else
     private List<Room> _rooms = [];
     private readonly Dictionary<Guid, string> _buildingNames = [];
     private readonly Dictionary<Guid, string> _roomNames = [];
-    private string? _message;
-    private string? _panelError;
+    private ToastMessage? _message;
+    private ToastMessage? _panelError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -241,11 +241,11 @@ else
 
         if (!result.Succeeded)
         {
-            _panelError = result.Error;
+            _panelError = ToastMessage.Error(result.Error);
             return;
         }
 
-        _message = _isCreating ? "Blockeringen har lagts till." : "Blockeringen har uppdaterats.";
+        _message = ToastMessage.Ok(_isCreating ? "Blockeringen har lagts till." : "Blockeringen har uppdaterats.");
         ClosePanel();
         await Load();
     }
@@ -269,7 +269,7 @@ else
         _pendingDelete = null;
 
         await BlockedPeriodService.DeleteAsync(p.Id);
-        _message = "Blockeringen har tagits bort.";
+        _message = ToastMessage.Ok("Blockeringen har tagits bort.");
         ClosePanel();
         await Load();
     }

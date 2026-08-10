@@ -342,9 +342,50 @@ public class BookingService(
 
         await ResolveSleepingCleaningSelectionsAsync(booking);
 
-        await emails.SendAdminDetailsCompleteAsync(booking);
+        // Both notifications are sent after the commit, and neither may fail the submission.
+        // The booking is already saved and the completion link is single-use (FR-62), so throwing
+        // an SMTP error at the guest would show an error page for a submission that genuinely
+        // succeeded — and their link is spent, so there is nothing for them to retry. What failed
+        // is the send, not the submission; it is logged rather than surfaced. Each send is
+        // attempted independently so a failing admin alert cannot also cost the guest their copy.
+        // (This is not hypothetical: an SMTP auth failure took out all email on staging in July.)
+        await TrySendCompletionEmailAsync(booking, "adminavisering (FR-61)",
+            () => emails.SendAdminDetailsCompleteAsync(booking));
+
+        // The guest's own copy of what they just submitted (FR-107). Participants and meal
+        // selections are already on the tracked booking; the assigned buildings are not — the
+        // booking was loaded by token with only Participants included — so load them explicitly.
+        // Without this the email would omit the lodging silently rather than fail, which is the
+        // worst way for it to be wrong (same trap as the approval email, FR-103).
+        await TrySendCompletionEmailAsync(booking, "gästbekräftelse (FR-107)", async () =>
+        {
+            await db.Entry(booking).Collection(b => b.BuildingAssignments).LoadAsync();
+            await emails.SendGuestDetailsReceivedAsync(booking);
+        });
+
         logger.LogInformation("Booking {BookingId} completion submitted", booking.Id);
         return CompletionSubmitResult.Ok();
+    }
+
+    /// <summary>
+    /// Runs one post-commit completion notification, swallowing a send failure into an error log.
+    /// Deliberately scoped to completion submission and <b>not</b> applied to the admin-triggered
+    /// transitions (approve/deny/cancel): there a failure is surfaced to a human who is present,
+    /// can see it, and can re-send the link from the booking page (FR-49). The guest submitting
+    /// the completion form has no such recourse — their link is already spent.
+    /// </summary>
+    private async Task TrySendCompletionEmailAsync(Booking booking, string description, Func<Task> send)
+    {
+        try
+        {
+            await send();
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex,
+                "Completion notification failed ({Description}) for booking {BookingId}; the submission itself succeeded",
+                description, booking.Id);
+        }
     }
 
     /// <summary>Snapshots the active zone of a given Kind onto the booking's cleaning selections

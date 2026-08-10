@@ -95,6 +95,133 @@ public static class BookingEmailTemplates
         return new EmailContent(WithReference("Bokningsuppgifter inskickade", booking.BookingReference), body.ToString());
     }
 
+    /// <summary>The guest's own confirmation of what they submitted on the completion form
+    /// (§9, FR-107). Deliberately <b>not</b> the same email as <see cref="AdminDetailsComplete"/>:
+    /// that one is a five-line staff alert with a panel link, which tells the guest nothing about
+    /// their own choices and must never be sent to them. Requires
+    /// <see cref="Booking.Participants"/> and <see cref="Booking.MealSelections"/> to be loaded.
+    ///
+    /// <para>The closing "contact us" line is load-bearing, not politeness: the completion link is
+    /// single-use (FR-62) and is already dead by the time this arrives, so without it the guest is
+    /// looking at a list of their own answers with no visible way to correct one.</para></summary>
+    public static EmailContent GuestDetailsReceived(
+        Booking booking, IReadOnlyList<string> assignedBuildingNames, string propertyAddress)
+    {
+        var body = new StringBuilder();
+        body.Append(Greeting(booking.ContactName));
+        body.Append("<p>Tack! Vi har tagit emot era uppgifter. Här är en sammanställning av det ni har fyllt i.</p>");
+        body.Append(ReferenceLine(booking.BookingReference));
+
+        body.Append("<ul>");
+        body.Append($"<li><strong>Incheckning:</strong> {FormatDate(booking.CheckIn)} kl. "
+            + $"{Enc(StatedTimePolicy.Display(booking.CheckInTime, MealOccasionResolver.StandardCheckInTime))}</li>");
+        body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(booking.CheckOut)} kl. "
+            + $"{Enc(StatedTimePolicy.Display(booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime))}</li>");
+        body.Append($"<li><strong>Adress:</strong> {Enc(propertyAddress)}</li>");
+        body.Append("</ul>");
+        body.Append(LodgingLine(assignedBuildingNames));
+
+        body.Append(ParticipantSection(booking));
+        body.Append(MealSection(booking));
+
+        body.Append("<p>Behöver något ändras? Kontakta oss så hjälper vi er. Länken ni fyllde i "
+            + "formuläret med kan bara användas en gång och fungerar därför inte längre.</p>");
+
+        return new EmailContent(
+            WithReference("Vi har tagit emot era uppgifter", booking.BookingReference), body.ToString());
+    }
+
+    /// <summary>The participant roster as the guest entered it, with each person's allergies
+    /// (§4.6) and the booking-level preference counts. Day guests carry the date they attend —
+    /// without it a name in the list is unidentifiable to the person who typed it.</summary>
+    private static string ParticipantSection(Booking booking)
+    {
+        var body = new StringBuilder();
+        body.Append("<h3>Deltagare</h3>");
+
+        if (booking.Participants.Count == 0)
+        {
+            body.Append("<p>Inga deltagare registrerade.</p>");
+            return body.ToString();
+        }
+
+        body.Append("<ul>");
+        foreach (var p in booking.Participants
+            .OrderBy(p => p.ParticipantType)
+            .ThenBy(p => p.FullName, StringComparer.CurrentCulture))
+        {
+            var line = new StringBuilder();
+            line.Append($"<strong>{Enc(p.FullName)}</strong> — {Enc(BookingDisplay.ParticipantTypeLabel(p.ParticipantType))}");
+            line.Append($", {Enc(BookingDisplay.AgeLabel(p.AgeCategory))}");
+            if (p.AttendanceDate is { } date)
+                line.Append($", {FormatDate(date)}");
+            line.Append($". Allergier: {Enc(BookingDisplay.AllergySummary(p.Allergies, p.AllergyNotes))}");
+            body.Append($"<li>{line}</li>");
+        }
+        body.Append("</ul>");
+
+        var preferences = BookingDisplay.PreferenceSummary(booking.VegetarianCount, booking.VeganCount);
+        if (preferences != "—")
+            body.Append($"<p><strong>Kostönskemål:</strong> {Enc(preferences)}</p>");
+
+        return body.ToString();
+    }
+
+    /// <summary>The group's meals day by day (FR-105). Breakfast has no dish to choose, so it is
+    /// listed as attendance only; lunch and dinner name the option agreed at submission, read from
+    /// the <b>snapshot</b> rather than the live meal option (NFR-15) so this email still describes
+    /// what was actually chosen if the dish is renamed later.</summary>
+    private static string MealSection(Booking booking)
+    {
+        var body = new StringBuilder();
+        body.Append("<h3>Måltider</h3>");
+
+        var occasions = MealOccasionResolver.Resolve(booking);
+        if (booking.CheckIn is not { } checkIn || booking.CheckOut is not { } checkOut)
+        {
+            body.Append("<p>Inga måltider registrerade.</p>");
+            return body.ToString();
+        }
+
+        var dishes = booking.MealSelections.ToDictionary(s => (s.Date, s.MealType), s => s.MealOptionSnapshot);
+        var days = new List<string>();
+
+        for (var date = checkIn; date <= checkOut; date = date.AddDays(1))
+        {
+            var served = occasions.ServedOn(date);
+            if (!served.Any) continue;
+
+            var meals = new List<string>(3);
+            if (served.Breakfast) meals.Add("Frukost");
+            if (served.Lunch) meals.Add(MealLine(MealType.Lunch, date, dishes));
+            if (served.Dinner) meals.Add(MealLine(MealType.Dinner, date, dishes));
+
+            days.Add($"<li><strong>{FormatDate(date)}:</strong> {string.Join(", ", meals)}</li>");
+        }
+
+        if (days.Count == 0)
+        {
+            // Self-catering resolves to no sittings at all — say so plainly rather than printing an
+            // empty heading, which would read as data we lost rather than a choice they made.
+            body.Append("<p>Ni har valt självhushåll — inga måltider är beställda.</p>");
+            return body.ToString();
+        }
+
+        body.Append("<ul>");
+        foreach (var day in days) body.Append(day);
+        body.Append("</ul>");
+        return body.ToString();
+    }
+
+    private static string MealLine(
+        MealType mealType, DateOnly date, IReadOnlyDictionary<(DateOnly, MealType), string> dishes)
+    {
+        var label = BookingDisplay.MealTypeLabel(mealType);
+        return dishes.TryGetValue((date, mealType), out var dish) && !string.IsNullOrWhiteSpace(dish)
+            ? $"{Enc(label)}: {Enc(dish)}"
+            : Enc(label);
+    }
+
     /// <summary>Denial email — includes the admin's reason and a fixed closing line (§9, FR-50).</summary>
     public static EmailContent Denial(string contactName, string denialReason, string bookingReference)
     {

@@ -339,8 +339,8 @@ else
 
     private readonly HashSet<Guid> _open = [];
     private bool _allOpen;
-    private string? _message;
-    private string? _panelError;
+    private ToastMessage? _message;
+    private ToastMessage? _panelError;
 
     private PanelKind _panelKind = PanelKind.None;
     private bool _isCreating;
@@ -516,12 +516,12 @@ else
         {
             await PhysicalBuildingService.CreateAsync(_physicalForm);
             _open.Add(_physicalForm.Id); // reveal its (empty) children area right away, no extra click
-            _message = $"Byggnaden \"{_physicalForm.Name}\" har lagts till.";
+            _message = ToastMessage.Ok($"Byggnaden \"{_physicalForm.Name}\" har lagts till.");
         }
         else
         {
             await PhysicalBuildingService.UpdateAsync(_physicalForm);
-            _message = $"Byggnaden \"{_physicalForm.Name}\" har uppdaterats.";
+            _message = ToastMessage.Ok($"Byggnaden \"{_physicalForm.Name}\" har uppdaterats.");
         }
 
         ClosePanel();
@@ -536,16 +536,16 @@ else
 
         if (!result.Succeeded)
         {
-            _panelError = result.Error;
+            _panelError = ToastMessage.Error(result.Error);
             return;
         }
 
         if (_isCreating)
             _open.Add(_buildingForm.Id); // reveal its (empty) children area right away, no extra click
 
-        _message = _isCreating
+        _message = ToastMessage.Ok(_isCreating
             ? $"Byggnaden \"{_buildingForm.Name}\" har lagts till."
-            : $"Byggnaden \"{_buildingForm.Name}\" har uppdaterats.";
+            : $"Byggnaden \"{_buildingForm.Name}\" har uppdaterats.");
 
         ClosePanel();
         await LoadAll();
@@ -556,12 +556,12 @@ else
         if (_isCreating)
         {
             await RoomService.CreateAsync(_roomForm);
-            _message = $"Rummet \"{_roomForm.Name}\" har lagts till.";
+            _message = ToastMessage.Ok($"Rummet \"{_roomForm.Name}\" har lagts till.");
         }
         else
         {
             await RoomService.UpdateAsync(_roomForm);
-            _message = $"Rummet \"{_roomForm.Name}\" har uppdaterats.";
+            _message = ToastMessage.Ok($"Rummet \"{_roomForm.Name}\" har uppdaterats.");
         }
 
         ClosePanel();
@@ -575,7 +575,7 @@ else
         var pb = _physicalBuildings!.First(p => p.Id == _editingPhysicalId);
         var next = !pb.IsActive;
         await PhysicalBuildingService.SetActiveAsync(pb.Id, next);
-        _message = next ? $"Byggnaden \"{pb.Name}\" har aktiverats." : $"Byggnaden \"{pb.Name}\" har inaktiverats.";
+        _message = ToastMessage.Ok(next ? $"Byggnaden \"{pb.Name}\" har aktiverats." : $"Byggnaden \"{pb.Name}\" har inaktiverats.");
         ClosePanel();
         await LoadAll();
     }
@@ -586,7 +586,7 @@ else
         var b = _buildings!.First(x => x.Id == _editingBuildingId);
         var next = !b.IsActive;
         await BuildingService.SetActiveAsync(b.Id, next);
-        _message = next ? $"Byggnaden \"{b.Name}\" har aktiverats." : $"Byggnaden \"{b.Name}\" har inaktiverats.";
+        _message = ToastMessage.Ok(next ? $"Byggnaden \"{b.Name}\" har aktiverats." : $"Byggnaden \"{b.Name}\" har inaktiverats.");
         ClosePanel();
         await LoadAll();
     }
@@ -597,7 +597,7 @@ else
         var r = _rooms!.First(x => x.Id == _editingRoomId);
         var next = !r.IsActive;
         await RoomService.SetActiveAsync(r.Id, next);
-        _message = next ? $"Rummet \"{r.Name}\" har aktiverats." : $"Rummet \"{r.Name}\" har inaktiverats.";
+        _message = ToastMessage.Ok(next ? $"Rummet \"{r.Name}\" har aktiverats." : $"Rummet \"{r.Name}\" har inaktiverats.");
         ClosePanel();
         await LoadAll();
     }
@@ -615,9 +615,9 @@ else
         var result = await PhysicalBuildingService.TryHardDeleteAsync(pb.Id);
         _message = result switch
         {
-            HardDeleteResult.Deleted => $"Byggnaden \"{pb.Name}\" har tagits bort.",
-            HardDeleteResult.Blocked => $"Byggnaden \"{pb.Name}\" kan inte tas bort eftersom den används av en byggnad, facilitet eller städzon. Inaktivera den i stället.",
-            _ => $"Byggnaden \"{pb.Name}\" kunde inte hittas."
+            HardDeleteResult.Deleted => ToastMessage.Ok($"Byggnaden \"{pb.Name}\" har tagits bort."),
+            HardDeleteResult.Blocked => ToastMessage.Error($"Byggnaden \"{pb.Name}\" kan inte tas bort eftersom den används av en byggnad, facilitet eller städzon. Inaktivera den i stället."),
+            _ => ToastMessage.Error($"Byggnaden \"{pb.Name}\" kunde inte hittas.")
         };
 
         ClosePanel();
@@ -636,9 +636,9 @@ else
         var result = await BuildingService.TryHardDeleteAsync(b.Id);
         _message = result switch
         {
-            HardDeleteResult.Deleted => $"Byggnaden \"{b.Name}\" har tagits bort.",
-            HardDeleteResult.Blocked => $"Byggnaden \"{b.Name}\" kan inte tas bort eftersom den har rum. Inaktivera den i stället.",
-            _ => $"Byggnaden \"{b.Name}\" kunde inte hittas."
+            HardDeleteResult.Deleted => ToastMessage.Ok($"Byggnaden \"{b.Name}\" har tagits bort."),
+            HardDeleteResult.Blocked => ToastMessage.Error($"Byggnaden \"{b.Name}\" kan inte tas bort eftersom den har rum. Inaktivera den i stället."),
+            _ => ToastMessage.Error($"Byggnaden \"{b.Name}\" kunde inte hittas.")
         };
 
         ClosePanel();
@@ -657,9 +657,9 @@ else
         var result = await RoomService.TryHardDeleteAsync(r.Id);
         _message = result switch
         {
-            HardDeleteResult.Deleted => $"Rummet \"{r.Name}\" har tagits bort.",
-            HardDeleteResult.Blocked => $"Rummet \"{r.Name}\" kan inte tas bort eftersom det används av en bokning. Inaktivera det i stället.",
-            _ => $"Rummet \"{r.Name}\" kunde inte hittas."
+            HardDeleteResult.Deleted => ToastMessage.Ok($"Rummet \"{r.Name}\" har tagits bort."),
+            HardDeleteResult.Blocked => ToastMessage.Error($"Rummet \"{r.Name}\" kan inte tas bort eftersom det används av en bokning. Inaktivera det i stället."),
+            _ => ToastMessage.Error($"Rummet \"{r.Name}\" kunde inte hittas.")
         };
 
         ClosePanel();

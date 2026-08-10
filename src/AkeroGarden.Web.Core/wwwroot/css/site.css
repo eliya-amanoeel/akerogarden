@@ -27,7 +27,13 @@
        darker value clears both surfaces (6.5:1 and 5.6:1). It is not a new colour: .alert--warn
        already hardcoded it, and now there is one definition instead of two. */
     --color-warn:  #7a4c00;  --color-warn-bg: rgba(214, 158, 46, 0.16);
+    /* Error text sitting on --color-err-bg is darkened to #8f2915 rather than using --color-err
+       (#b3341a), which clears WCAG AA on the warm surface by 0.03 — too thin a margin for body
+       text. Same reasoning as --color-warn above, and likewise not a new colour: .alert--error
+       already hardcoded it in two rules and the toast's error variant would have made a third.
+       --color-err-line is that red at the border alpha those rules share. */
     --color-err:   #b3341a;  --color-err-bg:  rgba(179, 52, 26, 0.09);
+    --color-err-text: #8f2915;  --color-err-line: rgba(179, 52, 26, 0.32);
     --color-info:  #6f4a1f;  --color-info-bg: rgba(134, 86, 40, 0.10);
 
     --font-body:    'Roboto', sans-serif;
@@ -1672,8 +1678,8 @@ fieldset.participant legend {
 .alert b { color: var(--color-heading); }
 .alert--info { background: var(--color-info-bg); border-color: rgba(134, 86, 40, 0.3); color: #5a3d1f; }
 .alert--info .alert__ic { background: #5a3d1f; color: var(--color-info-bg); }
-.alert--error { background: var(--color-err-bg); border-color: rgba(179, 52, 26, 0.32); color: #8f2915; }
-.alert--error .alert__ic { background: #8f2915; color: var(--color-err-bg); }
+.alert--error { background: var(--color-err-bg); border-color: var(--color-err-line); color: var(--color-err-text); }
+.alert--error .alert__ic { background: var(--color-err-text); color: var(--color-err-bg); }
 .alert--warn { background: var(--color-warn-bg); border-color: rgba(214, 158, 46, 0.4); color: var(--color-warn); }
 .alert--warn .alert__ic { background: #8a5a00; color: #fff; font-style: normal; }
 /* Bulleted items inside an alert (e.g. multiple approval warnings) */
@@ -1683,8 +1689,10 @@ fieldset.participant legend {
 
 /* Admin save/action feedback. Rendered as a fixed toast (bottom-right) so it is always in the
    viewport regardless of scroll position — previously it sat at the top of the page and a save
-   made far down (e.g. payment status) gave feedback the admin had to scroll up to see. Kept
-   neutral (not green) because the same _message carries both success and error text. */
+   made far down (e.g. payment status) gave feedback the admin had to scroll up to see. The base
+   style is neutral (not green) and reports a completed action; a failure uses .form-status--error
+   below. Until 2026-08-10 there was no error variant at all — both outcomes shared this one style,
+   so "kan inte tas bort eftersom den används av en bokning" looked exactly like "har sparats". */
 .form-status {
     position: fixed;
     right: 1.25rem;
@@ -1702,6 +1710,40 @@ fieldset.participant legend {
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
     animation: form-status-in 0.28s ease-out;
 }
+/* A failed or blocked action. Same position and size — only the colour changes, so the two are
+   told apart at a glance without the toast moving around. Reuses the .alert--error palette via the
+   shared tokens rather than restating it. This variant does not auto-dismiss (see Toast.razor). */
+.form-status--error {
+    /* Only this variant carries a second child (the dismiss button), so only it needs a layout
+       mode; the success toast stays a plain block with a single text node. */
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+    color: var(--color-err-text);
+    /* Opaque, unlike .alert--error's translucent --color-err-bg. This toast is position:fixed and
+       floats over arbitrary page content, so a 9%-alpha ground lets rows and text show through it.
+       #ebdbcf is exactly that tint flattened onto the toast's own --color-bg-warm base, so it looks
+       as intended and stops depending on what scrolls underneath (text contrast 6.24:1). */
+    background: #ebdbcf;
+    border-color: var(--color-err-line);
+    border-left-color: var(--color-err);
+}
+/* Dismiss control — only the error variant has one, because only it stays put. Follows
+   .admin-panel__close (the existing dismiss idiom): bare button, hover shifts the colour rather
+   than adding a fill. Keyboard focus comes from the global button:focus-visible rule (NFR-21). */
+.form-status__close {
+    flex: 0 0 auto;
+    margin: -0.15rem -0.35rem 0 0;
+    padding: 0.15rem 0.3rem;
+    color: inherit;
+    font-size: 1.3rem;
+    line-height: 1;
+    background: none;
+    border: 0;
+    cursor: pointer;
+}
+.form-status__close:hover { color: var(--color-err); }
+
 @keyframes form-status-in {
     from { opacity: 0; transform: translateY(0.6rem); }
     to   { opacity: 1; transform: none; }

@@ -1,3 +1,4 @@
+using System.Net;
 using AkeroGarden.Integration.Infrastructure;
 using AkeroGarden.Web.Core.Data;
 using AkeroGarden.Web.Core.Data.Entities;
@@ -25,9 +26,14 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
     {
         var fake = new FakeEmailService();
         email = fake;
+        return NewProvider(fake);
+    }
+
+    private IServiceProvider NewProvider(IEmailService sender)
+    {
         return _fixture.BuildServices(s =>
         {
-            s.AddSingleton<IEmailService>(fake);
+            s.AddSingleton(sender);
             s.AddScoped<BookingEmailService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
@@ -37,6 +43,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
                 o.AdminBaseUrl = "https://admin.akerogarden.se";
                 o.AdminNotificationEmail = "admin@test.se";
                 o.ContactEmail = "info@test.se";
+                o.PropertyAddress = "Åkerögården, Norrtälje";
             });
         });
     }
@@ -150,6 +157,119 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         }
 
         Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se" && e.Subject.Contains("inskickade"));
+    }
+
+    /// <summary>FR-107 — submitting sends the guest their own confirmation of what they entered,
+    /// <b>in addition to</b> the admin notification (FR-61), which is unchanged. Asserts the guest
+    /// mail actually carries their data: the participant they typed, that person's allergy, every
+    /// dish snapshot stored for the booking, and the assigned lodging — the lodging especially,
+    /// because the booking is loaded by token with only Participants included, so a missing
+    /// explicit load would drop the building silently rather than fail.</summary>
+    [Fact]
+    public async Task Submit_SendsTheGuestTheirOwnConfirmation_AlongsideTheAdminNotification()
+    {
+        var provider = NewProvider(out var email);
+        var seed = await SeedAsync(provider);
+        var form = FullBoardForm(seed);
+
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.Equal(CompletionSubmitOutcome.Success,
+                (await service.SubmitCompletionAsync(seed.Token, form, DateTime.UtcNow)).Outcome);
+        }
+
+        string guestAddress;
+        List<string> dishes;
+        string buildingName;
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var booking = await db.Bookings
+                .Include(b => b.MealSelections)
+                .Include(b => b.BuildingAssignments)
+                .SingleAsync(b => b.Id == seed.BookingId);
+
+            guestAddress = booking.ContactEmail;
+            dishes = [.. booking.MealSelections.Select(m => m.MealOptionSnapshot)];
+            buildingName = booking.BuildingAssignments.Single().BuildingNameSnapshot;
+        }
+
+        // FR-61 still fires — the guest copy is an addition, not a replacement.
+        Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se" && e.Subject.Contains("inskickade"));
+
+        // Matched on subject, not just recipient: the guest already received the approval email at
+        // the same address during seeding, so "an email went to the guest" would prove nothing.
+        var guestMail = Assert.Single(
+            email.Sent.Where(e => e.ToAddress == guestAddress && e.Subject.Contains("tagit emot")));
+
+        Assert.Contains("Referensnummer", guestMail.HtmlBody);
+        Assert.Contains("Deltagare 1", guestMail.HtmlBody);
+        // Guest-supplied values are HTML-encoded into the body and every non-ASCII character
+        // becomes a numeric entity ("Nötallergi" → "N&#246;tallergi"), so the expectation is
+        // encoded the same way rather than truncated to its ASCII prefix.
+        Assert.Contains(WebUtility.HtmlEncode("Nötallergi"), guestMail.HtmlBody);
+        Assert.Contains(buildingName, guestMail.HtmlBody);
+        Assert.Contains(WebUtility.HtmlEncode("Norrtälje"), guestMail.HtmlBody);
+        Assert.Contains("Kontakta oss", guestMail.HtmlBody);
+
+        Assert.Equal(3, dishes.Count);
+        Assert.All(dishes, dish => Assert.Contains(dish, guestMail.HtmlBody));
+
+        // The admin's panel URL belongs in the admin's email only.
+        Assert.DoesNotContain("admin.akerogarden.se", guestMail.HtmlBody);
+    }
+
+    /// <summary>An email service that can be switched to failing mid-test, standing in for the SMTP
+    /// auth outage that took out all email on staging in July 2026. Armed only after seeding, so the
+    /// approval email that the seed depends on still goes through.</summary>
+    private sealed class ArmableFailingEmailService : IEmailService
+    {
+        public bool Armed { get; set; }
+
+        public Task SendAsync(
+            string toAddress, string toName, string subject, string htmlBody,
+            string? replyToAddress = null, string? replyToName = null) =>
+            Armed
+                ? throw new InvalidOperationException("SMTP 535 — simulerat sändningsfel")
+                : Task.CompletedTask;
+    }
+
+    /// <summary>A failing mail server must not cost the guest their submission. Both notifications
+    /// are sent after the commit and the completion link is single-use, so surfacing the SMTP error
+    /// would show an error page for a submission that succeeded and leave the guest with a spent
+    /// link and nothing to retry. The submission reports success and the data is persisted; the
+    /// send failure goes to the log.</summary>
+    [Fact]
+    public async Task Submit_Succeeds_AndPersists_EvenWhenTheNotificationEmailsFail()
+    {
+        var sender = new ArmableFailingEmailService();
+        var provider = NewProvider(sender);
+        var seed = await SeedAsync(provider);
+        var form = FullBoardForm(seed);
+
+        sender.Armed = true;
+
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            var result = await service.SubmitCompletionAsync(seed.Token, form, DateTime.UtcNow);
+            Assert.Equal(CompletionSubmitOutcome.Success, result.Outcome);
+        }
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var booking = await db.Bookings
+                .Include(b => b.Participants)
+                .Include(b => b.MealSelections)
+                .SingleAsync(b => b.Id == seed.BookingId);
+
+            // The whole submission survived, not merely the status flag.
+            Assert.Equal(BookingStatus.DetailsComplete, booking.Status);
+            Assert.Single(booking.Participants);
+            Assert.Equal(3, booking.MealSelections.Count);
+        }
     }
 
     private static DayGuestEntry DayGuest(string date = "2026-08-11") => new()

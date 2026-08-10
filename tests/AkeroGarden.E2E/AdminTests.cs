@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AkeroGarden.E2E.Infrastructure;
 using AkeroGarden.Web.Core.Data.Entities;
 using Deque.AxeCore.Playwright;
@@ -15,6 +16,10 @@ namespace AkeroGarden.E2E;
 /// </summary>
 public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 {
+    /// <summary>Matches the toast's error variant as a whole class token, so it cannot be satisfied
+    /// by a substring of some other class on the element.</summary>
+    private static readonly Regex ErrorToast = new(@"\bform-status--error\b");
+
     /// <summary>
     /// Opens the collapsed (≤860px) admin menu via the hamburger. It's a CSS-only checkbox toggle
     /// (the layout is static SSR — no circuit), so a single click on the label reliably reveals the
@@ -725,6 +730,9 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await panel.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
             await Page.GetByRole(AriaRole.Dialog).GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
             await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("kan inte tas bort");
+            // A blocked delete must not look like a completed one. Until 2026-08-10 both used the
+            // identical toast, so "kan inte tas bort" was as easy to miss as "har sparats".
+            await Assertions.Expect(Page.Locator(".form-status")).ToHaveClassAsync(ErrorToast);
             await Assertions.Expect(buildingRow).ToBeVisibleAsync();
 
             // Delete the room first — now the building is actually deletable.
@@ -734,6 +742,9 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await panel.GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
             await Page.GetByRole(AriaRole.Dialog).GetByRole(AriaRole.Button, new() { Name = "Ta bort" }).ClickAsync();
             await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har tagits bort");
+            // The other half of the claim: the success toast is *not* styled as an error. Asserting
+            // only the error side would pass even if every toast were red.
+            await Assertions.Expect(Page.Locator(".form-status")).Not.ToHaveClassAsync(ErrorToast);
             await Assertions.Expect(roomRow).Not.ToBeVisibleAsync();
 
             await buildingRow.ClickAsync();
@@ -879,6 +890,12 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
             await Assertions.Expect(Page.Locator(".form-status"))
                 .ToContainTextAsync("Tilldela minst en byggnad");
+            // A blocked approval is styled as an error and offers a dismiss control, rather than
+            // looking and behaving like the green "har sparats" confirmation it used to (2026-08-10).
+            await Assertions.Expect(Page.Locator(".form-status")).ToHaveClassAsync(ErrorToast);
+            await Assertions.Expect(
+                Page.Locator(".form-status").GetByRole(AriaRole.Button, new() { Name = "Stäng meddelandet" }))
+                .ToBeVisibleAsync();
 
             await using var check = Fixture.NewDbContext();
             var booking = await check.Bookings.FindAsync(id);

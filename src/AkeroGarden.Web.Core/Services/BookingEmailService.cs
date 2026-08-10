@@ -76,6 +76,18 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToGuestAsync(booking, content);
     }
 
+    /// <summary>The guest's own confirmation of what they submitted (FR-107), sent alongside — never
+    /// instead of — the admin notification (FR-61). Requires <see cref="Booking.Participants"/>,
+    /// <see cref="Booking.MealSelections"/> and <see cref="Booking.BuildingAssignments"/> to be
+    /// loaded; each one silently renders as "none" rather than failing, so the caller must load
+    /// them deliberately.</summary>
+    public Task SendGuestDetailsReceivedAsync(Booking booking)
+    {
+        var content = BookingEmailTemplates.GuestDetailsReceived(
+            booking, AssignedBuildingNames(booking), _opts.PropertyAddress);
+        return SendToGuestAsync(booking, content);
+    }
+
     /// <summary>Standard 14-day reminder to the guest (FR-64). Requires <see cref="Booking.Participants"/>
     /// to be loaded for the counts.</summary>
     public Task SendTwoWeekReminderAsync(Booking booking)

@@ -1,3 +1,4 @@
+using System.Net;
 using AkeroGarden.Web.Core.Data.Entities;
 using AkeroGarden.Web.Core.Services;
 
@@ -297,5 +298,174 @@ public class BookingEmailTemplatesTests
         Assert.DoesNotContain("<script>", c.HtmlBody);
         Assert.Contains("&lt;script&gt;", c.HtmlBody);
         Assert.Contains("reason &amp; more", c.HtmlBody);
+    }
+
+    // ── FR-107: the guest's own confirmation of what they submitted ────────────────
+
+    /// <summary>Every guest- or admin-supplied value is HTML-encoded into the body, and
+    /// <see cref="WebUtility.HtmlEncode"/> renders each non-ASCII character as a numeric entity —
+    /// "Köttbullar" arrives as "K&amp;#246;ttbullar". Assertions on those values must encode the
+    /// same way. The older tests in this file assert an ASCII prefix instead ("Norrt"), which
+    /// quietly stops checking at the first å/ä/ö and would pass on a truncated value.</summary>
+    private static string Enc(string value) => WebUtility.HtmlEncode(value);
+
+    /// <summary>A catered 2-night booking on the standard edge schedule (arrival dinner, departure
+    /// breakfast) with one overnight guest, one day guest, and a dish chosen for every sitting the
+    /// group actually takes: 10 Aug dinner, 11 Aug lunch + dinner.</summary>
+    private static Booking CateredBooking() => new()
+    {
+        Id = Guid.NewGuid(),
+        BookingReference = Ref,
+        ContactName = "Anna",
+        ContactEmail = "anna@test.se",
+        BookingType = BookingType.StayRequest,
+        MealPlan = MealPlan.FullBoardAll,
+        CheckIn = new DateOnly(2026, 8, 10),
+        CheckOut = new DateOnly(2026, 8, 12),
+        CheckInTime = new TimeOnly(16, 30),
+        CheckOutTime = new TimeOnly(10, 0),
+        ArrivalDinner = true,
+        DepartureBreakfast = true,
+        DayGuestLunch = true,
+        VegetarianCount = 2,
+        Participants =
+        [
+            new Participant
+            {
+                FullName = "Bengt Bok",
+                ParticipantType = ParticipantType.Overnight,
+                AgeCategory = AgeCategory.Adult,
+                Allergies = [Allergy.Gluten],
+            },
+            new Participant
+            {
+                FullName = "Cecilia Dag",
+                ParticipantType = ParticipantType.DayGuest,
+                AgeCategory = AgeCategory.Child,
+                AttendanceDate = new DateOnly(2026, 8, 11),
+                Allergies = [Allergy.Other],
+                AllergyNotes = "selleri",
+            },
+        ],
+        MealSelections =
+        [
+            new BookingMealSelection { Date = new DateOnly(2026, 8, 10), MealType = MealType.Dinner, MealOptionSnapshot = "Köttbullar" },
+            new BookingMealSelection { Date = new DateOnly(2026, 8, 11), MealType = MealType.Lunch, MealOptionSnapshot = "Ärtsoppa" },
+            new BookingMealSelection { Date = new DateOnly(2026, 8, 11), MealType = MealType.Dinner, MealOptionSnapshot = "Laxfilé" },
+        ],
+    };
+
+    [Fact]
+    public void GuestDetailsReceived_RepeatsTheStayTheParticipantsAndTheMealsBack()
+    {
+        var c = BookingEmailTemplates.GuestDetailsReceived(
+            CateredBooking(), ["Smedjan"], "Åkerögården, Norrtälje");
+
+        Assert.Contains("Hej Anna", c.HtmlBody);
+        Assert.Contains(Ref, c.HtmlBody);
+        Assert.Contains(Ref, c.Subject);
+
+        // The booking's own stated times, not the 14:00/12:00 standard (§2.8).
+        Assert.Contains("kl. 16:30", c.HtmlBody);
+        Assert.Contains("kl. 10:00", c.HtmlBody);
+        Assert.DoesNotContain("14:00", c.HtmlBody);
+
+        Assert.Contains("Ert boende:", c.HtmlBody);
+        Assert.Contains("Smedjan", c.HtmlBody);
+        Assert.Contains(Enc("Norrtälje"), c.HtmlBody);
+
+        // Every participant, with their own allergies — including the free-text note behind "Annat".
+        Assert.Contains(Enc("Bengt Bok"), c.HtmlBody);
+        Assert.Contains(Enc("Glutenintolerans"), c.HtmlBody);
+        Assert.Contains(Enc("Cecilia Dag"), c.HtmlBody);
+        Assert.Contains(Enc("selleri"), c.HtmlBody);
+        Assert.Contains("Kostönskemål:", c.HtmlBody); // literal label, not encoded
+        Assert.Contains(Enc("2 vegetariska"), c.HtmlBody);
+
+        // Every sitting the group takes, with the dish agreed for it.
+        Assert.Contains(Enc("Köttbullar"), c.HtmlBody);
+        Assert.Contains(Enc("Ärtsoppa"), c.HtmlBody);
+        Assert.Contains(Enc("Laxfilé"), c.HtmlBody);
+        Assert.Contains("Frukost", c.HtmlBody); // departure-day breakfast, no dish to choose
+
+        // The line that makes the email actionable — the link is dead by now (FR-62/107).
+        Assert.Contains("Kontakta oss", c.HtmlBody);
+    }
+
+    [Fact]
+    public void GuestDetailsReceived_ShowsOnlyTheSittingsTheGroupTakes()
+    {
+        // The standard edge schedule means no lunch on the arrival day and no dinner on the
+        // departure day. A grid that printed every possible sitting would tell the guest they had
+        // ordered meals they did not.
+        var c = BookingEmailTemplates.GuestDetailsReceived(
+            CateredBooking(), ["Smedjan"], "Åkerögården, Norrtälje");
+
+        var arrivalDay = SectionForDay(c.HtmlBody, "10 augusti 2026");
+        Assert.Contains("Middag", arrivalDay);
+        Assert.DoesNotContain("Lunch", arrivalDay);
+        Assert.DoesNotContain("Frukost", arrivalDay);
+
+        var departureDay = SectionForDay(c.HtmlBody, "12 augusti 2026");
+        Assert.Contains("Frukost", departureDay);
+        Assert.DoesNotContain("Middag", departureDay);
+    }
+
+    /// <summary>The one <c>&lt;li&gt;</c> of the <b>meal</b> list belonging to <paramref name="day"/>,
+    /// so a "no lunch on the arrival day" assertion cannot pass or fail on another day's text.
+    /// Anchored past the Måltider heading deliberately: the same dates appear earlier in the
+    /// check-in/check-out lines, and matching those would have made these assertions meaningless
+    /// while still reading as green.</summary>
+    private static string SectionForDay(string html, string day)
+    {
+        var mealsAt = html.IndexOf("<h3>Måltider</h3>", StringComparison.Ordinal);
+        Assert.True(mealsAt >= 0, "Måltidsavsnittet saknas i mejlet.");
+
+        var start = html.IndexOf(day, mealsAt, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"Dagen {day} saknas i måltidslistan.");
+
+        var end = html.IndexOf("</li>", start, StringComparison.Ordinal);
+        return html[start..(end < 0 ? html.Length : end)];
+    }
+
+    [Fact]
+    public void GuestDetailsReceived_SelfCatering_SaysSo_RatherThanPrintingAnEmptyMealList()
+    {
+        var booking = CateredBooking();
+        booking.MealPlan = MealPlan.SelfCateringAll;
+        booking.ArrivalDinner = false;
+        booking.DepartureBreakfast = false;
+        booking.MealSelections.Clear();
+
+        var c = BookingEmailTemplates.GuestDetailsReceived(booking, ["Smedjan"], "Åkerögården, Norrtälje");
+
+        Assert.Contains("självhushåll", c.HtmlBody);
+        Assert.DoesNotContain("Middag", c.HtmlBody);
+    }
+
+    [Fact]
+    public void GuestDetailsReceived_CarriesNoAdminLink()
+    {
+        // FR-107 exists because the admin notification (FR-61) is not a copy of the guest's choices.
+        // Sending the guest an admin-panel URL would be the shortcut this requirement rules out.
+        var c = BookingEmailTemplates.GuestDetailsReceived(
+            CateredBooking(), ["Smedjan"], "Åkerögården, Norrtälje");
+
+        Assert.DoesNotContain("admin", c.HtmlBody, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("adminpanelen", c.HtmlBody);
+    }
+
+    [Fact]
+    public void GuestDetailsReceived_HtmlEncodesParticipantNamesAndAllergyNotes()
+    {
+        var booking = CateredBooking();
+        booking.Participants[0].FullName = "<b>Bengt</b>";
+        booking.Participants[1].AllergyNotes = "selleri & nötter";
+
+        var c = BookingEmailTemplates.GuestDetailsReceived(booking, [], "Åkerögården");
+
+        Assert.DoesNotContain("<b>Bengt</b>", c.HtmlBody);
+        Assert.Contains("&lt;b&gt;Bengt&lt;/b&gt;", c.HtmlBody);
+        Assert.Contains(Enc("selleri & nötter"), c.HtmlBody);
     }
 }

@@ -4,6 +4,13 @@
 # without racing a stopped App Service / DB. Powering down on idle + auto-start-in-pipeline is
 # a possible future revisit; until then, do not power down staging.
 #
+# The one exception, and it is deliberate: a *migration-baseline regeneration* requires both
+# sites stopped before the merge, so the old build cannot boot against the dropped database and
+# rebuild the old schema. This pipeline has no start step, so the sites stay stopped through the
+# deploy and are started by hand afterwards — which is exactly the control that operation needs.
+# See "the reset is for a regenerated baseline" in infra/ops/db-access-runbook.md. That is a
+# pre-launch procedure; it is not a licence to power staging down routinely.
+#
 # Build-once, deploy-that-artifact: this pipeline does NOT rebuild. It downloads the
 # admin/public artifacts produced by a *green* CI run's Publish stage (the `ci` pipeline
 # resource below) and deploys exactly those bits. When you run it manually, pick which run to

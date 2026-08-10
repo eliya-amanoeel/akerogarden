@@ -27,13 +27,17 @@
        darker value clears both surfaces (6.5:1 and 5.6:1). It is not a new colour: .alert--warn
        already hardcoded it, and now there is one definition instead of two. */
     --color-warn:  #7a4c00;  --color-warn-bg: rgba(214, 158, 46, 0.16);
-    /* Error text sitting on --color-err-bg is darkened to #8f2915 rather than using --color-err
-       (#b3341a), which clears WCAG AA on the warm surface by 0.03 — too thin a margin for body
-       text. Same reasoning as --color-warn above, and likewise not a new colour: .alert--error
-       already hardcoded it in two rules and the toast's error variant would have made a third.
-       --color-err-line is that red at the border alpha those rules share. */
-    --color-err:   #b3341a;  --color-err-bg:  rgba(179, 52, 26, 0.09);
-    --color-err-text: #8f2915;  --color-err-line: rgba(179, 52, 26, 0.32);
+    /* Error text is #8f2915 (was #b3341a) for the same reason as --color-warn above: --color-err-bg
+       is translucent, so a red element's real contrast depends on the surface beneath it. The old
+       value cleared WCAG AA on the warm section tint by 0.03 — a coin on its edge, and exactly
+       where the Avbokad/Nekad badge sits on /bokningar. The darker value clears both surfaces
+       comfortably. It is not a new colour: .alert--error already hardcoded it.
+       There was briefly a separate --color-err-text holding this value while --color-err stayed
+       bright; that split was the near-duplicate the duplication rule warns about, so there is now
+       one error red for text. -bg and -line stay derived from the brighter red on purpose — they
+       are tints and hairlines, not text, and darkening them would muddy the alert surfaces. */
+    --color-err:   #8f2915;  --color-err-bg:  rgba(179, 52, 26, 0.09);
+    --color-err-line: rgba(179, 52, 26, 0.32);
     --color-info:  #6f4a1f;  --color-info-bg: rgba(134, 86, 40, 0.10);
 
     --font-body:    'Roboto', sans-serif;
@@ -1678,8 +1682,8 @@ fieldset.participant legend {
 .alert b { color: var(--color-heading); }
 .alert--info { background: var(--color-info-bg); border-color: rgba(134, 86, 40, 0.3); color: #5a3d1f; }
 .alert--info .alert__ic { background: #5a3d1f; color: var(--color-info-bg); }
-.alert--error { background: var(--color-err-bg); border-color: var(--color-err-line); color: var(--color-err-text); }
-.alert--error .alert__ic { background: var(--color-err-text); color: var(--color-err-bg); }
+.alert--error { background: var(--color-err-bg); border-color: var(--color-err-line); color: var(--color-err); }
+.alert--error .alert__ic { background: var(--color-err); color: var(--color-err-bg); }
 .alert--warn { background: var(--color-warn-bg); border-color: rgba(214, 158, 46, 0.4); color: var(--color-warn); }
 .alert--warn .alert__ic { background: #8a5a00; color: #fff; font-style: normal; }
 /* Bulleted items inside an alert (e.g. multiple approval warnings) */
@@ -1719,7 +1723,7 @@ fieldset.participant legend {
     display: flex;
     align-items: flex-start;
     gap: 0.75rem;
-    color: var(--color-err-text);
+    color: var(--color-err);
     /* Opaque, unlike .alert--error's translucent --color-err-bg. This toast is position:fixed and
        floats over arbitrary page content, so a 9%-alpha ground lets rows and text show through it.
        #ebdbcf is exactly that tint flattened onto the toast's own --color-bg-warm base, so it looks

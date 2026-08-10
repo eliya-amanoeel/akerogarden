@@ -84,21 +84,20 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 /* Semantic (alerts, validation, status pills) */
 --color-ok:   #3f6a0f   --color-ok-bg:   rgba(113,176,2,.12)
 --color-warn: #7a4c00   --color-warn-bg: rgba(214,158,46,.16)
---color-err:  #b3341a   --color-err-bg:  rgba(179,52,26,.09)
+--color-err:  #8f2915   --color-err-bg:  rgba(179,52,26,.09)
 --color-info: #6f4a1f   --color-info-bg: rgba(134,86,40,.10)
 
-/* Error on an error ground — text darkened for AA, plus the border alpha its components share */
---color-err-text: #8f2915   --color-err-line: rgba(179,52,26,.32)
+/* The border alpha the error components share */
+--color-err-line: rgba(179,52,26,.32)
 ```
 
 **The green rule (accessibility-critical).** `#71b002` is a light lime — it **only passes WCAG AA as a fill with dark text** (`#71b002` + `#1e1c1a` = 6.5:1). As white-on-green it fails (2.65:1) and **must not be used that way**. As **text/links**, use the deepened `--color-primary-ink` `#3f6a0f` — it clears AA on **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` section tint (an earlier `#4c7a12` passed on off-white but missed 4.5:1 on the warm tint — caught by the axe E2E test). Darkening the *fill* toward white-text-legibility instead turns it olive — rejected; keep the bright fill + dark text.
 
 **The warm-tint rule (same trap, second occurrence).** `--color-warn` was deepened from `#8a5a00` to `#7a4c00` on 2026-08-07 for the identical reason. Because `--color-warn-bg` is **translucent**, a warn element's contrast is decided by the surface beneath it: the old pair measured 5.2:1 over white but **4.49:1** over the warm `#f0ebe1` tint — failing AA by a hundredth, which is where the `Väntar` status badge sits on `/bokningar` and `/kalender`. Caught by the axe E2E test, as the green was. `.alert--warn` had already been given `#7a4c00` as a local override, so the system was carrying the fix and the bug side by side; the token now holds it and the override is gone.
 
-> **The general rule these two share:** any semantic colour paired with a **translucent** `-bg` must clear 4.5:1 against **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` tint, because the same component appears on both. Checking only against white is how both of these shipped. **Measured 2026-08-07 — all four now clear 4.5:1 on both surfaces**, but the margins are not equal:
-`info` 5.79, `warn` 5.55, `ok` 4.91, and **`err` 4.53 — three hundredths of headroom**. Anything that
-darkens what sits behind `err` tips it under. Tracked in
-[`../temp/open-items.md`](../temp/open-items.md).
+**The warm-tint rule, third occurrence — and the last one.** `--color-err` was deepened from `#b3341a` to `#8f2915` on 2026-08-10, for the third time the identical trap: measured over the warm tint it gave **4.53** — three hundredths of headroom, which is a coin on its edge, not a pass — and that is where the `Avbokad` / `Nekad` badges sit on `/bokningar`. Unlike the green and the amber, this one was **not** caught by the axe test, because 4.53 passes; it was caught by measuring all four pairs deliberately. The deepened value is not a new colour: `.alert--error` already carried it.
+
+> **The general rule these three share:** any semantic colour paired with a **translucent** `-bg` must clear 4.5:1 against **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` tint, because the same component appears on both. Checking only against white is how the first two shipped, and a bare pass is how the third nearly did. **A margin under ~0.5 is a finding, not a pass** — treat it as failing and deepen. Measured after the 2026-08-10 fix: `err` ~7.3, `info` 5.79, `warn` 5.55, `ok` 4.91.
 >
 > **The corollary: a translucent `-bg` belongs to inline components only.** On anything
 `position: fixed` the surface underneath is not a known ground — it is whatever the page happens to
@@ -111,9 +110,11 @@ exactly this reason (`#ebdbcf` is its `--color-err-bg` flattened onto `--color-b
 
 **The duplication rule (when a hardcoded value must become a token).** A colour a component hardcodes locally is acceptable while it has exactly **one** user. The moment a second rule needs the same value, it becomes a token — one definition, every rule pointing at it. This is not tidiness; it is how the warn bug above survived: `.alert--warn` already carried the corrected `#7a4c00` as a local override while the token still held the failing `#8a5a00`, so the system shipped the fix and the bug side by side, and neither one knew about the other. It nearly repeated on 2026-08-10 — `#8f2915` (error text on `--color-err-bg`) was hardcoded in two `.alert--error` rules and a third was about to copy it, along with a fourth ad-hoc alpha of the same red. It became `--color-err-text` and `--color-err-line` instead.
 
+**And then the promotion itself became the duplicate.** `--color-err-text` `#8f2915` sat alongside `--color-err` `#b3341a` — two dark reds a shade apart, one for text on a tint and one for text everywhere else, which is a distinction no one reading a rule can hold. Once the warm-tint measurement showed `--color-err` should have been the darker value all along, the two collapsed into one and `--color-err-text` was deleted (2026-08-10). **A token that exists only to be the correct version of another token is a bug in the palette, not a feature of it** — fix the original. `-bg` and `-line` legitimately stay derived from the brighter red: they are tints and hairlines, not text.
+
 > **Before adding a variant, grep `site.css` for the literal you are about to type.** If it is already there, promote it rather than repeating it. Known remaining instances of this drift, not yet cleaned up: `.alert--info` hardcodes `#5a3d1f` in two rules with no token, and `.btn-outline.btn-danger` carries a fourth alpha of the error red. Queued for the design-system audit in Phase 11.
 
-Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · body `#4a4845` 11.9:1 · muted `#6f6a60` 5.0:1 · error `#b3341a` 5.7:1 · brown-on-white 6.2:1.
+Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · body `#4a4845` 11.9:1 · muted `#6f6a60` 5.0:1 · error `#8f2915` ~7.9:1 on `#faf8f4` / ~7.3:1 on `#f0ebe1` · brown-on-white 6.2:1.
 
 ### Typography
 

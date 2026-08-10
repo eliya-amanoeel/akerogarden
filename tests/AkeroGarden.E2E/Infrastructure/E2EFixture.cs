@@ -318,6 +318,19 @@ public sealed class E2EFixture : IAsyncLifetime
             // Enable the Development-only /e2e/setup-link seam so the invite-activation flow (normally
             // reachable only via the emailed link) can be driven by the browser. Never set in prod.
             psi.Environment["E2ETestHooks"] = "true";
+
+            // Force the demo seeder OFF, never merely "leave it unset". `dotnet run` loads the
+            // developer's own user-secrets for this project, so a `DemoSeed:Reset=true` left behind
+            // after a local reseed (infra/ops/seeding.md tells you to remove it, which is easy to
+            // miss) is inherited by this host. DemoDataSeeder then wipes every application table on
+            // boot and reseeds its own dataset — destroying the bookings and reference data this
+            // fixture just seeded. The suite does not fail cleanly when that happens: the completion
+            // tokens no longer exist, /slutfor renders "Länken är inte giltig", and a dozen tests sit
+            // out their full 30 s timeout waiting for form elements on a page that will never have
+            // them, which reads as "the E2E suite got slow" rather than as a broken fixture.
+            // Environment variables are applied after user secrets in the default configuration
+            // order, so this wins. Same class of leak as the developer-Redis note further down.
+            psi.Environment["DemoSeed__Reset"] = "false";
         }
 
         // No SMTP server in E2E. SmtpEmailService already swallows send failures (NFR-13), so a

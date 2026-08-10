@@ -89,10 +89,22 @@ namespace AkeroGarden.Web.Core.Migrations
                     ContactPhone = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
                     CheckIn = table.Column<DateOnly>(type: "date", nullable: true),
                     CheckOut = table.Column<DateOnly>(type: "date", nullable: true),
+                    CheckInTime = table.Column<TimeOnly>(type: "time without time zone", nullable: true),
+                    CheckOutTime = table.Column<TimeOnly>(type: "time without time zone", nullable: true),
                     OvernightGuestCount = table.Column<int>(type: "integer", nullable: true),
                     DayGuestCount = table.Column<int>(type: "integer", nullable: true),
                     MealPlan = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: true),
-                    GuestChoosesRooms = table.Column<bool>(type: "boolean", nullable: false),
+                    ArrivalBreakfast = table.Column<bool>(type: "boolean", nullable: false),
+                    ArrivalLunch = table.Column<bool>(type: "boolean", nullable: false),
+                    ArrivalDinner = table.Column<bool>(type: "boolean", nullable: false),
+                    DepartureBreakfast = table.Column<bool>(type: "boolean", nullable: false),
+                    DepartureLunch = table.Column<bool>(type: "boolean", nullable: false),
+                    DepartureDinner = table.Column<bool>(type: "boolean", nullable: false),
+                    DayGuestBreakfast = table.Column<bool>(type: "boolean", nullable: false),
+                    DayGuestLunch = table.Column<bool>(type: "boolean", nullable: false),
+                    DayGuestDinner = table.Column<bool>(type: "boolean", nullable: false),
+                    VegetarianCount = table.Column<int>(type: "integer", nullable: false),
+                    VeganCount = table.Column<int>(type: "integer", nullable: false),
                     IsOrganisation = table.Column<bool>(type: "boolean", nullable: false),
                     OrgName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true),
                     OrgNumber = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: true),
@@ -105,10 +117,6 @@ namespace AkeroGarden.Web.Core.Migrations
                     DenialReason = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
                     CompletionToken = table.Column<string>(type: "text", nullable: true),
                     CompletionTokenExpiry = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    DepositInvoiced = table.Column<bool>(type: "boolean", nullable: false),
-                    DepositPaid = table.Column<bool>(type: "boolean", nullable: false),
-                    FinalInvoiced = table.Column<bool>(type: "boolean", nullable: false),
-                    FinalPaid = table.Column<bool>(type: "boolean", nullable: false),
                     CancelledAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
                     CancellationInitiator = table.Column<string>(type: "character varying(30)", maxLength: 30, nullable: true),
                     CancellationReason = table.Column<string>(type: "character varying(2000)", maxLength: 2000, nullable: true),
@@ -117,7 +125,9 @@ namespace AkeroGarden.Web.Core.Migrations
                     UpdatedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
                     DeleteAfter = table.Column<DateOnly>(type: "date", nullable: true),
                     DeletionWarningEmailSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
-                    ReminderEmailSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
+                    ReminderEmailSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CompletionLinkSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true),
+                    CompletionNudgeSentAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: true)
                 },
                 constraints: table =>
                 {
@@ -310,6 +320,58 @@ namespace AkeroGarden.Web.Core.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Participants",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    BookingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    FullName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    ParticipantType = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    AgeCategory = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    AttendanceDate = table.Column<DateOnly>(type: "date", nullable: true),
+                    Allergies = table.Column<string>(type: "text", nullable: false),
+                    AllergyNotes = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Participants", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_Participants_Bookings_BookingId",
+                        column: x => x.BookingId,
+                        principalTable: "Bookings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "BookingMealSelections",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    BookingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    Date = table.Column<DateOnly>(type: "date", nullable: false),
+                    MealType = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
+                    MealOptionId = table.Column<Guid>(type: "uuid", nullable: false),
+                    MealOptionSnapshot = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BookingMealSelections", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_BookingMealSelections_Bookings_BookingId",
+                        column: x => x.BookingId,
+                        principalTable: "Bookings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_BookingMealSelections_MealOptions_MealOptionId",
+                        column: x => x.MealOptionId,
+                        principalTable: "MealOptions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Buildings",
                 columns: table => new
                 {
@@ -380,6 +442,34 @@ namespace AkeroGarden.Web.Core.Migrations
                         name: "FK_Facilities_PhysicalBuildings_PhysicalBuildingId",
                         column: x => x.PhysicalBuildingId,
                         principalTable: "PhysicalBuildings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Restrict);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "BookingBuildingAssignments",
+                columns: table => new
+                {
+                    Id = table.Column<Guid>(type: "uuid", nullable: false),
+                    BookingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    BuildingId = table.Column<Guid>(type: "uuid", nullable: false),
+                    BuildingNameSnapshot = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    PhysicalBuildingNameSnapshot = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
+                    AssignedAt = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_BookingBuildingAssignments", x => x.Id);
+                    table.ForeignKey(
+                        name: "FK_BookingBuildingAssignments_Bookings_BookingId",
+                        column: x => x.BookingId,
+                        principalTable: "Bookings",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_BookingBuildingAssignments_Buildings_BuildingId",
+                        column: x => x.BuildingId,
+                        principalTable: "Buildings",
                         principalColumn: "Id",
                         onDelete: ReferentialAction.Restrict);
                 });
@@ -463,68 +553,6 @@ namespace AkeroGarden.Web.Core.Migrations
                         onDelete: ReferentialAction.Restrict);
                 });
 
-            migrationBuilder.CreateTable(
-                name: "Participants",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    BookingId = table.Column<Guid>(type: "uuid", nullable: false),
-                    FullName = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false),
-                    ParticipantType = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    AgeCategory = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    AttendanceDate = table.Column<DateOnly>(type: "date", nullable: true),
-                    RoomId = table.Column<Guid>(type: "uuid", nullable: true),
-                    RoomAssignmentSnapshot = table.Column<string>(type: "character varying(300)", maxLength: 300, nullable: true),
-                    IsFullBoard = table.Column<bool>(type: "boolean", nullable: false),
-                    AttendsBreakfast = table.Column<bool>(type: "boolean", nullable: false),
-                    DietaryRequirements = table.Column<string>(type: "text", nullable: false),
-                    DietaryNotes = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: true)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_Participants", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_Participants_Bookings_BookingId",
-                        column: x => x.BookingId,
-                        principalTable: "Bookings",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                    table.ForeignKey(
-                        name: "FK_Participants_Rooms_RoomId",
-                        column: x => x.RoomId,
-                        principalTable: "Rooms",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                });
-
-            migrationBuilder.CreateTable(
-                name: "MealPreferences",
-                columns: table => new
-                {
-                    Id = table.Column<Guid>(type: "uuid", nullable: false),
-                    ParticipantId = table.Column<Guid>(type: "uuid", nullable: false),
-                    Date = table.Column<DateOnly>(type: "date", nullable: false),
-                    MealType = table.Column<string>(type: "character varying(20)", maxLength: 20, nullable: false),
-                    MealOptionId = table.Column<Guid>(type: "uuid", nullable: false),
-                    MealOptionSnapshot = table.Column<string>(type: "character varying(200)", maxLength: 200, nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_MealPreferences", x => x.Id);
-                    table.ForeignKey(
-                        name: "FK_MealPreferences_MealOptions_MealOptionId",
-                        column: x => x.MealOptionId,
-                        principalTable: "MealOptions",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Restrict);
-                    table.ForeignKey(
-                        name: "FK_MealPreferences_Participants_ParticipantId",
-                        column: x => x.ParticipantId,
-                        principalTable: "Participants",
-                        principalColumn: "Id",
-                        onDelete: ReferentialAction.Cascade);
-                });
-
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
                 table: "AspNetRoleClaims",
@@ -578,6 +606,17 @@ namespace AkeroGarden.Web.Core.Migrations
                 columns: new[] { "StartDate", "EndDate" });
 
             migrationBuilder.CreateIndex(
+                name: "IX_BookingBuildingAssignments_BookingId_BuildingId",
+                table: "BookingBuildingAssignments",
+                columns: new[] { "BookingId", "BuildingId" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BookingBuildingAssignments_BuildingId",
+                table: "BookingBuildingAssignments",
+                column: "BuildingId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_BookingCleaningSelections_BookingId",
                 table: "BookingCleaningSelections",
                 column: "BookingId");
@@ -596,6 +635,17 @@ namespace AkeroGarden.Web.Core.Migrations
                 name: "IX_BookingFacilitySelections_FacilityId",
                 table: "BookingFacilitySelections",
                 column: "FacilityId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BookingMealSelections_BookingId_Date_MealType",
+                table: "BookingMealSelections",
+                columns: new[] { "BookingId", "Date", "MealType" },
+                unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_BookingMealSelections_MealOptionId",
+                table: "BookingMealSelections",
+                column: "MealOptionId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Bookings_BookingReference",
@@ -639,24 +689,9 @@ namespace AkeroGarden.Web.Core.Migrations
                 column: "PhysicalBuildingId");
 
             migrationBuilder.CreateIndex(
-                name: "IX_MealPreferences_MealOptionId",
-                table: "MealPreferences",
-                column: "MealOptionId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_MealPreferences_ParticipantId",
-                table: "MealPreferences",
-                column: "ParticipantId");
-
-            migrationBuilder.CreateIndex(
                 name: "IX_Participants_BookingId",
                 table: "Participants",
                 column: "BookingId");
-
-            migrationBuilder.CreateIndex(
-                name: "IX_Participants_RoomId",
-                table: "Participants",
-                column: "RoomId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Rooms_BuildingId",
@@ -689,16 +724,25 @@ namespace AkeroGarden.Web.Core.Migrations
                 name: "BlockedPeriods");
 
             migrationBuilder.DropTable(
+                name: "BookingBuildingAssignments");
+
+            migrationBuilder.DropTable(
                 name: "BookingCleaningSelections");
 
             migrationBuilder.DropTable(
                 name: "BookingFacilitySelections");
 
             migrationBuilder.DropTable(
-                name: "MealPreferences");
+                name: "BookingMealSelections");
+
+            migrationBuilder.DropTable(
+                name: "Participants");
 
             migrationBuilder.DropTable(
                 name: "PriceRules");
+
+            migrationBuilder.DropTable(
+                name: "Rooms");
 
             migrationBuilder.DropTable(
                 name: "AspNetRoles");
@@ -716,13 +760,7 @@ namespace AkeroGarden.Web.Core.Migrations
                 name: "MealOptions");
 
             migrationBuilder.DropTable(
-                name: "Participants");
-
-            migrationBuilder.DropTable(
                 name: "Bookings");
-
-            migrationBuilder.DropTable(
-                name: "Rooms");
 
             migrationBuilder.DropTable(
                 name: "Buildings");

@@ -192,9 +192,10 @@ erDiagram
         guid ActorUserId "nullable; Identity user, not FK-constrained"
         string ActorEmailSnapshot "nullable; admin email at write time"
         string ActorNameSnapshot "nullable; admin name at write time"
-        enum ActionType "BookingApproved, BuildingsAssigned, …"
+        enum Action "BookingApproved, BuildingAssignmentChanged, …"
         string EntityType "Booking, CleaningZone, Room, …"
         guid EntityId "affected record"
+        string BookingReferenceSnapshot "nullable; the booking's reference (FR-92), not PII"
         string Summary "no guest PII (NFR-37)"
     }
 ```

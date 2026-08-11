@@ -505,11 +505,31 @@ Grouped deliberately: these all need the apps running, so they are done together
 
 ---
 
-## Demo feedback (2026-08-05) — deliberately *not* a phase
+## Demo feedback (2026-08-05) — deliberately *not* a phase ✅ COMPLETE (2026-08-10)
 
 **Full decision record: [`demo-feedback-2026-08-05.md`](demo-feedback-2026-08-05.md).** That
 document is the authority on scope, decisions and their reasoning; this section exists so the
 plan is not silently untrue about where the work sits.
+
+> **✅ All eight slices built, merged and verified (2026-08-10).** PRs #28–#39 on `main`. The
+> completion gate ran across the whole scope before the final merge, not per slice: every exit
+> criterion below is met, all three test tiers green (85/85 E2E including axe), no violations.
+> The migration baseline was regenerated once (`20260810191257_InitialSchema`) and **both**
+> databases were dropped, recreated and verified — staging reseeded from `DemoDataSeeder`,
+> production restored from a `pg_dump` of the client's seven hand-entered reference tables, whose
+> row counts (6/8/28/10/5/5/7) reconciled before the drop and again after the restore.
+>
+> **Two findings from the final pass worth keeping.** The traceability check found that item 1b —
+> a **client request**, deferred — existed only in the decision record and had no entry in
+> `requirements.md` §10 at all; a decision record is not a substitute for the single source of
+> truth, so when feedback arrives as its own document, verify each item actually landed in the
+> SRS. And `AuditLog.Action` had been documented as `ActionType` in both the SRS and the ERD since
+> the audit trail was first specified.
+>
+> **Deliberately left open, tracked elsewhere:** the booking-terms rewrite (goes to the jurist in
+> 10d), the two design-system leftovers in the Phase 11 audit, and several integration tests that
+> seed dates now in the past — passing, since nothing on those paths requires a future date, but
+> the same shape as the breakage in slice 7.
 
 **Why it is not numbered as a phase.** Phases here are **dependency-ordered**, and this work
 is not a dependency of anything — Phase 10d is gated on the jurist review of the legal text,

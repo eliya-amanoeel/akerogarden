@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
 using Npgsql;
 using Testcontainers.PostgreSql;
 
@@ -28,6 +29,37 @@ public sealed class DbFixture : IAsyncLifetime
 
         return services.BuildServiceProvider();
     }
+
+    /// <summary>
+    /// A <see cref="FakeTimeProvider"/> registration for tests whose outcome depends on <i>when</i>
+    /// they run. Pass it to <see cref="BuildServices"/>: it is applied after the shared registrations,
+    /// so it replaces the real clock.
+    ///
+    /// <para><b>Use this whenever the assertion involves a date.</b> <c>BookingService</c> measures
+    /// three things from now against the booking's check-in — whether a completion link is issued at
+    /// all (FR-108), how long it lives (FR-53), and whether the short-expiry warning fires (FR-75).
+    /// A test seeding a fixed check-in against the real clock therefore asks a slightly different
+    /// question every day it runs, and eventually a different one than its name claims. Three files
+    /// broke that way at once in demo-feedback slice 7.</para>
+    ///
+    /// <para>Seeding dates relative to <c>DateTime.UtcNow</c> also works and is fine for a stay that
+    /// merely needs to be "in the future". Pin the clock instead when the test is <i>about</i> a
+    /// boundary — 40 days, 14 days, expiry — because then the distance is the thing under test and
+    /// it should not be able to drift.</para>
+    /// </summary>
+    public static void PinClock(IServiceCollection services, DateTimeOffset instant) =>
+        services.AddSingleton<TimeProvider>(new FakeTimeProvider(instant));
+
+    /// <summary>"Today" according to whatever clock this container holds — pinned or real. Seed
+    /// helpers must derive dates from <i>this</i>, never from <c>DateTime.UtcNow</c>: a test that
+    /// pins the clock and then seeds against the wall clock has two different "now"s, which is
+    /// worse than not pinning at all.</summary>
+    public static DateOnly TodayIn(IServiceProvider provider) =>
+        DateOnly.FromDateTime(provider.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime);
+
+    /// <summary>The instant integration tests pin to unless they need a specific one. Chosen with no
+    /// significance beyond being fixed: a test that depends on the actual value is over-fitted.</summary>
+    public static readonly DateTimeOffset FixedNow = new(2026, 6, 15, 9, 0, 0, TimeSpan.Zero);
 
     /// <summary>Everything except the DbContext, so <see cref="BuildServices"/> and
     /// <see cref="BuildIsolatedServicesAsync"/> can never drift into registering different things.</summary>

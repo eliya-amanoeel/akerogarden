@@ -20,8 +20,25 @@ namespace AkeroGarden.Web.Core.Services;
 /// </summary>
 public class BookingService(
     ApplicationDbContext db, BookingEmailService emails, CleaningZoneService cleaning,
-    IAuditWriter audit, ILogger<BookingService> logger)
+    IAuditWriter audit, ILogger<BookingService> logger, TimeProvider clock)
 {
+    /// <summary>
+    /// "Now", from the injected clock rather than the wall clock — so a test can pin it and get the
+    /// same answer every day it runs. This matters more here than the timestamp fields suggest:
+    /// approval decides <b>whether a completion link is issued at all</b> (FR-108, within 40 days of
+    /// check-in), <b>how long it lives</b> (FR-53), and whether the short-expiry warning fires
+    /// (FR-75) — all measured from now against the booking's check-in date.
+    ///
+    /// <para>Before this, those five comparisons read <c>DateTime.UtcNow</c> directly, so a test
+    /// seeding a fixed check-in was asking a slightly different question every day: the same booking
+    /// drifts from "approved 120 days out" to "approved 90 days out" with nobody touching it. That is
+    /// what broke three test files at once in demo-feedback slice 7 — not one bad test, one wall
+    /// clock behind all of them. <c>RetentionJob</c> already took a <see cref="TimeProvider"/> and
+    /// the two daily jobs already take <c>today</c> as a parameter; this brings the service that
+    /// actually decides link issuance into line with them.</para>
+    /// </summary>
+    private DateTime Now => clock.GetUtcNow().UtcDateTime;
+
     /// <summary>Queues a booking-scoped audit entry (§8.15) on the current unit of work — persists
     /// with the caller's next <c>SaveChangesAsync</c>. <paramref name="summary"/> must carry no
     /// guest personal data (NFR-37). Actor defaults to the ambient admin; pass an explicit actor for
@@ -37,7 +54,7 @@ public class BookingService(
         if (input.MealPlan is null)
             throw new ArgumentException("Måltidsplan krävs för en bokningsförfrågan.", nameof(input));
 
-        var now = DateTime.UtcNow;
+        var now = Now;
         var submissionDate = DateOnly.FromDateTime(now);
 
         var activeFacilities = await db.Facilities.Where(f => f.IsActive).ToListAsync();
@@ -123,7 +140,7 @@ public class BookingService(
     /// When <paramref name="createdByAdmin"/> is true no emails are sent (FR-47).</summary>
     public async Task<Booking> CreateGeneralInquiryAsync(GeneralInquiryInput input, bool createdByAdmin = false)
     {
-        var now = DateTime.UtcNow;
+        var now = Now;
         var submissionDate = DateOnly.FromDateTime(now);
 
         var booking = new Booking
@@ -556,7 +573,7 @@ public class BookingService(
                 false, "Tilldela minst en byggnad innan bokningen godkänns.", null, false);
         }
 
-        var now = DateTime.UtcNow;
+        var now = Now;
 
         // The link is issued when the guest can use it, not when the booking is approved (FR-51/108,
         // §2.6). A group booking a year out cannot name its participants yet, and a link issued now
@@ -764,7 +781,7 @@ public class BookingService(
         db.BookingBuildingAssignments.RemoveRange(booking.BuildingAssignments);
         booking.BuildingAssignments.Clear();
 
-        var now = DateTime.UtcNow;
+        var now = Now;
         foreach (var id in buildingIds.Distinct())
         {
             var info = evaluated[id].Building;
@@ -832,7 +849,7 @@ public class BookingService(
         if (!BookingStateMachine.CanTransition(booking.Status, BookingStatus.Denied))
             return SaveResult.Fail("Bokningen kan inte avslås i sitt nuvarande läge.");
 
-        var now = DateTime.UtcNow;
+        var now = Now;
         booking.DenialReason = reason.Trim();
         booking.Status = BookingStatus.Denied;
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
@@ -857,7 +874,7 @@ public class BookingService(
         if (!BookingStateMachine.CanTransition(booking.Status, BookingStatus.Closed))
             return SaveResult.Fail("Förfrågan kan inte stängas i sitt nuvarande läge.");
 
-        var now = DateTime.UtcNow;
+        var now = Now;
         booking.Status = BookingStatus.Closed;
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Closed, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
@@ -880,7 +897,7 @@ public class BookingService(
         if (!BookingStateMachine.CanTransition(booking.Status, BookingStatus.Cancelled))
             return SaveResult.Fail("Bokningen kan inte avbokas i sitt nuvarande läge.");
 
-        var now = DateTime.UtcNow;
+        var now = Now;
         booking.Status = BookingStatus.Cancelled;
         booking.CancelledAt = now;
         booking.CancellationInitiator = initiator;
@@ -911,7 +928,7 @@ public class BookingService(
 
         booking.Status = BookingStatus.Active;
         booking.DeleteAfter = null; // live in-progress state (FR-91)
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = Now;
         await RecordBookingAuditAsync(booking, AuditAction.BookingMarkedArrived, "Bokningen markerades som anländ.");
         await db.SaveChangesAsync();
         logger.LogInformation("Booking {BookingId} marked arrived", booking.Id);
@@ -932,7 +949,7 @@ public class BookingService(
         if (booking.CheckOut is null)
             return SaveResult.Fail("Bokningen saknar utcheckningsdatum.");
 
-        var now = DateTime.UtcNow;
+        var now = Now;
         booking.Status = BookingStatus.Completed;
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.Completed, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
@@ -964,7 +981,7 @@ public class BookingService(
         if (booking.CheckIn is null)
             return SaveResult.Fail("Bokningen saknar incheckningsdatum.");
 
-        IssueCompletionLink(booking, DateTime.UtcNow);
+        IssueCompletionLink(booking, Now);
         // "utfärdades", not "återutfärdades": this path also sends the first link a far-out booking
         // ever gets (FR-49/108), so wording that assumes a previous one would be wrong half the time.
         await RecordBookingAuditAsync(booking, AuditAction.CompletionLinkIssued,
@@ -1040,7 +1057,7 @@ public class BookingService(
                 : edit.AllergyNotes.Trim();
         }
 
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = Now;
         // Count only — never participant names or allergy values (NFR-37).
         await RecordBookingAuditAsync(booking, AuditAction.ParticipantsEdited,
             $"Deltagaruppgifter uppdaterades ({booking.Participants.Count} deltagare).");
@@ -1130,7 +1147,7 @@ public class BookingService(
             db.BookingMealSelections.Remove(selection);
         }
 
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = Now;
         // Dish names are reference data, not guest data — safe to count, but nothing personal (NFR-37).
         await RecordBookingAuditAsync(booking, AuditAction.ParticipantsEdited,
             $"Gruppens måltider uppdaterades ({booking.MealSelections.Count} valda rätter).");
@@ -1151,7 +1168,7 @@ public class BookingService(
         if (StatedTimePolicy.TryParse(checkInTime, out var parsedCheckIn)) booking.CheckInTime = parsedCheckIn;
         if (StatedTimePolicy.TryParse(checkOutTime, out var parsedCheckOut)) booking.CheckOutTime = parsedCheckOut;
 
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = Now;
         // Times are the guest's own stated data, but not identifying — safe to record (NFR-37).
         await RecordBookingAuditAsync(booking, AuditAction.ParticipantsEdited,
             $"Angivna tider uppdaterades (incheckning {StatedTimePolicy.Display(booking.CheckInTime, MealOccasionResolver.StandardCheckInTime)}, "
@@ -1164,7 +1181,7 @@ public class BookingService(
         var booking = await db.Bookings.FindAsync(id);
         if (booking is null) return;
         booking.AdminNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
-        booking.UpdatedAt = DateTime.UtcNow;
+        booking.UpdatedAt = Now;
         // Note content is not recorded — it is internal free-text that may reference the guest (NFR-37).
         await RecordBookingAuditAsync(booking, AuditAction.AdminNotesEdited, "Interna anteckningar uppdaterades.");
         await db.SaveChangesAsync();

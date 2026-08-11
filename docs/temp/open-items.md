@@ -57,23 +57,17 @@ generous reading would bury the request.
 
 ---
 
-## 4. `--color-muted` clears AA on the warm tint by two hundredths
+## 4. Re-run the axe E2E pass after the 2026-08-11 colour changes
 
-**Found:** 2026-08-11 · **Status:** decision pending · **Severity:** not currently failing
+**Raised:** 2026-08-11 · **Status:** waiting on CI · **Severity:** verification only
 
-`--color-muted` `#6f6a60` measures **5.07:1** on `--color-bg` but **4.52:1** on `--color-bg-warm`
-`#f0ebe1`. That passes, but `design.md`'s own margin rule — written after the green, warn and error
-tokens each shipped on the same knife edge — says a margin under ~0.5 is a finding, not a pass.
+`--color-muted` was deepened `#6f6a60` → `#646159`, and the neutral and active badges were
+tokenised (`--color-neutral` `#5d5b56`, `--color-active` `#2c4708`) after `.badge--neutral` was
+found **failing AA at 3.96:1** on a hovered `/bokningar` row — the badge tint is translucent, so its
+real ground is that tint over a row that `:hover` swaps to `--color-bg-warm`.
 
-It had been recorded in `design.md` as a bare "5.0:1" with no ground named, which is why it went
-unnoticed; that line is now corrected. Muted text sits on the warm tint in at least seven places:
-`.chip`, `.pcard__head`, `.cal-selection`, `.bldg-tree__toolbar .cols`,
-`.admin-table tbody tr:hover .sub`, and `.lodging-note__sub` / `__rooms`.
+Every pair was measured by hand and the reasoning is in `design.md`, but the axe E2E suite has not
+been run locally against the new values (53 `--color-muted` consumers changed).
 
-Not fixed on the spot on purpose: `--color-muted` is one of the most-used tokens in `site.css`, so
-deepening it shifts every hint, caption, label, table header and empty state at once. That is a
-decision, not a drive-by.
-
-**To fix:** either deepen to `#676560` (4.90 / 5.49 / 5.82, keeps the warm-grey bias) and re-run the
-axe E2E pass, or accept 4.52 explicitly and record *that* in `design.md` so the next person doesn't
-re-open it.
+**To fix:** confirm the accessibility E2E pass is green in CI on PR #43. Delete this entry when it
+is. Nothing else is expected to move — the changes are one-directional darker on light grounds only.

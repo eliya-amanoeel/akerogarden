@@ -11,7 +11,16 @@
                                           (5.6:1 on --color-bg, 5.1:1 on --color-bg-warm) */
     --color-secondary:      #865628;   /* warm brown */
     --color-text:           #4a4845;   /* body copy */
-    --color-muted:          #6f6a60;   /* hints, captions — AA (5.0:1) */
+    /* Deepened from #6f6a60 on 2026-08-11. The old value was recorded in design.md as a bare
+       "5.0:1" with no ground named — the only entry on that line missing its grounds, which is
+       precisely why nobody could check it. Measured properly it was 5.07:1 on --color-bg but
+       4.52:1 on --color-bg-warm: passing, by two hundredths, which the margin rule calls a
+       finding rather than a pass. This value clears 5.20 / 5.83 / 6.18 across warm, bg and
+       white while staying visibly lighter than --color-text (1.47:1 apart) so the type
+       hierarchy still reads. Deepening is one-directional here — all 53 consumers sit on
+       white, --color-bg or --color-bg-warm; the dark footer and admin sidebar deliberately
+       use their own greys, so nothing gets worse. */
+    --color-muted:          #646159;   /* hints, captions — AA on all three light grounds */
     --color-heading:        #1e1c1a;   /* headings, primary-button text */
     --color-bg:             #faf8f4;   /* page background (warm off-white) */
     --color-bg-warm:        #f0ebe1;   /* section tint */
@@ -46,6 +55,17 @@
        literals are gone, and nothing changes on screen. */
     --color-info:  #6f4a1f;  --color-info-bg: rgba(134, 86, 40, 0.10);
     --color-info-line: rgba(134, 86, 40, 0.3);
+    /* The neutral status family (Avslutad / Besvarad). It is a token, not a literal on the
+       badge, because it is a *semantic status colour* like its four siblings above and its
+       value comes from a contrast measurement — so it has to be findable when the greys are
+       next touched. Until 2026-08-11 the badge borrowed --color-muted, which was never picked
+       for this job and failed on it: see the badge note under Colour in design.md. */
+    --color-neutral: #5d5b56;  --color-neutral-bg: rgba(30, 28, 26, 0.07);
+    /* The "På plats" family. Deliberately darker than --color-ok rather than reusing it: this
+       tint is 0.22 where the ok tint is 0.12, and --color-ok #3f6a0f over it measures only 4.54
+       on a hovered row — a pass by four hundredths. This is NOT the near-duplicate the
+       duplication rule forbids; it is a different colour for a measurably different ground. */
+    --color-active: #2c4708;   --color-active-bg: rgba(113, 176, 2, 0.22);
 
     --font-body:    'Roboto', sans-serif;
     --font-heading: 'Playfair Display', Georgia, serif;
@@ -998,9 +1018,18 @@ select.inp {
 .badge--pending   { color: var(--color-warn); background: var(--color-warn-bg); }
 .badge--approved  { color: var(--color-ok);   background: var(--color-ok-bg); }
 .badge--complete  { color: var(--color-info); background: var(--color-info-bg); }
-.badge--active    { color: #2c4708; background: rgba(113, 176, 2, 0.22); }
+.badge--active    { color: var(--color-active); background: var(--color-active-bg); }
+/* The one badge that had borrowed a general-purpose token instead of a purpose-picked colour,
+   and the only one that failed. Its tint is translucent, so on /bokningar the real ground is the
+   tint composited over the ROW — and .admin-table tbody tr:hover swaps that row to
+   --color-bg-warm. Against that #e1ddd3 the old var(--color-muted) measured 3.96:1: a genuine
+   AA failure, live, on hover, for the Avslutad and Besvarad badges. Every other badge already
+   carries its own deepened value for exactly this reason (warn and err were deepened in
+   2026-08-07/10; --active hardcodes #2c4708). This one now does too: 5.00:1 hovered, 5.90:1 at
+   rest. The deepened --color-muted alone would only have reached 4.56 — passing by 0.06, which
+   is the coin-on-its-edge the margin rule exists to reject. */
 .badge--done,
-.badge--neutral   { color: var(--color-muted); background: rgba(30, 28, 26, 0.07); }
+.badge--neutral   { color: var(--color-neutral); background: var(--color-neutral-bg); }
 .badge--denied,
 .badge--cancelled { color: var(--color-err); background: var(--color-err-bg); }
 .chip {

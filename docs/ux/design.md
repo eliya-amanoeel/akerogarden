@@ -87,8 +87,10 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 --color-err:  #8f2915   --color-err-bg:  rgba(179,52,26,.09)
 --color-info: #6f4a1f   --color-info-bg: rgba(134,86,40,.10)
 
-/* The border alpha the error components share */
---color-err-line: rgba(179,52,26,.32)
+/* Hairline per family, each at its own alpha — three different hues, not one hue repeated */
+--color-err-line:  rgba(179,52,26,.32)
+--color-warn-line: rgba(214,158,46,.4)
+--color-info-line: rgba(134,86,40,.3)
 ```
 
 **The green rule (accessibility-critical).** `#71b002` is a light lime — it **only passes WCAG AA as a fill with dark text** (`#71b002` + `#1e1c1a` = 6.5:1). As white-on-green it fails (2.65:1) and **must not be used that way**. As **text/links**, use the deepened `--color-primary-ink` `#3f6a0f` — it clears AA on **both** the off-white `#faf8f4` *and* the warm `#f0ebe1` section tint (an earlier `#4c7a12` passed on off-white but missed 4.5:1 on the warm tint — caught by the axe E2E test). Darkening the *fill* toward white-text-legibility instead turns it olive — rejected; keep the bright fill + dark text.
@@ -112,7 +114,11 @@ exactly this reason (`#ebdbcf` is its `--color-err-bg` flattened onto `--color-b
 
 **And then the promotion itself became the duplicate.** `--color-err-text` `#8f2915` sat alongside `--color-err` `#b3341a` — two dark reds a shade apart, one for text on a tint and one for text everywhere else, which is a distinction no one reading a rule can hold. Once the warm-tint measurement showed `--color-err` should have been the darker value all along, the two collapsed into one and `--color-err-text` was deleted (2026-08-10). **A token that exists only to be the correct version of another token is a bug in the palette, not a feature of it** — fix the original. `-bg` and `-line` legitimately stay derived from the brighter red: they are tints and hairlines, not text.
 
-> **Before adding a variant, grep `site.css` for the literal you are about to type.** If it is already there, promote it rather than repeating it. Known remaining instances of this drift, not yet cleaned up: `.alert--info` hardcodes `#5a3d1f` in two rules with no token, and `.btn-outline.btn-danger` carries a fourth alpha of the error red. Queued for the design-system audit in Phase 11.
+> **Before adding a variant, grep `site.css` for the literal you are about to type.** If it is already there, promote it rather than repeating it.
+
+**The four alert variants are the worked example — all now token-only (2026-08-10).** Clearing the last three instances is what showed how this drift actually accumulates: it is not one careless rule, it is a *fix landing on the token and missing a consumer*. `.alert--warn .alert__ic` was still painting itself `#8a5a00` — the pre-2026-08-07 warn value, the one deepened *because it failed contrast* — three days after the token was corrected and the doc above recorded the override as "gone". It was found by reading the four variants side by side, not by grepping for a known-bad value, because nobody knew that one was there.
+
+> **So the rule has a second half: when you correct a token, grep the old value before you finish.** The component that copied it will not announce itself, the build will not complain, and the tests will not either — `#8a5a00` on white still passes AA, so it would have sat there indefinitely looking deliberate. `.alert--info` was the same story with `#5a3d1f`, and `.btn-outline.btn-danger` carried a fourth alpha of the error red.
 
 Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · body `#4a4845` 11.9:1 · muted `#6f6a60` 5.0:1 · error `#8f2915` ~7.9:1 on `#faf8f4` / ~7.3:1 on `#f0ebe1` · brown-on-white 6.2:1.
 

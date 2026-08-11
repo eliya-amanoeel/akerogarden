@@ -27,6 +27,7 @@
        darker value clears both surfaces (6.5:1 and 5.6:1). It is not a new colour: .alert--warn
        already hardcoded it, and now there is one definition instead of two. */
     --color-warn:  #7a4c00;  --color-warn-bg: rgba(214, 158, 46, 0.16);
+    --color-warn-line: rgba(214, 158, 46, 0.4);
     /* Error text is #8f2915 (was #b3341a) for the same reason as --color-warn above: --color-err-bg
        is translucent, so a red element's real contrast depends on the surface beneath it. The old
        value cleared WCAG AA on the warm section tint by 0.03 — a coin on its edge, and exactly
@@ -38,7 +39,13 @@
        are tints and hairlines, not text, and darkening them would muddy the alert surfaces. */
     --color-err:   #8f2915;  --color-err-bg:  rgba(179, 52, 26, 0.09);
     --color-err-line: rgba(179, 52, 26, 0.32);
+    /* Each semantic colour owns a -line token at its own alpha. The alphas differ between families
+       (err .32, info .3, warn .4) and are deliberately left as they were: they are hairlines of
+       three *different* hues, not the near-duplicates of one hue that the duplication rule is
+       about. Tokenising them without normalising keeps this a pure refactor — the loose rgba()
+       literals are gone, and nothing changes on screen. */
     --color-info:  #6f4a1f;  --color-info-bg: rgba(134, 86, 40, 0.10);
+    --color-info-line: rgba(134, 86, 40, 0.3);
 
     --font-body:    'Roboto', sans-serif;
     --font-heading: 'Playfair Display', Georgia, serif;
@@ -999,7 +1006,7 @@ select.inp {
 
 /* Admin button modifiers */
 .btn-sm { padding: 0.32rem 0.7rem; font-size: 0.8rem; }
-.btn-outline.btn-danger { color: var(--color-err); border-color: rgba(179, 52, 26, 0.4); }
+.btn-outline.btn-danger { color: var(--color-err); border-color: var(--color-err-line); }
 .btn-outline.btn-danger:hover { border-color: var(--color-err); background: var(--color-err-bg); }
 
 /* ── Modal / confirmation dialog ─────────────────────────── */
@@ -1680,12 +1687,12 @@ fieldset.participant legend {
     line-height: 1;
 }
 .alert b { color: var(--color-heading); }
-.alert--info { background: var(--color-info-bg); border-color: rgba(134, 86, 40, 0.3); color: #5a3d1f; }
-.alert--info .alert__ic { background: #5a3d1f; color: var(--color-info-bg); }
+.alert--info { background: var(--color-info-bg); border-color: var(--color-info-line); color: var(--color-info); }
+.alert--info .alert__ic { background: var(--color-info); color: var(--color-info-bg); }
 .alert--error { background: var(--color-err-bg); border-color: var(--color-err-line); color: var(--color-err); }
 .alert--error .alert__ic { background: var(--color-err); color: var(--color-err-bg); }
-.alert--warn { background: var(--color-warn-bg); border-color: rgba(214, 158, 46, 0.4); color: var(--color-warn); }
-.alert--warn .alert__ic { background: #8a5a00; color: #fff; font-style: normal; }
+.alert--warn { background: var(--color-warn-bg); border-color: var(--color-warn-line); color: var(--color-warn); }
+.alert--warn .alert__ic { background: var(--color-warn); color: #fff; font-style: normal; }
 /* Bulleted items inside an alert (e.g. multiple approval warnings) */
 .alert__list { margin: 0.35rem 0 0; padding-left: 1.1rem; }
 .alert__list li { margin-bottom: 0.25rem; }

@@ -65,15 +65,15 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                         Ni disponerar följande byggnader. Fördela gruppen mellan rummen som ni vill —
                         vi behöver inte veta vem som sover var.
                     </p>
-                    <ul class="lodging-list">
+                    <ul class="lodging-note__list">
                         @foreach (var b in _assignedBuildings)
                         {
                             <li>
                                 <strong>@b.Name</strong>
-                                <span class="sub">@b.PhysicalBuildingName</span>
+                                <span class="lodging-note__sub">@b.PhysicalBuildingName</span>
                                 @if (b.Rooms.Count > 0)
                                 {
-                                    <span class="lodging-rooms">
+                                    <span class="lodging-note__rooms">
                                         @string.Join(" · ", b.Rooms.Select(r => $"{r.Name} ({r.BedCount} bäddar)"))
                                     </span>
                                 }

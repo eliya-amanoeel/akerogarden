@@ -10,7 +10,9 @@ Visual + experiential design reference for the site: art direction, tokens, type
 
 Åkerögården is a rural retreat & conference property near Norrtälje, running since 1978, hosting a **mix** of groups (families, companies, courses, community/church) from a handful of people up to 79 overnight guests. The public site's single job is to **convert visitors into inquiries** (the booking funnel is the primary KPI); the admin panel's job is efficient daily operation.
 
-The chosen look is **calm, timeless, editorial**: generous whitespace, large light serif headings, a warm off-white ground, and **green used sparingly** as an accent — photography carries the emotion. It reads welcoming and neutral (not "churchy", not "corporate") so any kind of group can picture themselves there.
+The chosen look is **calm, timeless, editorial**: generous whitespace, large light serif headings, a warm off-white ground, and **green used sparingly** as an accent — photography carries the emotion. The *page* stays welcoming and neutral — not corporate, not institutional — so any kind of group can picture themselves there.
+
+> **The neutrality no longer extends to the logo, and that was the client's call.** This section previously read "not 'churchy'". In 2026-08 the client supplied a new identity — a cross-topped church cradled in a hand, with *Kaldéiska Kursgård* under the wordmark — which is the plain opposite of that instruction. It was raised explicitly before the work started: the booking funnel is the primary KPI, the copy is deliberately written for families, companies and courses as well as community groups, and a confessional mark narrows who feels invited. The client owns the property and the brand, chose it knowingly, and that settles it. What follows from the decision is that **the surrounding page must carry the neutrality the mark no longer does** — the copy stays plainly secular, the imagery stays the landscape and the buildings, and no other confessional signal is added anywhere. Do not "harmonise" the rest of the site toward the logo.
 
 ### Design principles (the north star)
 
@@ -110,6 +112,10 @@ exactly this reason (`#ebdbcf` is its `--color-err-bg` flattened onto `--color-b
 2026-08-10: every other fixed/sticky element is opaque; the only translucent ones are
 `.modal-overlay` and `.admin-scrim`, where that is the point.
 
+**The brand teal is a logo colour, never a text colour — the fourth occurrence, and the first one caught before it shipped.** The 2026-08 identity introduced a teal, `#3a9698`, which is fine inside the mark (logotypes are exempt from 1.4.3/1.4.11). Set as **text** it measures **3.30:1** on `#faf8f4` and **2.95:1** on the warm tint — the same trap that caught green, warn and err above, arriving from a new direction: not a translucent `-bg` this time, but a colour picked for a *fill* and then reused for *type*. The lockup's `Kaldéiska Kursgård` tagline therefore uses a deepened **`#1e7070`** (5.49:1 / 4.90:1), exactly the `--color-primary` → `--color-primary-ink` split this palette already runs. On dark grounds use `#5cb9bb` (6.86:1 on the sidebar, 7.74:1 on the footer).
+
+> **There is deliberately no `--color-teal` token.** All three values live inside the logo SVGs, and no CSS rule consumes teal — a token whose only user is a generated asset is a token nobody maintains. If a component ever needs teal in CSS, promote `#1e7070` then, per the duplication rule below, and not before.
+
 **The duplication rule (when a hardcoded value must become a token).** A colour a component hardcodes locally is acceptable while it has exactly **one** user. The moment a second rule needs the same value, it becomes a token — one definition, every rule pointing at it. This is not tidiness; it is how the warn bug above survived: `.alert--warn` already carried the corrected `#7a4c00` as a local override while the token still held the failing `#8a5a00`, so the system shipped the fix and the bug side by side, and neither one knew about the other. It nearly repeated on 2026-08-10 — `#8f2915` (error text on `--color-err-bg`) was hardcoded in two `.alert--error` rules and a third was about to copy it, along with a fourth ad-hoc alpha of the same red. It became `--color-err-text` and `--color-err-line` instead.
 
 **And then the promotion itself became the duplicate.** `--color-err-text` `#8f2915` sat alongside `--color-err` `#b3341a` — two dark reds a shade apart, one for text on a tint and one for text everywhere else, which is a distinction no one reading a rule can hold. Once the warm-tint measurement showed `--color-err` should have been the darker value all along, the two collapsed into one and `--color-err-text` was deleted (2026-08-10). **A token that exists only to be the correct version of another token is a bug in the palette, not a feature of it** — fix the original. `-bg` and `-line` legitimately stay derived from the brighter red: they are tints and hairlines, not text.
@@ -120,7 +126,11 @@ exactly this reason (`#ebdbcf` is its `--color-err-bg` flattened onto `--color-b
 
 > **So the rule has a second half: when you correct a token, grep the old value before you finish.** The component that copied it will not announce itself, the build will not complain, and the tests will not either — `#8a5a00` on white still passes AA, so it would have sat there indefinitely looking deliberate. `.alert--info` was the same story with `#5a3d1f`, and `.btn-outline.btn-danger` carried a fourth alpha of the error red.
 
-Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · body `#4a4845` 11.9:1 · muted `#6f6a60` 5.0:1 · error `#8f2915` ~7.9:1 on `#faf8f4` / ~7.3:1 on `#f0ebe1` · brown-on-white 6.2:1.
+Verified contrast: link `#3f6a0f` 5.6:1 on `#faf8f4` / 5.1:1 on `#f0ebe1` · body `#4a4845` 11.9:1 · muted `#6f6a60` **5.07:1 on `#faf8f4` / 4.52:1 on `#f0ebe1`** · error `#8f2915` ~7.9:1 on `#faf8f4` / ~7.3:1 on `#f0ebe1` · brown-on-white 6.2:1.
+
+> **`--color-muted` on the warm tint is the thinnest pair in the palette** — 4.52:1, two hundredths above the minimum, which the margin rule above calls a finding rather than a pass. It had been recorded on this line as a bare "5.0:1" with no ground named, and that is exactly how it stayed invisible: every other entry here states both grounds, so the one that didn't was the one nobody could check. Muted text sits on `--color-bg-warm` in at least seven places — `.chip`, `.pcard__head`, `.cal-selection`, `.bldg-tree__toolbar .cols`, `.admin-table tbody tr:hover .sub`, and `.lodging-note__sub` / `__rooms`.
+>
+> It has **not** been changed, deliberately. `--color-muted` is among the most-used tokens in `site.css` — every hint, caption, label, table header and empty state — so deepening it is a visible, system-wide shift that deserves a decision rather than a drive-by fix. `#676560` would clear it at 4.90 / 5.49 / 5.82 while keeping the warm-grey bias. Tracked in `docs/temp/open-items.md`.
 
 ### Typography
 
@@ -177,16 +187,27 @@ Each component supports the relevant states: **default / hover / focus / active 
 
 ## Logo Variants
 
-SVG assets live in `wwwroot/logo/`. `Logo.razor` takes a `Variant` parameter (`OnDark | OnLight`).
+The mark is the client's **church-in-a-hand** identity, delivered 2026-08 and redrawn as SVG. It replaced the abstract Å-figure that shipped in Phase 6. SVG assets live in `wwwroot/logo/`; `Logo.razor` takes a `Variant` parameter (`OnDark | OnLight | Stacked`) and is regenerated by `docs/ux/logo-generator.py`.
 
-| File | Description | Used when |
+The client's artwork is a single **square, stacked** composition. That cannot go into a 72px header — at `height: 55px` the wordmark renders about 3px tall and dies. So one mark ships as **three lockups**; this is completing the identity, not deviating from it.
+
+| File | Composition | Used by |
 |---|---|---|
-| `lockup-light.svg` | Dark strokes | **Header** (solid light bar) |
-| `lockup-dark.svg` | White strokes | On a dark ground (e.g. dark photo overlay) if needed |
-| `lockup-transparent.svg` | Dark strokes, transparent bg | — |
-| `mark-dark.svg` / `mark-light.svg` | Icon only | — |
+| `lockup-transparent.svg` | Horizontal, 192×52 — mark left, two-line wordmark right | Public header (`OnLight`) |
+| `lockup-dark.svg` | Same, re-toned for a dark ground | Admin sidebar (`OnDark`) |
+| `lockup-stacked.svg` | Centred, 250×156 — the client's own composition | Login / glömt- / återställ-lösenord (`Stacked`) |
+| `mark-light.svg` / `mark-dark.svg` | Icon only | Tight spots |
+| `mark-favicon.svg` → `favicon.png` | Icon, simplified | Browser tab |
 
-> Direction A's solid header always uses the **dark-stroke** lockup (`OnLight`), so the previous scroll-based light/dark logo swap is no longer required. The footer uses a Playfair text wordmark rather than the SVG.
+**Both wordmarks are baked to outlines, not `<text>`.** The lockups load through `<img>`, which renders SVG sandboxed — no page CSS, no webfonts, no external anything. A `font-family` in there resolves against whatever the viewer's OS happens to have, so the pre-2026-08 lockup asked for Cormorant Garamond and silently got Georgia on macOS and something generic on Linux. Outlines render identically everywhere and add no font dependency. **Do not "fix" this back to a `<text>` element.**
+
+**Colours.** The mark's gold is `--color-secondary` `#865628`; the client's own ochre was an off-palette `#b5822a`. The teal `#3a9698` is the client's and is kept as the mark's signature — a logo is exempt from contrast minimums (WCAG 1.4.3 and 1.4.11 both carve out logotypes explicitly). The **tagline does not use it**: see the teal rule under Colour. On the `#26221d` sidebar the gold falls to ~3.5:1 and reads as mud, so `lockup-dark` re-tones rather than recolours — warm off-white building, lifted teal `#5cb9bb`.
+
+**The 52-unit box is load-bearing.** The horizontal lockup renders at a CSS `height: 55px`, so every unit of padding inside the viewBox shrinks the ink. At the old 80-unit box the tagline came out at 4.5px — invisible. At 52 it lands at 6.9px and the mark *grows* from 36px to 42px in the same header. Horizontal padding is trimmed just as hard (4 units of edge): measured at 1024px, where the public header swaps its hamburger for the inline nav, the row has only ~66px to spare, and an earlier, roomier lockup overflowed both the 236px admin sidebar and the 320px admin top bar. **Grow either dimension and you take it out of the navigation.**
+
+> `.login-card__logo .logo` carries its own `height: 104px` rather than the 55px every other surface uses, because it is the only place rendering the *stacked* lockup — a different aspect entirely. Height is the wrong dimension to share between two lockups of different shape.
+>
+> The footer uses a Playfair text wordmark rather than the SVG, so it does not carry the operator name. `lockup-light.svg` (which baked in a white `<rect>`) was retired in the 2026-08 rework — it had no code path, and the transparent variant is what the header always used.
 
 ---
 
@@ -199,7 +220,7 @@ The admin surface (redesigned in slice 6) **reuses these tokens** for coherence 
 - **Admin data table** (`.admin-table` in `.admin-table-wrap`) — denser than the public `.data-table`: uppercase hairline header, hover row tint, `.rowlink` name + `.sub` contact line, right-aligned tabular numbers, status **badge** column, right-aligned `.rowactions`.
 - **Booking detail** — two columns: main content (contact / stay / participants / message) + a **sticky action rail** (`.detail-rail`) of `.card`s holding status actions (`.action-panel` for deny/cancel reason inputs), building assignment, list downloads, and internal notes. `.kv` definition grid for read-only facts. *(The payment checkboxes and their `.paycheck` class were removed in the 2026-08 demo-feedback work — FR-42 retired; building assignment (FR-103) takes their place in the rail, since it must be set before the approve action directly above it.)*
 - **Reference-CRUD pattern** — list in an `.admin-table` (active/inactive as a badge) above an **add/edit panel** wrapped in `.card.admin-editcard`. Consistent across Byggnader/rum, Matalternativ, Faciliteter, Priser, Städzoner, Konton, Blockeringar.
-- **Auth pages** — centred `.login-card` on the `--color-bg-warm` tint with the `OnLight` logo; used by login / glömt-lösenord / återställ-lösenord.
+- **Auth pages** — centred `.login-card` on the `--color-bg-warm` tint with the **`Stacked`** logo (the only surface that uses it — the card has the vertical room, and it is the one place the logo is the focal point rather than a corner mark); used by login / glömt-lösenord / återställ-lösenord.
 - **Utility pages** (`.utility` inside `.section > .container`, on `AdminLoginLayout` so the nav is absent) — a large code, a heading, one explanatory line, one action button. Used by **404** (`/not-found`) and **403** (`/ingen-behorighet`). The 403's action link is **role-resolved, not hardcoded to `/`**: for `Samordnare` the dashboard is itself forbidden, so a fixed "Till översikten" button would bounce the user straight back to the page they are standing on.
 - **The `Samordnare` surface** (FR-104) — the restricted role reuses the same shell and table styling as everything else; the whole distinction is **which pages exist for it**, not a different look.
   - **Nav** — the sidebar renders a single group with one entry (*Deltagar- och matlistor*). The groups *Referensdata* and *System*, and the pending-count badge, are absent. This is navigation only: every page carries its own role attribute, so a stray link would be a dead end, never a leak. The label is spelled out rather than shortened to *Listor*: it stands alone with no surrounding context, "listor" on its own could mean anything, and the people reading it are external and log in rarely. The two-line wrap costs nothing when the role has one nav entry. (The `<h2>Listor</h2>` card headings **inside** a booking keep the short form — there the context is unambiguous and the two items are labelled directly beneath.)

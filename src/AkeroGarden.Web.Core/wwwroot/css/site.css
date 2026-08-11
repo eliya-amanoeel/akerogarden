@@ -351,6 +351,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
         padding: 0.25rem 0;
         border-bottom: none;
         font-weight: 400;
+        /* A nav label must never break mid-phrase ("Om" / "oss"). Nothing wraps today —
+           measured at 1024px, the width where this inline nav replaces the hamburger, the
+           row has ~66px to spare — but the 2026-08 lockup spent half the slack that used to
+           be there, so this turns a future silent squeeze into a visible overflow. */
+        white-space: nowrap;
     }
 
     /* Drop the mobile panel's inset-bar treatment — desktop uses the underline below. */
@@ -1273,6 +1278,13 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1rem; font-size: 0.9rem; max-width: 480px; }
 .kv dt { color: var(--color-muted); }
 .kv dd { color: var(--color-heading); margin: 0; }
+/* Inline qualifier trailing a value in a dd — "2026-08-15 kl. 15:00", "1200 kr exkl. moms".
+   `.sub` was already the markup on BookingDetail's four of these, but the only rule carrying
+   that name is `.admin-table .sub`, so inside a .kv it matched nothing and the qualifier
+   rendered at full dd size and ink — indistinguishable from the value it qualifies.
+   Scoped per component, exactly like the admin-table rule; deliberately NOT display:block,
+   because unlike a table's second line these sit on the same line as the value. */
+.kv .sub { font-size: 0.8125rem; color: var(--color-muted); }
 .rail-actions { display: flex; flex-direction: column; gap: 0.5rem; }
 .rail-actions .btn, .rail-actions .btn-outline { justify-content: center; }
 .action-note { font-size: 0.85rem; color: var(--color-muted); margin: 0.7rem 0 0; }
@@ -1290,10 +1302,24 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .assign-item--blocked .assign-item__meta { color: var(--color-warn); }
 
 /* Read-only assigned lodging on the completion form (FR-103/D4). */
+/* Scoped to the .lodging-note block on purpose. These were `.lodging-list` / `.lodging-rooms`
+   until 2026-08-11, which collided head-on with the *public* Boende list further down this
+   file (search `.lodging-group`) — same class name, same specificity, and the public one is
+   defined later, so it won. The guest's assigned buildings were silently rendering as that
+   grid: two columns from 640px and four from 1024px, instead of the stacked rows intended
+   here. Nothing errored and no test caught it, because a wrong-but-valid layout looks
+   deliberate. The duplication rule in design.md is about repeated *values*; this is the
+   same failure one level up — a repeated *name*. Keep both families prefixed by their own
+   block (`lodging-note__*` here, `lodging-group`/`lodging-item` there). */
 .lodging-note { margin-top: 1.5rem; }
-.lodging-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
-.lodging-list li { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.6rem 0.75rem; background: var(--color-bg-warm); border-radius: var(--radius-sm); }
-.lodging-rooms { font-size: 0.875rem; color: var(--color-muted); }
+.lodging-note__list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.lodging-note__list li { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.6rem 0.75rem; background: var(--color-bg-warm); border-radius: var(--radius-sm); }
+/* The physical-building line was marked up as a bare `.sub`, which is only ever defined as
+   `.admin-table .sub` — so on this public page it matched nothing and rendered at full body
+   size and colour, between a bold name and a muted rooms line. The flex column hid it as a
+   layout bug (children stack either way) and left it looking merely inconsistent. */
+.lodging-note__sub { font-size: 0.8125rem; color: var(--color-muted); }
+.lodging-note__rooms { font-size: 0.875rem; color: var(--color-muted); }
 .detail-rail .card textarea {
     width: 100%; font: inherit; font-size: 0.875rem; padding: 0.45rem 0.55rem;
     border: 1px solid var(--color-line); border-radius: var(--radius-sm); background: #fff; resize: vertical;
@@ -1327,7 +1353,11 @@ fieldset.participant legend {
 .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--color-bg-warm); padding: 3rem 1rem; }
 .login-card { width: 100%; max-width: 400px; background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 2.25rem 2rem; }
 .login-card__logo { display: flex; justify-content: center; margin-bottom: 1.25rem; }
-.login-card__logo .logo { height: 55px; width: auto; }
+/* 104px, not the 55px every other surface uses: this is the only place that renders the
+   *stacked* lockup, whose box is 250x156 rather than the horizontal 192x52. At 55px the
+   stacked mark would be 88px wide — a thumbnail on a 400px card. Height is the wrong
+   dimension to share between two lockups of different aspect. */
+.login-card__logo .logo { height: 104px; width: auto; }
 .login-card h1 { text-align: center; font-weight: 400; font-size: 1.5rem; margin-bottom: 0.35rem; }
 .login-card .login-sub { text-align: center; color: var(--color-muted); font-size: 0.85rem; margin-bottom: 1.5rem; }
 .login-card .btn { width: 100%; justify-content: center; }

@@ -40,16 +40,40 @@ go-live content blockers — are either resolved or tracked in their phase.
 
 ---
 
-## 3. Kaldeiska Kursgård should be added on the start page (Public)
+## 3. Kaldéiska Kursgård on the start page — partly done, one question left
 
-**Found:** 2026-08-07 · **Severity:** cosmetic
+**Found:** 2026-08-07 · **Partly done:** 2026-08-11 · **Severity:** cosmetic
 
-**To fix:** add that text somewhere we agree upon
+*Kaldéiska Kursgård* is now set under *Åkerögården* **inside the logo lockup**, so it appears in the
+public header on every page (start page included), in the admin sidebar, and on the auth cards. It is
+deliberately nowhere else — it travels with the logo rather than being repeated as page content.
+
+**Still open:** the original wording said *"on the start page"*, and it is not certain whether that
+meant the header mark (now satisfied) or a visible mention in the start page's own **content** — a
+line in the hero, the trust strip, or the closing band. Not closed, because closing it on the
+generous reading would bury the request.
+
+**To fix:** confirm with the client which was meant. If the header is enough, delete this entry.
 
 ---
 
-## 4. Logo
+## 4. `--color-muted` clears AA on the warm tint by two hundredths
 
-**Found:** 2026-08-07 · **Severity:** cosmetic
+**Found:** 2026-08-11 · **Status:** decision pending · **Severity:** not currently failing
 
-**To fix:** Update the logo.
+`--color-muted` `#6f6a60` measures **5.07:1** on `--color-bg` but **4.52:1** on `--color-bg-warm`
+`#f0ebe1`. That passes, but `design.md`'s own margin rule — written after the green, warn and error
+tokens each shipped on the same knife edge — says a margin under ~0.5 is a finding, not a pass.
+
+It had been recorded in `design.md` as a bare "5.0:1" with no ground named, which is why it went
+unnoticed; that line is now corrected. Muted text sits on the warm tint in at least seven places:
+`.chip`, `.pcard__head`, `.cal-selection`, `.bldg-tree__toolbar .cols`,
+`.admin-table tbody tr:hover .sub`, and `.lodging-note__sub` / `__rooms`.
+
+Not fixed on the spot on purpose: `--color-muted` is one of the most-used tokens in `site.css`, so
+deepening it shifts every hint, caption, label, table header and empty state at once. That is a
+decision, not a drive-by.
+
+**To fix:** either deepen to `#676560` (4.90 / 5.49 / 5.82, keeps the warm-grey bias) and re-run the
+axe E2E pass, or accept 4.52 explicitly and record *that* in `design.md` so the next person doesn't
+re-open it.

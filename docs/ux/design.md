@@ -77,7 +77,7 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 /* Neutrals (warm-biased, not raw grey) */
 --color-heading:        #1e1c1a   /* headings + primary-button text */
 --color-text:           #4a4845   /* body copy */
---color-muted:          #6f6a60   /* hints, captions, labels */
+--color-muted:          #646159   /* hints, captions, labels */
 --color-bg:             #faf8f4   /* page background (warm off-white) */
 --color-bg-warm:        #f0ebe1   /* section tint */
 --color-footer-bg:      #1a1714   /* dark footer */
@@ -88,6 +88,11 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 --color-warn: #7a4c00   --color-warn-bg: rgba(214,158,46,.16)
 --color-err:  #8f2915   --color-err-bg:  rgba(179,52,26,.09)
 --color-info: #6f4a1f   --color-info-bg: rgba(134,86,40,.10)
+
+/* Status families with no semantic hue of their own. Both are purpose-picked, not borrowed:
+   see the badge note below for why --color-neutral cannot just be --color-muted. */
+--color-neutral: #5d5b56   --color-neutral-bg: rgba(30,28,26,.07)   /* Avslutad · Besvarad */
+--color-active:  #2c4708   --color-active-bg:  rgba(113,176,2,.22)  /* På plats */
 
 /* Hairline per family, each at its own alpha — three different hues, not one hue repeated */
 --color-err-line:  rgba(179,52,26,.32)
@@ -112,9 +117,7 @@ exactly this reason (`#ebdbcf` is its `--color-err-bg` flattened onto `--color-b
 2026-08-10: every other fixed/sticky element is opaque; the only translucent ones are
 `.modal-overlay` and `.admin-scrim`, where that is the point.
 
-**The brand teal is a logo colour, never a text colour — the fourth occurrence, and the first one caught before it shipped.** The 2026-08 identity introduced a teal, `#3a9698`, which is fine inside the mark (logotypes are exempt from 1.4.3/1.4.11). Set as **text** it measures **3.30:1** on `#faf8f4` and **2.95:1** on the warm tint — the same trap that caught green, warn and err above, arriving from a new direction: not a translucent `-bg` this time, but a colour picked for a *fill* and then reused for *type*. The lockup's `Kaldéiska Kursgård` tagline therefore uses a deepened **`#1e7070`** (5.49:1 / 4.90:1), exactly the `--color-primary` → `--color-primary-ink` split this palette already runs. On dark grounds use `#5cb9bb` (6.86:1 on the sidebar, 7.74:1 on the footer).
-
-> **There is deliberately no `--color-teal` token.** All three values live inside the logo SVGs, and no CSS rule consumes teal — a token whose only user is a generated asset is a token nobody maintains. If a component ever needs teal in CSS, promote `#1e7070` then, per the duplication rule below, and not before.
+**A colour chosen as a fill is not automatically usable as text — the fourth occurrence of the trap, and the only one caught before it shipped.** The 2026-08 identity arrived with a teal, `#3a9698`. Inside the mark that was fine (logotypes are exempt from 1.4.3/1.4.11). Set as **text** it measured **3.30:1** on `#faf8f4` and **2.95:1** on the warm tint. Same trap as green, warn and err above, from a new direction: not a translucent `-bg` this time, but a value picked for a *fill* and then reused for *type*. **The teal is no longer in the system** — the mark was recoloured on 2026-08-11 (see Logo Variants) — but the rule it produced stands, and it is the reason to check any brand colour before letting it carry a word.
 
 **The duplication rule (when a hardcoded value must become a token).** A colour a component hardcodes locally is acceptable while it has exactly **one** user. The moment a second rule needs the same value, it becomes a token — one definition, every rule pointing at it. This is not tidiness; it is how the warn bug above survived: `.alert--warn` already carried the corrected `#7a4c00` as a local override while the token still held the failing `#8a5a00`, so the system shipped the fix and the bug side by side, and neither one knew about the other. It nearly repeated on 2026-08-10 — `#8f2915` (error text on `--color-err-bg`) was hardcoded in two `.alert--error` rules and a third was about to copy it, along with a fourth ad-hoc alpha of the same red. It became `--color-err-text` and `--color-err-line` instead.
 
@@ -218,9 +221,15 @@ The client's artwork is a single **square, stacked** composition. That cannot go
 
 **Both wordmarks are baked to outlines, not `<text>`.** The lockups load through `<img>`, which renders SVG sandboxed — no page CSS, no webfonts, no external anything. A `font-family` in there resolves against whatever the viewer's OS happens to have, so the pre-2026-08 lockup asked for Cormorant Garamond and silently got Georgia on macOS and something generic on Linux. Outlines render identically everywhere and add no font dependency. **Do not "fix" this back to a `<text>` element.**
 
-**Colours.** The mark's gold is `--color-secondary` `#865628`; the client's own ochre was an off-palette `#b5822a`. The teal `#3a9698` is the client's and is kept as the mark's signature — a logo is exempt from contrast minimums (WCAG 1.4.3 and 1.4.11 both carve out logotypes explicitly). The **tagline does not use it**: see the teal rule under Colour. On the `#26221d` sidebar the gold falls to ~3.5:1 and reads as mud, so `lockup-dark` re-tones rather than recolours — warm off-white building, lifted teal `#5cb9bb`.
+**Colours: gold `#b5822a` + green `#3f6a0f`.** The green is `--color-primary-ink` — the same green already carrying every link and eyebrow on the site — and the tagline uses it too. On the `#26221d` sidebar the gold falls to ~3.5:1 and reads as mud, so `lockup-dark` re-tones rather than recolours: warm off-white building `#f0ebe1`, lifted green `#8fbf4a` (7.31:1).
 
-**The 52-unit box is load-bearing.** The horizontal lockup renders at a CSS `height: 55px`, so every unit of padding inside the viewBox shrinks the ink. At the old 80-unit box the tagline came out at 4.5px — invisible. At 52 it lands at 6.9px and the mark *grows* from 36px to 42px in the same header. Horizontal padding is trimmed just as hard (4 units of edge): measured at 1024px, where the public header swaps its hamburger for the inline nav, the row has only ~66px to spare, and an earlier, roomier lockup overflowed both the 236px admin sidebar and the 320px admin top bar. **Grow either dimension and you take it out of the navigation.**
+> **The client's artwork was a suggestion, not a locked identity**, so the mark is coloured for this page rather than reproduced. It arrived as gold `#b5822a` + teal `#3a9698`, and went through one wrong turn worth recording: the gold was first replaced with `--color-secondary` `#865628` "to match the palette" while the teal was kept because "a logo is exempt from the palette". Both arguments cannot hold at once, and the substitution also cost the mark the thing that made the original work — the client's two colours sat at *equal luminance* (1.03×), so building and hand read as one object with hue doing all the separating.
+>
+> The green replaced the teal because **teal was the only cool hue in the system**. Every other colour here sits between 29° and 88°, and the neutrals are warm-biased on purpose; `#3a9698` is at 181°. On the warm grounds that was fine, but against `--color-primary` `#71b002` (82°) it was not — two greens 99° apart is the awkward interval, too far to harmonise and too close to read as contrast, and they met in the 72px header where the logo sits beside the CTA. Since the booking funnel is the primary KPI and the header must have **one** obvious next step, a mark that visually argues with the button costs something real.
+>
+> Equal luminance was deliberately **not** carried over: gold→green is only 46° apart, and at that distance matching the values makes the two forms merge into one silhouette (verified by rendering a value-matched variant in greyscale). Equal value only works when hue does the separating, which is what the 143° gold→teal gap allowed. The current 1.87× split is what keeps the hand distinct at 16px.
+
+**The 52-unit box is load-bearing.** The horizontal lockup renders at a CSS `height: 55px`, so every unit of padding inside the viewBox shrinks the ink. At the old 80-unit box the tagline came out at 4.5px — invisible. At 52 it lands at 7.9px and the mark *grows* from 36px to 42px in the same header. Horizontal padding is trimmed just as hard (4 units of edge): measured at 1024px, where the public header swaps its hamburger for the inline nav, the row has only ~66px to spare, and an earlier, roomier lockup overflowed both the 236px admin sidebar and the 320px admin top bar. **Grow either dimension and you take it out of the navigation.**
 
 > `.login-card__logo .logo` carries its own `height: 104px` rather than the 55px every other surface uses, because it is the only place rendering the *stacked* lockup — a different aspect entirely. Height is the wrong dimension to share between two lockups of different shape.
 >

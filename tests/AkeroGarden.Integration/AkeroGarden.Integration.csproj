@@ -7,14 +7,30 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 
+  <!-- Transitive-pin, not a dependency this project actually uses (NU1903).
+       Chain: Core -> Azure.Extensions.AspNetCore.DataProtection.{Blobs,Keys}
+              -> Microsoft.AspNetCore.DataProtection 10.0.7 -> System.Security.Cryptography.Xml 10.0.7.
+       The Azure.Extensions packages ask for DataProtection >= 10.0.7 and NuGet resolves the LOWEST
+       match, so it lands exactly on 10.0.7 — which five advisories cover (CVE-2026-47302 / -47304 /
+       -50525 / -50527 / -50648); first patched is 10.0.10.
+       Only the test projects hit this. The src/ web projects take DataProtection from the ASP.NET
+       Core shared framework, so no package copy is resolved there and the platform owns the patch
+       (see infra/ops/operations.md, ".NET runtime targeting"). Deliberately NOT pinned in Core:
+       adding it there would drag a private package copy into the published output and take that
+       patching responsibility off the platform and onto us.
+       Remove once Azure.Extensions.* floats its DataProtection floor past 10.0.10. -->
+  <ItemGroup>
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="10.0.11" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="6.0.4" />
     <PackageReference Include="GitHubActionsTestLogger" Version="3.0.4" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="*" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.8.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
-    <PackageReference Include="Testcontainers.PostgreSql" Version="*" />
-    <PackageReference Include="Testcontainers.Redis" Version="*" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <PackageReference Include="Testcontainers.Redis" Version="4.13.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>

@@ -135,6 +135,31 @@ The vault value and the app's *cached* value can differ — always check the app
 > secret in production, bump an app setting on **both** apps (or wait 24h) — never trust a restart —
 > and confirm with the in-container check above before declaring it fixed.
 
+## Watch item — occasional slow first request on staging
+
+Raised at the 2026-08 client demo ("occasional staging lag") and kept as an observation rather
+than a bug: the first request after an idle period can take noticeably longer than the ones
+after it. The working explanation is a **cold start**, not application code — staging runs on a
+Basic B1 plan and is deliberately powered down when idle (§11.1), so the first hit pays for the
+worker spinning up, the runtime JIT-ing, and the first Postgres and Redis connections being
+established.
+
+**Before treating it as a defect, establish it is actually the cold path:**
+
+1. Hit the page once, then immediately again. If the second request is normal, it is warm-up.
+2. Check whether the app was idle beforehand — a cold start cannot be reproduced on a warm site,
+   so a "slow" measurement taken mid-session is measuring something else.
+3. If the *second* request is also slow, it is not this — go to **Finding a specific failure**
+   above and look at the dependency timings on the operation.
+
+Nothing is tracked as work here. Production is not powered down the way staging is, so the same
+lag is not expected there; if it ever shows up on production, that **is** a real finding and
+should be investigated rather than filed against this note.
+
+*(This item previously lived in `operational-tasks.md`, which was retired on 2026-07-11 — see the
+note in `docs/product/implementation-plan.md`. It landed here because it is an operational check,
+not a build task.)*
+
 ## .NET runtime targeting (why the app boots even when the platform patch moves)
 
 The app is published **framework-dependent** onto App Service's `DOTNETCORE|10.0` platform, so

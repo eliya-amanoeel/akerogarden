@@ -144,7 +144,6 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 
 | Document | What it is |
 |---|---|
-| **[`docs/temp/open-items.md`](docs/temp/open-items.md)** | **Short list of decided-but-not-done and found-but-not-yet-broken. Read this one first — it is the only doc that fits on a screen** |
 | [`docs/product/requirements.md`](docs/product/requirements.md) | The SRS — single source of truth. Unversioned living document |
 | [`docs/product/erd.md`](docs/product/erd.md) | Entity-relationship diagram (14 entities) |
 | [`docs/product/architecture.md`](docs/product/architecture.md) | App-level architecture — surfaces, hosting, external services |

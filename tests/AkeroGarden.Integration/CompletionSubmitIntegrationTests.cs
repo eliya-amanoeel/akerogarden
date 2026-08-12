@@ -201,7 +201,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         // Matched on subject, not just recipient: the guest already received the approval email at
         // the same address during seeding, so "an email went to the guest" would prove nothing.
         var guestMail = Assert.Single(
-            email.Sent.Where(e => e.ToAddress == guestAddress && e.Subject.Contains("tagit emot")));
+            email.Sent, e => e.ToAddress == guestAddress && e.Subject.Contains("tagit emot"));
 
         Assert.Contains("Referensnummer", guestMail.HtmlBody);
         Assert.Contains("Deltagare 1", guestMail.HtmlBody);

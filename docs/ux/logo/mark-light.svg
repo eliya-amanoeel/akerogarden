@@ -1,9 +1,0 @@
-<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
-  
-  <g transform="translate(32.0,21.7) scale(0.9333)">
-    <circle cx="30" cy="8" r="7.5" stroke="#71b002" stroke-width="1.35" fill="none"/>
-  <line x1="30" y1="16" x2="5" y2="78" stroke="#1c1c1c" stroke-width="1.35" stroke-linecap="round"/>
-  <line x1="30" y1="16" x2="55" y2="78" stroke="#1c1c1c" stroke-width="1.35" stroke-linecap="round"/>
-  <line x1="18.5" y1="44.519999999999996" x2="41.5" y2="44.519999999999996" stroke="#1c1c1c" stroke-width="1.35" stroke-linecap="round"/>
-  </g>
-</svg>

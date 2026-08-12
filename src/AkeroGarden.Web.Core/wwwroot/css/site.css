@@ -67,6 +67,13 @@
        duplication rule forbids; it is a different colour for a measurably different ground. */
     --color-active: #2c4708;   --color-active-bg: rgba(113, 176, 2, 0.22);
 
+    /* Admin shell. Declared here rather than in a second `:root` beside the admin section,
+       which is where they used to live — a palette split across two blocks is one nobody can
+       audit, because editing the colours means finding a declaration you have no reason to
+       know exists. Every token in this file is now in this one block. */
+    --admin-nav-bg: #26221d;
+    --admin-nav-fg: rgba(255, 255, 255, 0.72);
+
     --font-body:    'Roboto', sans-serif;
     --font-heading: 'Playfair Display', Georgia, serif;
 
@@ -834,13 +841,14 @@ select.inp {
 
 /* Meals block */
 .field-label { display: block; font-weight: 700; font-size: 0.85rem; color: var(--color-heading); margin-bottom: 0.4rem; }
+/* `.meals__title`, `.meals__same`, `.meals__same-grid` and `.same-hint` were removed in the
+   2026-08-11 audit: the 2026-08 group-meals rework re-parented meal selection from the
+   participant to the booking and rebuilt this markup, leaving those rules with no element to
+   match. `.day__meals` shared two of those selectors and is still live, so it keeps them. */
 .meals { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; margin: 0.4rem 0 1rem; }
-.meals__title { font-family: var(--font-heading); font-size: 1rem; font-weight: 700; color: var(--color-heading); margin: 0; padding: 0.8rem 1rem; border-bottom: 1px solid var(--color-line); }
-.meals__same { background: rgba(113, 176, 2, 0.08); border-bottom: 1px solid var(--color-line); padding: 0.9rem 1rem; }
-.meals__same .same-hint { font-size: 0.8rem; color: var(--color-muted); margin: 0 0 0.65rem; }
-.meals__same-grid, .day__meals { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
-@media (min-width: 480px) { .meals__same-grid, .day__meals { grid-template-columns: 1fr 1fr; } }
-.meals__same label, .day__meals label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); margin-bottom: 0.3rem; }
+.day__meals { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
+@media (min-width: 480px) { .day__meals { grid-template-columns: 1fr 1fr; } }
+.day__meals label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); margin-bottom: 0.3rem; }
 .day { padding: 0.85rem 1rem; border-bottom: 1px solid var(--color-line); }
 .day:last-child { border-bottom: 0; }
 .day__date { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--color-primary-ink); margin: 0 0 0.65rem; }
@@ -861,15 +869,12 @@ select.inp {
 .utility__badge--warn { background: rgba(214, 158, 46, 0.18); color: #6f4900; }
 
 /* ---- Completion at scale: group defaults + collapsible participant rows ---- */
-.required-mark { color: var(--color-err); }
 
 /* "Standard för hela gruppen" panel */
 .group-default { background: rgba(113, 176, 2, 0.09); border: 1.5px solid rgba(113, 176, 2, 0.4); border-radius: var(--radius-card); padding: 1.1rem 1.25rem; margin: 0.5rem 0 1.5rem; }
 .group-default h3 { font-family: var(--font-heading); font-weight: 700; font-size: 1.05rem; margin: 0 0 0.25rem; color: var(--color-heading); }
 .group-default > p { font-size: 0.8rem; color: var(--color-muted); margin: 0 0 0.9rem; }
 .group-default .fbrow { margin: 0 0 0.9rem; }
-.group-default__hint { font-size: 0.8rem; color: var(--color-muted); margin: 0.2rem 0 0.6rem; }
-.group-default__days { background: var(--color-bg); }
 
 .completion-rowcount { font-size: 0.85rem; color: var(--color-muted); margin: 0 0 0.6rem; }
 
@@ -889,11 +894,6 @@ select.inp {
 .prow__toggle-cb:focus-visible ~ .prow__head .prow__toggle { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
 @media (max-width: 560px) { .prow__age { flex: 1 1 8rem; } .prow__toggle { margin-left: 0; } }
 
-/* A meal with only one option is shown as text (no pointless dropdown) */
-.meal-fixed .mf-label { display: block; font-size: 0.72rem; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.05em; font-weight: 700; margin-bottom: 0.3rem; }
-.meal-fixed .mf-val { display: flex; align-items: center; gap: 0.4rem; font-size: 0.95rem; color: var(--color-heading); }
-.meal-fixed .mf-val::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--color-primary); flex: none; }
-.meal-fixed .mf-note { color: var(--color-muted); font-size: 0.85rem; }
 
 /* ============================================================
    Admin — productivity register (Phase 6 slice 6)
@@ -901,7 +901,6 @@ select.inp {
    discipline: grouped sidebar, sticky topbar, data tables, status
    badges, a booking-detail action rail. NOT the public persuasion look.
    ============================================================ */
-:root { --admin-nav-bg: #26221d; --admin-nav-fg: rgba(255, 255, 255, 0.72); }
 
 .admin-shell { display: grid; grid-template-columns: 236px 1fr; }
 
@@ -1746,10 +1745,19 @@ fieldset.participant legend {
     line-height: 1;
 }
 .alert b { color: var(--color-heading); }
+/* The glyph is #fff on all three variants, as .alert--warn already had it. Info and error
+   used to set `color: var(--color-*-bg)` — but those tokens are the translucent *tints*
+   (9–10% alpha), so the glyph was drawn at one-tenth opacity of a colour barely distinct
+   from the solid circle behind it: composited, roughly 1.3:1. The "i" on the public
+   inquiry form's reassurance banner was invisible, which is the exact failure the round
+   badge was introduced to prevent — design.md records that a bare "i" had been mistaken
+   for stray punctuation, so it was given a filled badge to read as an indicator. It then
+   stopped reading as anything at all. Found by measuring every rule that sets both a
+   colour and its own background (2026-08-11 design-system audit). */
 .alert--info { background: var(--color-info-bg); border-color: var(--color-info-line); color: var(--color-info); }
-.alert--info .alert__ic { background: var(--color-info); color: var(--color-info-bg); }
+.alert--info .alert__ic { background: var(--color-info); color: #fff; }
 .alert--error { background: var(--color-err-bg); border-color: var(--color-err-line); color: var(--color-err); }
-.alert--error .alert__ic { background: var(--color-err); color: var(--color-err-bg); }
+.alert--error .alert__ic { background: var(--color-err); color: #fff; font-style: normal; }
 .alert--warn { background: var(--color-warn-bg); border-color: var(--color-warn-line); color: var(--color-warn); }
 .alert--warn .alert__ic { background: var(--color-warn); color: #fff; font-style: normal; }
 /* Bulleted items inside an alert (e.g. multiple approval warnings) */

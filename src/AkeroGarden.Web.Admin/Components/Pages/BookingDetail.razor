@@ -206,10 +206,10 @@ else
                             @* Only the arrival and departure day are a choice — a full day in the
                                middle always has all three meals (§4.1), so it has no checkboxes. *@
                             <div class="form-group">
-                                <span class="label">Ankomstdag (@_booking.CheckIn?.ToString("yyyy-MM-dd"))</span>
+                                <span class="field-label">Ankomstdag (@_booking.CheckIn?.ToString("yyyy-MM-dd"))</span>
                                 @foreach (var meal in ArrivalMeals)
                                 {
-                                    <label class="form-check">
+                                    <label class="checkbox-row">
                                         <input type="checkbox" checked="@IsEdgeMealOn(meal)"
                                                @onchange="e => ToggleEdgeMeal(meal, (bool)(e.Value ?? false))" />
                                         @EdgeMealLabel(meal)
@@ -218,10 +218,10 @@ else
                             </div>
 
                             <div class="form-group">
-                                <span class="label">Avresedag (@_booking.CheckOut?.ToString("yyyy-MM-dd"))</span>
+                                <span class="field-label">Avresedag (@_booking.CheckOut?.ToString("yyyy-MM-dd"))</span>
                                 @foreach (var meal in DepartureMeals)
                                 {
-                                    <label class="form-check">
+                                    <label class="checkbox-row">
                                         <input type="checkbox" checked="@IsEdgeMealOn(meal)"
                                                @onchange="e => ToggleEdgeMeal(meal, (bool)(e.Value ?? false))" />
                                         @EdgeMealLabel(meal)
@@ -234,10 +234,10 @@ else
                                 @* These do not decide whether a meal happens — only whether the day
                                    guests are counted for one that already does. Nothing is deleted. *@
                                 <div class="form-group">
-                                    <span class="label">Dagsgästernas måltider (gäller alla dagsgäster)</span>
-                                    <label class="form-check"><input type="checkbox" @bind="_mealEdit.DayGuestBreakfast" @bind:after="SaveGroupMeals" /> Frukost</label>
-                                    <label class="form-check"><input type="checkbox" @bind="_mealEdit.DayGuestLunch" @bind:after="SaveGroupMeals" /> Lunch</label>
-                                    <label class="form-check"><input type="checkbox" @bind="_mealEdit.DayGuestDinner" @bind:after="SaveGroupMeals" /> Middag</label>
+                                    <span class="field-label">Dagsgästernas måltider (gäller alla dagsgäster)</span>
+                                    <label class="checkbox-row"><input type="checkbox" @bind="_mealEdit.DayGuestBreakfast" @bind:after="SaveGroupMeals" /> Frukost</label>
+                                    <label class="checkbox-row"><input type="checkbox" @bind="_mealEdit.DayGuestLunch" @bind:after="SaveGroupMeals" /> Lunch</label>
+                                    <label class="checkbox-row"><input type="checkbox" @bind="_mealEdit.DayGuestDinner" @bind:after="SaveGroupMeals" /> Middag</label>
                                 </div>
                             }
                         </fieldset>
@@ -346,10 +346,10 @@ else
                                     </div>
 
                                     <div class="form-group">
-                                        <span class="label">Allergier</span>
+                                        <span class="field-label">Allergier</span>
                                         @foreach (var allergy in AllergyOptions)
                                         {
-                                            <label class="form-check">
+                                            <label class="checkbox-row">
                                                 <input type="checkbox" checked="@edit.Allergies.Contains(allergy)"
                                                        @onchange="e => ToggleAllergy(edit, allergy, (bool)(e.Value ?? false))" />
                                                 @AllergyLabel(allergy)

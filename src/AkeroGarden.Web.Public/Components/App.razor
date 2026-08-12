@@ -18,7 +18,11 @@
 
 <body>
     <Routes />
-    <script src="@Assets["js/site.js"]"></script>
+    @* js/site.js removed 2026-08-11: it added a `.scrolled` class to the header on scroll, for
+       the transparent-over-hero header that direction A retired in Phase 6. No `.scrolled` rule
+       has existed since. It was still loaded on every public page and still attached a scroll
+       listener, to toggle a class that styled nothing. The page-specific scripts below/inside
+       each page (calendar, inquiry-form, completion-form) are the only JS the public site uses. *@
     <script src="@Assets["_framework/blazor.web.js"]"></script>
 </body>
 

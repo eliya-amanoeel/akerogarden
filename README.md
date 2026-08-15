@@ -134,7 +134,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 - **No personal data outside the EU** — all Azure resources in North Europe or Sweden Central.
 - **No PII in URLs**; **no Swedish personnummer** collected or stored, ever.
 - **Self-hosted fonts only** — no Google Fonts or any external font request (GDPR).
-- **No monetary totals stored** — prices are reference data; payment tracking is boolean status.
+- **No monetary totals stored, and no payment state at all** — prices are reference data. Invoicing happens entirely outside the system, so there is nothing here to track it with (FR-42 retired 2026-08).
 - **No hard-deletes of referenced reference data** — deactivate instead.
 - **The booking state machine is one-way** — invalid transitions are blocked in code, not just hidden in the UI.
 - **Code style is enforced at build time** — `.editorconfig` + `Directory.Build.props`; formatting
@@ -145,9 +145,9 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | Document | What it is |
 |---|---|
 | [`docs/product/requirements.md`](docs/product/requirements.md) | The SRS — single source of truth. Unversioned living document |
-| [`docs/product/erd.md`](docs/product/erd.md) | Entity-relationship diagram (14 entities) |
+| [`docs/product/erd.md`](docs/product/erd.md) | Entity-relationship diagram (15 entities) |
 | [`docs/product/architecture.md`](docs/product/architecture.md) | App-level architecture — surfaces, hosting, external services |
-| [`docs/product/implementation-plan.md`](docs/product/implementation-plan.md) | Phased build plan and its exit criteria |
+| [`docs/product/implementation-plan.md`](docs/product/implementation-plan.md) | What order it was built in, and what is left. Phases 0–10c are done and summarised; only the 10d cutover and four Phase 11 items are still live. Not a source of truth — the SRS is |
 | [`docs/ux/design.md`](docs/ux/design.md) | Design system — tokens, type scale, components |
 | [`infra/ops/`](infra/ops/) | Operational runbooks |
 

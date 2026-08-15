@@ -47,7 +47,7 @@ Entities: `Booking`, `PhysicalBuilding`, `Building`, `Room`, `Participant`, `Boo
 
 ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — excluded from the application data model.
 
-**Add EF Core migrations incrementally** — introduce each entity in the phase that first needs it (see implementation plan).
+**Every schema change is now an incremental migration.** `20260810191257_InitialSchema` is the only migration in the repo and it is the last baseline that will ever be regenerated — see the block below for why the exception is spent. (The old "introduce each entity in the phase that first needs it" rule described how the schema was *designed* during the build; the build is over.)
 
 > **Pre-go-live migration reset — ✅ DONE, and now FINAL (2026-08-10).** Because the system had not gone live and there was no production data to preserve, the migration history was **wiped and regenerated as a single consolidated baseline** — twice. First on 2026-07-13 (`20260713155158_InitialSchema`, commit `1ddce7d`), then a second and last time on 2026-08-10 after the demo-feedback work reshaped the schema: `20260810191257_InitialSchema` is now the only migration in the repo. New entities added in those windows (e.g. `AuditLog`, §8.15; `BookingBuildingAssignment`, §8.16) landed **in the baseline**, not as incremental migrations on top of it — the "incrementally / per phase" rule above describes how the schema was *designed*, not a requirement to keep the pre-launch migration files.
 >
@@ -97,26 +97,18 @@ A test must honestly verify the real behaviour it claims to. Never shape a test 
 
 ## Implementation phases
 
-Follow `docs/product/implementation-plan.md` in order. Do not start a phase until the prior phase's exit criteria are met.
+**Phases 0–10c are done and merged.** What is left:
 
-0. Foundation — scaffold, infra, auth, design system, CI/CD, local dev
-1. Reference data + admin CRUD — Building, Room, MealOption, Facility, PriceRule, CleaningZone
-2. Public site — Static SSR pages, availability calendar
-3. Inquiry & booking lifecycle — state machine, emails, rate limiting, blocks
-4. Completion flow — magic-link guest form, snapshots, room assignment
-5. Notifications, lists & retention — reminders, PDF/Excel downloads, GDPR auto-deletion
-6. UI/UX — visual + experiential design pass (from scratch, both surfaces), Figma-first then Blazor (scope TBD)
-7. Hardening & pre-demo readiness — security pass, NFR verification on staging, parked functional polish, operational/content blockers (privacy text, images, VAT)
-8. Client feedback — demo the app to the client on staging (real UAT), then implement the agreed issues/changes/improvements
-9. Pre-go-live — small agreed pre-launch changes surfaced on staging after Phase 8 sign-off (e.g. admin invite-lifecycle resend/remove), done before the cutover
-10. Transition & go-live — 10a staging re-provisioning (client tenant); 10b public/admin host separation; **10c production pre-stage** (provisioning, config reconciliation, production-SMTP email E2E, restore drill — all DNS-independent, verified on `*.azurewebsites.net`); **10d cutover & launch** (DNS/SSL binding, one.com/WordPress cutover, final deploy, **jurist-reviewed legal text** — moved to 10d 2026-07-20, run just before launch as the long pole). The 10c/10d seam is deliberate: only certificate issuance and the WordPress retirement actually require the DNS switch — do not recombine them. The legal text is DNS-independent but was placed in 10d by client choice, and provisioning is decoupled from it so 10c need not wait
-11. Post-production hardening & handover — cost/health alerts, logging/diagnostics, admin delete-confirmation dialogs, test-suite honesty audit, audit trail (who-did-what — §6.9, backend now / admin view deferred), post-launch architecture/security review, technical SEO/social, client handover documentation
+- **10d — cutover & launch.** DNS + SSL binding, one.com/WordPress retirement, base-URL flip + final deploy, re-apply Bicep to close drift, go-live checklist, and re-inviting the admin accounts. **Gated on the jurist review of the Swedish legal text** — that is the long pole, and it is external, not engineering.
+- **11 — post-production hardening & handover**, open-ended and blocking nothing: the pinned-clock sweep over the remaining integration tests, a post-launch architecture/security review, technical SEO + social sharing, and the Swedish client handover documentation.
+
+Detail, exit criteria and what each earlier phase delivered are in `docs/product/implementation-plan.md`. Don't restate the phase list here — it duplicated the plan, and two of its entries had gone stale (Phase 4 still claimed room assignment after FR-56 was withdrawn; Phase 6 still said "Figma-first", when HTML-mockup-first was what actually happened).
 
 ## Working style
 
 - Discuss approach before implementing. Wait for explicit confirmation before making changes.
 - If you spot a conflict between this file and the SRS, raise it — don't silently pick one.
-- Tombstoned requirements (FR-12, FR-41, FR-43, FR-46) need no work — they exist only to keep numbering stable.
+- **Tombstoned requirements need no work** — they exist only to keep numbering stable: **FR-12, FR-41, FR-42, FR-43, FR-46, FR-56, FR-59, FR-99**. The last four were retired in 2026-08: FR-42 payment tracking, FR-56 per-participant room assignment, FR-59 the "Standard för hela gruppen" cascade (obsolete once meal choice became group-level under FR-105), FR-99 the link-expiry warning email (superseded by FR-108 before it was built). *This list was stale for a week and listed only four — if you are about to implement an FR, confirm against the SRS row rather than trusting a summary anywhere, including this one.*
 - **Challenge the user when their instinct is wrong or under-thought.** Don't be agreeable. If a decision has a real downside, say so directly and explain why before offering alternatives.
 - Be extremely careful when updating any document under `docs/product/`, all these are strongly integrated into eachother, when updating any of these files, all other files should be checked to be kept in sync with the change.
 - **Requirement changes are edited in place — there is no SRS changelog.** The SRS states current truth and carries no version number. When a requirement changes: (1) edit the body text directly; (2) put the rationale in the **commit body**, not just the subject — `git log --follow docs/product/requirements.md` is now the change history, so a lazy commit message loses it permanently; (3) if the change alters a **live constraint** (something a future reader could reasonably try to undo), fold a one-sentence *why* into the section that governs it, so the reasoning survives without needing the git log at all. `requirements-changelog.md` is frozen history — never append to it.
@@ -124,7 +116,9 @@ Follow `docs/product/implementation-plan.md` in order. Do not start a phase unti
 
 ## Phase completion gate
 
-**Before merging any phase branch to main**, run a structured evaluation pass against all deliverables for that phase. The pass must check:
+**Before merging any phase branch to main**, run a structured evaluation pass against all deliverables for that phase. With phases 0–10c closed, this now applies to **10d** and to any **Phase 11** item large enough to get its own branch — 10d is the one that still carries written exit criteria in the plan. It is *not* required for ordinary fix/chore branches.
+
+The pass must check:
 
 1. **Phase exit criteria** (from `docs/product/implementation-plan.md`) — list each criterion as pass / partial / fail with evidence.
 2. **Critical rules** in this file — Swedish-only UI, no PII in URLs, no monetary totals stored, self-hosted fonts, no hard-deletes of referenced data, booking state machine transitions, no personnummer, EU regions only.

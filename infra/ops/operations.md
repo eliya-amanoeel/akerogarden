@@ -156,8 +156,9 @@ Nothing is tracked as work here. Production is not powered down the way staging 
 lag is not expected there; if it ever shows up on production, that **is** a real finding and
 should be investigated rather than filed against this note.
 
-*(This item previously lived in `operational-tasks.md`, which was retired on 2026-07-11 — see the
-note in `docs/product/implementation-plan.md`. It landed here because it is an operational check,
+*(This item previously lived in `REQUIREMENTS/operational-tasks.md`, a separate task list that was
+retired on 2026-07-11 in commit `8777d71` and folded into the implementation plan — it was retired,
+not renamed, so don't go looking for it. The item landed here because it is an operational check,
 not a build task.)*
 
 ## .NET runtime targeting (why the app boots even when the platform patch moves)

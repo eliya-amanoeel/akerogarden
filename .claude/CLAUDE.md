@@ -65,7 +65,7 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 - **No PII in URLs** — no guest names, emails, or IDs in query strings or route segments (NFR-05).
 - **No personnummer** — never collect or store Swedish national ID numbers (NFR-23).
 - **No personal data outside EU regions** — all Azure resources in North Europe or Sweden Central (NFR-06/24).
-- **Self-hosted fonts only** — no Google Fonts CDN or any external font requests. Loading Google Fonts sends user IPs to Google without a legal basis (Austrian DPA ruling, Jan 2022; enforced in Germany too). Font files go in `wwwroot/fonts/` with `@font-face` declarations in `site.css` (NFR-35).
+- **Nothing loads from a third-party host** — no font CDN, analytics, tag manager, embedded map, video or social widget; no third-party iframe, script, stylesheet or image. A request like that sends the visitor's IP, and usually cookies, before consent and without a legal basis (Austrian DPA ruling on Google Fonts, Jan 2022; enforced in Germany too). Fonts go in `wwwroot/fonts/` with `@font-face` in `site.css`. **Linking out is fine** — the rule is about what loads unbidden. Where an embed is the obvious solution, build the self-hosted equivalent instead (`/kontakt`'s map is drawn from OpenStreetMap geometry for exactly this reason). This is also what makes §7 of the privacy policy true and keeps the site free of a cookie banner, so breaking it is never a purely visual decision (NFR-35, widened from fonts-only on 2026-08-18).
 - **Code style is enforced** — `.editorconfig` + `Directory.Build.props` (`EnforceCodeStyleInBuild`, `IDE0055` = error). Match existing conventions; formatting violations fail the build. Generated EF migrations are excluded.
 
 ## Environments (§11.1)

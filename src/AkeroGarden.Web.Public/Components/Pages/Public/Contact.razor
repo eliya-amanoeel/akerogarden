@@ -17,11 +17,12 @@
 
 <section class="section">
     <div class="container">
+        @* One column per question — "how do I reach you" beside "how do I get there" — rather than
+           both stacked in one column with a decorative photo filling the other. The source order is
+           also the mobile order: contact details first, then the photo, then the directions. A phone
+           visitor on a contact page wants the phone number, and it used to sit below a full-width
+           photo they had to scroll past. *@
         <div class="contact-grid">
-            <div class="contact-photo">
-                <span class="photo-tag">Platshållare — foto vid lansering</span>
-            </div>
-
             <div>
                 <div class="contact-group">
                     <div class="contact-group__head"><h2>Kontakta oss</h2></div>
@@ -39,25 +40,38 @@
                     </dl>
                 </div>
 
+                <div class="contact-photo">
+                    <span class="photo-tag">Platshållare — foto vid lansering</span>
+                </div>
+            </div>
+
+            <div>
                 <div class="contact-group">
                     <div class="contact-group__head"><h2>Hitta hit</h2></div>
+
+                    <FindMap MapsUrl="@MapsUrl" />
+
                     <dl class="contact-dl">
                         <dt>Adress</dt>
                         <dd>
-                            @* A link, not an embed — only sends anything to Google when the visitor
-                               actively clicks it, same as the sl.se link below (unlike an embedded
-                               map, which would load Google's JS/tiles for every visitor regardless
-                               of intent — the same NFR-35 concern that already rules out Google Fonts). *@
-                            <a href="@MapsUrl" target="_blank" rel="noopener">
-                                Åkerögården<br />Åkerövägen 81<br />761 94 Norrtälje
-                            </a>
+                            @* Plain text, not a link: the map above is the way to a route, so a
+                               second link to the same place was one target too many. What the
+                               address is for here is reading and copying. *@
+                            Åkerögården<br />Åkerövägen 81<br />761 94 Norrtälje
                         </dd>
 
                         <dt>Med bil</dt>
                         <dd>
+                            @* "cirka 20 km" is the road distance from Norrtälje (19.3 km, measured over
+                               the OSM road network); the straight line is only 14 km, so don't "correct"
+                               it downwards. The sentence used to end "...väg 1031, som förbinder E18 med
+                               Rådmanby", which is not true: 1031 ends at Rådmansövägen (AB 1032), 1.8 km
+                               short of Rådmanby. Naming a destination the road never reaches helps nobody
+                               — the turn-off and the direction are what a guest actually needs, and both
+                               are drawn on the map above. *@
                             Åkerögården ligger mitt på Rådmansölandet, cirka 20 km öster om Norrtälje.
-                            Infarten sker från väg 1031, som förbinder E18 med Rådmanby. Parkering finns
-                            i anslutning till infarten.
+                            Infarten sker från väg 1031 (Åkerövägen), som går norrut från E18. Parkering
+                            finns i anslutning till infarten.
                         </dd>
 
                         <dt>Med buss</dt>

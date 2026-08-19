@@ -240,7 +240,7 @@ img { max-width: 100%; height: auto; display: block; }
     color: var(--color-primary-hover);
 }
 
-/* Visible keyboard focus on all interactive elements (NFR-21). */
+/* Visible keyboard focus on all interactive elements (NFR-38). */
 a:focus-visible, button:focus-visible,
 .btn:focus-visible, .btn-outline:focus-visible, .btn-ghost:focus-visible,
 input:focus-visible, select:focus-visible, textarea:focus-visible {
@@ -1477,7 +1477,11 @@ fieldset.participant legend {
 /* Inline links inside running text are underlined so they're distinguishable without relying on
    colour (WCAG 1.4.1 — axe "link-in-text-block"). Nav/footer/cards/buttons are excluded: they're
    set apart by layout, not sitting inside a sentence. */
-.prose a, .section p a, .menu-note a, .contact-dl dd a { text-decoration: underline; text-underline-offset: 0.15em; }
+/* `.findmap-figure__caption a` joined on 2026-08-18: the OpenStreetMap attribution sits inside a
+   sentence under the map, so it is the same case again — added here, to the one definition, rather
+   than to the map's own block. */
+.prose a, .section p a, .menu-note a, .contact-dl dd a,
+.findmap-figure__caption a { text-decoration: underline; text-underline-offset: 0.15em; }
 
 /* Section eyebrow + subhead on content pages */
 .subhead {
@@ -1663,10 +1667,21 @@ fieldset.participant legend {
     position: relative;
     overflow: hidden;
     background: linear-gradient(160deg, #d3d9cf, #8a9a72);
+    /* The frame is what survives forced-colors (Windows High Contrast): the gradient is
+       suppressed there, so without a border the placeholder became an invisible hole with its
+       caption floating loose in it. A real photo at launch fills the box either way. */
+    border: 1px solid var(--color-line);
 }
 @media (min-width: 1024px) {
     .contact-grid { grid-template-columns: 0.9fr 1.1fr; gap: 3.5rem; }
-    .contact-photo { min-height: 100%; }
+    /* A stated shape, not a borrowed one. This was `min-height: 100%`, which made the photo's
+       height a by-product of whatever stood in the other column — and when the find-here map
+       landed there on 2026-08-19 the column grew by ~400px, so the placeholder became a ~1000px
+       slab of empty green and the launch photo silently acquired a ~1:2.2 portrait crop nobody
+       had chosen. Almost every photograph of a rural property is landscape. 4:5 is an ordinary
+       portrait crop the client can actually satisfy, and .contact-grid's `align-items: start`
+       already keeps the column top-aligned, so the photo no longer answers to its neighbour. */
+    .contact-photo { aspect-ratio: 4 / 5; min-height: 0; }
 }
 
 .contact-group { margin-bottom: 2rem; }
@@ -1699,6 +1714,101 @@ fieldset.participant legend {
 
 /* Reassurance note next to a CTA */
 .cta-note { font-size: 0.9rem; color: var(--color-muted); }
+
+/* Find-here map (/kontakt) — inline SVG drawn from OpenStreetMap data. Inline rather than
+   <img> precisely so it inherits the tokens and fonts from here; see the comment in
+   FindMap.razor for why that is the opposite of the logo rule. Every colour below is an
+   existing token — the map introduces no palette of its own. Land is --color-bg-warm and
+   water --color-bg, the site's two existing grounds, which is why a map of an archipelago
+   needs no blue. */
+.findmap-figure { margin: 0 0 1.5rem; }
+.findmap-figure__link {
+    display: block;
+    border: 1px solid var(--color-line);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    /* Removes the line-height gap under a block-level SVG. */
+    line-height: 0;
+    transition: border-color var(--transition);
+}
+.findmap-figure__link:hover { border-color: var(--color-primary-ink); }
+.findmap-figure__caption { font-size: 0.85rem; color: var(--color-muted); margin-top: 0.5rem; }
+
+/* Opt the drawing out of forced colours (Windows High Contrast). The map already survives
+   there — fill and stroke are not forced-color properties — but that is the spec doing us a
+   favour rather than a decision we took. This states the decision: on a map the colours carry
+   meaning (land is not water, a road is not a shoreline), so forcing them to a two-colour
+   palette would destroy the information. Verified under CDP forced-colors emulation. */
+.findmap { display: block; width: 100%; height: auto; forced-color-adjust: none; }
+.findmap__land { fill: var(--color-bg-warm); }
+/* evenodd lets the islands (closed rings inside the sea polygons) punch back out of the water. */
+.findmap__water { fill: var(--color-bg); fill-rule: evenodd; stroke: var(--color-line); stroke-width: 1; }
+.findmap__road {
+    fill: none;
+    stroke: var(--color-secondary);
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+.findmap__road--major { stroke-width: 5; }
+.findmap__road--minor { stroke-width: 1; opacity: 0.35; }
+.findmap__node { fill: var(--color-bg-warm); stroke: var(--color-secondary); stroke-width: 2.5; }
+/* A text outline in the land colour, so a label stays legible where it crosses a road or the
+   water — and so --color-muted is always measured against --color-bg-warm (5.20:1), never
+   against a road. The label's ground is a known one because this rule makes it one. */
+.findmap__halo { paint-order: stroke; stroke: var(--color-bg-warm); stroke-width: 3px; stroke-linejoin: round; }
+/* These are viewBox units, not type-scale members — they cannot be, because what a label
+   actually renders at is the unit times the map's own scale factor. They are picked so that
+   product lands on house values: on /kontakt the map is 495–592px wide inside .contact-grid's
+   right column, so 0.8125rem renders at 11.5–13.7px (the 12px label / 13.5px caption sizes)
+   and 1.4375rem at 20–24px (the ~21px H3).
+
+   Two separate bugs are fixed here, and both were found by measuring rather than reading.
+   First the sizes were 11u and 20u, chosen against the widest case alone — at the 1024px
+   breakpoint, where the grid turns two-column and the map halves to 495px, that rendered the
+   labels at 9.7px, the smallest text on the site, one pixel of viewport away from 19px. So
+   size against the *narrowest* rendering, not the widest.
+
+   Then they were 13px and 23px, and absolute px is the second bug: a reader who raises their
+   browser's text size scales the whole page except this map. Worse, it scales the map *down* —
+   .container's padding is in rem, so the column narrows, the scale factor drops, and a fixed
+   px label renders smaller. Measured at a 24px root: the caption grew 13.6 -> 20.4px while the
+   labels shrank 13.7 -> 13.0px. In rem the unit tracks the reader's own text, so the ratio
+   holds. Do not "simplify" these back to px. Guarded by
+   Contact_map_labels_are_sized_in_rem_so_they_follow_the_reader, which asserts the unit rather
+   than the behaviour: raising the root font size from a Playwright test does not take effect against
+   this app and the cause was never found, so the behavioural version could not be written. The
+   collision half is Contact_map_labels_do_not_collide_at_their_largest. */
+.findmap__label { font-family: var(--font-body); font-size: 0.8125rem; fill: var(--color-muted); }
+.findmap__label--road { font-weight: 700; fill: var(--color-text); }
+.findmap__place { font-family: var(--font-heading); font-size: 1.4375rem; fill: var(--color-heading); }
+.findmap__region { font-family: var(--font-body); font-size: 0.8125rem; letter-spacing: 0.18em; fill: var(--color-muted); }
+.findmap__pin-halo { fill: var(--color-ok-bg); }
+.findmap__pin { fill: var(--color-primary-ink); }
+.findmap__pin-dot { fill: var(--color-bg-warm); }
+.findmap__scale path { fill: none; stroke: var(--color-muted); stroke-width: 1.5; }
+
+/* On a narrow screen the map is only ~310–470px wide and the labels scale down with the viewBox
+   to around 10px. The sizes are therefore raised in user units. Raising them alone makes the
+   labels collide, so the supporting ones are hidden instead (.findmap__label--aside: the
+   region name, the eastward direction, the road's name beneath its number, the scale bar).
+   What remains is what a guest actually navigates by: E 18, the direction to Norrtälje, the
+   exit, väg 1031 and the property. The address is in the <dl> right below the map either way.
+
+   530px is deliberately NOT the house 480px breakpoint, and this is the one component allowed
+   to differ. The house breakpoints mark where the *page* changes column count; this one marks
+   where the *map* runs out of room for ten labels, which is a fact about the drawing. Measured:
+   the desktop sizes only reach 11px at about a 528px viewport, so between 481 and 528 the map
+   showed all ten labels at 10.0–10.9px while the body text beside it was 16px — the only
+   fine print on the page, and the extra five labels it bought are exactly the supporting ones
+   this block exists to drop. The two numbers coinciding at 480 was a guess, not a decision. */
+@media (max-width: 530px) {
+    .findmap__label { font-size: 1.1875rem; }
+    .findmap__place { font-size: 2.125rem; }
+    .findmap__label--aside,
+    .findmap__region,
+    .findmap__scale { display: none; }
+}
 
 /* Utility pages (not found / error) */
 .utility { text-align: center; padding: 5rem 0; }
@@ -1808,7 +1918,7 @@ fieldset.participant legend {
 }
 /* Dismiss control — only the error variant has one, because only it stays put. Follows
    .admin-panel__close (the existing dismiss idiom): bare button, hover shifts the colour rather
-   than adding a fill. Keyboard focus comes from the global button:focus-visible rule (NFR-21). */
+   than adding a fill. Keyboard focus comes from the global button:focus-visible rule (NFR-38). */
 .form-status__close {
     flex: 0 0 auto;
     margin: -0.15rem -0.35rem 0 0;

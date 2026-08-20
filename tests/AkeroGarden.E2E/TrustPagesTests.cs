@@ -306,16 +306,29 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     {
         await Page.GotoAsync("/faciliteter");
 
-        // E2EFixture.SeedReferenceDataAsync seeds exactly one active Facility ("Konferensrum",
-        // needed by the cleaning-completion tests) and one Building ("Huvudbyggnaden") under one
-        // PhysicalBuilding ("Sovbyggnad", needed by the room-capacity tests) — the DB is never
-        // actually empty in this suite. With a single facility it becomes the lead .teaser
-        // feature and the "Fler faciliteter" grid doesn't render (nothing left to fill it).
+        // E2EFixture.SeedReferenceDataAsync seeds three active Facilities and one Building
+        // ("Huvudbyggnaden") under one PhysicalBuilding ("Sovbyggnad") — the DB is never actually
+        // empty in this suite. The page renders facilities[0] by DisplayOrder as the lead .teaser
+        // feature and everything after it in the "Fler faciliteter" grid.
+        //
+        // It used to seed a single facility, which meant the grid never rendered and this test
+        // asserted its *absence* — so the whole grid path went unexercised, and a layout guard on
+        // this page was checking a shape the real site never shows. Seeding the rest (2026-08-20)
+        // immediately found a genuine overflow bug on /boka via the long facility name.
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Konferensrum", Level = 2 })).ToBeVisibleAsync();
-        await Assertions.Expect(Page.GetByText("Övriga faciliteter på gården")).Not.ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByText("Övriga faciliteter på gården")).ToBeVisibleAsync();
+
+        // The grid's remaining facilities, in DisplayOrder — the first of them takes the
+        // `fac-card--wide` branch.
+        var grid = Page.Locator(".fac-grid");
+        await Assertions.Expect(grid.GetByRole(AriaRole.Heading, new() { Name = "Tillgänglighetsanpassad samlingslokal", Level = 3 })).ToBeVisibleAsync();
+        await Assertions.Expect(grid.GetByRole(AriaRole.Heading, new() { Name = "Bastu", Level = 3 })).ToBeVisibleAsync();
 
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Sovbyggnad", Level = 3 })).ToBeVisibleAsync();
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Huvudbyggnaden", Level = 4 })).ToBeVisibleAsync();
+
+        // The seeded building is IsAccessible, so the lodging item carries its tag.
+        await Assertions.Expect(Page.Locator(".lodging-item__tag")).ToBeVisibleAsync();
 
         // The page closes on a quiet sign-off line instead of a CTA band (header CTA + docked
         // mobile CTA already cover the funnel route on this page).

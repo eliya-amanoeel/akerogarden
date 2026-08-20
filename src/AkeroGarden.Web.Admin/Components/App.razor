@@ -17,6 +17,10 @@
     <Routes />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
+    @* Keeps --admin-topbar-h equal to the topbar's real height, so .detail-rail sticks below
+       it rather than below a guess. Host-wide because the topbar is on every admin page and
+       its height varies with the page title/actions. *@
+    <script src="@Assets["_content/AkeroGarden.Web.Core/js/sticky-offsets.js"]"></script>
 </body>
 
 </html>

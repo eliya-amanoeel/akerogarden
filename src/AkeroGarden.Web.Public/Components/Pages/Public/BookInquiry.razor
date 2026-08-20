@@ -222,7 +222,10 @@ else
                         <div class="form-group form-group--checkbox">
                             <label>
                                 <InputCheckbox @bind-Value="StayModel!.AcceptPrivacyPolicy" />
-                                Jag godkänner <a href="/integritetspolicy" target="_blank">integritetspolicyn</a>
+                                @* One <span>, not a bare text node plus a link: the label is a flex
+                                   container, so those would be two separate flex items that cannot
+                                   wrap between them and overflowed the viewport at a large text size. *@
+                                <span>Jag godkänner <a href="/integritetspolicy" target="_blank">integritetspolicyn</a></span>
                             </label>
                             <ValidationMessage For="() => StayModel!.AcceptPrivacyPolicy" />
                         </div>
@@ -273,7 +276,10 @@ else
                         <div class="form-group form-group--checkbox">
                             <label>
                                 <InputCheckbox @bind-Value="GeneralModel!.AcceptPrivacyPolicy" />
-                                Jag godkänner <a href="/integritetspolicy" target="_blank">integritetspolicyn</a>
+                                @* One <span>, not a bare text node plus a link: the label is a flex
+                                   container, so those would be two separate flex items that cannot
+                                   wrap between them and overflowed the viewport at a large text size. *@
+                                <span>Jag godkänner <a href="/integritetspolicy" target="_blank">integritetspolicyn</a></span>
                             </label>
                             <ValidationMessage For="() => GeneralModel!.AcceptPrivacyPolicy" />
                         </div>

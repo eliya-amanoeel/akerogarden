@@ -84,7 +84,27 @@
     --transition:   160ms ease;
 
     --max-width:  1200px;
-    --header-h:   72px;
+
+    /* Sticky-bar heights. These are *fallbacks*, not the truth: `js/sticky-offsets.js`
+       overwrites each one with the bar's real measured height. They are in `rem` (not the
+       `px` they used to be) so that a page is still close to correct before that script
+       runs, and on any public page that does not load it. Never read a bar's height from
+       here in new code — offset by the custom property and let the script keep it honest.
+
+       Two properties, not one: the public `.site-header` and the admin `.admin-topbar` are
+       different elements with different heights on different hosts. They were a single
+       `--header-h: 72px` until 2026-08-19, which meant `.detail-rail` positioned itself
+       below the *admin* topbar using a number measured off the *public* header. That worked
+       only because 72px and the topbar's ~70.6px happen to be close. */
+    --header-h:       4.5rem;   /* .site-header: 72px at a default root */
+    --admin-topbar-h: 4.4rem;   /* .admin-topbar: 1.95rem padding + a 1.5rem/1.6 line box + 1px border */
+
+    /* The header's own minimum height — a design floor, and deliberately a *separate*
+       property from the measured `--header-h` above. Feeding a measured height back into the
+       min-height of the element it was measured from is a ratchet: min-height rises to the
+       bar's tallest-ever state and can never come back down (widen the window at a large text
+       size, then narrow it, and the bar stays tall). Never written by script. */
+    --header-min-h:   4.5rem;
 }
 
 /* Honour reduced-motion for all transitions/animations below. */
@@ -134,7 +154,12 @@
    ============================================================ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-html { font-size: 16px; scroll-behavior: smooth; }
+/* `100%`, never an absolute size: an absolute root font size overrides the reader's own
+   browser text-size setting, and there is nothing they can do about it (WCAG 2.1 SC 1.4.4
+   "Resize text"). 100% resolves to whatever they chose — 16px for almost everyone, so this
+   changes nothing for a default visitor. Anything sized by or sized to fit type must then be
+   in `rem` so it follows; see `design.md`, "the reader's text size is an input". */
+html { font-size: 100%; scroll-behavior: smooth; }
 
 body {
     font-family: var(--font-body);
@@ -142,6 +167,16 @@ body {
     background-color: var(--color-bg);
     line-height: 1.6;
 }
+
+/* Headings are set large, and Swedish headings are routinely a single compound — the
+   /integritetspolicy <h1> is the one word "Integritetspolicy", which is 467px at a 32px root and
+   simply cannot fit a 360px screen. `break-word` only ever acts on a word that has nowhere to go,
+   so ordinary headings are untouched. */
+h1, h2, h3, h4 { overflow-wrap: break-word; }
+
+/* Buttons must never be wider than what holds them. A .btn is `inline-flex`, so it is sized by
+   its label; at a large text size "Skicka förfrågan" made a 358px button inside a 296px column. */
+.btn, .btn-outline, .btn-ghost { max-width: 100%; }
 
 h1, h2, h3, h4, h5, h6 {
     font-family: var(--font-heading);
@@ -273,7 +308,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: var(--header-h);
+    /* `min-height`, never `height`: the bar's contents are type, and type grows when the
+       reader raises their text size or when someone lengthens the CTA label or adds a nav
+       item. Pinned to a fixed height the CTA button simply spilled out of the bar (measured
+       at a 24px root, 2026-08-19). The constant is now only a floor. */
+    min-height: var(--header-min-h);
 }
 
 .site-header__logo { display: flex; align-items: center; }
@@ -315,7 +354,10 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .site-header__nav {
     display: none;
     position: absolute;
-    top: var(--header-h);
+    /* Resolved against `.site-header` (the nearest positioned ancestor — it is `sticky`;
+       `.container` in between is static), so `100%` *is* the header's rendered height. No
+       constant to keep in sync, and it stays exact when the bar grows. */
+    top: 100%;
     left: 0;
     right: 0;
     flex-direction: column;
@@ -357,8 +399,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 .site-header__cta { margin-top: 0.85rem; }
 
-/* --- Desktop: inline horizontal nav, no hamburger --- */
-@media (min-width: 1024px) {
+/* --- Desktop: inline horizontal nav, no hamburger ---
+   The breakpoint is `64em`, not `1024px`, and this is the one place in the file where that
+   distinction matters. `em` in a media query resolves against the browser's *initial* font
+   size — the reader's own text-size setting — so this asks "is the viewport wide enough
+   relative to how large this reader's text is", which is the actual question: the row holds
+   five nav labels plus a CTA, and those grow with the setting while a px breakpoint does not.
+   At a default 16px root, 64em is 1024px and nothing changes. At a 32px root it is 2048px, so
+   the hamburger is kept instead of overflowing the bar by ~101px, which is what happened while
+   this was pinned to px. Note `em` here is *not* affected by `html { font-size }` — it tracks
+   the browser setting only, which is exactly what makes it stable. --- */
+@media (min-width: 64em) {
     .site-header__burger { display: none; }
 
     .site-header__nav {
@@ -445,7 +496,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 /* --- Hero: split text + photo --- */
 .hero { background-color: var(--color-bg); }
 
-.hero__grid { display: grid; grid-template-columns: 1fr; }
+/* `minmax(0, 1fr)`, not `1fr`: a bare `1fr` has an `auto` minimum, so the single mobile track
+   could not shrink below the hero heading's longest word and the whole hero sat 105px wider than
+   a 360px screen at a 32px root. Paired with the heading `overflow-wrap` above, which is what
+   lets that word break once the track is allowed to be narrow. */
+.hero__grid { display: grid; grid-template-columns: minmax(0, 1fr); }
 
 .hero__photo {
     position: relative;
@@ -485,7 +540,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     .hero__text { padding-left: 1.5rem; padding-right: 1.5rem; }
     .hero__photo { min-height: 15rem; }
 }
-@media (min-width: 1024px) {
+@media (min-width: 64em) {
     .hero__grid { grid-template-columns: 1fr 1fr; align-items: stretch; }
     .hero__photo { order: 0; min-height: 34rem; }
     .hero__text { align-self: center; padding: 5rem 0; }
@@ -515,25 +570,42 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     border-color: var(--color-primary-ink);
 }
 
+/* Layout breakpoints below are in `em`, not `px`, wherever they *add a column*: `em` in a media
+   query resolves against the browser's initial font size — the reader's text-size setting — so
+   the question asked is "is there room for another column of this reader's text", which is the
+   real one. At a default 16px root every value resolves to the pixel width it replaced
+   (40em=640, 45em=720, 48em=768, 64em=1024), so nothing moves for a default visitor. Breakpoints
+   that only change padding stay in `px`; they are not about whether text fits. See design.md,
+   "Text scaling". --- */
+
 /* --- Trust strip --- */
 .trust-strip {
     background: var(--color-bg-warm);
     border-top: 1px solid var(--color-line);
     border-bottom: 1px solid var(--color-line);
 }
-.trust-strip__grid { display: grid; grid-template-columns: repeat(2, 1fr); }
-.trust-strip__item { padding: 1.25rem 1rem; }
-.trust-strip__item + .trust-strip__item { border-left: 1px solid var(--color-line); }
-.trust-strip__item:nth-child(3) { border-left: none; }
-/* 2x2 on mobile: the vertical hairlines alone leave the two rows visually unmoored. */
-.trust-strip__item:nth-child(n + 3) { border-top: 1px solid var(--color-line); }
+/* Separators are drawn by a 1px grid gap over the strip's own background rather than by
+   per-item borders picked out with :nth-child. The old border rules hard-coded a 2-column
+   mobile / 4-column desktop layout, so they could not survive the strip collapsing to a
+   single column (which it must: `1fr` cannot go below its longest word, and at a 24px root
+   two columns needed 370px inside a 312px phone screen). The gap draws the correct hairlines
+   at one, two or four columns without knowing which it is. */
+.trust-strip__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
+    gap: 1px;
+    background: var(--color-line);
+}
+.trust-strip__item { padding: 1.25rem 1rem; background: var(--color-bg-warm); }
+/* Pin two columns once there is room; `em` for the same reason as .site-footer__grid. */
+@media (min-width: 30em) {
+    .trust-strip__grid { grid-template-columns: repeat(2, 1fr); }
+}
 .trust-strip__num { font-family: var(--font-heading); font-size: 1.4rem; color: var(--color-heading); line-height: 1; }
 .trust-strip__label { font-size: 0.8rem; color: var(--color-text); margin-top: 0.35rem; }
-@media (min-width: 1024px) {
+@media (min-width: 64em) {
     .trust-strip__grid { grid-template-columns: repeat(4, 1fr); }
     .trust-strip__item { padding: 1.5rem 2rem; }
-    .trust-strip__item:nth-child(3) { border-left: 1px solid var(--color-line); }
-    .trust-strip__item:nth-child(n + 3) { border-top: none; } /* single row again */
 }
 
 /* --- Section heading block --- */
@@ -553,7 +625,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
    text-only blocks gave no visual distinction between very different use cases; a photo per
    card is a stronger differentiator than a rule and a heading weight. Same shape as
    Facilities' .fac-card, kept as its own class per this codebase's per-page naming. --- */
-.usecards { display: grid; grid-template-columns: 1fr; gap: 1.75rem; }
+.usecards { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
 .usecard { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; background: #fff; }
 .usecard__img {
     aspect-ratio: 4 / 3;
@@ -564,10 +636,17 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .usecard__body { padding: 1.1rem 1.25rem; }
 .usecard h3 { font-weight: 700; font-size: 1.2rem; margin: 0 0 0.4rem; }
 .usecard p { margin: 0; font-size: 0.95rem; color: var(--color-text); }
-@media (min-width: 768px) { .usecards { grid-template-columns: repeat(3, 1fr); } }
+@media (min-width: 48em) { .usecards { grid-template-columns: repeat(3, 1fr); } }
 
 /* --- Facilities teaser (asymmetric) --- */
-.teaser { display: grid; grid-template-columns: 1fr; gap: 1.75rem; align-items: center; }
+/* `minmax(0, 1fr)` everywhere a single-column track holds text, not a bare `1fr`.
+   A bare `1fr` is min-content-floored, and **`overflow-wrap: break-word` does not reduce
+   min-content — only `anywhere` does** — so the heading rule on h1–h4 could not save a track
+   that had already grown to fit the whole word. `.teaser h2` is `clamp(1.75rem, 3.4vw, …)`, and
+   at a 32px root the clamp *minimum* is 56px while `3.4vw` is only 12px on a phone, so the
+   minimum always wins: "Konferensrum" rendered 365px wide inside a 296px column and took the
+   photo, eyebrow and heading out with it. Letting the track shrink is what lets the word break. */
+.teaser { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.75rem; align-items: center; }
 .teaser__photo {
     position: relative;
     min-height: 15rem;
@@ -586,7 +665,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .teaser p { font-size: 1.0625rem; color: var(--color-text); margin: 0 0 1.5rem; max-width: 46ch; }
 .link-arrow { color: var(--color-primary-ink); font-weight: 700; border-bottom: 1.5px solid transparent; }
 .link-arrow:hover { border-color: var(--color-primary-ink); }
-@media (min-width: 1024px) {
+@media (min-width: 64em) {
     .teaser { grid-template-columns: 0.9fr 1.1fr; gap: 3.5rem; }
     .teaser__photo { min-height: 24rem; }
     /* Flips photo to the right, text to the left — for a second .teaser lower on the same
@@ -595,11 +674,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 /* --- "Så går det till" — genuine 3-step sequence (numbers carry order) --- */
-.steps { display: grid; grid-template-columns: 1fr; gap: 2rem; }
+.steps { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; }
 .step__n { font-family: var(--font-heading); font-size: 0.95rem; font-weight: 700; color: var(--color-primary-ink); letter-spacing: 0.1em; }
 .step h3 { font-weight: 700; font-size: 1.25rem; margin: 0.75rem 0 0.5rem; }
 .step p { margin: 0; color: var(--color-text); }
-@media (min-width: 768px) { .steps { grid-template-columns: repeat(3, 1fr); gap: 2.5rem; } }
+@media (min-width: 48em) { .steps { grid-template-columns: repeat(3, 1fr); gap: 2.5rem; } }
 
 /* --- Closing CTA band --- */
 .cta-band {
@@ -656,10 +735,27 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 
 .site-footer__grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    /* Two columns that collapse to one when they genuinely stop fitting, rather than two that
+       overflow the screen. `1fr` carries an `auto` minimum, so a column can never be narrower
+       than its longest unbreakable word — and Swedish compounds are long: "Integritetspolicy"
+       measures 100px at a default root but 150px at a 24px one, so two columns plus the gap
+       came to 397px inside a 312px phone screen and every public page grew a horizontal
+       scrollbar (measured at 360px, 2026-08-19). An explicit `9rem` minimum replaces that
+       `auto`, so the track count follows the reader's text size: two columns at a default
+       root (identical to before), one as soon as two no longer fit. `min(100%, …)` keeps the
+       track from exceeding the container on the narrowest screens. */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr));
     gap: 2rem;
 }
-@media (min-width: 1024px) {
+/* Pin two columns once there is room, so auto-fit cannot start packing in a third as the
+   viewport grows. In `em`, not `px`: this *is* a "does the text fit" breakpoint, and pinning it
+   at 480px re-introduced the overflow it was meant to prevent — every page ran ~97px past a
+   480px screen at a 32px root, because the pin forced two columns back on at a width where
+   auto-fit had correctly collapsed to one. */
+@media (min-width: 30em) {
+    .site-footer__grid { grid-template-columns: 1fr 1fr; }
+}
+@media (min-width: 64em) {
     .site-footer__grid { grid-template-columns: 1.4fr 1fr 1fr 1fr; gap: 2.5rem; }
 }
 
@@ -696,7 +792,11 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
    Forms
    ============================================================ */
 .form-row { display: grid; gap: 1rem; }
-@media (min-width: 480px) { .form-row { grid-template-columns: 1fr 1fr; } }
+/* `30em`, not `480px` — see the header's `64em` note. Two form columns only fit if the
+   viewport is wide enough *for this reader's text*: at a 24px root, 480px left each field
+   238px inside a 432px row and /boka overflowed by 57px. 30em is 480px at a default root
+   (unchanged) and 720px at a 24px one. */
+@media (min-width: 30em) { .form-row { grid-template-columns: 1fr 1fr; } }
 
 .form-group { display: flex; flex-direction: column; gap: 0.4rem; margin-bottom: 1.05rem; }
 .form-group label { font-weight: 700; font-size: 0.9rem; color: var(--color-heading); }
@@ -755,7 +855,9 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 
 /* Segmented two-track toggle (CSS-only, SSR-safe) */
 .track-radio { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.segmented { display: inline-flex; border: 1.5px solid var(--color-line); border-radius: 4px; overflow: hidden; background: #fff; margin-bottom: 1.75rem; }
+/* wrap + max-width: the two segment labels are unshrinkable flex items, so at a large text size
+   the control ran past its column on /boka. */
+.segmented { display: inline-flex; flex-wrap: wrap; max-width: 100%; border: 1.5px solid var(--color-line); border-radius: 4px; overflow: hidden; background: #fff; margin-bottom: 1.75rem; }
 .segmented__btn { font-weight: 700; font-size: 0.9rem; padding: 0.7rem 1.4rem; color: var(--color-text); cursor: pointer; user-select: none; }
 .segmented__btn + .segmented__btn { border-left: 1.5px solid var(--color-line); }
 #track-stay:checked ~ .segmented .segmented__btn[for="track-stay"],
@@ -846,8 +948,10 @@ select.inp {
    participant to the booking and rebuilt this markup, leaving those rules with no element to
    match. `.day__meals` shared two of those selectors and is still live, so it keeps them. */
 .meals { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; margin: 0.4rem 0 1rem; }
-.day__meals { display: grid; grid-template-columns: 1fr; gap: 0.75rem; }
-@media (min-width: 480px) { .day__meals { grid-template-columns: 1fr 1fr; } }
+.day__meals { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+/* `30em` for the same reason as .form-row above. Not directly measured — /slutfor needs a
+   live completion token — but it is the identical two-column-of-labelled-controls shape. */
+@media (min-width: 30em) { .day__meals { grid-template-columns: 1fr 1fr; } }
 .day__meals label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted); margin-bottom: 0.3rem; }
 .day { padding: 0.85rem 1rem; border-bottom: 1px solid var(--color-line); }
 .day:last-child { border-bottom: 0; }
@@ -892,7 +996,7 @@ select.inp {
 .prow__toggle-cb:checked ~ .prow__head .prow__toggle { color: var(--color-primary-ink); border-color: var(--color-primary-ink); }
 .prow__toggle-cb:checked ~ .prow__head .prow__toggle .chev { transform: rotate(90deg); }
 .prow__toggle-cb:focus-visible ~ .prow__head .prow__toggle { outline: 2px solid var(--color-primary-ink); outline-offset: 2px; }
-@media (max-width: 560px) { .prow__age { flex: 1 1 8rem; } .prow__toggle { margin-left: 0; } }
+@media (max-width: 35em) { .prow__age { flex: 1 1 8rem; } .prow__toggle { margin-left: 0; } }
 
 
 /* ============================================================
@@ -902,7 +1006,11 @@ select.inp {
    badges, a booking-detail action rail. NOT the public persuasion look.
    ============================================================ */
 
-.admin-shell { display: grid; grid-template-columns: 236px 1fr; }
+/* The sidebar is sized to hold its own labels, so its width is text-derived and belongs in
+   `rem` — 14.75rem is exactly the 236px it replaces at a default root, and it grows with the
+   reader instead of clipping the nav at a large text size. `minmax(0, 1fr)` on the content track
+   so a wide child (a table) cannot push the grid wider than the viewport. */
+.admin-shell { display: grid; grid-template-columns: 14.75rem minmax(0, 1fr); }
 
 /* ── Sidebar ─────────────────────────────────────────────── */
 .admin-nav {
@@ -998,7 +1106,10 @@ select.inp {
     border-bottom: 1px solid var(--color-line);
     background: var(--color-bg);
 }
-.admin-topbar h1 { font-size: 1.5rem; font-weight: 400; }
+/* `min-width: 0` because a flex item will not shrink below its min-content width by default,
+   and `overflow-wrap` because Swedish page titles are single compounds — "Administratörskonton"
+   is one 360px word at a 24px root, which pushed /konton 172px past a 360px screen. */
+.admin-topbar h1 { font-size: 1.5rem; font-weight: 400; min-width: 0; overflow-wrap: break-word; }
 .admin-topbar .spacer { flex: 1; }
 .admin-topbar .crumb { font-size: 0.82rem; color: var(--color-muted); letter-spacing: 0.02em; }
 /* Underline the breadcrumb link so it is distinguishable from the surrounding crumb text by more
@@ -1064,7 +1175,9 @@ select.inp {
 
 /* ── Cards / panels ──────────────────────────────────────── */
 .card { background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 1.1rem 1.2rem; }
-.card__head { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.7rem; }
+/* wrap: the head is a title plus a right-aligned "Alla bokningar →" link held there by
+   `margin-left: auto`. Unwrapped, the link ran 17px past the dashboard at a 32px root. */
+.card__head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 0.7rem; }
 .card__head h2 {
     font-family: var(--font-body); font-weight: 700; font-size: 0.95rem;
     letter-spacing: 0.01em; color: var(--color-heading); margin: 0;
@@ -1073,8 +1186,10 @@ select.inp {
 .card__head .link { margin-left: auto; font-size: 0.8rem; font-weight: 600; }
 
 /* Dashboard (Översikt) top row: one column on mobile, two side-by-side from 720px up. */
-.dash-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; margin-bottom: 1rem; }
-@media (min-width: 720px) { .dash-grid { grid-template-columns: 1fr 1fr; } }
+/* minmax(0, …) so a card cannot force the track wider than the column — the dashboard cards
+   overflowed by 13px at a 32px root while the track carried `1fr`'s auto minimum. */
+.dash-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-bottom: 1rem; }
+@media (min-width: 45em) { .dash-grid { grid-template-columns: 1fr 1fr; } }
 
 /* ── Admin data table (dense, scannable, status-forward) ─── */
 .admin-table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); }
@@ -1111,11 +1226,22 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .data-card { background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 0.75rem 0.85rem; }
 .data-card--clickable { cursor: pointer; }
 .data-card--clickable:hover { background: var(--color-bg-warm); }
-.data-card__head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
-.data-card__title { font-weight: 600; font-size: 0.9rem; color: var(--color-heading); line-height: 1.3; }
-.data-card__sub { font-size: 0.78rem; color: var(--color-muted); margin-top: 0.15rem; }
+/* `flex-wrap: wrap` so the status badge drops to its own line rather than being pushed out of
+   the card: a .badge is `white-space: nowrap` by design (a status pill must not break mid-
+   phrase), so at a raised text size "Väntar på aktivering" is a 209px item that cannot shrink,
+   and with a nowrap row it overflowed /konton by 172px at a 24px root on a 360px screen. */
+.data-card__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
+/* A card title is often an email address — one long token with no break opportunity in it, so
+   `anywhere` rather than `break-word`. At a 32px root one ran 50px past a 360px screen. */
+.data-card__title { font-weight: 600; font-size: 0.9rem; color: var(--color-heading); line-height: 1.3; overflow-wrap: anywhere; }
+/* Holds the guest's email — one long token with no break opportunity, same as __title above. */
+.data-card__sub { font-size: 0.78rem; color: var(--color-muted); margin-top: 0.15rem; overflow-wrap: anywhere; }
 .data-card__fields { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8rem; margin: 0.55rem 0 0; }
 .data-card__fields > div { display: flex; justify-content: space-between; gap: 0.6rem; }
+/* min-width:0 + anywhere: a dt/dd pair is a flex row, so neither side shrinks below its own
+   min-content by default, and admin values are routinely single Swedish compounds
+   ("Konferensbyggnad"). Without this the dd ran past the card at a 32px root. */
+.data-card__fields dt, .data-card__fields dd { min-width: 0; overflow-wrap: anywhere; }
 .data-card__fields dt { color: var(--color-muted); }
 .data-card__fields dd { margin: 0; color: var(--color-text); font-weight: 500; text-align: right; }
 .data-card__actions { display: flex; justify-content: flex-end; gap: 0.4rem; margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px solid var(--color-line); }
@@ -1230,11 +1356,11 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
    row becomes a forgiving tap target, and the edit panel goes full-screen (NFR-17 admin-mobile,
    extended here beyond the "tables may stay horizontally scrollable" floor since this admin
    works mostly from a phone). */
-@media (max-width: 640px) {
+@media (max-width: 40em) {
     .bldg-tree__toolbar .cols { display: none; }
 
     .bldg-row {
-        grid-template-columns: 1fr; grid-template-areas: "main" "stats";
+        grid-template-columns: minmax(0, 1fr); grid-template-areas: "main" "stats";
         row-gap: 0.3rem; padding: 0.7rem 0.85rem;
     }
     .bldg-row--l1 .bldg-row__main { padding-left: 0.85rem; }
@@ -1275,7 +1401,7 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .admin-detail-head { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-bottom: 1.3rem; }
 .admin-detail-head h1 { font-size: 1.6rem; font-weight: 400; margin: 0; }
 .detail-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1.4rem; align-items: start; }
-.detail-rail { position: sticky; top: calc(var(--header-h) + 0.5rem); max-height: calc(100vh - var(--header-h) - 1rem); overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
+.detail-rail { position: sticky; top: calc(var(--admin-topbar-h) + 0.5rem); max-height: calc(100vh - var(--admin-topbar-h) - 1rem); overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
 /* Booking detail sections (Kontaktuppgifter, Vistelse, Deltagare, ...) are each a native
    <details class="detail-acc">, not a plain <div> — collapsing what's already been reviewed is
    what keeps a many-participant booking from becoming one long scroll. `open` is left as a
@@ -1392,8 +1518,8 @@ fieldset.participant legend {
 .login-card .login-alt { text-align: center; margin-top: 1rem; font-size: 0.9rem; }
 
 /* ── Responsive: collapse the sidebar to a top bar under 860px ─ */
-@media (max-width: 860px) {
-    .admin-shell { grid-template-columns: 1fr; }
+@media (max-width: 53.75em) {
+    .admin-shell { grid-template-columns: minmax(0, 1fr); }
     /* Collapses to a top bar here — drop the desktop full-height sizing but keep it pinned to the
        top so the hamburger stays reachable while the page scrolls. z-index sits above page content
        but below the slide-in panel / dialog (1000+). */
@@ -1406,7 +1532,7 @@ fieldset.participant legend {
     .admin-nav a { padding: 0.7rem 0.6rem; }
     .admin-nav__foot { margin-top: 0.6rem; }
     .admin-topbar, .admin-body { padding-left: 1rem; padding-right: 1rem; }
-    .detail-grid { grid-template-columns: 1fr; }
+    .detail-grid { grid-template-columns: minmax(0, 1fr); }
     .detail-rail { position: static; max-height: none; overflow-y: visible; }
 }
 
@@ -1414,7 +1540,7 @@ fieldset.participant legend {
    Narrower than the 860px sidebar breakpoint above — a collapsed sidebar still leaves enough
    width for a table down to about 640px; below that, columns get too cramped to read without
    sideways scrolling, so the card list takes over instead. */
-@media (max-width: 640px) {
+@media (max-width: 40em) {
     .admin-table-wrap { display: none; }
     .data-cards { display: flex; }
 }
@@ -1470,7 +1596,10 @@ fieldset.participant legend {
 .page-head__intro { font-size: 1.125rem; color: var(--color-text); margin: 1.25rem 0 0; max-width: 56ch; }
 
 /* Readable prose column */
-.prose { max-width: 65ch; }
+/* Swedish compounds get long, and at a raised text size a single word can exceed a phone
+   column — one <p> on /integritetspolicy overflowed the viewport by 6px at a 24px root.
+   `break-word` only ever acts on a word that cannot fit, so normal text is untouched. */
+.prose { max-width: 65ch; overflow-wrap: break-word; }
 .prose p { font-size: 1.0625rem; color: var(--color-text); margin: 0 0 1.2rem; }
 .prose p:last-child { margin-bottom: 0; }
 
@@ -1493,7 +1622,7 @@ fieldset.participant legend {
 }
 
 /* Om oss */
-.about-grid { display: grid; grid-template-columns: 1fr; gap: 2.5rem; align-items: start; }
+.about-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.5rem; align-items: start; }
 .about-photo {
     min-height: 15rem;
     border-radius: var(--radius-card);
@@ -1503,7 +1632,11 @@ fieldset.participant legend {
 }
 .facts {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    /* Same `1fr` auto-minimum trap as .site-footer__grid: the track cannot go below its
+       longest word, so at a 24px root this box measured 399px inside a 312px screen — and
+       because it is a grid item of .about-grid it dragged the prose and photo out with it.
+       An explicit minimum lets it drop to one column instead. */
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 7.5rem), 1fr));
     gap: 1px;
     background: var(--color-line);
     border: 1px solid var(--color-line);
@@ -1511,10 +1644,14 @@ fieldset.participant legend {
     overflow: hidden;
     margin-top: 2rem;
 }
+/* Pin two columns once there is room; `em` for the same reason as .site-footer__grid. */
+@media (min-width: 30em) {
+    .facts { grid-template-columns: repeat(2, 1fr); }
+}
 .facts > div { background: var(--color-bg); padding: 1.1rem 1.25rem; }
 .facts__num { font-family: var(--font-heading); font-size: 1.4rem; color: var(--color-heading); line-height: 1; }
 .facts__label { font-size: 0.8125rem; color: var(--color-muted); margin-top: 0.25rem; }
-@media (min-width: 1024px) {
+@media (min-width: 64em) {
     .about-grid { grid-template-columns: 1.1fr 0.9fr; gap: 3rem; }
     .about-photo { min-height: 21rem; }
 }
@@ -1523,7 +1660,7 @@ fieldset.participant legend {
    section head above them). Deliberately capped at 2 columns (not 3): with the lead facility
    pulled into its own feature spread, the remaining count is usually small, and the first
    remaining card takes a --wide, two-up treatment so the grid isn't a uniform wall of boxes. */
-.fac-grid { display: grid; grid-template-columns: 1fr; gap: 1.5rem; }
+.fac-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
 .fac-card { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; background: #fff; }
 .fac-card__img {
     aspect-ratio: 4 / 3;
@@ -1534,7 +1671,7 @@ fieldset.participant legend {
 .fac-card__body { padding: 1.1rem 1.25rem; }
 .fac-card h3 { font-size: 1.2rem; font-weight: 700; margin: 0 0 0.4rem; }
 .fac-card p { margin: 0; font-size: 0.95rem; color: var(--color-text); }
-@media (min-width: 640px) {
+@media (min-width: 40em) {
     .fac-grid { grid-template-columns: repeat(2, 1fr); }
     .fac-card--wide { grid-column: span 2; display: grid; grid-template-columns: 1.2fr 1fr; }
     .fac-card--wide .fac-card__img { aspect-ratio: auto; height: 100%; }
@@ -1558,7 +1695,13 @@ fieldset.participant legend {
 }
 .lodging-group__head h3 { font-weight: 700; font-size: 1.05rem; color: var(--color-heading); }
 .lodging-group__head span { font-size: 0.8rem; color: var(--color-muted); }
-.lodging-list { display: grid; grid-template-columns: 1fr; gap: 1.1rem; }
+/* `minmax(0, 1fr)`: a bare `1fr` cannot shrink below its item's min-content, and a lodging item
+   is a flex row (mark + body) whose body already carries `min-width: 0` — the flex half of this
+   was fixed before, the grid half was not, so the track still refused to go narrow and the list
+   ran past a 360px screen from a 24px root upward. Only visible with realistic building names;
+   the page renders empty without seeded data, which is why it was missed until the dev database
+   was reseeded (2026-08-20). */
+.lodging-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; }
 .lodging-item { display: flex; gap: 0.85rem; align-items: flex-start; }
 .lodging-item__body { min-width: 0; } /* flex children default to min-width:auto — without this,
     a long unbroken word in an admin-entered building description could overflow the row */
@@ -1582,9 +1725,15 @@ fieldset.participant legend {
     background: var(--color-ok-bg);
     padding: 0.18rem 0.5rem;
     border-radius: 1rem;
+    /* "Tillgänglighetsanpassad" is one 23-character compound with no break opportunity in it, so
+       `anywhere` rather than `break-word`. It is the widest single token on the public site and
+       overflowed a 360px screen from a 24px root up. `max-width` keeps the pill inside its column
+       even when the word is broken. */
+    max-width: 100%;
+    overflow-wrap: anywhere;
 }
-@media (min-width: 640px) { .lodging-list { grid-template-columns: repeat(2, 1fr); } }
-@media (min-width: 1024px) { .lodging-list { grid-template-columns: repeat(4, 1fr); } }
+@media (min-width: 40em) { .lodging-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 64em) { .lodging-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
 /* Quiet non-CTA sign-off — closes a page that already has enough routes into the funnel
    (header CTA + docked mobile CTA) without stacking on a third, heavier one. Bookends the
@@ -1604,8 +1753,8 @@ fieldset.participant legend {
    Home/Facilities), which is the page's only visual anchor; everything from .menu-body down
    is otherwise unchanged. */
 .menu-body { margin-top: 2.5rem; }
-.menu-cols { display: grid; grid-template-columns: 1fr; gap: 2.5rem; }
-@media (min-width: 768px) { .menu-cols { grid-template-columns: 1fr 1fr; gap: 3rem; } }
+.menu-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.5rem; }
+@media (min-width: 48em) { .menu-cols { grid-template-columns: 1fr 1fr; gap: 3rem; } }
 .menu-col h2 {
     font-weight: 700;
     font-size: 1.25rem;
@@ -1660,7 +1809,7 @@ fieldset.participant legend {
 
 /* Contact — a location photo anchor beside two labelled info groups (Kontakta oss / Hitta
    hit), rather than one flat six-row definition list with no visual hierarchy. */
-.contact-grid { display: grid; grid-template-columns: 1fr; gap: 2rem; align-items: start; }
+.contact-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem; align-items: start; }
 .contact-photo {
     min-height: 16rem;
     border-radius: var(--radius-card);
@@ -1672,7 +1821,7 @@ fieldset.participant legend {
        caption floating loose in it. A real photo at launch fills the box either way. */
     border: 1px solid var(--color-line);
 }
-@media (min-width: 1024px) {
+@media (min-width: 64em) {
     .contact-grid { grid-template-columns: 0.9fr 1.1fr; gap: 3.5rem; }
     /* A stated shape, not a borrowed one. This was `min-height: 100%`, which made the photo's
        height a by-product of whatever stood in the other column — and when the find-here map
@@ -1819,6 +1968,10 @@ fieldset.participant legend {
 
 /* ── Phase 3: inquiry form, admin booking mgmt, availability calendar ───────── */
 
+/* The label text is an anonymous flex item beside the box, so it will not shrink below its own
+   min-content — and these labels are reference data, i.e. names an admin types. A facility named
+   "Tillgänglighetsanpassad samlingslokal" pushed /boka 42px past a 360px screen at a 32px root.
+   `min-width: 0` lets the text shrink, `anywhere` breaks the compound once it has to. */
 .checkbox-row {
     display: flex;
     align-items: center;
@@ -1827,7 +1980,10 @@ fieldset.participant legend {
     font-size: 0.95rem;
     color: var(--color-text);
     cursor: pointer;
+    min-width: 0;
+    overflow-wrap: anywhere;
 }
+.checkbox-row input { flex: none; }
 
 /* Alert / message box (reassurance banner, form feedback) */
 .alert {
@@ -1967,6 +2123,9 @@ fieldset.participant legend {
 
 .cal-selection {
     position: sticky;
+    /* Sticks directly below the public header. `Calendar.razor` loads `js/sticky-offsets.js`
+       so this is the header's real height; without it the `rem` fallback applies, which is
+       exact at a default text size and close otherwise. */
     top: var(--header-h);
     z-index: 5;
     display: flex;
@@ -1984,7 +2143,7 @@ fieldset.participant legend {
 /* On a phone the top-sticky bar cost 124px directly under the 73px header — 197px, ~30% of a
    640px viewport, consumed while the user is trying to read the grid. Docked to the bottom
    instead: off the reading area and inside thumb reach. */
-@media (max-width: 640px) {
+@media (max-width: 40em) {
     /* Qualified with the element on purpose: `.section p` (0,1,1) outranks a bare
        `.cal-selection` (0,1,0) and its 1rem bottom margin survives. `bottom: 0` positions the
        *margin* box, so that margin lifted the docked bar 16px off the screen edge. */
@@ -2012,8 +2171,8 @@ fieldset.participant legend {
     .cal-months { padding-bottom: 7rem; }
 }
 
-.cal-months { display: grid; grid-template-columns: 1fr; gap: 2rem 2.5rem; }
-@media (min-width: 720px) { .cal-months { grid-template-columns: 1fr 1fr; } }
+.cal-months { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2rem 2.5rem; }
+@media (min-width: 45em) { .cal-months { grid-template-columns: 1fr 1fr; } }
 .cal-month { margin: 0; }
 .cal-month h2 { font-weight: 700; font-size: 1.1rem; margin: 0 0 0.75rem; }
 

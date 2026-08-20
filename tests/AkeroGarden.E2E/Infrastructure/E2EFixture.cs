@@ -131,7 +131,11 @@ public sealed class E2EFixture : IAsyncLifetime
         // A lodging Building requires a PhysicalBuilding (§8.2, FR-13) — seed one and link it.
         var sovPb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = "Sovbyggnad", IsActive = true };
         ctx.PhysicalBuildings.Add(sovPb);
-        var building = new Building { Id = Guid.NewGuid(), Name = "Huvudbyggnaden", PhysicalBuildingId = sovPb.Id, IsActive = true };
+        // IsAccessible on purpose: it is what renders the `.lodging-item__tag` pill, whose label
+        // "Tillgänglighetsanpassad" is a 23-character compound with no break opportunity — the
+        // widest single token on the public site, and one that overflowed a 360px screen at a
+        // raised text size. Without this flag the layout guards never see it.
+        var building = new Building { Id = Guid.NewGuid(), Name = "Huvudbyggnaden", PhysicalBuildingId = sovPb.Id, IsAccessible = true, IsActive = true };
         building.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = building.Id, Name = "Sovsal", BedCount = 40, IsActive = true });
         ctx.Buildings.Add(building);
 
@@ -211,12 +215,43 @@ public sealed class E2EFixture : IAsyncLifetime
         {
             Id = Guid.NewGuid(),
             Name = "Konferensrum",
+            // Explicit: /faciliteter orders by DisplayOrder and renders the first as the lead
+            // feature, which TrustPagesTests asserts by name. The facilities added below must
+            // therefore sort after this one — leaving them all on the default 0 broke that test.
+            DisplayOrder = 0,
             PhysicalBuildingId = konferensPb.Id,
             AmountExVat = 1200m,
             VatRate = 0.25m,
             IsActive = true,
         };
         ctx.Facilities.Add(konferensrum);
+
+        // /faciliteter renders facilities[0] as the lead teaser and only builds `.fac-grid` when
+        // there is a *rest* — so with a single facility the entire grid path never executed and
+        // the layout guards were asserting against a page the real site does not show. Two more,
+        // one of them deliberately carrying a long Swedish compound, so the grid renders (its
+        // first card takes the `fac-card--wide` branch) and the wrapping rules are exercised.
+        ctx.Facilities.AddRange(
+            new Facility
+            {
+                Id = Guid.NewGuid(),
+                Name = "Tillgänglighetsanpassad samlingslokal",
+                DisplayOrder = 10,
+                Description = "Samlingslokal med hörselslinga och entré utan trösklar.",
+                AmountExVat = 800m,
+                VatRate = 0.25m,
+                IsActive = true,
+            },
+            new Facility
+            {
+                Id = Guid.NewGuid(),
+                Name = "Bastu",
+                DisplayOrder = 20,
+                Description = "Vedeldad bastu vid vattnet.",
+                AmountExVat = 400m,
+                VatRate = 0.25m,
+                IsActive = true,
+            });
 
         ctx.CleaningZones.AddRange(
             new CleaningZone

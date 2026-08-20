@@ -157,6 +157,131 @@ Two fixes, deliberately separate. `--color-muted` is deepened to `#646159` (5.20
 | Small / caption | Roboto 400 | ~13.5px, colour `--color-muted` |
 | Button | Roboto 700 | ~15px |
 
+### Text scaling — the reader's setting is an input
+
+`html { font-size: 100% }`, never an absolute size. An absolute root overrides the reader's own
+browser text-size setting with no way for them to opt out (WCAG 2.1 SC 1.4.4 "Resize text", AA —
+inside NFR-38's scope). `100%` resolves to whatever they chose, which is 16px for almost everyone,
+so a default visitor sees no difference. The site was pinned to `16px` until 2026-08-19.
+
+Everything **sized by, or sized to fit, type** must then be in `rem` so it follows. Genuinely
+physical values may stay in `px`: hairline borders, radii, shadow offsets, and artwork such as
+`.site-header__logo .logo` (55px — an image, not text). The map labels on `/kontakt` are the
+worked precedent for the first category.
+
+Three rules came out of measuring the site at 100 / 125 / 150 % text:
+
+- **Never pin the height of a box whose contents are type.** `.site-header .container` was
+  `height: 72px`, so its own CTA button spilled out of the bar at a 24px root. It is now
+  `min-height: var(--header-min-h)` — the constant is a floor, and content decides the rest.
+- **A `1fr` grid track cannot shrink below its longest unbreakable word, and Swedish compounds
+  are long.** "Integritetspolicy" is 100px at a default root and 150px at a 24px one;
+  "Helpension" in `.trust-strip__num` reaches 171px. Two such tracks plus a gap do not fit a
+  360px phone, and the page grows a horizontal scrollbar. Where a two-column block must survive
+  large text, give the track an explicit minimum —
+  `repeat(auto-fit, minmax(min(100%, 9rem), 1fr))` — so it drops to one column instead of
+  overflowing, and pin the column count again from `480px` up so `auto-fit` cannot pack in a
+  third. Applied to `.site-footer__grid`, `.facts` and `.trust-strip__grid`.
+- **Draw grid separators with a `1px` gap over the container's background, not with
+  `:nth-child` borders.** Border rules have to hard-code the column count, so they cannot
+  survive a block collapsing to one column. The gap draws the right hairlines at one, two or
+  four columns without knowing which. `.trust-strip__grid` and `.facts` both use it.
+
+**Breakpoints: `em` when the question is "does this fit", `px` when it is not.** `em` in a media
+query resolves against the browser's *initial* font size — the reader's own setting — and is
+deliberately **not** affected by `html { font-size }`, which is what makes it stable. So every
+breakpoint that **adds a column** is in `em`, because that content grows with the setting while a
+`px` breakpoint does not; breakpoints that only change **padding** stay in `px`.
+
+At a default 16px root each `em` value resolves to exactly the pixel width it replaced —
+`40em`=640, `45em`=720, `48em`=768, `64em`=1024, `30em`=480 — so **nothing moves for a default
+visitor**. At larger settings the layout steps down a column instead of overflowing.
+
+Converted on 2026-08-19: the header's inline-nav/hamburger switch, `.hero__grid`,
+`.trust-strip__grid`, `.usecards`, `.teaser`, `.steps`, `.site-footer__grid` (both the 2- and
+4-column rules), `.dash-grid`, `.about-grid`, `.fac-grid`, `.lodging-list`, `.menu-cols`,
+`.contact-grid`, `.cal-months`, `.form-row`, `.day__meals`, `.facts`.
+
+Two findings worth keeping, because both cost a re-measure to discover:
+
+- **A `px` pin can re-introduce the overflow the collapse was meant to prevent.** The `480px`
+  pins added to stop `auto-fit` packing in a third column forced two columns back on at a width
+  where auto-fit had correctly collapsed to one — every page ran ~97px past a 480px screen at a
+  32px root until those pins became `30em` too.
+- **`max-width` breakpoints follow the same rule.** Converted: the admin sidebar collapse
+  (`860px` → `53.75em`), the table→cards swap (`640px` → `40em`), the Byggnader toolbar columns
+  (`640px` → `40em`), `.prow__age` (`560px` → `35em`) and the calendar selection bar docking to
+  the bottom (`640px` → `40em`). Two were deliberately **left in `px`**, because they are not
+  "does this fit" questions: `.mobile-cta` appearing at `640px` (a *is this a phone* judgement —
+  though note the docked CTA becomes more valuable at a large text size, since the header
+  collapses to a hamburger, so this is worth revisiting as a product decision), and the
+  `530px` find-here-map type sizes, which are art-direction values measured against the drawing's
+  scale factor and should not be disturbed casually.
+- **The admin sidebar width was a fixed `236px`.** It is sized to hold its own labels, so it is
+  text-derived and is now `14.75rem` — the identical width at a default root. Its content track is
+  `minmax(0, 1fr)` so a wide table cannot push the grid past the viewport.
+
+**Long Swedish tokens need `overflow-wrap`, and the widest ones are not headings.** A word with
+no break opportunity cannot be wrapped by any amount of track sizing, so these carry
+`overflow-wrap` explicitly: headings (`h1`–`h4`), `.prose`, `.admin-topbar h1`,
+`.lodging-item__tag` ("Tillgänglighetsanpassad", 23 characters — the widest single token on the
+public site), and the admin card fields `.data-card__title` / `__sub` / `dt` / `dd`, which hold
+email addresses and values like "Konferensbyggnad". Use `anywhere` rather than `break-word` for
+anything that may be an email or a single compound; `break-word` is enough for running prose.
+Pair it with `min-width: 0` when the element is a flex item, and `max-width: 100%` when it is a
+pill or button, or it will still push past its parent.
+
+**`break-word` does not shrink a grid or flex track; `anywhere` does.** This is the subtle one,
+and it cost two test cycles. `overflow-wrap: break-word` breaks a word that overflows *its line
+box*, but it does **not** reduce the element's min-content size — so a `1fr` track, whose auto
+minimum is min-content, still grows to fit the whole unbroken word and the heading rule never gets
+a chance to act. Two ways out, and single-column text tracks in this file use the first:
+
+- give the track room to shrink — `minmax(0, 1fr)` rather than a bare `1fr`; the word then breaks
+  inside the narrower line box (used on every single-column track that holds text);
+- or use `overflow-wrap: anywhere`, which *does* reduce min-content (used on the pills, card
+  fields and checkbox labels, where there is no track to size).
+
+**A `clamp()` whose minimum is in `rem` collapses to that minimum at a large text size.**
+`.teaser h2` is `clamp(1.75rem, 3.4vw, 2.375rem)`. At a 32px root the minimum is 56px while
+`3.4vw` on a 360px phone is 12px — so the viewport-relative middle term can never win, and the
+heading renders at 56px on a phone. That is not wrong in itself (the reader asked for large text),
+but it means fluid type is only fluid in the range where the `vw` term is actually in play, and
+every `clamp()` minimum should be read as "the size at this reader's setting", not "the small
+size".
+
+**Two measurement traps, both of which produced a false result before being caught:**
+
+- **Measure with the HTTP cache disabled.** The `@Assets` fingerprint is stable between app
+  restarts, so a browser with a persistent profile will happily serve a previous `site.css` and a
+  measurement silently reports the state before your edit. A fix that "changed nothing" was
+  actually working.
+- **`html { scroll-behavior: smooth }` makes a programmatic scroll asynchronous.** Setting
+  `scrollTop` and reading a rect on the next line reads the *pre-scroll* position, which looks
+  exactly like a sticky element failing to stick. The E2E suite avoids this by running its context
+  `ReducedMotion.Reduce` (which forces `scroll-behavior: auto`); ad-hoc probes must set
+  `behavior: 'instant'` themselves.
+
+**Sticky bars publish their measured height.** Anything that sticks *below* a bar needs that
+bar's rendered height, and CSS gives one element no way to read another's. So
+`js/sticky-offsets.js` measures each bar with a `ResizeObserver` and writes it into a custom
+property; `site.css` declares a `rem` fallback for each, so a page is correct before the script
+runs and if it never runs.
+
+| Property | Bar | Consumed by |
+|---|---|---|
+| `--header-h` | public `.site-header` | `.cal-selection` |
+| `--admin-topbar-h` | admin `.admin-topbar` | `.detail-rail` |
+| `--header-min-h` | — | the header's own `min-height`; **never** script-written |
+
+Two separate bar properties because they are two different elements on two different hosts —
+they were a single `--header-h: 72px` until 2026-08-19, which had `.detail-rail` positioning
+itself below the *admin* topbar using a number measured off the *public* header. And
+`--header-min-h` is deliberately not `--header-h`: feeding a measured height back into the
+`min-height` of the element it was measured from is a ratchet, and the bar could never shrink
+again. Where the offset can be expressed structurally, prefer that over any property at all —
+the mobile nav panel uses `top: 100%` against its positioned ancestor and needs no constant.
+
 ### Shape, spacing & motion
 
 ```css
@@ -197,7 +322,7 @@ Each component supports the relevant states: **default / hover / focus / active 
 
   - **A label's size is its viewBox unit times the map's scale factor — check the *narrowest* place the map is rendered, not the widest.** The labels first shipped at 11u/20u, sized against the ~592px the map gets at full container width. At the `1024px` breakpoint, where `.contact-grid` turns two-column and the map halves to 495px, that rendered them at **9.7px** — the smallest text on the site, one pixel of viewport away from 19px. The base is now `0.8125rem`/`1.4375rem`, which lands the whole desktop range at 11.5–13.7px against the house 12px label and 13.5px caption, and the place name at 20–24px against the ~21px H3. The numbers are not scale members and cannot be; they are the scale *divided by* the scale factor, which is why they look arbitrary and must not be "tidied".
 
-  - **They are in `rem`, and stacked labels are offset by an em-based `tspan dy`, both for the same reason: the reader's text size is an input.** In absolute `px` the map was the one thing on the page that ignored a raised browser font size — and it went further and *shrank*, because `.container`'s padding is in `rem`, so the column narrows, the scale factor drops, and a fixed unit renders smaller (measured at a 24px root: caption 13.6→20.4px, labels 13.7→13.0px). Sizing in `rem` fixes the growth but not the spacing: two labels stacked at hard-coded `y` values grow into each other, which is why the second line is a `tspan` with `dy="1.5em"` — an offset that scales with the type it separates. Guarded by `Contact_map_labels_are_sized_in_rem_so_they_follow_the_reader` — which asserts the *unit*, not the behaviour, because raising the root font size from a Playwright test does not take effect against this app and the cause was never found — and by `Contact_map_labels_do_not_collide_at_their_largest`, which runs the overlap check at the narrow breakpoint where the type is largest relative to the drawing.
+  - **They are in `rem`, and stacked labels are offset by an em-based `tspan dy`, both for the same reason: the reader's text size is an input.** In absolute `px` the map was the one thing on the page that ignored a raised browser font size — and it went further and *shrank*, because `.container`'s padding is in `rem`, so the column narrows, the scale factor drops, and a fixed unit renders smaller (measured at a 24px root: caption 13.6→20.4px, labels 13.7→13.0px). Sizing in `rem` fixes the growth but not the spacing: two labels stacked at hard-coded `y` values grow into each other, which is why the second line is a `tspan` with `dy="1.5em"` — an offset that scales with the type it separates. Guarded by `Contact_map_labels_are_sized_in_rem_so_they_follow_the_reader` — which asserts the *unit*, not the behaviour, because *injecting* a raised root font size (a stylesheet, or an inline style on `<html>`) silently does not take effect against this app and the cause was never found — **there is now a mechanism that does work**: CDP `Page.setFontSizes`, which emulates the browser's own font-size setting rather than injecting CSS, and is what `TextScalingTests` uses. This guard could be upgraded to assert the behaviour — and by `Contact_map_labels_do_not_collide_at_their_largest`, which runs the overlap check at the narrow breakpoint where the type is largest relative to the drawing.
 
   - **In forced colors (Windows High Contrast) the map keeps its own palette, and that is now stated rather than accidental.** `fill` and `stroke` are not forced-color properties, so the drawing survives untouched while the page around it inverts — verified under CDP `forced-colors: active` emulation, not assumed. `forced-color-adjust: none` on `.findmap` records the reason it *should* survive: on a map the colours carry meaning, land is not water and a road is not a shoreline, so collapsing them to a two-colour palette would destroy the information. The same test caught a real defect beside it — `.contact-photo` had no `border`, and since its `linear-gradient` is suppressed in forced colors the placeholder became an invisible hole with its caption floating loose. **Any element whose only visible boundary is a background needs a border to survive forced colors.**
 

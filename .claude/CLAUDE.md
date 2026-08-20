@@ -34,7 +34,7 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 | `docs/product/erd.md` | Mermaid entity-relationship diagram (15 app entities) |
 | `docs/product/architecture.md` | Mermaid app-level architecture diagram — public/admin surfaces, hosting, external services, tech stack |
 | `docs/product/booking-lifecycle-timeline.md` | Mermaid lifecycle diagrams — status transitions and their emails, what the nightly run decides, and five dated approval scenarios showing every completion-link issuance outcome and expiry. Draws the rules in §2.5/2.6/2.7/§9; the SRS remains authoritative |
-| `docs/product/implementation-plan.md` | **Nearly spent, by design.** Phases 0–10c are done and were collapsed to a summary table on 2026-08-15; what remains live is **10d (the cutover, gated on the jurist review)** and four open Phase 11 items. Answers only "what order was it built in, what is left" — for current truth read the SRS. **Delete it when 10d closes and the Phase 11 items are done or moved to `requirements.md` §10** |
+| `docs/product/implementation-plan.md` | **Nearly spent, by design.** Phases 0–10c are done and were collapsed to a summary table on 2026-08-15; what remains live is **10d (the cutover, gated on the jurist review)** and the open Phase 11 items. Answers only "what order was it built in, what is left" — for current truth read the SRS. **Delete it when 10d closes and the Phase 11 items are done or moved to `requirements.md` §10** |
 | `docs/review/demo-feedback-2026-08-05.md` | Decision record for the client demo held 2026-08-05: every change request, the decision taken on each *and its reasoning*, two design corrections of our own (§7), and a conflict audit against the implementation (§8). Not a phase — it runs inside the window where 10d is blocked on the jurist, but lands **before** the cutover. Authoritative on this scope; the SRS carries the resulting requirements |
 | `docs/ux/design.md` | Visual design tokens, CSS classes, logo usage |
 | `infra/ops/dns-cutover-runbook.md` | DNS + one.com cutover steps for both Phase 10a (staging, client tenant) and Phase 10d (production, WordPress retirement) |
@@ -100,7 +100,7 @@ A test must honestly verify the real behaviour it claims to. Never shape a test 
 **Phases 0–10c are done and merged.** What is left:
 
 - **10d — cutover & launch.** DNS + SSL binding, one.com/WordPress retirement, base-URL flip + final deploy, re-apply Bicep to close drift, go-live checklist, and re-inviting the admin accounts. **Gated on the jurist review of the Swedish legal text** — that is the long pole, and it is external, not engineering.
-- **11 — post-production hardening & handover**, open-ended and blocking nothing: the pinned-clock sweep over the remaining integration tests, a post-launch architecture/security review, technical SEO + social sharing, and the Swedish client handover documentation.
+- **11 — post-production hardening & handover**, open-ended and blocking nothing outside itself. The open items are listed in the plan's "Still open" section — read them there rather than from a summary, which is how this line came to name four of them and omit the one marked blocking.
 
 Detail, exit criteria and what each earlier phase delivered are in `docs/product/implementation-plan.md`. Don't restate the phase list here — it duplicated the plan, and two of its entries had gone stale (Phase 4 still claimed room assignment after FR-56 was withdrawn; Phase 6 still said "Figma-first", when HTML-mockup-first was what actually happened).
 

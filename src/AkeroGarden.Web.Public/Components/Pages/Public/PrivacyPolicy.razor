@@ -2,13 +2,14 @@
 @layout MainLayout
 
 @* The published text is generated from docs/legal/Integritetspolicy.md — the two are kept in
-   sync by hand, and the markdown file is the one the jurist reviews. If you change wording
-   here, change it there too; a divergence means the reviewed document is not the published one.
+   sync by hand. If you change wording here, change it there too; a divergence means the
+   documented policy is not the published one.
 
-   The draft banner below stays until the jurist has signed off (Phase 10d). The content itself
-   is accurate — controller, legal bases, retention and cookies are all taken from the real
-   system — but it has not been legally reviewed, and publishing it as settled would claim more
-   than is true. Remove the banner and add the "Senast uppdaterad" date at sign-off. *@
+   The .legal-draft banner that stood here was removed on 2026-09-07, together with the one on
+   BookingTerms.razor. It said the text awaited a jurist review — and there is no jurist review
+   coming, so the banner would have sat on a live site indefinitely, telling every visitor that
+   the site's own privacy policy was unreviewed. The content is unaffected and remains accurate:
+   controller, legal bases, retention and cookies are all taken from the real system. *@
 
 <PageTitle>Integritetspolicy — Åkerögården</PageTitle>
 
@@ -27,12 +28,9 @@
 <section class="section">
     <div class="container">
 
-        <div class="alert alert--warn legal-draft">
-            <span class="alert__ic" aria-hidden="true">!</span>
-            <div>
-                <b>Denna text är ännu inte juridiskt granskad.</b> Innehållet beskriver hur
-                systemet faktiskt behandlar personuppgifter, men den slutliga versionen
-                publiceras först efter granskning av jurist, innan webbplatsen tas i drift.
+        <div class="legal-block">
+            <div class="prose">
+                <p>Senast uppdaterad: 7 september 2026.</p>
             </div>
         </div>
 

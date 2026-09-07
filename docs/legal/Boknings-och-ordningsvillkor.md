@@ -1,6 +1,10 @@
 # Boknings- och ordningsvillkor — Åkerögården
 
-> **UTKAST — ej juridiskt granskat.** Detta dokument är framtaget som ett underlag och en första utformning, delvis modellerad på Kaldéska kursgårds villkor. Det ska granskas av en jurist innan det publiceras och tas i bruk, särskilt avseende ångerrätt/distansavtal och skadeståndsansvar. Platser markerade `[ATT BEKRÄFTA]` saknar bekräftad information och måste fyllas i innan publicering.
+> **⛔ SUPERSEDED 2026-08-23 — DO NOT EDIT, DO NOT PUBLISH.**
+>
+> The client replaced this draft with a complete document of their own: **`klientsvar.md`**, which is now the source of truth and is what `BookingTerms.razor` publishes. This file is kept only as the record of what preceded it — the 20% deposit and two-month cancellation rule below are **no longer the property's terms**, though they are still what the approval and cancellation emails state (see `known-conflicts-at-launch.md`).
+>
+> If you are looking for the live booking terms, open `klientsvar.md`.
 
 *Senast uppdaterad: [ATT BEKRÄFTA — datum för publicering]*
 

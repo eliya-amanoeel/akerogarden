@@ -1,8 +1,8 @@
 # Integritetspolicy — Åkerögården
 
-> **UTKAST — ej juridiskt granskat.** Detta dokument är framtaget som ett underlag och en första utformning. Det ska granskas av en jurist med kompetens inom svensk dataskyddsrätt (GDPR) innan det publiceras och tas i bruk. Platser markerade `[ATT BEKRÄFTA]` saknar bekräftad information och måste fyllas i eller verifieras innan publicering.
+> **PUBLICERAD 2026-09-07.** Denna text är live på `/integritetspolicy`. Den har **inte** granskats av jurist och kommer inte att göra det — beslutet att lansera utan juristgranskning togs 2026-09-07, se `known-conflicts-at-launch.md`. Innehållet är verifierat mot koden (personuppgiftsansvarig, rättsliga grunder, lagringstider, kakor) men är inte juridiskt granskat. Håll denna fil synkroniserad med `PrivacyPolicy.razor` för hand.
 
-*Senast uppdaterad: [ATT BEKRÄFTA — datum för publicering]*
+*Senast uppdaterad: 7 september 2026*
 
 ## 1. Vem är personuppgiftsansvarig?
 

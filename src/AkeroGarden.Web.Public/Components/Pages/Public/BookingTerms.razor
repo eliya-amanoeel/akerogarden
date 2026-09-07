@@ -1,33 +1,41 @@
 @page "/bokningsvillkor"
 @layout MainLayout
 
-@* The published text is generated from docs/legal/Boknings-och-ordningsvillkor.md — the two are
-   kept in sync by hand, and the markdown file is the one the jurist reviews. If you change wording
-   here, change it there too; a divergence means the reviewed document is not the published one.
+@* The published text is the client's own "Boknings- och vistelsevillkor", received 2026-08-23 and
+   kept verbatim at docs/legal/klientsvar.md. That file is the source of truth; the two are kept in
+   sync by hand. If you change wording here, change it there too.
 
-   This page exists ahead of its content on purpose (C1 of docs/legal/klientfragor-juridiska-underlag.md,
-   decided 2026-08-17). The wiring — route, footer link, the combined inquiry checkbox, the link in
-   the approval email — is built now so that the client's answers become a text-fill rather than a
-   feature. Seven clauses are still awaiting those answers and say so in place, via .legal-note:
-   §2 (balance due date, non-payment/no-show), §3 (late-cancellation scope), §5 (further house
-   rules), §6 (damage excess and claims process), §7 (force majeure), §9 (governing law/ARN).
+   It REPLACES the earlier draft (docs/legal/Boknings-och-ordningsvillkor.md, now historical). The
+   client answered our eight questions by sending a complete document of their own rather than
+   filling in the blanks, and the decision on 2026-09-07 was to publish it as it stands.
 
-   Terms carrying a deposit and a cancellation rule are only worth what a guest was actually shown,
-   so a clause that is not settled must read as unsettled rather than be quietly omitted — an
-   omission looks like a complete document that happens to be silent, which is worse.
+   Deliberately NOT corrected here, because the substance is the client's and not ours to edit:
+     - §7's cancellation scale has no rule between 8 and 4 weeks. A cancellation six weeks out
+       falls through it. Open as question 6 of the client questionnaire.
+     - §7 calls its own terms "rekommenderas", which is weak against a consumer — and §1, §9 and
+       §31 confirm consumers do book. Open as question 7.
+   Only mechanical repairs were made: the source numbered several sections "1." (markdown
+   auto-numbering), and stray "**" artifacts were dropped.
 
-   At sign-off: fill the seven clauses, drop the banner, add the "Senast uppdaterad" date. *@
+   §7 also contradicts the deposit clause in the approval and cancellation emails
+   (BookingEmailTemplates.cs:287 and :437-440), which still state the SRS's 20% / two-month rule.
+   That divergence is knowingly carried — see docs/legal/known-conflicts-at-launch.md. Do not
+   "fix" it here in isolation; the rule lives in four places and moving one leaves the rest lying.
 
-<PageTitle>Boknings- och ordningsvillkor — Åkerögården</PageTitle>
+   There is no jurist review and there will not be one, so the .legal-draft banner this page used
+   to carry was removed on 2026-09-07 rather than left to sit on a live site forever. *@
+
+<PageTitle>Boknings- och vistelsevillkor — Åkerögården</PageTitle>
 
 <section class="page-head">
     <div class="container">
         <span class="eyebrow">Om sidan</span>
-        <h1>Boknings- och ordningsvillkor</h1>
+        <h1>Boknings- och vistelsevillkor</h1>
         <div class="page-head__rule"></div>
         <p class="page-head__intro">
-            Villkoren för att boka och vistas på Åkerögården — bokning, betalning, avbokning
-            och ordningsregler.
+            Villkoren för att boka och vistas på Åkerögården — bokning, betalning, avbokning,
+            ordningsregler och ansvar. Gäller för läger, reträtter, konferenser, församlingshelger
+            och andra grupparrangemang.
         </p>
     </div>
 </section>
@@ -35,161 +43,736 @@
 <section class="section">
     <div class="container">
 
-        <div class="alert alert--warn legal-draft">
-            <span class="alert__ic" aria-hidden="true">!</span>
-            <div>
-                <b>Denna text är ännu inte färdig och inte juridiskt granskad.</b> Vissa villkor är
-                ännu inte fastställda och är markerade nedan. Den slutliga versionen publiceras
-                efter granskning av jurist, innan webbplatsen tas i drift.
+        <div class="legal-block">
+            <div class="prose">
+                <p>Senast uppdaterad: 7 september 2026.</p>
+                <p>Välkommen till Åkerögården.</p>
+                <p>
+                    Åkerögården är Kaldeiska kyrkans läger- och retreatgård i Norrtälje. Gården
+                    erbjuder en miljö för läger, reträtter, konferenser, församlingshelger,
+                    utbildningar, möten och andra grupparrangemang.
+                </p>
+                <p>
+                    Åkerögården är inte ett hotell i traditionell mening. Boendet är en del av
+                    gårdens verksamhet som läger-, retreat- och konferensanläggning. Vår ambition är
+                    att erbjuda en trygg, välkomnande och fridfull miljö där människor kan mötas,
+                    vila, arbeta, be och bygga gemenskap.
+                </p>
+                <p>
+                    För att skapa tydlighet och trygghet för både gäster och Åkerögården gäller
+                    följande boknings- och vistelsevillkor.
+                </p>
             </div>
         </div>
 
         <div class="legal-block">
+            <h2 class="subhead">1. Tillämpning</h2>
             <div class="prose">
                 <p>
-                    Åkerögården drivs av Kaldeiska katolska Mar Narsay Missionen i Södertälje,
-                    org.nr 815601-0129. Dessa villkor gäller för bokningar av Åkerögården,
-                    Åkerövägen 81, 761 94 Norrtälje.
+                    Dessa villkor gäller för bokningar av boende, lokaler, måltider och andra
+                    tjänster vid Åkerögården när bokningen gäller en grupp eller ett arrangemang.
+                </p>
+                <p>
+                    Med <b>beställare</b> avses den person, församling, förening, organisation,
+                    företag eller annan juridisk eller fysisk person som gör bokningen och ansvarar
+                    för den.
+                </p>
+                <p>
+                    Med <b>gruppledare</b> avses den person som beställaren utsett till huvudsaklig
+                    kontaktperson under vistelsen.
+                </p>
+                <p>
+                    Med <b>arrangemang</b> avses exempelvis läger, reträtt, konferens,
+                    församlingshelg, kurs, utbildning, möte eller annan bokad gruppvistelse.
                 </p>
             </div>
         </div>
 
         <div class="legal-block">
-            <h2 class="subhead">1. Bokningsförfarande</h2>
+            <h2 class="subhead">2. Bokning och bekräftelse</h2>
             <div class="prose">
+                <p>En bokningsförfrågan är inte i sig en bindande bokning.</p>
+                <p>
+                    Bokningen blir bindande när Åkerögården skriftligen har bekräftat bokningen och
+                    beställaren har accepterat bokningsbekräftelsen eller på annat tydligt sätt
+                    bekräftat bokningen.
+                </p>
+                <p>Bokningsbekräftelsen anger bland annat:</p>
                 <ul>
-                    <li>För att skicka en bokningsförfrågan fyller ni i bokningsformuläret på akerogarden.se.</li>
-                    <li>
-                        Bokningsförfrågan är inte bindande förrän den har godkänts av oss och ni har
-                        mottagit en bokningsbekräftelse.
-                    </li>
-                    <li>
-                        Efter godkännande skickas en länk där kompletterande uppgifter (deltagarlista,
-                        måltidsval, ankomst- och avresetid) ska fyllas i. Ligger ankomsten längre fram
-                        än cirka sex veckor skickas länken först när det närmar sig —
-                        bokningsbekräftelsen anger detta.
-                    </li>
+                    <li>datum för vistelsen,</li>
+                    <li>preliminärt eller bekräftat antal deltagare,</li>
+                    <li>bokade lokaler och boenden,</li>
+                    <li>eventuella måltider,</li>
+                    <li>överenskommet pris,</li>
+                    <li>betalningsvillkor,</li>
+                    <li>samt andra särskilda överenskommelser.</li>
                 </ul>
-            </div>
-        </div>
-
-        <div class="legal-block">
-            <h2 class="subhead">2. Handpenning och betalning</h2>
-            <div class="prose">
-                <ul>
-                    <li>
-                        En handpenning om <b>20 %</b> av det totala beloppet ska betalas i förskott för
-                        att bokningen ska vara bekräftad.
-                    </li>
-                </ul>
-                <p class="legal-note">
-                    <b>Kompletteras innan publicering:</b> när resterande belopp ska vara betalt, samt
-                    vad som gäller vid utebliven betalning eller utebliven ankomst.
+                <p>
+                    Beställaren ansvarar för att kontrollera bokningsbekräftelsen och utan dröjsmål
+                    meddela Åkerögården om något är felaktigt.
                 </p>
             </div>
         </div>
 
         <div class="legal-block">
-            <h2 class="subhead">3. Avbokning</h2>
-            <div class="prose">
-                <ul>
-                    <li>Vid avbokning senast <b>två månader</b> före ankomst återbetalas handpenningen.</li>
-                    <li>Vid avbokning senare än två månader före ankomst återbetalas <b>inte</b> handpenningen.</li>
-                </ul>
-                <p class="legal-note">
-                    <b>Kompletteras innan publicering:</b> vad som gäller för ett restbelopp som redan
-                    har betalats vid en sen avbokning.
-                </p>
-            </div>
-        </div>
-
-        <div class="legal-block">
-            <h2 class="subhead">4. Deltagarlista och måltidsval</h2>
-            <div class="prose">
-                <ul>
-                    <li>
-                        Senast <b>två veckor</b> före ankomst ska en fullständig namnlista samt val av
-                        måltider, inklusive eventuella allergier och specialkost, skickas till oss via
-                        kompletteringsformuläret.
-                    </li>
-                    <li>Vi kan inte garantera att specialkost som meddelas senare än så kan tillgodoses.</li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="legal-block">
-            <h2 class="subhead">5. Ordningsregler</h2>
-            <div class="prose">
-                <ul>
-                    <li>
-                        Åkerögården är rök- och djurfri. Rökning är endast tillåten utomhus på
-                        anvisade platser.
-                    </li>
-                    <li>Det är inte tillåtet att flytta ut inomhusmöbler till utomhusmiljö.</li>
-                    <li>
-                        Det är inte tillåtet att fästa tejp eller liknande på väggarna, då detta kan
-                        orsaka skador.
-                    </li>
-                    <li>
-                        Standardtid för incheckning är kl. 14:00 och för utcheckning kl. 12:00. Vid
-                        bokningsförfrågan kan gästen ange en önskad in- och utcheckningstid; en tid som
-                        avviker från standardtiderna är ett önskemål som bekräftas separat av
-                        Åkerögården och kan medföra en tilläggsavgift.
-                    </li>
-                </ul>
-                <p class="legal-note">
-                    <b>Kompletteras innan publicering:</b> eventuella ytterligare ordningsregler, till
-                    exempel tystnad efter viss tid, alkoholpolicy och regler kring gemensamma
-                    utrymmen och kök.
-                </p>
-            </div>
-        </div>
-
-        <div class="legal-block">
-            <h2 class="subhead">6. Skador och ansvar</h2>
-            <div class="prose">
-                <ul>
-                    <li>
-                        Bokande gäst ansvarar för skador som uppkommer på anläggningen, dess möbler
-                        eller utrustning under vistelsen, orsakade av gästen eller deltagare i
-                        sällskapet.
-                    </li>
-                </ul>
-                <p class="legal-note">
-                    <b>Kompletteras innan publicering:</b> självrisk eller ersättningsprincip, samt
-                    processen för skadeanmälan och fakturering av skador i efterhand.
-                </p>
-            </div>
-        </div>
-
-        <div class="legal-block">
-            <h2 class="subhead">7. Force majeure</h2>
-            <div class="prose">
-                <p class="legal-note">
-                    <b>Kompletteras innan publicering:</b> klausul om att part befrias från ansvar när
-                    avtalet inte kan fullgöras på grund av omständigheter utanför partens kontroll,
-                    samt vad som gäller för redan inbetald handpenning i ett sådant fall.
-                </p>
-            </div>
-        </div>
-
-        <div class="legal-block">
-            <h2 class="subhead">8. Personuppgifter</h2>
+            <h2 class="subhead">3. Beställarens ansvar</h2>
             <div class="prose">
                 <p>
-                    Personuppgifter som lämnas i samband med bokning behandlas i enlighet med vår
+                    Den person som gör bokningen ska vara minst 18 år och ha rätt att företräda den
+                    organisation eller grupp för vars räkning bokningen görs.
+                </p>
+                <p>Beställaren ansvarar för att:</p>
+                <ul>
+                    <li>de uppgifter som lämnas vid bokningen är korrekta;</li>
+                    <li>deltagarna informeras om dessa villkor och Åkerögårdens ordningsregler;</li>
+                    <li>
+                        deltagarna följer säkerhetsföreskrifter och instruktioner från Åkerögårdens
+                        personal;
+                    </li>
+                    <li>rätt antal deltagare meddelas inom angiven tid;</li>
+                    <li>betalning sker enligt överenskommelse;</li>
+                    <li>gruppen använder lokaler, rum och utrustning på ett ansvarsfullt sätt.</li>
+                </ul>
+                <p>
+                    Gruppledaren fungerar som Åkerögårdens huvudsakliga kontaktperson under
+                    vistelsen.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">4. Antal deltagare</h2>
+            <div class="prose">
+                <p>Vid bokning ska ett beräknat antal deltagare anges.</p>
+                <p>
+                    Slutligt deltagarantal ska meddelas Åkerögården senast <b>14 dagar före
+                    ankomst</b>, om inget annat har överenskommits.
+                </p>
+                <p>
+                    Ökning av deltagarantalet efter bokningsbekräftelsen kan endast ske i mån av
+                    plats och efter godkännande från Åkerögården.
+                </p>
+                <p>
+                    Om deltagarantalet minskar gäller reglerna om ändring och avbokning nedan.
+                </p>
+                <p>
+                    Ingen person får övernatta på Åkerögården utan att ingå i den registrerade
+                    gruppen eller utan Åkerögårdens godkännande.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">5. Priser</h2>
+            <div class="prose">
+                <p>
+                    De priser som framgår av bokningsbekräftelsen gäller för den bekräftade
+                    bokningen.
+                </p>
+                <p>Priset kan baseras på exempelvis:</p>
+                <ul>
+                    <li>antal personer,</li>
+                    <li>antal övernattningar,</li>
+                    <li>måltider,</li>
+                    <li>lokaler,</li>
+                    <li>städning,</li>
+                    <li>sänglinne och handdukar,</li>
+                    <li>teknisk utrustning,</li>
+                    <li>eller andra särskilt beställda tjänster.</li>
+                </ul>
+                <p>
+                    Eventuella tilläggstjänster som beställs efter bokningsbekräftelsen debiteras
+                    separat.
+                </p>
+                <p>
+                    Alla priser anges inklusive eller exklusive moms enligt vad som framgår av
+                    bokningsbekräftelsen och tillämpliga svenska skatteregler.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">6. Betalning</h2>
+            <div class="prose">
+                <p>
+                    Beställaren ansvarar för samtliga kostnader som följer av bokningen, om inget
+                    annat skriftligen har överenskommits.
+                </p>
+                <p>
+                    Åkerögården kan begära förskottsbetalning eller bokningsavgift för att bekräfta
+                    en bokning.
+                </p>
+                <p>
+                    Villkor för förskott och slutbetalning anges i bokningsbekräftelsen eller på
+                    fakturan.
+                </p>
+                <p>
+                    Om fakturering har överenskommits ska fakturan betalas senast på angiven
+                    förfallodag.
+                </p>
+                <p>
+                    Vid sen betalning har Åkerögården rätt att debitera dröjsmålsränta enligt
+                    räntelagen samt eventuella lagstadgade avgifter.
+                </p>
+                <p>
+                    Om ett avtalat förskott inte betalas i tid har Åkerögården rätt att, efter
+                    påminnelse, betrakta bokningen som avbokad.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">7. Avbokning av hela arrangemanget</h2>
+            <div class="prose">
+                <p>Avbokning ska göras skriftligen till Åkerögården.</p>
+                <p>
+                    Om inget annat särskilt anges i bokningsbekräftelsen rekommenderas följande
+                    avbokningsvillkor:
+                </p>
+                <ul>
+                    <li>
+                        <b>Mer än 8 veckor före ankomst:</b> ingen avbokningsavgift, med undantag
+                        för särskilda kostnader som Åkerögården redan haft för beställningen och som
+                        inte kan återbetalas.
+                    </li>
+                    <li>
+                        <b>Mellan 4 och 2 veckor före ankomst:</b> 75 % av bokningens bekräftade
+                        värde debiteras.
+                    </li>
+                    <li>
+                        <b>Mindre än 2 veckor före ankomst:</b> 100 % av bokningens bekräftade värde
+                        debiteras.
+                    </li>
+                    <li>
+                        <b>Utebliven ankomst (no-show):</b> 100 % av bokningens värde debiteras.
+                    </li>
+                </ul>
+                <p>
+                    Om Åkerögården har haft särskilda kostnader för exempelvis beställd mat, extern
+                    personal, utrustning eller andra tjänster som inte kan avbokas, kan dessa
+                    kostnader debiteras beställaren i den utsträckning som är skälig och tillåten
+                    enligt tillämplig lag.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">8. Minskning av deltagarantal</h2>
+            <div class="prose">
+                <p>Minskning av deltagarantalet ska meddelas skriftligen.</p>
+                <p>
+                    Fram till 14 dagar före ankomst kan deltagarantalet normalt justeras enligt
+                    överenskommelse med Åkerögården.
+                </p>
+                <p>
+                    Vid större minskningar eller minskningar som sker senare än 14 dagar före
+                    ankomst kan Åkerögården debitera det antal deltagare som senast bekräftats,
+                    särskilt när kostnader för boende, personal eller måltider redan har planerats
+                    eller uppstått.
+                </p>
+                <p>
+                    Ändringar bedöms alltid med hänsyn till bokningens omfattning och de faktiska
+                    kostnader som uppstått.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">9. Ingen lagstadgad 14-dagars ångerrätt för daterad inkvartering</h2>
+            <div class="prose">
+                <p>
+                    För bokning av inkvartering som ska tillhandahållas på en bestämd dag eller
+                    under en bestämd tidsperiod gäller inte den vanliga 14-dagars ångerrätten för
+                    distansavtal.
+                </p>
+                <p>
+                    Beställarens möjlighet att avboka eller ändra bokningen regleras därför av dessa
+                    bokningsvillkor och den individuella bokningsbekräftelsen.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">10. Ankomst och avresa</h2>
+            <div class="prose">
+                <p>Tid för ankomst och avresa anges i bokningsbekräftelsen.</p>
+                <p>Gruppledaren ansvarar för att gruppen följer överenskomna tider.</p>
+                <p>
+                    Tidigare ankomst eller senare avresa måste godkännas av Åkerögården i förväg och
+                    kan medföra extra kostnader.
+                </p>
+                <p>Vid ankomst ska gruppledaren vid behov ta del av information om:</p>
+                <ul>
+                    <li>utrymningsvägar,</li>
+                    <li>brand- och säkerhetsrutiner,</li>
+                    <li>nycklar,</li>
+                    <li>måltider,</li>
+                    <li>städning,</li>
+                    <li>lokaler,</li>
+                    <li>och andra praktiska förhållanden.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">11. Rum och boende</h2>
+            <div class="prose">
+                <p>Rummen tilldelas enligt bokningen och Åkerögårdens kapacitet.</p>
+                <p>
+                    Åkerögården kan inte garantera ett visst specifikt rum om detta inte uttryckligen
+                    har bekräftats.
+                </p>
+                <p>
+                    Gäster får inte själva byta byggnad eller upplåta sitt rum eller sin sängplats
+                    till någon utomstående.
+                </p>
+                <p>
+                    Möbler och inventarier får inte flyttas mellan rum eller byggnader utan
+                    tillstånd.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">12. Sänglinne, handdukar och städning</h2>
+            <div class="prose">
+                <p>
+                    Vad som ingår beträffande sänglinne, handdukar och slutstädning framgår av
+                    bokningen.
+                </p>
+                <p>
+                    Om gästerna själva ansvarar för städning ska rummen och de lokaler som gruppen
+                    disponerat lämnas i det skick och enligt de instruktioner som Åkerögården anger.
+                </p>
+                <p>
+                    Vid otillräcklig städning eller onormalt nedsmutsade lokaler kan en skälig extra
+                    städavgift debiteras.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">13. Måltider och specialkost</h2>
+            <div class="prose">
+                <p>När måltider ingår ska gruppen följa de överenskomna måltidstiderna.</p>
+                <p>
+                    Specialkost, födoämnesallergier och andra kostbehov ska meddelas senast 14 dagar
+                    före ankomst, om inget annat överenskommits.
+                </p>
+                <p>Åkerögården försöker så långt det är rimligt att tillgodose anmälda behov.</p>
+                <p>Allvarliga allergier ska meddelas tydligt i förväg.</p>
+                <p>Åkerögården kan inte garantera en helt allergenfri miljö.</p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">14. Alkohol, droger, rökning och vaping</h2>
+            <div class="prose">
+                <p>
+                    Åkerögården är en kyrkligt ägd läger- och retreatgård och ska präglas av
+                    trygghet, respekt och ansvar.
+                </p>
+                <p>Illegala droger och andra otillåtna substanser är förbjudna på hela området.</p>
+                <p>
+                    Rökning och vaping är förbjudna inomhus och får endast ske på särskilt anvisade
+                    platser utomhus.
+                </p>
+                <p>
+                    <b>
+                        Alkohol får inte medföras, serveras eller konsumeras utan Åkerögårdens
+                        uttryckliga tillstånd.
+                    </b>
+                </p>
+                <p>
+                    Om alkohol tillåts vid ett särskilt arrangemang ska all hantering ske i enlighet
+                    med svensk lag och de särskilda villkor som Åkerögården anger.
+                </p>
+                <p>
+                    Åkerögården har rätt att omedelbart ingripa vid missbruk, störande beteende eller
+                    situationer som hotar andra gästers säkerhet eller gårdens miljö.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">15. Ordning, hänsyn och tystnad</h2>
+            <div class="prose">
+                <p>
+                    Åkerögården är en plats för vila, gemenskap, retreat, läger, undervisning och
+                    möten.
+                </p>
+                <p>Alla gäster förväntas därför visa hänsyn till andra personer och grupper.</p>
+                <p>
+                    Störande eller högljutt beteende ska undvikas, särskilt under kvälls- och
+                    nattetid.
+                </p>
+                <p>
+                    Tystnad ska normalt råda utomhus och i boendedelarna mellan <b>kl. 23.00 och
+                    07.00</b>, om inget annat överenskommits för ett specifikt arrangemang.
+                </p>
+                <p>
+                    Musik, högtalare och andra aktiviteter som kan störa andra gäster måste anpassas
+                    till platsens karaktär och får inte användas på ett störande sätt.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">16. Kyrklig miljö och kapell</h2>
+            <div class="prose">
+                <p>Åkerögårdens kyrkliga identitet ska respekteras.</p>
+                <p>
+                    Kapell, bönerum, heliga föremål och andra utrymmen avsedda för gudstjänst eller
+                    bön ska behandlas med särskild respekt.
+                </p>
+                <p>
+                    Användning av kapell eller andra liturgiska lokaler ska överenskommas med
+                    Åkerögården.
+                </p>
+                <p>Mat och dryck är inte tillåtna i kapell eller andra heliga rum.</p>
+                <p>
+                    Ingen grupp får använda Åkerögårdens namn, kyrkliga lokaler eller symboler på ett
+                    sätt som kan ge intryck av att Kaldeiska kyrkan stöder eller står bakom ett
+                    arrangemang, budskap eller organisation utan uttryckligt tillstånd.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">17. Barn och ungdomsgrupper</h2>
+            <div class="prose">
+                <p>Åkerögården välkomnar barn- och ungdomsgrupper.</p>
+                <p>
+                    Den organisation som arrangerar lägret eller vistelsen ansvarar för deltagarnas
+                    tillsyn, ledarskap och trygghet.
+                </p>
+                <p>
+                    Barn och minderåriga ska stå under lämplig tillsyn av ansvariga vuxna ledare.
+                </p>
+                <p>
+                    Arrangören ansvarar för att ha de tillstånd från vårdnadshavare, kontaktuppgifter,
+                    rutiner och andra säkerhetsåtgärder som krävs för den egna verksamheten.
+                </p>
+                <p>
+                    Åkerögårdens personal övertar inte gruppledarnas eller arrangörens ansvar för
+                    barnens tillsyn.
+                </p>
+                <p>
+                    Vid allvarliga säkerhetsproblem ska gruppledaren omedelbart kontakta Åkerögårdens
+                    personal.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">18. Brandsäkerhet</h2>
+            <div class="prose">
+                <p>Alla gäster ska följa Åkerögårdens brandskydds- och säkerhetsföreskrifter.</p>
+                <p>Det är förbjudet att:</p>
+                <ul>
+                    <li>blockera utrymningsvägar eller branddörrar;</li>
+                    <li>manipulera brandvarnare, brandlarm eller brandsläckare;</li>
+                    <li>använda levande ljus eller öppen eld på otillåtna platser;</li>
+                    <li>
+                        använda egna kokplattor, värmeelement eller liknande elektrisk utrustning i
+                        sovrum utan tillstånd.
+                    </li>
+                </ul>
+                <p>
+                    Gruppledaren ansvarar för att gruppen tar del av relevant säkerhetsinformation.
+                </p>
+                <p>
+                    Vid brandlarm ska byggnaden omedelbart utrymmas och instruktioner från personal
+                    och räddningstjänst följas.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">19. Skador och förlust</h2>
+            <div class="prose">
+                <p>
+                    Beställaren ansvarar för skador på byggnader, rum, inventarier eller utrustning
+                    som orsakats av deltagare genom uppsåt eller vårdslöshet.
+                </p>
+                <p>Skador ska rapporteras till Åkerögården så snart de upptäcks.</p>
+                <p>
+                    Åkerögården har rätt att debitera en skälig kostnad för reparation eller
+                    ersättning av skadad eller saknad egendom.
+                </p>
+                <p>Normalt slitage medför inte ersättningsskyldighet.</p>
+                <p>
+                    Förlorade nycklar eller annan utlämnad utrustning kan debiteras enligt faktisk
+                    eller skälig ersättningskostnad.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">20. Personliga tillhörigheter</h2>
+            <div class="prose">
+                <p>Varje gäst ansvarar för sina egna personliga tillhörigheter.</p>
+                <p>
+                    Åkerögården ansvarar inte för borttappad, glömd, stulen eller skadad personlig
+                    egendom annat än i den utsträckning ansvar följer av tvingande svensk lag eller
+                    av vårdslöshet från Åkerögårdens sida.
+                </p>
+                <p>Värdefulla föremål bör inte lämnas obevakade.</p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">21. Husdjur och assistanshundar</h2>
+            <div class="prose">
+                <p>Husdjur får endast tas med efter överenskommelse med Åkerögården.</p>
+                <p>Assistanshundar hanteras i enlighet med tillämpliga regler.</p>
+                <p>
+                    Gruppen bör meddela behov av assistanshund eller annat särskilt behov redan vid
+                    bokningen så att lämpliga praktiska arrangemang kan göras.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">22. Tillgänglighet och särskilda behov</h2>
+            <div class="prose">
+                <p>
+                    Beställaren bör redan vid bokningen informera Åkerögården om kända behov
+                    beträffande exempelvis:
+                </p>
+                <ul>
+                    <li>fysisk tillgänglighet,</li>
+                    <li>rörelsehinder,</li>
+                    <li>särskilda boendebehov,</li>
+                    <li>hjälpmedel,</li>
+                    <li>eller andra praktiska anpassningar.</li>
+                </ul>
+                <p>
+                    Åkerögården försöker så långt det är möjligt och rimligt att hitta lämpliga
+                    lösningar men kan inte garantera anpassningar som inte har överenskommits i
+                    förväg.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">23. Parkering</h2>
+            <div class="prose">
+                <p>Parkering sker på anvisade platser.</p>
+                <p>
+                    Utrymningsvägar, infarter och områden som måste vara tillgängliga för ambulans,
+                    räddningstjänst och andra utryckningsfordon får aldrig blockeras.
+                </p>
+                <p>Fordon och egendom som lämnas i fordon är ägarens ansvar.</p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">24. Foto och film</h2>
+            <div class="prose">
+                <p>Alla gästers personliga integritet ska respekteras.</p>
+                <p>
+                    Fotografering eller filmning av andra grupper eller enskilda personer bör inte
+                    ske utan deras medgivande.
+                </p>
+                <p>
+                    Professionell fotografering, reklamproduktion, kommersiell filmning,
+                    livestreaming eller annan medieproduktion på Åkerögårdens område kräver särskilt
+                    tillstånd.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">25. Kommersiell verksamhet</h2>
+            <div class="prose">
+                <p>
+                    Lokaler och boenden får inte vidareuthyras eller säljas vidare av beställaren
+                    utan Åkerögårdens skriftliga godkännande.
+                </p>
+                <p>
+                    Försäljning, marknadsföring, kommersiella aktiviteter, insamlingar eller andra
+                    aktiviteter riktade till externa besökare kräver godkännande i förväg.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">26. Personuppgifter</h2>
+            <div class="prose">
+                <p>
+                    Åkerögården behandlar personuppgifter som behövs för att administrera bokningar,
+                    kommunicera med beställare och gäster, tillhandahålla beställda tjänster, hantera
+                    fakturering och uppfylla rättsliga skyldigheter.
+                </p>
+                <p>
+                    Personuppgifter behandlas i enlighet med EU:s dataskyddsförordning (GDPR) och
+                    svensk dataskyddslagstiftning.
+                </p>
+                <p>
+                    När gruppledare lämnar uppgifter om andra deltagare ansvarar beställaren för att
+                    deltagarna har informerats om att uppgifterna lämnas till Åkerögården.
+                </p>
+                <p>
+                    Närmare information finns i Åkerögårdens
                     <a href="/integritetspolicy">integritetspolicy</a>.
                 </p>
             </div>
         </div>
 
         <div class="legal-block">
-            <h2 class="subhead">9. Tvist</h2>
+            <h2 class="subhead">27. Om Åkerögården måste ändra eller ställa in</h2>
             <div class="prose">
-                <p class="legal-note">
-                    <b>Kompletteras innan publicering:</b> tillämplig lag, samt hänvisning till
-                    Allmänna reklamationsnämnden (ARN) om bokningar görs av privatpersoner i egenskap
-                    av konsument.
+                <p>
+                    I undantagsfall kan Åkerögården behöva ändra eller ställa in ett arrangemang på
+                    grund av omständigheter som ligger utanför Åkerögårdens rimliga kontroll.
+                </p>
+                <p>Det kan exempelvis gälla:</p>
+                <ul>
+                    <li>brand eller allvarlig skada på anläggningen,</li>
+                    <li>större tekniskt fel,</li>
+                    <li>myndighetsbeslut,</li>
+                    <li>allvarlig smittspridning,</li>
+                    <li>extremt väder,</li>
+                    <li>naturkatastrof,</li>
+                    <li>omfattande el- eller vattenavbrott,</li>
+                    <li>eller annan händelse som gör vistelsen omöjlig eller osäker.</li>
+                </ul>
+                <p>
+                    Åkerögården ska i sådana fall informera beställaren så snart som möjligt och
+                    försöka erbjuda ombokning eller annan rimlig lösning.
+                </p>
+                <p>
+                    Om Åkerögården inte kan tillhandahålla den bokade tjänsten återbetalas normalt
+                    den del som inte har kunnat tillhandahållas, om inte annat följer av lag eller
+                    överenskommelse.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">28. Rätt att avbryta en vistelse</h2>
+            <div class="prose">
+                <p>
+                    Åkerögården har rätt att kräva att en person lämnar området om personen:
+                </p>
+                <ul>
+                    <li>allvarligt stör andra gäster;</li>
+                    <li>hotar eller utsätter andra för våld eller trakasserier;</li>
+                    <li>använder eller innehar illegala droger;</li>
+                    <li>medvetet skadar egendom;</li>
+                    <li>äventyrar brandsäkerheten;</li>
+                    <li>upprepade gånger vägrar följa rimliga säkerhetsinstruktioner;</li>
+                    <li>eller på annat allvarligt sätt bryter mot dessa villkor.</li>
+                </ul>
+                <p>
+                    Vid särskilt allvarliga eller upprepade överträdelser kan Åkerögården avbryta
+                    hela gruppens vistelse.
+                </p>
+                <p>
+                    Sådana beslut ska fattas proportionerligt och med hänsyn till omständigheterna.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">29. Reklamation</h2>
+            <div class="prose">
+                <p>
+                    Om beställaren eller en deltagare anser att det finns ett fel eller en brist i
+                    boendet eller någon annan beställd tjänst ska detta meddelas Åkerögården så snart
+                    som möjligt.
+                </p>
+                <p>
+                    Åkerögården ska ges rimlig möjlighet att rätta till problemet under vistelsen.
+                </p>
+                <p>
+                    Krav som framställs först efter avslutad vistelse kan vara svårare att bedöma om
+                    Åkerögården inte tidigare fått möjlighet att undersöka eller åtgärda problemet.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">30. Ansvarsbegränsning</h2>
+            <div class="prose">
+                <p>
+                    Åkerögården ansvarar för sina skyldigheter enligt bokningen och tillämplig svensk
+                    lag.
+                </p>
+                <p>
+                    Åkerögården ansvarar inte för indirekta skador eller förluster som ligger utanför
+                    vad Åkerögården rimligen kunnat förutse eller påverka, i den mån sådan
+                    ansvarsbegränsning är tillåten enligt svensk lag.
+                </p>
+                <p>
+                    Ingenting i dessa villkor begränsar ansvar som enligt tvingande lag inte får
+                    begränsas.
+                </p>
+                <p>
+                    Beställaren ansvarar själv för att gruppen har de försäkringar som är lämpliga
+                    för det aktuella arrangemanget och dess aktiviteter.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">31. Svensk lag och tvist</h2>
+            <div class="prose">
+                <p>Svensk lag tillämpas på bokningen och dessa villkor.</p>
+                <p>
+                    Vid eventuell tvist ska parterna i första hand försöka lösa frågan genom dialog.
+                </p>
+                <p>
+                    Om beställaren är konsument kan tvisten, när förutsättningarna för detta är
+                    uppfyllda, prövas av <b>Allmänna reklamationsnämnden (ARN)</b>.
+                </p>
+                <p>I annat fall prövas tvisten av behörig svensk allmän domstol.</p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">32. Ändringar av villkoren</h2>
+            <div class="prose">
+                <p>
+                    Åkerögården kan uppdatera dessa villkor när verksamheten eller lagstiftningen
+                    förändras.
+                </p>
+                <p>
+                    För en redan bekräftad bokning gäller normalt den version av villkoren som
+                    accepterades när bokningen ingicks, om inte parterna skriftligen kommer överens
+                    om något annat.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">33. Godkännande av villkoren</h2>
+            <div class="prose">
+                <p>
+                    Genom att slutföra bokningen bekräftar beställaren att han eller hon:
+                </p>
+                <ul>
+                    <li>har tagit del av bokningsinformationen;</li>
+                    <li>har läst och accepterat dessa boknings- och vistelsevillkor;</li>
+                    <li>har rätt att göra bokningen för gruppens räkning;</li>
+                    <li>
+                        samt ansvarar för att relevanta delar av villkoren kommuniceras till gruppens
+                        deltagare.
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">Kontakt</h2>
+            <div class="prose">
+                <p>
+                    Åkerögården — Kaldeiska kyrkans lägergård<br />
+                    Åkerövägen 81, 761 94 Norrtälje, Sverige<br />
+                    Telefon: +46 760 602 035<br />
+                    E-post: <a href="mailto:info@akerogarden.se">info@akerogarden.se</a><br />
+                    Organisationsnummer: 815601-0129
                 </p>
             </div>
         </div>

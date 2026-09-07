@@ -104,18 +104,39 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         // The cookie assessment lives here rather than in a separate notice, and the page must
         // stay consistent with it: only strictly-necessary cookies, so no consent banner exists.
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "7. Kakor (cookies)" })).ToBeVisibleAsync();
+
+        // Same guard as on the terms page: the "not yet legally reviewed" banner was removed on
+        // 2026-09-07 and must not come back. No jurist review is coming, so a banner here would sit
+        // on the live site telling every visitor the site's own privacy policy is unreviewed.
+        await Assertions.Expect(Page.Locator(".legal-draft")).ToHaveCountAsync(0);
     }
 
     [Fact]
     public async Task Booking_terms_are_published_and_reachable_from_the_footer_and_the_inquiry_form()
     {
-        // The terms carry the 20% deposit and the two-month cancellation rule. A term the guest was
-        // never shown is hard to enforce, so "published" here means all three routes to it hold:
-        // the page itself, the footer, and the point of acceptance (C1, decided 2026-08-17).
+        // The terms carry the payment and cancellation rules the property has to be able to hold a
+        // guest to. A term the guest was never shown is hard to enforce, so "published" here means
+        // all three routes to it hold: the page itself, the footer, and the point of acceptance
+        // (C1, decided 2026-08-17).
+        //
+        // The headings below are the client's own document (docs/legal/klientsvar.md), adopted
+        // 2026-08-23, which replaced our draft — hence "vistelsevillkor" rather than the draft's
+        // "ordningsvillkor", and §6/§7 rather than the draft's §2/§3. The cancellation rule here is
+        // a percentage-of-value scale, NOT the 20% deposit this test used to name; the emails still
+        // state the old rule and that divergence is knowingly carried
+        // (docs/legal/known-conflicts-at-launch.md).
         await Page.GotoAsync("/bokningsvillkor");
-        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Boknings- och ordningsvillkor" })).ToBeVisibleAsync();
-        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "2. Handpenning och betalning" })).ToBeVisibleAsync();
-        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "3. Avbokning" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Boknings- och vistelsevillkor" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "6. Betalning" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "7. Avbokning av hela arrangemanget" })).ToBeVisibleAsync();
+
+        // The page must be a finished document, not a draft. Both of these were live on the page
+        // until 2026-09-07: six "Kompletteras innan publicering" notes standing in for clauses the
+        // client had not answered, and a banner saying the text was not legally reviewed. There is
+        // no jurist review coming, so neither may return — a placeholder or that banner on the
+        // public site is exactly what this page must never ship again.
+        await Assertions.Expect(Page.GetByText("Kompletteras innan publicering")).ToHaveCountAsync(0);
+        await Assertions.Expect(Page.Locator(".legal-draft")).ToHaveCountAsync(0);
 
         // From the footer of an unrelated page.
         await Page.GotoAsync("/om-oss");

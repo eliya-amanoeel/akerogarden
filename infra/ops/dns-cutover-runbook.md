@@ -45,16 +45,25 @@ ADMIN_DEFAULT   = jmk-ag-prod-admin.azurewebsites.net   # admin site default hos
 
 In the one.com DNS panel, lower the TTL on the records you're about to change (apex `A`, `www`) to something short (e.g. 300s/5 min), and let the old TTL expire before proceeding. This bounds how long clients can be stuck resolving the old WordPress IP after cutover. Do this **the day before**, not the day of.
 
+> **What actually happened at the production cutover (2026-09-07): this step was skipped entirely, and it did not matter.** The apex records were never editable in the first place (see Part C), so there was no TTL to lower — the new root `A` was *created* with its own TTL, and one.com's minimum is **600s, not 300**. Every public resolver (Cloudflare, Google, Quad9) returned the new address within seconds of the create, because the implicit record being replaced had never been cached under an explicit name. **Do not treat Part A as a blocker.** Lower the TTLs if there are editable records to lower; if there are not, proceed and measure propagation directly.
+
 ---
 
 ## Part B — Get the Azure-side target values
 
 Prod must exist (Bicep deployed) before this step — these values come from the live resource.
 
+> ⚠️ **`inboundIpAddress` returns `null` in this subscription — do not wait for it to populate.** Verified 2026-09-07 against both prod apps *and* against staging, which has a working bound custom domain: `inboundIpAddress`, `possibleInboundIpAddresses` and `virtualIp` are all `null` regardless of binding state. This is not a "bind the hostname first" ordering problem. **Get the address from DNS instead** — resolve the app's default hostname, which is the scale unit's inbound VIP and is exactly what the apex `A` record needs.
+
 ```bash
-# App Service inbound IP for the apex A record (both sites share the plan's inbound IP;
-# query the public site since the apex binds there)
-az webapp show -g $RG -n $PUBLIC_APP --query inboundIpAddress -o tsv
+# Apex A-record target. Resolve the default hostname — the ARM property is null here (see above).
+# Both prod sites share one B1 plan, so this single address serves the apex and the admin host.
+dig +short jmk-ag-prod-public.azurewebsites.net | tail -1
+#   → 51.12.73.224 at the 2026-09-07 cutover. Re-resolve; it can change if the app is
+#     recreated or moved to another scale unit.
+
+# Cross-check (should contain the value above):
+az webapp show -g $RG -n $PUBLIC_APP --query outboundIpAddresses -o tsv
 
 # Custom Domain Verification ID for both asuid TXT records. This is SUBSCRIPTION-scoped, so it is
 # the SAME value for apex, admin, and every site in the subscription — one value covers both records.
@@ -78,7 +87,27 @@ An apex domain cannot use `CNAME` (DNS spec restriction), so apex and subdomain 
 
 Leave existing `MX`/`SPF`/`DKIM`/`DMARC`/mailbox records untouched.
 
-**Do not delete the old WordPress `A`/`www` records yet** — see Part F (soak period).
+> ### ⚠️ The apex `A`, `AAAA`, `www` and `MX` records are NOT in one.com's DNS list — and there is nothing to edit or delete
+>
+> Discovered at the production cutover, 2026-09-07. one.com's **"Personal DNS settings"** list shows only records a human added by hand — at that point the two staging `CNAME`s, `SPF`, `DMARC` and the four `asuid` `TXT`s. The apex `A`, the apex `AAAA`, `www` and `MX` all resolved publicly but appeared **nowhere in the panel**: they are managed implicitly by one.com's web-hosting and mail services.
+>
+> **So "change the apex A record" is impossible as written.** What works instead:
+>
+> **Create a new root `A` record.** In `Create new record` → `A` tab, **leave the Hostname field empty** (the form says this creates the record at the root of the domain), point it at the Part B address, TTL 600 (one.com's minimum — it rejects 300).
+>
+> **Creating it displaces one.com's implicit records — including the `AAAA`.** This is the important part and the happiest surprise of the cutover: immediately after the create, `dig @ns01.one.com akerogarden.se AAAA` returned **empty**. No separate deletion step was needed, and no IPv6 traffic was left stranded on WordPress.
+>
+> **But verify it, every time.** The apex `AAAA` is the single most dangerous record in this cutover: leave one pointing at the old host and every dual-stack client — most mobile networks — silently keeps reaching WordPress over IPv6 while you stare at a correct `A` record. Always confirm:
+>
+> ```bash
+> dig +short @ns01.one.com akerogarden.se A      # → the Azure address
+> dig +short @ns01.one.com akerogarden.se AAAA   # → MUST be empty
+> dig +short @ns01.one.com akerogarden.se MX     # → must still list the one.com mailpods
+> ```
+>
+> Query the **authoritative** nameserver (`@ns01.one.com`), not your local resolver. A macOS resolver returned empty for the apex `A` during pre-flight while `@1.1.1.1` answered correctly — nearly mistaken for "the record does not exist".
+
+**Do not delete the old WordPress `A`/`www` records yet** — see Part F (soak period). *(At the 2026-09-07 cutover there were none to delete: the apex was displaced automatically, and `www` was replaced by the Part E web forward.)*
 
 > **The two `asuid` `TXT` records should already be in place** — they are staged early, back in **Phase 10c**, because they only prove domain ownership and carry no traffic, so adding them cannot affect the still-live WordPress site. Pre-staging them means Azure's ownership check is already satisfied when the `A`/`CNAME` flip here, and certificate issuance in Part D starts immediately instead of waiting on TXT propagation inside the cutover window. If they are missing, add them now and allow for propagation before Part D. **The `A` and `CNAME` records are the only genuinely destructive edits in this runbook** — they are what moves live traffic.
 
@@ -114,12 +143,46 @@ admin.akerogarden.se}`. No edit needed at cutover — just run the deployment ab
 > under a different site, `ssl.bicep` fails with `CanonicalName is invalid … duplicate certificate` —
 > `az resource delete … Microsoft.Web/certificates` the stale cert first. Not expected for a
 > born-fresh prod (no prior site owns these hostnames), but watch for it on any re-point.
+>
+> ---
+>
+> **Production result, 2026-09-07 — clean run, ~4 minutes.** `provisioningState: Succeeded`, both
+> certificates created and both bindings updated to `SniEnabled` in one deployment. **The ARM
+> multi-hostname `for`-loop Conflict that Phase 10a hit did not recur**, and no manual
+> `az webapp config ssl bind` fallback was needed — budget for it, but don't expect it.
+>
+> **Expect a few minutes of lag between "Succeeded" and the certificate actually being served.**
+> Immediately after the deployment the apex served its new cert correctly while
+> `admin.akerogarden.se` was still being handed Azure's default `*.azurewebsites.net` cert, and two
+> public routes returned connection failures. Both resolved on their own within a couple of minutes
+> — the SNI binding propagating to the front ends. **Do not start deleting certificates or
+> re-running the deployment on the strength of a probe taken seconds after it completes.** Re-measure
+> first:
+>
+> ```bash
+> echo | openssl s_client -connect admin.akerogarden.se:443 -servername admin.akerogarden.se 2>/dev/null \
+>   | openssl x509 -noout -subject -dates
+> # want: subject= /CN=admin.akerogarden.se — NOT /CN=*.azurewebsites.net
+> ```
 
 ---
 
 ## Part E — `www` → apex redirect
 
-The implementation plan requires apex-canonical with `www` 301-redirecting to it. One.com's DNS panel typically offers a **URL forward/redirect** feature for `www` (redirect-type record, not a real `CNAME`) — set `www.akerogarden.se` → `https://akerogarden.se` (301) there, rather than trying to point `www` at Azure. Confirm one.com's panel supports this before the cutover window; if it doesn't, this needs an App Service-level rewrite rule instead (would require adding `www.akerogarden.se` as a bound + certificated hostname too).
+The implementation plan requires apex-canonical with `www` 301-redirecting to it. One.com's DNS panel offers this as the **`Web forward`** tab in `Create new record` — set `www.akerogarden.se` → `https://akerogarden.se` there, rather than trying to point `www` at Azure.
+
+> **Confirmed working, 2026-09-07.** Hostname `www`, "Will direct to" `https://akerogarden.se`. The form offers **no redirect-type choice**, so the behaviour has to be measured afterwards rather than configured. What it produced:
+>
+> ```
+> www A        195.47.247.18   (one.com's forward service — not the old hosting IP)
+> www AAAA     gone
+> http://www   → 307 → https://www
+> https://www  → 308 → https://akerogarden.se
+> ```
+>
+> **A 308, not the 301 the plan specifies** — the permanent redirect that preserves the request method. Search engines treat 308 and 301 identically for canonicalisation, so this satisfies the requirement; don't chase the literal 301. It is **not** a masked/frame forward (the address bar lands on the apex, which is what canonicalisation needs), and one.com terminates TLS for `www` itself, so there is no certificate error on the way through and `www` never needs binding in Azure.
+>
+> Verify with `curl -sIL https://www.akerogarden.se` and check `url_effective` ends at the apex. If a future change makes it a frame or a 302, bind `www.akerogarden.se` in Azure as a third hostname (with its own managed cert) and redirect at the app instead.
 
 ---
 
@@ -159,6 +222,35 @@ Confirm `select count(*) from "Bookings";` returns **0** before announcing go-li
 ## Record the result
 
 Log: date/time of cutover, DNS propagation confirmation method used, SSL binding confirmed (both hostnames), base-URL flip + magic-link re-verify done, test-data cleanup confirmed (0 bookings), WordPress decommission date. This closes out the Phase 10d exit criterion "production reachable on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex."
+
+### ✅ Production cutover — 2026-09-07
+
+**`akerogarden.se` went live on Azure at ~19:00 UTC.** Verified 19:18 UTC.
+
+| Check | Result |
+|---|---|
+| apex `A` | `51.12.73.224` (prod scale unit) |
+| apex `AAAA` | **none** — displaced automatically by the root `A` create |
+| `admin` `CNAME` | `jmk-ag-prod-admin.azurewebsites.net` |
+| `www` | `195.47.247.18` → **308** → `https://akerogarden.se` |
+| `MX` / `SPF` / `DMARC` | untouched throughout — 4 MX records, SPF intact |
+| Certificates | `CN=akerogarden.se` and `CN=admin.akerogarden.se`, GeoTrust, valid to 2027-03-07 |
+| Public routes | all 9 return 200 over HTTPS on the apex |
+| Admin | 302 to login |
+| Base URLs | flipped to the real domains on both apps |
+| Magic link | re-verified end to end — inquiry → approval → email → `https://akerogarden.se/slutfor/…` → completion form submitted |
+| Test data | `DELETE FROM "Bookings"` run; reference data retained |
+| WordPress | **still powered, unlinked — soak in progress. Not yet decommissioned.** |
+
+**Order actually used:** bind hostnames → DNS records → `ssl.bicep` → `www` forward → base-URL flip → magic-link test → data cleanup. Binding the hostnames *before* touching DNS worked exactly as Part D describes: the pre-staged `asuid` TXT records satisfy ownership, so both bindings succeeded while the apex still pointed at WordPress.
+
+**Part A (lower TTLs a day ahead) was skipped and it cost nothing** — see the note there. Propagation was effectively instant.
+
+**Still open after cutover:**
+
+- **WordPress hosting not yet decommissioned** (Part F step 3) — deliberate, soak first. When doing it, retire the *web hosting only*; the DNS zone, registration and every mail record stay.
+- The `www` forward is a 308, not the 301 the implementation plan names. Equivalent for canonicalisation; the plan's wording is what's imprecise, not the configuration.
+- Unrelated to DNS but pending at go-live: the eight client questions in `docs/legal/`, and the email/terms cancellation divergence recorded in `docs/legal/known-conflicts-at-launch.md`.
 
 ---
 

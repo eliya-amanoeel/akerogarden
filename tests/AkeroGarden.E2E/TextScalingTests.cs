@@ -380,10 +380,42 @@ public class AdminTextScalingTests(E2EFixture fixture) : AdminE2ETestBase(fixtur
         var rail = Page.Locator(".detail-grid .detail-rail");
         await Assertions.Expect(rail).ToBeVisibleAsync();
 
+        // Wait for the interactive render to SETTLE before reading any layout. This is the admin
+        // host — Interactive Server — so the prerendered markup is thrown away and replaced when
+        // the circuit connects, and `ToBeVisibleAsync` above can be satisfied by the node that is
+        // about to be discarded. Both failure modes seen on 2026-09-07 are that one race:
+        //
+        //   • CI, reading via `document.querySelector` at eval time: the query landed during the
+        //     swap and returned null — "Failed to execute 'getComputedStyle' on 'Window':
+        //     parameter 1 is not of type 'Element'".
+        //   • Locally, reading via a locator handle: the handle resolved to the pre-swap node,
+        //     which was detached by the time the script ran, and a detached node's computed style
+        //     is "" for every property — so the assertion saw an empty string, not "sticky".
+        //
+        // Holding a handle and re-querying are therefore both wrong; the fix is to not read until
+        // the DOM has stopped changing. This mirrors the lesson already recorded in
+        // AdminTests.cs ("NetworkIdle is not a readiness signal on an Interactive Server page…
+        // wait for the placeholder to clear — the actual condition"). Same signature there and
+        // here: passes locally, fails on the slower CI agent.
+        //
+        // The wait condition is deliberately *attachment and styling* — a non-empty computed
+        // position — and NOT `position === 'sticky'`. Waiting for the value this test exists to
+        // assert would make the assertion vacuous: it would spin until true, then "verify" it.
+        await Assertions.Expect(Page.Locator(".admin-empty", new() { HasText = "Laddar…" }))
+            .ToHaveCountAsync(0, new() { Timeout = 15000 });
+        await Page.WaitForFunctionAsync(
+            @"() => {
+                const el = document.querySelector('.detail-grid .detail-rail');
+                return !!el && el.isConnected && getComputedStyle(el).position !== '';
+            }",
+            null,
+            new() { Timeout = 15000 });
+
         // Guard the viewport choice above: if the shell has collapsed, the rail is static by
-        // design and every assertion below would be testing the wrong layout.
+        // design and every assertion below would be testing the wrong layout. Read with a fresh
+        // query at eval time (not a stored handle), now that the DOM has settled.
         Assert.Equal("sticky", await Page.EvaluateAsync<string>(
-            "() => getComputedStyle(document.querySelector('.detail-rail')).position"));
+            "() => getComputedStyle(document.querySelector('.detail-grid .detail-rail')).position"));
 
         // The browser setting really did apply to this host, not just to the public one.
         Assert.Equal(TextScaling.LargeRootPx, await TextScaling.RootFontSizePxAsync(Page), 0);
@@ -401,8 +433,8 @@ public class AdminTextScalingTests(E2EFixture fixture) : AdminE2ETestBase(fixtur
         // offset. Fail loudly rather than verify nothing — this is exactly what made the first
         // version of this test report a defect that was not there.
         var travel = await Page.EvaluateAsync<double>(@"() => {
-            const grid = document.querySelector('.detail-grid');
-            const rail = document.querySelector('.detail-rail');
+            const rail = document.querySelector('.detail-grid .detail-rail');
+            const grid = rail.closest('.detail-grid');
             return grid.getBoundingClientRect().height - rail.getBoundingClientRect().height;
         }");
         Assert.True(travel > 40,
@@ -412,11 +444,11 @@ public class AdminTextScalingTests(E2EFixture fixture) : AdminE2ETestBase(fixtur
         // Scroll to the middle of the sticky range: past the point where sticking begins, but
         // well short of exhausting it.
         await Page.EvaluateAsync(@"() => {
-            const rail = document.querySelector('.detail-rail');
+            const rail = document.querySelector('.detail-grid .detail-rail');
             const se = document.scrollingElement;
             const stickyTop = parseFloat(getComputedStyle(rail).top);
             const railDocTop = rail.getBoundingClientRect().top + se.scrollTop;
-            const grid = document.querySelector('.detail-grid');
+            const grid = rail.closest('.detail-grid');
             const travel = grid.getBoundingClientRect().height - rail.getBoundingClientRect().height;
             se.scrollTop = railDocTop - stickyTop + travel / 2;
         }");
@@ -429,7 +461,7 @@ public class AdminTextScalingTests(E2EFixture fixture) : AdminE2ETestBase(fixtur
 
         // It is genuinely stuck (pinned at its sticky offset, not merely scrolled past)…
         var stickyTop = await Page.EvaluateAsync<double>(
-            "() => parseFloat(getComputedStyle(document.querySelector('.detail-rail')).top)");
+            "() => parseFloat(getComputedStyle(document.querySelector('.detail-grid .detail-rail')).top)");
         Assert.InRange(box!.Y, stickyTop - 1.5, stickyTop + 1.5);
 
         // …and while stuck it sits clear of the topbar rather than under it.

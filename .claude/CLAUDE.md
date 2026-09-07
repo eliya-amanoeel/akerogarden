@@ -34,8 +34,8 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 | `docs/product/erd.md` | Mermaid entity-relationship diagram (15 app entities) |
 | `docs/product/architecture.md` | Mermaid app-level architecture diagram — public/admin surfaces, hosting, external services, tech stack |
 | `docs/product/booking-lifecycle-timeline.md` | Mermaid lifecycle diagrams — status transitions and their emails, what the nightly run decides, and five dated approval scenarios showing every completion-link issuance outcome and expiry. Draws the rules in §2.5/2.6/2.7/§9; the SRS remains authoritative |
-| `docs/product/implementation-plan.md` | **Nearly spent, by design.** Phases 0–10c are done and were collapsed to a summary table on 2026-08-15; what remains live is **10d (the cutover, gated on the jurist review)** and the open Phase 11 items. Answers only "what order was it built in, what is left" — for current truth read the SRS. **Delete it when 10d closes and the Phase 11 items are done or moved to `requirements.md` §10** |
-| `docs/review/demo-feedback-2026-08-05.md` | Decision record for the client demo held 2026-08-05: every change request, the decision taken on each *and its reasoning*, two design corrections of our own (§7), and a conflict audit against the implementation (§8). Not a phase — it runs inside the window where 10d is blocked on the jurist, but lands **before** the cutover. Authoritative on this scope; the SRS carries the resulting requirements |
+| `docs/product/implementation-plan.md` | **Nearly spent, by design.** Phases 0–10d are done — the site went live 2026-09-07 — and each was collapsed to a summary table row as it closed. **The only thing live is Phase 11**, which carries six items inherited from 10d. Answers only "what order was it built in, what is left" — for current truth read the SRS. **Delete it once the Phase 11 items are done or moved to `requirements.md` §10** — that is now one phase away |
+| `docs/review/demo-feedback-2026-08-05.md` | Decision record for the client demo held 2026-08-05: every change request, the decision taken on each *and its reasoning*, two design corrections of our own (§7), and a conflict audit against the implementation (§8). Not a phase — it ran inside the window when 10d was still believed to be blocked on a jurist review, and landed before the 2026-09-07 cutover. Authoritative on this scope; the SRS carries the resulting requirements |
 | `docs/ux/design.md` | Visual design tokens, CSS classes, logo usage |
 | `infra/ops/dns-cutover-runbook.md` | DNS + one.com cutover steps for both Phase 10a (staging, client tenant) and Phase 10d (production, WordPress retirement) |
 
@@ -97,10 +97,11 @@ A test must honestly verify the real behaviour it claims to. Never shape a test 
 
 ## Implementation phases
 
-**Phases 0–10c are done and merged.** What is left:
+**🚀 THE SITE IS LIVE.** `akerogarden.se` cut over to Azure on **2026-09-07**. **Phases 0–10d are done.** What is left:
 
-- **10d — cutover & launch.** DNS + SSL binding, one.com/WordPress retirement, base-URL flip + final deploy, re-apply Bicep to close drift, go-live checklist, and re-inviting the admin accounts. **Gated on the jurist review of the Swedish legal text** — that is the long pole, and it is external, not engineering.
-- **11 — post-production hardening & handover**, open-ended and blocking nothing outside itself. The open items are listed in the plan's "Still open" section — read them there rather than from a summary, which is how this line came to name four of them and omit the one marked blocking.
+- **11 — post-production hardening & handover**, open-ended. The open items are listed in the plan's "Still open" section — **read them there rather than from a summary**, which is how this line previously came to name four of them and omit the one marked blocking. Six of them were **inherited from 10d at launch**, including one marked blocking (an admin-created booking obtains no acknowledgement of anything) and re-applying Bicep, which was a 10d deliverable that never ran — production's `main` deployment is still from 2026-07-20.
+
+> **The jurist review is not happening and never will be.** Any statement anywhere that 10d is "gated on the jurist review of the Swedish legal text" is **dead** — that was true for weeks and stopped being true on 2026-09-07. The client replaced the terms document instead of answering our questions, no review was commissioned, and the decision to launch without one was taken with the consequences stated and accepted. **`docs/legal/known-conflicts-at-launch.md` is the authority** on what was knowingly carried across the line — read it before touching anything legal, and do not re-raise the accepted risks.
 
 Detail, exit criteria and what each earlier phase delivered are in `docs/product/implementation-plan.md`. Don't restate the phase list here — it duplicated the plan, and two of its entries had gone stale (Phase 4 still claimed room assignment after FR-56 was withdrawn; Phase 6 still said "Figma-first", when HTML-mockup-first was what actually happened).
 
@@ -116,7 +117,7 @@ Detail, exit criteria and what each earlier phase delivered are in `docs/product
 
 ## Phase completion gate
 
-**Before merging any phase branch to main**, run a structured evaluation pass against all deliverables for that phase. With phases 0–10c closed, this now applies to **10d** and to any **Phase 11** item large enough to get its own branch — 10d is the one that still carries written exit criteria in the plan. It is *not* required for ordinary fix/chore branches.
+**Before merging any phase branch to main**, run a structured evaluation pass against all deliverables for that phase. With phases 0–10d closed, this now applies to any **Phase 11** item large enough to get its own branch. It is *not* required for ordinary fix/chore branches. **Production now serves real guests**, so a finding that would once have been "fix before launch" is now a live defect — weigh them accordingly.
 
 The pass must check:
 

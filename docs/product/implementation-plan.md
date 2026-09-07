@@ -9,15 +9,21 @@
 ## How to use this plan
 
 > ⚠️ **This document is nearly spent, and that is deliberate.** Everything up to and including
-> Phase 10c is finished, and on 2026-08-15 those sections were collapsed to a summary table —
-> the narrative had started to *contradict* the system it described, which makes it worse than
-> useless. What is left live is **Phase 10d** (the cutover) and the open **Phase 11** items.
+> **Phase 10d is finished** — the site went live on 2026-09-07 — and each of those sections was
+> collapsed to a summary table row as it closed, because the narrative had started to *contradict*
+> the system it described, which makes it worse than useless. **The only thing live here is
+> Phase 11.**
 >
 > **For current truth always read `requirements.md`.** This file answers only "what order was
-> it built in, and what is left". When 10d closes and the Phase 11 items are done or moved to
-> `requirements.md` §10, nothing live remains here and the file should be **deleted**, not
-> frozen — `git log --follow` is the archive, and `requirements-changelog.md` already exists for
-> anything that genuinely needs a frozen home.
+> it built in, and what is left". **When the Phase 11 items are done or moved to
+> `requirements.md` §10, nothing live remains and this file should be DELETED**, not frozen —
+> `git log --follow` is the archive, and `requirements-changelog.md` already exists for anything
+> that genuinely needs a frozen home. That is now one phase away.
+>
+> **Phase 11 carries six items inherited from 10d** (listed first under "Still open"). The site is
+> live, so several of them changed character on launch day rather than merely moving: the missing
+> CSP now protects real visitors rather than staging, and the admin-created-booking gap now affects
+> real guests. Do not treat them as leftovers.
 
 - Phases are **dependency-ordered** — each builds on the one before. Don't start a phase until the prior phase's exit criteria are met.
 - Every requirement ID (FR-xx / NFR-xx) traces back to requirements.md. If a phase seems to conflict with the SRS, the **SRS wins** — raise it, don't silently diverge.
@@ -34,7 +40,7 @@
 
 ---
 
-## What shipped, phases 0 – 10c  ✅ all complete and merged
+## What shipped, phases 0 – 10d  ✅ all complete and merged
 
 Collapsed on 2026-08-15. These phases were narrated at ~117 KB while they were being built; that
 narrative is now **history, not truth**, and several parts of it had gone stale (the 2026-08
@@ -65,61 +71,42 @@ explains.
 | **10a** Staging re-provisioning | 2026-07-16 | Staging rebuilt inside the **client's** tenant, `jmk-ag-staging-*` naming; CI/CD migrated GitHub Actions → Azure DevOps | — |
 | **10b** Public/admin separation | 2026-07-17 | FR-70 made structurally true: three projects, **two App Service sites on one B1 plan**. Single-app host gating was attempted first and reversed — see `architecture.md` | **FR-70** · reinforces NFR-01/02 |
 | **10c** Production pre-stage | 2026-07-21 | Production provisioned, deployed, verified on `*.azurewebsites.net` — restore drill and SPF/DKIM/DMARC deliverability both passed. Left running. **Never gone live** | NFR-31 · NFR-12/29 |
+| **10d** Cutover & launch | 2026-09-07 | **`akerogarden.se` went live on Azure.** Root `A` + `admin` CNAME at one.com, hostnames bound, managed SSL on both hosts, `www` 308→apex, base-URL flip, magic link re-verified end to end, test bookings cleared. Legal text published **without** a jurist review — that gate was cancelled, not met; see below and `docs/legal/known-conflicts-at-launch.md`. Outstanding work moved to Phase 11 | NFR-20–24 · residual go-live (reachability, managed SSL) |
 | **Demo feedback** *(not a phase)* | 2026-08-10 | Group-level meals, building-instead-of-room assignment, `Samordnare` role, guest-stated check-in/out times, two turnover days, payment tracking removed, deferred link issuance at 40 days. Authority: `docs/review/demo-feedback-2026-08-05.md` | see that document |
 
 ---
-## Phase 10d — Cutover & launch
+## Phase 10d — Cutover & launch  ✅ closed 2026-09-07
 
-**Goal:** flip the domain and go live. Deliberately short and scripted — every item below is fast and rehearsed, because everything slow was completed in 10c.
+**`akerogarden.se` is live on Azure.** Collapsed the day it closed, for the same reason as the
+phases above: the section had grown to ~50 lines describing a pre-launch state — draft banners,
+`[ATT BEKRÄFTA]` placeholders, a pending questionnaire, a jurist review — none of which exists any
+more. Keeping it would have left the plan contradicting the running system, which is the failure
+mode this document has already had once.
 
-**Depends on:** Phase 10c complete. In particular, go-live must not be scheduled until the legal text is jurist-signed — that review is the long pole and it gates this phase, not 10c's engineering work.
+**What shipped** is the table row above. **The cutover record** — every DNS value, the certificate
+state, and four corrections to the runbook that the live cutover disproved — is in
+`infra/ops/dns-cutover-runbook.md` under "Production cutover — 2026-09-07". Read that before any
+future DNS work.
 
-**Scope & deliverables:**
-
-- **Privacy-policy + booking-terms legal text jurist-reviewed and live (moved from 10c, decision 2026-07-20).** **Drafts exist** at `docs/legal/Integritetspolicy.md` and `docs/legal/Boknings-och-ordningsvillkor.md` (started 2026-07-11 — see `[[project-legal-documents]]`), grounded in the real controller identity (Kaldeiska katolska Mar Narsay Missionen i Södertälje, org.nr 815601-0129, trading as Åkerögården) and the actual retention logic (§2.7/FR-67–91). Both **must be reviewed by a Swedish jurist before publish** — a first draft from an AI assistant is not a substitute for legal sign-off, given GDPR/IMY exposure and Swedish consumer-contract law on the cancellation terms. **This is the phase's long pole** — deliberately done just before go-live rather than early, and it gates the launch (NFR-20–24). The legal text itself has no DNS dependency; it sits in 10d only because the client chose to run the jurist review immediately before launch.
-
-  **State as of 2026-08-16.** The privacy policy is **gap-free and wired into the site** — `PrivacyPolicy.razor` renders the full document (controller, art. 6 legal-basis table, art. 9 allergy treatment, sub-processors, the §2.7 retention table, IMY), so NFR-22 is now satisfied where the page previously carried a "fylls i före lansering" placeholder that satisfied only NFR-20/21. Its two remaining `[ATT BEKRÄFTA]` gaps were closed from verified code, not assumption: the **cookie ("Kakor") section** — the site sets one antiforgery cookie, admin one auth cookie, no analytics, no `localStorage`, so no consent banner is required under LEK (2022:482) — and a new **IP-address subsection** covering the 10-minute rate-limit counter (`RedisInquiryRateLimiter`), which the draft had omitted entirely. The page carries a `.legal-draft` warn banner stating the text is not yet jurist-reviewed; **remove it at sign-off and add the "Senast uppdaterad" date.** The markdown file remains the artefact the jurist reviews — keep the two in sync by hand.
-
-  **The booking terms still carry 7 substantive `[ATT BEKRÄFTA]` gaps** (remaining-balance due date, no-show, late-cancellation scope, house rules, damage excess, force majeure, governing law/ARN), all of which are **client decisions no jurist can supply**. They are collected as a single questionnaire at `docs/legal/klientfragor-juridiska-underlag.md`, to be answered *before* the review so it does not need a second round. **The inquiry acknowledgement is now recorded (FR-111, built 2026-08-17).** It had been validated and discarded, so nothing survived to show it was given. Framing that as a GDPR gap was wrong, and is why it was nearly left as a jurist question: the acknowledgement's basis is contract (art. 6.1 b), so art. 7.1 does not compel storing it, and the art. 9 consent it was once conflated with is recorded separately under FR-110. What does compel it is the *other* half of the same checkbox — acceptance of the 20% deposit and the two-month cancellation rule — where the burden of showing the terms were incorporated falls on the property, most sharply against a consumer. `Booking.TermsAcceptedAt` is stamped from the injected clock on a guest submission and left **null** for a general inquiry and for an admin-created booking (FR-47), since the admin form sets the flag itself and a timestamp there would be fabricated evidence. **Needs a second incremental migration** — `dotnet ef migrations add AddTermsAcceptedAt`, same projects as above. *(Generated, applied and green as of 2026-08-17.)*
-
-  **🚧 BLOCKING — an admin-created booking obtains no acknowledgement of anything (open 2026-08-17, awaiting the client's decision).** Surfaced by FR-111, which left a `null` where a value is expected and made a gap visible that has existed since FR-47 was built. A manual booking (phone or email) gets **no email at all at creation** — `CreateStayRequestAsync` skips both the guest acknowledgement and the admin notification when `createdByAdmin` is true. The guest's first contact from the system is the **approval email**, which does link the terms (FR-109) and carries the privacy policy in every email footer. So they are not uninformed, but two things are wrong: the terms reach them **at the moment the contract forms rather than before it**, which is the weak form of incorporation and weakest against a consumer; and GDPR art. 13 wants the information given **when the data is collected**, which for a phone booking is when the admin types it in.
-
-  Two ways to close it, **not yet decided**:
-
-  - **A — send the existing acknowledgement email for admin-created bookings too.** `SendInquiryAcknowledgementAsync` already exists and its footer already carries the policy; add the terms link. Small, and it is the option that changes the guest's actual position rather than only our records: they receive both documents *before* approval. FR-47 suppresses these emails today, presumably because the admin has already spoken to the guest and "we have received your inquiry" reads oddly — a weak reason against a legal duty.
-  - **B — an admin attestation checkbox** on the manual-booking form ("Gästen har informerats om bokningsvillkoren och integritetspolicyn"), stored with the timestamp and the attesting admin. It must be **its own field, never `TermsAcceptedAt`**: it records what an admin says they did, not what a guest did, and conflating them puts us back to fabricated evidence.
-
-  **A is the recommendation** — B documents a claim, A changes the facts. They are not exclusive.
-
-  **The deciding input is the client's and is not currently in the questionnaire: how often do guests book by phone or email rather than through the form?** Occasional cases need only A. If it is half the business, this is a primary path that today carries neither information nor acceptance, and B earns its place too.
-
-  **Allergy consent — built 2026-08-17 (FR-110, §B1 of the questionnaire).** The policy stated allergies were processed on explicit consent while the completion form collected them with **no consent control and no policy link at all**, so the published legal basis did not exist. There is now a consent checkbox and a policy link on that form, required **only when an allergy is actually declared** (unconditional consent would be non-freely-given under art. 7.4, and meaningless for the majority who declare none), with the moment of consent stored on the booking (`AllergyConsentAt`) to satisfy art. 7.1. Server-side gate only — `completion-form.js` validates nothing by design. **Needs the schema migration below.** Still worth the jurist's view on whether consent is the right basis at all rather than contract performance; if they prefer another basis the checkbox comes back out, and the withdrawal wrinkle (a guest revoking consent for an allergy the kitchen depends on) is the argument against consent.
-
-  **⚠️ First incremental migration since the baseline was frozen.** `AllergyConsentAt` is a schema change and `20260810191257_InitialSchema` must **not** be regenerated — the exception is spent. Generate and apply it with:
-
-  ```bash
-  dotnet ef migrations add AddAllergyConsentAt --project src/AkeroGarden.Web.Core --startup-project src/AkeroGarden.Web.Admin
-  dotnet ef database update          --project src/AkeroGarden.Web.Core --startup-project src/AkeroGarden.Web.Admin
-  ```
-
-  `--startup-project` is required rather than optional: there is no `IDesignTimeDbContextFactory` in the tree, so the connection string comes from the Admin host's `user-secrets`. The second command is strictly for convenience locally — **the admin host applies migrations itself on startup** (`Program.cs`, `MigrateAsync()`; the public host never migrates), so starting it is equivalent. Commit the generated migration alongside the code. **The drop-and-recreate warning at the top of this file does not apply here** — that concerns a *regenerated baseline* being replayed over an existing schema. An incremental migration is exactly what applies cleanly in place, which is the whole point of freezing the baseline.
-
-  **`dataskydd@akerogarden.se` — decided and created 2026-08-17 (§B2).** The privacy policy names it as the address for data-protection questions and rights requests, in both §1 and §6; `info@akerogarden.se` stays as the general contact. The mailbox exists at one.com. It had been listed as a deferred future item in `requirements.md` §10 and that entry is removed. **Add it to the go-live checks anyway:** send one test message and confirm someone is actually watching it, because the one-month response clock under art. 12.3 runs whether or not anyone reads the inbox.
-
-  **The booking terms' wiring is built; only their text is outstanding (2026-08-17).** They previously had no route, no footer link and no acknowledgement anywhere — the privacy policy was the only public legal link on the site, and terms carrying the 20% deposit and the two-month cancellation rule are hard to enforce against a guest who was never shown them. §C1 of the questionnaire was decided and the work is now in place, and is **specified as FR-109 in `requirements.md`** rather than living only in this file: `/bokningsvillkor` (`BookingTerms.razor`), a footer link, a link in the approval email at the moment the booking becomes binding, and **one combined checkbox** on the stay-request form replacing the privacy-only one, so the funnel gains no friction. The general-inquiry track keeps its privacy-only checkbox — a question is not a booking. **What remains is text, not engineering:** seven clauses render an in-place "Kompletteras innan publicering" note until the client answers A1–A7, and the page carries the same `.legal-draft` banner as the privacy policy. At sign-off, fill the clauses, drop both banners, add the dates.
-- **DNS + SSL:** lower DNS TTLs a day ahead, then configure DNS for `akerogarden.se` (apex — `A`; an apex cannot use `CNAME`) and `admin.akerogarden.se` (`CNAME`). The `asuid` `TXT` verification records are already in place from 10c. Bind the custom hostnames and run `ssl.bicep` for the managed certificates. **Expect the ARM multi-hostname `for`-loop Conflict gotcha** that Phase 10a hit — budget for binding one hostname and one SSL binding manually via `az webapp config hostname add` / `az webapp config ssl bind`, and reconcile the end state back to the Bicep declaration (see `infra/azure/README.md` gotchas). *(Staging's own subdomain binding was handled in Phase 10a.)*
-- **Base-URL config flip + final production deploy.** Switch `publicBaseUrl` / `adminBaseUrl` to the real domains and redeploy. **Re-verify one magic-link email end-to-end afterwards** — this is the one 10c verification that does not survive the flip (see the 10c SMTP note).
-- **Re-apply Bicep and redeploy to close any drift.** Production may have sat provisioned for weeks while the jurist review ran, with Phase 11 work continuing on `main` in the meantime. Cheap to do, and it guarantees the launched build is current.
-- **one.com / WordPress cutover:** one.com is the **registrar + DNS host + email provider**, so the cutover is DNS-record surgery inside one.com. **Retire only the WordPress web hosting** — never touch the DNS zone, the domain registration, or the email records (`MX`, `SPF`, `DKIM`, `DMARC`) and mailboxes, because the app sends guest/admin mail through One.com SMTP; breaking those silently kills every email. Make the **apex `akerogarden.se` canonical and 301-redirect `www`→apex**. Point the apex + `admin` records at Azure; keep WordPress powered but unlinked through a short soak; then decommission the WP hosting. The current live site is trivial (a simple info page — a few images + phone/email), so there is no content-parity work and near-zero rollback risk.
-- **Go-live checklist** and post-launch smoke test on the real domains.
-
-**Satisfies:** NFR-20–24 (privacy policy — moved from 10c) · the residual go-live NFRs — production reachable, correctly certificated, and serving the real domains.
-
-**Exit criteria:** the privacy policy and booking terms jurist-reviewed, gap-free and live; go-live checklist complete; the WordPress site decommissioned with DNS + email preserved; production reachable over valid managed SSL on `akerogarden.se` and `admin.akerogarden.se`, with `www` redirecting to the apex; a magic-link email verified to carry real-domain links.
-
-> **Migration discipline resumes here.** The pre-go-live exception described at the top of this plan expires at **this** phase's cutover (amended 2026-08-06 — it previously expired at 10c). Production was provisioned and migrated in 10c but has never held real data, and the demo-feedback work reshapes the schema, so one further baseline regeneration is taken before launch. From the cutover onward production holds real data: every subsequent schema change is an incremental migration and the history is never rewritten again.
+> ### ⚠️ One exit criterion was not met, and could not be
 >
-> **Cutover step, do not skip:** a regenerated baseline **cannot** be applied to a database that still holds the old tables — `MigrateAsync` tries to `CREATE TABLE` over them and the container dies on the 230-second startup timeout (this happened on staging 2026-07-14). Both databases must be **dropped and recreated** per `infra/ops/db-access-runbook.md`, never migrated in place.
+> The phase required *"the privacy policy and booking terms **jurist-reviewed**, gap-free and
+> live"*. They are gap-free and live. **They were never jurist-reviewed, and will not be** — the
+> client did not commission the review, and on 2026-09-07 the decision was taken to launch without
+> it, with the consequences stated and accepted.
+>
+> This is recorded as **unmet**, not quietly ticked. The evidence, the eight client questions still
+> unanswered, and the divergence between the published terms (§7, a percentage-of-value cancellation
+> scale) and the emails (still the SRS's 20% / two-month deposit rule) are all in
+> **`docs/legal/known-conflicts-at-launch.md`**, which is the authority on what was knowingly
+> carried across the line. Anything that reads as "the legal text is signed off" is wrong.
+
+> **Migration discipline is now IN FORCE.** The pre-go-live exception described at the top of this
+> file expired at this cutover. Production holds real guest data from 2026-09-07: every schema
+> change is an incremental migration and the history is never rewritten again. The
+> drop-and-recreate warning that used to sit here applied to a *regenerated baseline* and is spent
+> — an incremental migration applies cleanly in place, which is the whole point of freezing the
+> baseline.
 
 ---
 
@@ -152,9 +139,30 @@ code it describes. Checked for orphaned constraints first; none found.
 | `/kontakt` photo column stretching | ✅ 2026-08-19. `min-height: 100%` made the photo's height a by-product of the neighbouring column; the find-here map grew that column ~400px and the placeholder became a ~1000px empty slab, silently demanding a ~1:2.2 crop of the launch photo. Now `aspect-ratio: 4 / 5`, top-aligned. The crop is recorded in `design.md`'s imagery strategy and **approved by the client 2026-08-19** |
 
 ### Still open
+
+> **Carried over from Phase 10d (2026-09-07).** The site went live with these outstanding. None of
+> them blocked the cutover; all of them are real work that has not been done. They are listed first
+> because they are the youngest and the most likely to be forgotten — the phase that owned them is
+> closed.
+
+- **🚧 BLOCKING (carried from 10d) — an admin-created booking obtains no acknowledgement of anything.** Surfaced by FR-111, which left a `null` where a value is expected and exposed a gap that has existed since FR-47 was built. A manual booking (phone or email) gets **no email at all at creation** — `CreateStayRequestAsync` skips both the guest acknowledgement and the admin notification when `createdByAdmin` is true. The guest's first contact is the **approval email**, which does link the terms (FR-109) and carries the policy in every footer. So they are not uninformed, but two things are wrong: the terms reach them **at the moment the contract forms rather than before it**, the weak form of incorporation and weakest against a consumer — and **now confirmed to matter**, since the client's own §1/§9/§31 establish that consumers do book; and GDPR art. 13 wants the information given **when the data is collected**, which for a phone booking is when the admin types it in. This was marked blocking for 10d and **shipped unresolved.**
+  - **A — send the existing acknowledgement email for admin-created bookings too.** `SendInquiryAcknowledgementAsync` already exists and its footer already carries the policy; add the terms link. **Needs no client input** and changes the guest's actual position rather than only our records.
+  - **B — an admin attestation checkbox** on the manual-booking form, stored with the timestamp and the attesting admin. It must be **its own field, never `TermsAcceptedAt`** — it records what an admin says they did, not what a guest did.
+  - **A remains the recommendation**; they are not exclusive. B's deciding input is **question 5 of the client questionnaire** (how often guests book by phone or email), still unanswered.
+
+- **Re-apply Bicep to close production drift (carried from 10d).** An explicit 10d deliverable that was never done: `az deployment group list -g akerogarden-prod` shows **`main` last applied 2026-07-20**, seven weeks before launch — only `ssl` ran at the cutover. The hostname bindings and certificates created that day exist in Azure but are not reconciled against the templates, so the declared and actual infrastructure have diverged. `main.bicep` declares the per-site bindings (`publicHostnames`/`adminHostnames`), so re-applying it should be a no-op that proves it — **but it needs the secret parameters**, which are `REPLACE_VIA_CI_SECRET` placeholders in the param file, and passing placeholders would reset live credentials. Do it through the pipeline, not by hand.
+
+- **Decommission the WordPress hosting (carried from 10d).** Still powered and unlinked since 2026-09-07, deliberately, for a soak. When retiring it: **the web hosting only.** The DNS zone, the domain registration and every mail record (`MX`, `SPF`, `DKIM`, `DMARC`) and mailbox stay — the app sends all guest and admin mail through One.com SMTP on this domain, and breaking those kills every email silently.
+
+- **Test `dataskydd@akerogarden.se` end to end (carried from 10d).** The privacy policy is now **live and publicly names this address** in §1 and §6 as the route for data-protection questions and rights requests. Nobody has ever sent it a message. Send one and confirm a human is actually watching the inbox: the one-month response clock under art. 12.3 runs whether or not anyone reads it, and a missed rights request is a supervisory matter.
+
+- **Re-invite the admin accounts (carried from 10d).** The production rebuild took every `AspNetUsers` row and **only the bootstrap admin survives.** Anyone else who needs the panel has to be invited again. Note the failure mode: a stale browser session from before the rebuild renders an empty-looking admin panel rather than an obvious auth error, so "the data is gone" is the symptom to expect and misread.
+
+- **The legal follow-up (carried from 10d).** Eight client questions remain unanswered — the plain-language tick-box version is `docs/legal/klientfragor-2026-08-23.html` — and the published terms (§7, a percentage-of-value cancellation scale) contradict the approval and cancellation emails, which still state the SRS's 20% / two-month deposit rule (`BookingEmailTemplates.cs:287` and `:437-440`, mandated by §5.6 and FR-79). **The divergence is SRS-vs-contract, not code-vs-SRS** — the code is correct against its specification and the specification is behind the contract. Resolving it moves one rule across four places and **cannot complete until question 6 is answered**, because the client's §7 has no rule between 8 and 4 weeks. Full evidence in `docs/legal/known-conflicts-at-launch.md`.
+
 - **Pinned-clock sweep over the remaining integration test files.** Carried forward from PR #42 (2026-08-10), which made `BookingService` take `TimeProvider` and gave six boundary tests `DbFixture.PinClock`/`TodayIn`. The other integration files were left on the wall clock. **Not a defect today** — their assertions are not about *distances* (the 40-day issue window, the 14-day expiry), which is the only thing that breaks at a midnight boundary. It becomes one the moment any of them starts asserting a distance. The rule itself is in CLAUDE.md ("the clock is an input, never an ambient fact"); this is the outstanding application of it. **If you pin, every date in that test must come from the pinned clock** — a pinned service with a wall-clock seed holds two disagreeing "now"s and is worse than not pinning, which is how slice 7 broke three files at once.
 - **🚧 BLOCKING — Content-Security-Policy and the other response security headers.** The solution sends **none** today: no `Content-Security-Policy`, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` or `Permissions-Policy`. `app.UseHsts()` (production only) and antiforgery are the only header-level protections in place. This is marked blocking because **NFR-35 has no enforcement mechanism without it**: the requirement was widened on 2026-08-18 from "self-hosted fonts" to "no resource may load from a third-party host while a page renders", and right now that is upheld by convention plus a single E2E test on a single page (`Contact_page_loads_nothing_from_a_third_party`). A `default-src 'self'` makes it impossible to break by accident, on every page, instead of merely disapproved of. Found by the completion gate on the `/kontakt` map work — and missed by that gate's own first pass, which ran the grep and never reported the null result.
-  - **It is not a live hole today**, which is why this blocks Phase 11 rather than the 10d cutover: nothing third-party is currently requested, and that is asserted by test. It is defence in depth against the next edit, not a fix for a present leak. *If you would rather it gate go-live, that is a reasonable call and needs to be taken deliberately — say so and move it to 10d.*
+  - **It is not a live hole today**, which is why it did not gate the cutover: nothing third-party is currently requested, and that is asserted by test. It is defence in depth against the next edit, not a fix for a present leak. **That calculus changed on 2026-09-07** — the site now serves real guests on the real domain, so the next accidental third-party reference leaks live visitors' IPs rather than staging's. It is the oldest blocking item here and should go first.
   - **Expect the policy to be the work, not the middleware.** It has to be validated against **both** hosts: the public Static SSR app and the admin Interactive Server app, whose circuit needs `connect-src` for its WebSocket and whose reconnect UI must be checked for inline styles. Blazor's own assets are same-origin, but a policy that needs `'unsafe-inline'` for styles buys much less than it appears to — decide that consciously rather than discovering it under a broken page.
   - Once it ships, consider whether NFR-35 should name the CSP as its enforcement, so the requirement and the mechanism point at each other.
 
@@ -174,7 +182,7 @@ code it describes. Checked for orphaned constraints first; none found.
   The rules the first pass produced are in `design.md` under "Text scaling". Original note follows. Surfaced 2026-08-19 while fixing the absolute root font size (`html { font-size: 16px }`), which overrode the reader's own browser text-size setting site-wide. That fix is done; **it is not the whole job.** Making the root scale only reveals which *other* values don't: the stylesheet still carries fixed-`px` sizes that stay put while everything around them grows, and a layout is only as scalable as its least scalable value. The pass is: find every absolute `px` in `site.css`, decide case by case whether it is *text-derived* (must become `rem` — anything sized by or sized to fit type, and any layout anchor standing in for a rendered text height) or *genuinely physical* (may stay `px` — hairline borders, radii, shadow offsets, and raster/vector artwork like `.site-header__logo .logo`, pinned at 55px, which is an image and not text). Then verify at 100/125/150% browser text size across both hosts — **measure the composited page at the narrowest breakpoint**, since that is where every defect in this class has hidden so far. Related: the header was hardcoded to a 72px height and its own CTA button spilled out of the bar at a 24px root; that class of bug is what the sweep is looking for. The principle is already written down and already applied once: `design.md`'s find-here-map entry states that *"the reader's text size is an input"* and records why the map's labels are in `rem` — in `px` the map both ignored a raised root **and shrank**, because `.container`'s padding is in `rem`. That entry also records the trap for verifying this: **raising the root font size from inside a Playwright test does not take effect against this app and the cause was never found**, so the map's guard test asserts the *unit* rather than the behaviour. Any verification here must drive the text size from outside the page (CDP or browser settings), not by injecting it. **Not a live defect** — nothing is broken at default settings — but it is the difference between honouring the setting and merely not overriding it — **WCAG 2.1 SC 1.4.4 “Resize text” (AA)**, and so inside NFR-38's scope, though NFR-38's body does not currently name it.
 
 - **Architecture and security review.** A second, post-launch-oriented pass distinct from Phase 7's pre-launch `security-review.md` (which was written before production existed and before any real guest PII flowed through the system). Re-examine the architecture now that it's running for real: production VNet isolation as actually configured (not just declared in Bicep), Key Vault/managed-identity wiring, DataProtection key durability under real restart/scale events, rate-limiter behaviour under real traffic, and whether any Phase 0–10 "accepted decision" (e.g. fail-open rate limiting, NIST-aligned password-reset-same-password) still holds given real usage patterns.
-- **Technical SEO & social sharing.** `sitemap.xml`, `robots.txt`, per-page meta descriptions, Open Graph/Twitter Card tags so a shared `akerogarden.se` link renders a proper preview (title/description/image), and Google Search Console domain verification. Explicitly **no analytics** — the privacy policy's "no consent banner needed" position (Phase 10c) stays true; adding analytics would reopen that question and is out of scope here unless separately decided. *(The cookie assessment lives with the privacy policy, a Phase 10d deliverable.)*
+- **Technical SEO & social sharing.** `sitemap.xml`, `robots.txt`, per-page meta descriptions, Open Graph/Twitter Card tags so a shared `akerogarden.se` link renders a proper preview (title/description/image), and Google Search Console domain verification. Explicitly **no analytics** — the privacy policy's "no consent banner needed" position (Phase 10c) stays true; adding analytics would reopen that question and is out of scope here unless separately decided. *(The cookie assessment lives with the privacy policy, delivered in 10d and live since 2026-09-07.)*
 - **Client delivery & handover documentation (Swedish).** A short, plain-language admin manual covering the day-to-day admin workflows (approve/deny a booking, resend/remove an invite, generate lists, read the dashboard) — not a developer doc. Paired with an **email-accounts inventory**: every mailbox/account involved in the system's operation (`info@akerogarden.se` guest-facing address, the SMTP sending account and its credentials location, the admin notification recipient(s), the retired staging-only `temp@amaeli.se` test mailbox, and the deferred `dataskydd@akerogarden.se` GDPR contact if it's ever stood up) so the client knows what exists, where credentials live, and what each address is for.
 
 **Satisfies:** operational maturity beyond the go-live NFR set — plus the new audit-trail obligations **FR-95, FR-96, FR-98 and NFR-36/37** (FR-97, the admin view, is deferred). Otherwise no new FR/NFR obligations, except the confirm-dialog item which reinforces the existing hard-delete guard rules (FR-16/20/26/30/88), and the Byggnader tree rework which extends admin-mobile usability (NFR-17) beyond its current documented floor for one specific page.

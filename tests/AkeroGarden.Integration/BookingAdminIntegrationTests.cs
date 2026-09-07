@@ -71,7 +71,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
             CheckOut = effectiveCheckIn.AddDays(3),
             OvernightGuestCount = 5,
             MealPlan = MealPlan.FullBoardAll,
-            AcceptPrivacyPolicy = true
+            AcceptTerms = true
         }, createdByAdmin: true); // suppress creation emails so we can assert transition emails
 
         // Approval now requires a lodging assignment (FR-103/D1), so a "pending stay ready to be

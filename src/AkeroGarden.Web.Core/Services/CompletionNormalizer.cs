@@ -80,6 +80,44 @@ public static class CompletionNormalizer
     }
 
     /// <summary>
+    /// Allergy consent (FR-110). Declared allergies are health data — special-category under GDPR
+    /// art. 9 — and the privacy policy states they are processed on the guest's explicit consent
+    /// (art. 9.2 a). This is the rule that makes that statement true.
+    ///
+    /// <para><b>Conditional by design.</b> The consent is required only when the form actually
+    /// declares an allergy. Requiring it unconditionally would demand consent to process health data
+    /// nobody supplied, and a consent that must be given to submit the form is not freely given
+    /// (art. 7.4) — so making it mandatory would undermine the basis it establishes.</para>
+    ///
+    /// <para>Kept out of <see cref="Validate"/> and given its own entry point because it needs
+    /// <paramref name="dayGuestsApplicable"/>: on a self-catering booking the day-guest rows are
+    /// dropped server-side whatever was posted (§4.2), so an allergy typed into a row that will
+    /// never be stored must not demand consent for processing that never happens.</para>
+    /// </summary>
+    public static List<string> ValidateAllergyConsent(
+        CompletionFormModel form, bool dayGuestsApplicable)
+    {
+        var declared = form.Overnight.Any(HasAllergy)
+            || (dayGuestsApplicable && (form.DayGuests ?? []).Any(g => !IsBlank(g) && HasAllergy(g)));
+
+        if (declared && !form.AllergyConsent)
+        {
+            return
+            [
+                "Ni har angett allergier. Godkänn att vi får behandla dem, eller ta bort dem — "
+                + "de är hälsouppgifter och vi behöver ert samtycke för att spara dem."
+            ];
+        }
+
+        return [];
+    }
+
+    /// <summary>Whether an entry declares any allergy at all — a ticked allergy or a written note.
+    /// The note counts: "Annat" plus free text is a declared allergy even with no box ticked.</summary>
+    private static bool HasAllergy(IAllergyEntry entry) =>
+        (entry.Allergies?.Count ?? 0) > 0 || !string.IsNullOrWhiteSpace(entry.AllergyNotes);
+
+    /// <summary>
     /// The dietary-preference counts are portions, so they cannot exceed the people present (§4.6),
     /// and they cannot be negative. Day guests count too — they eat what the group eats — so the
     /// ceiling is the overnight count plus the non-blank day-guest rows.

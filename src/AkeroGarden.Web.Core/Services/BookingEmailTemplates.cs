@@ -264,7 +264,8 @@ public static class BookingEmailTemplates
     /// omitting the line entirely corrects it no better.</para></summary>
     public static EmailContent Approval(
         string contactName, string? magicLinkUrl, DateTime? expiryUtc, string bookingReference,
-        IReadOnlyList<string> assignedBuildingNames, TimeOnly? checkInTime, TimeOnly? checkOutTime)
+        IReadOnlyList<string> assignedBuildingNames, TimeOnly? checkInTime, TimeOnly? checkOutTime,
+        string termsUrl)
     {
         var body = new StringBuilder();
         body.Append(Greeting(contactName));
@@ -284,6 +285,11 @@ public static class BookingEmailTemplates
         body.Append("<h3>Handpenning och avbokning</h3>");
         body.Append("<p>En handpenning på 20 % av totalsumman betalas för att bekräfta bokningen. Resterande 80 % faktureras före ankomst.</p>");
         body.Append("<p>Vid avbokning mer än två månader före ankomst återbetalas handpenningen i sin helhet. Vid avbokning två månader eller mindre före ankomst återbetalas inte handpenningen.</p>");
+        // The full terms travel with this email specifically, not with the shared footer: §1 of the
+        // terms makes the booking binding at approval, so this is the moment the deposit and
+        // cancellation rules above start to apply. The two paragraphs are a summary — the link is
+        // what the guest was actually shown of the whole document at the binding moment.
+        body.Append($"<p>Fullständiga <a href=\"{Enc(termsUrl)}\">boknings- och ordningsvillkor</a> finns på vår webbplats.</p>");
         body.Append($"<p>Incheckning sker kl. {Enc(StatedTimePolicy.Display(checkInTime, MealOccasionResolver.StandardCheckInTime))} "
             + $"och utcheckning kl. {Enc(StatedTimePolicy.Display(checkOutTime, MealOccasionResolver.StandardCheckOutTime))}.</p>");
         return new EmailContent(WithReference("Din bokning är godkänd – slutför dina uppgifter", bookingReference), body.ToString());

@@ -75,7 +75,7 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
             CheckInTime = checkInTime,
             CheckOutTime = checkOutTime,
             MealPlan = MealPlan.SelfCateringAll,
-            AcceptPrivacyPolicy = true,
+            AcceptTerms = true,
         }, createdByAdmin: true);
 
         // The capacity warning is measured against the beds of the *assigned* buildings (FR-103/D2),
@@ -328,7 +328,7 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
             CheckOut = checkOut,
             OvernightGuestCount = overnightGuests,
             MealPlan = MealPlan.SelfCateringAll,
-            AcceptPrivacyPolicy = true,
+            AcceptTerms = true,
         }, createdByAdmin: true);
 
         return new Seeded(booking.Id, Guid.Empty);

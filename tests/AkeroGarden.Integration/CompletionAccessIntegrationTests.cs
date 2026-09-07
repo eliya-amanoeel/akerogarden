@@ -60,7 +60,7 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
             CheckOut = checkIn.AddDays(3),
             OvernightGuestCount = 4,
             MealPlan = MealPlan.FullBoardAll,
-            AcceptPrivacyPolicy = true
+            AcceptTerms = true
         }, createdByAdmin: true);
 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();

@@ -16,7 +16,7 @@ E-post: info@akerogarden.se
 
 Kaldeiska katolska Mar Narsay Missionen i Södertälje ("vi", "oss") är personuppgiftsansvarig för den behandling av personuppgifter som beskrivs i denna policy.
 
-Har du frågor om hur vi hanterar dina personuppgifter, eller vill du utöva någon av dina rättigheter enligt avsnitt 6, kontakta oss på info@akerogarden.se.
+Har du frågor om hur vi hanterar dina personuppgifter, eller vill du utöva någon av dina rättigheter enligt avsnitt 6, kontakta oss på **dataskydd@akerogarden.se**. Den adressen är avsedd för just dataskyddsfrågor; övriga ärenden når oss på info@akerogarden.se.
 
 ## 2. Vilka personuppgifter samlar vi in?
 
@@ -63,6 +63,10 @@ Vi delar inte dina personuppgifter med tredje part för marknadsföringsändamå
 
 Vi säljer aldrig personuppgifter och för aldrig data utanför EU/EES.
 
+### IP-adress vid inskickat formulär
+
+För att skydda webbplatsen mot automatiserad massinskickning av förfrågningar räknar vi antalet inskickade formulär per IP-adress. Din IP-adress används enbart som räknarnyckel i ett tillfälligt cacheminne, raderas automatiskt senast **tio minuter** efter att formuläret skickats, och kopplas aldrig till din bokning eller till någon annan uppgift om dig. Rättslig grund är berättigat intresse av informationssäkerhet (art. 6.1 f). IP-adressen skrivs inte till våra loggar.
+
 ## 5. Hur länge sparar vi dina uppgifter?
 
 Vi sparar bokningsuppgifter endast så länge det är nödvändigt för respektive ändamål. Automatisk radering sker enligt följande:
@@ -88,13 +92,22 @@ Enligt GDPR har du rätt att:
 - Om behandlingen grundas på samtycke (t.ex. allergiuppgifter): **återkalla ditt samtycke** när som helst
 - Rätt till **dataportabilitet** för uppgifter du själv har lämnat
 
-Du utövar dina rättigheter genom att kontakta oss på info@akerogarden.se.
+Du utövar dina rättigheter genom att kontakta oss på **dataskydd@akerogarden.se**.
 
 Om du anser att vi behandlar dina personuppgifter felaktigt har du rätt att lämna klagomål till Integritetsskyddsmyndigheten (IMY), imy.se.
 
-## 7. Cookies
+## 7. Kakor (cookies)
 
-[ATT BEKRÄFTA — beskriv faktiska cookies/motsvarande lagring som används på webbplatsen. Om endast strikt nödvändiga sessions-cookies (t.ex. antiforgery-token, Blazor-cirkuit) används, ange detta och att inget samtycke krävs för dessa enligt lagen om elektronisk kommunikation. Om ytterligare cookies (analys, marknadsföring) tillkommer krävs samtyckesbanner.]
+Webbplatsen använder **endast strikt nödvändiga kakor**. Vi använder inga kakor för analys, statistik, marknadsföring eller spårning, och vi anlitar inga tredjepartstjänster som placerar kakor i din webbläsare. Webbplatsen lagrar heller ingen information i webbläsarens lokala lagring (`localStorage`/`sessionStorage`).
+
+| Kaka | Ändamål | Lagringstid |
+|---|---|---|
+| Formulärskydd (`.AspNetCore.Antiforgery.*`) | Säkerhetsspärr som hindrar att bokningsförfrågan, kontaktformulär eller komplettering av bokning skickas in i ditt namn från en annan webbplats (CSRF-skydd). Placeras när du öppnar en sida med ett formulär. | Sessionskaka — raderas när webbläsaren stängs |
+| Inloggningskaka (**endast adminpanelen**) | Håller en inloggad administratör inloggad. Placeras aldrig när du besöker den publika webbplatsen. | Sessionen, eller 30 dagar om administratören valt "kom ihåg mig" |
+
+Dessa kakor är nödvändiga för att en tjänst du uttryckligen har begärt ska fungera. Något samtycke krävs därför inte enligt 9 kap. lagen (2022:482) om elektronisk kommunikation, och webbplatsen visar av samma skäl ingen samtyckesruta för kakor.
+
+Skulle vi i framtiden införa analys-, statistik- eller marknadsföringsverktyg krävs ditt samtycke innan sådana kakor placeras. Denna policy uppdateras i så fall innan verktyget tas i bruk.
 
 ## 8. Ändringar av denna policy
 

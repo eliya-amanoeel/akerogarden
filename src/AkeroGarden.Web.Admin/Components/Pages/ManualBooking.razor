@@ -126,7 +126,7 @@ else
     // Admin creates on the guest's behalf (FR-47) — the guest privacy-consent gate does not apply
     // and there is no consent checkbox on this form, so pre-satisfy it or validation would block
     // the submit with no visible error.
-    private StayRequestInput _stay = new() { AcceptPrivacyPolicy = true };
+    private StayRequestInput _stay = new() { AcceptTerms = true };
     private GeneralInquiryInput _general = new() { AcceptPrivacyPolicy = true };
     private readonly HashSet<Guid> _selectedFacilities = [];
     private List<Facility> _facilities = [];

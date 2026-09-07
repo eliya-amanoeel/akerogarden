@@ -220,14 +220,26 @@ else
 
                     <div class="form-section">
                         <div class="form-group form-group--checkbox">
+                            @* One combined acknowledgement rather than a second checkbox (C1,
+                               decided 2026-08-17). The booking terms carry the 20% deposit and the
+                               two-month cancellation rule, so they have to be accepted before the
+                               booking becomes binding — but a second control is friction on the
+                               funnel, and one box covering both documents costs nothing versus what
+                               was here before. The general-inquiry track below keeps its
+                               privacy-only box: a question is not a booking. *@
+                            @* The text is one <span>, not bare nodes: .form-group--checkbox label is
+                               display:flex, so every text node and <a> would otherwise become its own
+                               flex item on a non-wrapping row. With one link that squeezed; with two
+                               it broke outright. One span = two flex items (box + text), and the
+                               sentence wraps inside the span as prose, aligned to the first line. *@
                             <label>
-                                <InputCheckbox @bind-Value="StayModel!.AcceptPrivacyPolicy" />
-                                @* One <span>, not a bare text node plus a link: the label is a flex
-                                   container, so those would be two separate flex items that cannot
-                                   wrap between them and overflowed the viewport at a large text size. *@
-                                <span>Jag godkänner <a href="/integritetspolicy" target="_blank">integritetspolicyn</a></span>
+                                <InputCheckbox @bind-Value="StayModel!.AcceptTerms" />
+                                <span>
+                                    Jag godkänner <a href="/integritetspolicy" target="_blank">integritetspolicyn</a>
+                                    och <a href="/bokningsvillkor" target="_blank">bokningsvillkoren</a>
+                                </span>
                             </label>
-                            <ValidationMessage For="() => StayModel!.AcceptPrivacyPolicy" />
+                            <ValidationMessage For="() => StayModel!.AcceptTerms" />
                         </div>
                     </div>
 
@@ -276,9 +288,10 @@ else
                         <div class="form-group form-group--checkbox">
                             <label>
                                 <InputCheckbox @bind-Value="GeneralModel!.AcceptPrivacyPolicy" />
-                                @* One <span>, not a bare text node plus a link: the label is a flex
-                                   container, so those would be two separate flex items that cannot
-                                   wrap between them and overflowed the viewport at a large text size. *@
+                                @* Same single-span structure as the stay track above — this label has
+                                   only one link, so it merely squeezed rather than broke, but the
+                                   trap is identical and it should not be left waiting for the next
+                                   person to add a second link. *@
                                 <span>Jag godkänner <a href="/integritetspolicy" target="_blank">integritetspolicyn</a></span>
                             </label>
                             <ValidationMessage For="() => GeneralModel!.AcceptPrivacyPolicy" />
@@ -295,7 +308,11 @@ else
 }
 
 @* Progressive enhancement only — the server re-applies both rules regardless (InquiryNormalizer). *@
-<script src="/js/inquiry-form.js"></script>
+@* Fingerprinted via @Assets, like site.css and blazor.web.js — not a raw /js path. A raw path is
+   cached by the browser, so a returning guest can run an older copy of this file after a deploy.
+   For a validation script that means a stale gate that silently stops matching a renamed field
+   while still looking like it works. *@
+<script src="@Assets["js/inquiry-form.js"]"></script>
 
 @code {
     [CascadingParameter]

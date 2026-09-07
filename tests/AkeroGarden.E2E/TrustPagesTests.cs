@@ -20,6 +20,7 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     [InlineData("/mat-och-priser")]
     [InlineData("/kontakt")]
     [InlineData("/integritetspolicy")]
+    [InlineData("/bokningsvillkor")]
     [InlineData("/not-found")]
     public async Task Page_has_no_serious_accessibility_violations(string path)
     {
@@ -76,6 +77,69 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 
         await Page.Locator(".cta-card a.btn").ClickAsync();
         await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/boka$"));
+    }
+
+    [Fact]
+    public async Task Privacy_policy_names_the_controller_states_retention_and_covers_cookies()
+    {
+        await Page.GotoAsync("/integritetspolicy");
+
+        // NFR-22 in full. Until 2026-08-16 this page was a placeholder that said the controller
+        // and the retention periods would be "filled in before launch" — it satisfied NFR-20/21
+        // (linked from footer and booking form) while failing NFR-22, and nothing tested it.
+        // Assert the three things NFR-22 actually names, not merely that the page renders.
+
+        // Controller: the operating organisation and its org.nr, not just the trade name.
+        await Assertions.Expect(Page.GetByText("Kaldeiska katolska Mar Narsay Missionen i Södertälje").First).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByText("815601-0129")).ToBeVisibleAsync();
+
+        // Retention periods, as concrete durations — the §2.7 table, not a promise of one.
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "5. Hur länge sparar vi dina uppgifter?" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Cell, new() { Name = "Genomförd vistelse" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Cell, new() { Name = "2 år", Exact = true })).ToBeVisibleAsync();
+
+        // IMY, as the supervisory authority to complain to.
+        await Assertions.Expect(Page.GetByRole(AriaRole.Link, new() { Name = "imy.se" })).ToBeVisibleAsync();
+
+        // The cookie assessment lives here rather than in a separate notice, and the page must
+        // stay consistent with it: only strictly-necessary cookies, so no consent banner exists.
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "7. Kakor (cookies)" })).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Booking_terms_are_published_and_reachable_from_the_footer_and_the_inquiry_form()
+    {
+        // The terms carry the 20% deposit and the two-month cancellation rule. A term the guest was
+        // never shown is hard to enforce, so "published" here means all three routes to it hold:
+        // the page itself, the footer, and the point of acceptance (C1, decided 2026-08-17).
+        await Page.GotoAsync("/bokningsvillkor");
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Boknings- och ordningsvillkor" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "2. Handpenning och betalning" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "3. Avbokning" })).ToBeVisibleAsync();
+
+        // From the footer of an unrelated page.
+        await Page.GotoAsync("/om-oss");
+        await Page.Locator(".site-footer a[href='/bokningsvillkor']").ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/bokningsvillkor$"));
+
+        // From the acknowledgement on the stay-request form: one checkbox, both documents linked.
+        // Scoped by the terms link, not by .form-group--checkbox alone — the stay track has a second
+        // checkbox group ("Vi bokar som organisation"), so the bare class matches two groups and the
+        // count assertion below would be measuring the wrong thing.
+        await Page.GotoAsync("/boka");
+        var ack = Page.Locator(".track--stay .form-group--checkbox:has(a[href='/bokningsvillkor'])");
+        await Assertions.Expect(ack.Locator("a[href='/integritetspolicy']")).ToBeVisibleAsync();
+        await Assertions.Expect(ack.Locator("a[href='/bokningsvillkor']")).ToBeVisibleAsync();
+        await Assertions.Expect(ack.Locator("input[type=checkbox]")).ToHaveCountAsync(1);
+
+        // The general-inquiry track is not a booking, so the terms must NOT be bolted onto it.
+        // The two tracks are a CSS-only toggle: both are in the DOM at all times and the unselected
+        // one is hidden, so this must switch tracks the way a visitor does before asserting on it —
+        // asserting against the hidden copy would pass whatever the toggle did.
+        await Page.Locator(".segmented__btn[for='track-general']").ClickAsync();
+        var generalAck = Page.Locator(".track--general .form-group--checkbox");
+        await Assertions.Expect(generalAck.Locator("a[href='/integritetspolicy']")).ToBeVisibleAsync();
+        await Assertions.Expect(generalAck.Locator("a[href='/bokningsvillkor']")).ToHaveCountAsync(0);
     }
 
     [Fact]

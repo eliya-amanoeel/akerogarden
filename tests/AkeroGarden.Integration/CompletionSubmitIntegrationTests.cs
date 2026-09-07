@@ -72,7 +72,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
             CheckOut = new DateOnly(2026, 8, 12), // 2 nights
             OvernightGuestCount = overnightCount,
             MealPlan = mealPlan,
-            AcceptPrivacyPolicy = true
+            AcceptTerms = true
         }, createdByAdmin: true);
         // Approval requires a lodging assignment (FR-103/D1).
         await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
@@ -97,6 +97,11 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
                 .Select(s => (string?)(s.MealType == MealType.Lunch ? seed.LunchId : seed.DinnerId).ToString())
                 .ToList(),
             VegetarianCount = 1,
+            // Every participant this helper builds declares an allergy (below), and FR-110 requires
+            // explicit consent whenever the form declares one. Not a workaround for the new rule —
+            // the rejection path is asserted directly in the two consent tests further down, so
+            // setting it here cannot hide a regression in it.
+            AllergyConsent = true,
         };
         for (var i = 0; i < count; i++)
         {
@@ -108,6 +113,91 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
             });
         }
         return form;
+    }
+
+    /// <summary>FR-110: a form declaring an allergy without consent is rejected, and nothing is
+    /// persisted. Until FR-110 this page collected art. 9 health data with no consent control at all
+    /// while the privacy policy stated the basis was explicit consent — the statement was untrue.</summary>
+    [Fact]
+    public async Task Submit_AllergyDeclaredWithoutConsent_IsRejected_AndPersistsNothing()
+    {
+        var provider = NewProvider(out _);
+        var seed = await SeedAsync(provider);
+        var form = FullBoardForm(seed);
+        form.AllergyConsent = false;   // the helper's participants each declare an allergy
+
+        CompletionSubmitResult result;
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            result = await service.SubmitCompletionAsync(seed.Token, form, DateTime.UtcNow);
+        }
+
+        Assert.Equal(CompletionSubmitOutcome.ValidationFailed, result.Outcome);
+        Assert.Contains(result.Errors, e => e.Contains("samtycke"));
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var booking = await db.Bookings
+                .Include(b => b.Participants)
+                .SingleAsync(b => b.Id == seed.BookingId);
+
+            // The health data must not land, and the booking must not advance.
+            Assert.Empty(booking.Participants);
+            Assert.Null(booking.AllergyConsentAt);
+            Assert.Equal(BookingStatus.Approved, booking.Status);
+        }
+    }
+
+    /// <summary>FR-110 / GDPR art. 7.1: consent must be demonstrable after the fact, so the moment it
+    /// was given is stored rather than the checkbox being validated and discarded. Stamped only when
+    /// an allergy was actually declared — a ticked box on a form declaring none records no consent,
+    /// because no special-category processing is taking place.</summary>
+    [Fact]
+    public async Task Submit_StampsAllergyConsent_OnlyWhenAnAllergyWasDeclared()
+    {
+        var withAllergy = NewProvider(out _);
+        var seedA = await SeedAsync(withAllergy);
+        var submittedAt = new DateTime(2026, 8, 11, 9, 30, 0, DateTimeKind.Utc);
+
+        using (var scope = withAllergy.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.Equal(CompletionSubmitOutcome.Success,
+                (await service.SubmitCompletionAsync(seedA.Token, FullBoardForm(seedA), submittedAt)).Outcome);
+        }
+
+        using (var scope = withAllergy.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var booking = await db.Bookings.SingleAsync(b => b.Id == seedA.BookingId);
+            // The caller's clock, not DateTime.UtcNow read inside the service.
+            Assert.Equal(submittedAt, booking.AllergyConsentAt);
+        }
+
+        var noAllergy = NewProvider(out _);
+        var seedB = await SeedAsync(noAllergy);
+        var clean = FullBoardForm(seedB);
+        foreach (var entry in clean.Overnight)
+        {
+            entry.Allergies = [];
+            entry.AllergyNotes = null;
+        }
+
+        using (var scope = noAllergy.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.Equal(CompletionSubmitOutcome.Success,
+                (await service.SubmitCompletionAsync(seedB.Token, clean, submittedAt)).Outcome);
+        }
+
+        using (var scope = noAllergy.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var booking = await db.Bookings.SingleAsync(b => b.Id == seedB.BookingId);
+            Assert.Null(booking.AllergyConsentAt);
+        }
     }
 
     [Fact]

@@ -130,6 +130,35 @@ public class Booking
     /// empty for a <see cref="Data.Entities.MealPlan.SelfCateringAll"/> booking.</summary>
     public List<BookingMealSelection> MealSelections { get; set; } = [];
 
+    /// <summary>When the guest accepted the privacy policy and the booking terms on the public
+    /// inquiry form (FR-111, §8.1). Null for a general inquiry — no terms apply to a question — and
+    /// **null for any booking an admin created on the guest's behalf** (<see cref="CreatedByAdmin"/>),
+    /// because nobody ticked anything there and a timestamp would be a fabricated record of an
+    /// acceptance that never happened.
+    ///
+    /// <para><b>Stored for contractual evidence, not for GDPR.</b> The acknowledgement covers
+    /// processing whose basis is contract (art. 6.1 b), so art. 7.1's demonstrability duty does not
+    /// reach it — the art. 9 consent it used to be conflated with is recorded separately in
+    /// <see cref="AllergyConsentAt"/>. What makes this worth storing is the *other* half of the same
+    /// checkbox: it carries acceptance of the 20% deposit and the two-month cancellation rule. If
+    /// that is ever disputed the burden of showing the terms were incorporated falls on the property,
+    /// and against a consumer especially, "we validated a checkbox and discarded it" is not a
+    /// position.</para></summary>
+    public DateTime? TermsAcceptedAt { get; set; }
+
+    /// <summary>When the booking's contact person gave explicit consent to processing the declared
+    /// allergies (FR-110, §8.1). Null when no allergy was declared, and for every booking that never
+    /// reached completion — it is not a flag, it is the record that consent existed and when.
+    ///
+    /// <para><b>Stored because GDPR art. 7.1 requires the controller to be able to demonstrate that
+    /// consent was given.</b> Validating a checkbox and discarding it proves nothing after the fact;
+    /// that was the state until FR-110. Only the timestamp is kept — the guest's identity is already
+    /// on the booking, and what was consented to is fixed by the policy version in force.</para>
+    ///
+    /// <para>Booking-scoped, so it is deleted with the booking under the ordinary retention rules
+    /// (§2.7, FR-67/68) and needs no retention logic of its own.</para></summary>
+    public DateTime? AllergyConsentAt { get; set; }
+
     // ── Organisation / invoice (conditional) ────────────────────────────────────
     public bool IsOrganisation { get; set; }
 

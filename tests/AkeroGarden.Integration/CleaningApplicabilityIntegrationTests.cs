@@ -152,7 +152,7 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
             OvernightGuestCount = overnightCount,
             MealPlan = MealPlan.SelfCateringAll,
             SelectedFacilityIds = withFacility is null ? null : [withFacility.Konferensrum.Id],
-            AcceptPrivacyPolicy = true,
+            AcceptTerms = true,
         };
         var booking = await bookings.CreateStayRequestAsync(input, createdByAdmin: true);
 

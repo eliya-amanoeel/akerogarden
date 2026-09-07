@@ -82,6 +82,12 @@ public class BookingService(
             DayGuestCount = InquiryNormalizer.NormalizeDayGuestCount(input.MealPlan.Value, input.DayGuestCount),
             MealPlan = input.MealPlan,
             CreatedByAdmin = createdByAdmin,
+            // FR-111. Validation already requires the acknowledgement, so on a guest submission this
+            // is always stamped — the value is the record that it happened and when, not a flag.
+            // Null when an admin created the booking on the guest's behalf (FR-47): nobody ticked
+            // anything, and ManualBooking sets input.AcceptTerms itself to satisfy validation, so
+            // trusting the flag here would manufacture evidence of an acceptance that never occurred.
+            TermsAcceptedAt = createdByAdmin ? null : now,
             IsOrganisation = input.IsOrganisation,
             OrgName = input.IsOrganisation ? input.OrgName?.Trim() : null,
             OrgNumber = input.IsOrganisation ? input.OrgNumber?.Trim() : null,
@@ -280,6 +286,10 @@ public class BookingService(
         if (dayGuestsApplicable)
             errors = [.. errors, .. CompletionNormalizer.ValidateDayGuests(
                 form.DayGuests ?? [], booking.CheckIn.Value, booking.CheckOut.Value)];
+        // Allergy consent (FR-110). Its own call because the rule needs dayGuestsApplicable, which
+        // Validate does not receive — an allergy on a day-guest row that will be dropped must not
+        // demand consent for processing that never happens.
+        errors = [.. errors, .. CompletionNormalizer.ValidateAllergyConsent(form, dayGuestsApplicable)];
         if (errors.Count > 0)
             return CompletionSubmitResult.Invalid(errors);
 
@@ -306,6 +316,15 @@ public class BookingService(
             selection.BookingId = booking.Id;
             booking.MealSelections.Add(selection);
         }
+
+        // Record the consent, not the checkbox (FR-110, art. 7.1). Stamped only when an allergy was
+        // actually declared — validation above guarantees the box is ticked in that case, so a
+        // ticked box on a form declaring no allergies leaves this null rather than recording a
+        // consent to processing that is not happening. `nowUtc` is the caller's clock, never
+        // DateTime.UtcNow read here.
+        var participantsDeclareAllergy = participants.Any(p =>
+            p.Allergies.Count > 0 || !string.IsNullOrWhiteSpace(p.AllergyNotes));
+        booking.AllergyConsentAt = participantsDeclareAllergy ? nowUtc : null;
 
         // Persist the meal occasions the selections were built against, so the stored flags and the
         // stored rows can never disagree. A self-catering booking keeps them all false — there is no

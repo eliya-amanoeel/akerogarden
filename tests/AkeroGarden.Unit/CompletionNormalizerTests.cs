@@ -47,6 +47,68 @@ public class CompletionNormalizerTests
         return form;
     }
 
+    // ── Allergy consent (FR-110) ──────────────────────────────────────────────────
+
+    [Fact]
+    public void AllergyConsent_NoAllergyDeclared_NotRequired()
+    {
+        // The common case by far: no allergies, so there is no health data to consent to. Demanding
+        // consent here would also make it non-freely-given (art. 7.4) for the guests who do declare.
+        var form = FormWith("Anna");
+        Assert.Empty(CompletionNormalizer.ValidateAllergyConsent(form, dayGuestsApplicable: true));
+    }
+
+    [Fact]
+    public void AllergyConsent_AllergyDeclaredWithoutConsent_IsRejected()
+    {
+        var form = FormWith("Anna");
+        form.Overnight[0].Allergies = [Allergy.Gluten];
+
+        var errors = CompletionNormalizer.ValidateAllergyConsent(form, dayGuestsApplicable: true);
+        Assert.Single(errors);
+        Assert.Contains("samtycke", errors[0]);
+    }
+
+    [Fact]
+    public void AllergyConsent_AllergyDeclaredWithConsent_IsAccepted()
+    {
+        var form = FormWith("Anna");
+        form.Overnight[0].Allergies = [Allergy.Gluten];
+        form.AllergyConsent = true;
+
+        Assert.Empty(CompletionNormalizer.ValidateAllergyConsent(form, dayGuestsApplicable: true));
+    }
+
+    [Fact]
+    public void AllergyConsent_OnlyANoteAndNoTickedBox_StillCountsAsDeclared()
+    {
+        // "Annat" plus free text is a declared allergy. Keying the rule on the ticked boxes alone
+        // would let the most detailed health data on the form through with no consent at all.
+        var form = FormWith("Anna");
+        form.Overnight[0].AllergyNotes = "Reagerar på selleri";
+
+        Assert.Single(CompletionNormalizer.ValidateAllergyConsent(form, dayGuestsApplicable: true));
+    }
+
+    [Fact]
+    public void AllergyConsent_DayGuestAllergy_RequiresConsentOnlyWhenDayGuestsApply()
+    {
+        var form = FormWith("Anna");
+        form.DayGuests.Add(new DayGuestEntry
+        {
+            FullName = "Bo",
+            AttendanceDate = Day2.ToString("yyyy-MM-dd"),
+            Allergies = [Allergy.Nut],
+        });
+
+        // Catered booking: the row will be stored, so its allergy needs consent.
+        Assert.Single(CompletionNormalizer.ValidateAllergyConsent(form, dayGuestsApplicable: true));
+
+        // Self-catering: day-guest rows are dropped server-side whatever was posted (§4.2), so this
+        // allergy is never processed and must not demand consent for processing that never happens.
+        Assert.Empty(CompletionNormalizer.ValidateAllergyConsent(form, dayGuestsApplicable: false));
+    }
+
     // ── Validation ────────────────────────────────────────────────────────────────
 
     [Fact]

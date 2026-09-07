@@ -380,6 +380,38 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                     </div>
                 </div>
 
+                @* Allergy consent (FR-110). Declared allergies are health data under GDPR art. 9 and
+                   the privacy policy states they are processed on explicit consent — until this
+                   existed, that statement was simply untrue: allergies were collected here with no
+                   consent control and no link to the policy anywhere on this page.
+
+                   Always rendered, required only when an allergy is actually declared
+                   (CompletionNormalizer.ValidateAllergyConsent). It is not hidden until an allergy is
+                   entered: the allergy fields are inside collapsed per-participant panels, so a
+                   checkbox appearing somewhere further down the page as a side effect of expanding
+                   one of them is a worse experience than one that is simply always there.
+
+                   Server-only gate — completion-form.js validates nothing, by design. *@
+                <div class="form-section">
+                    <div class="form-group form-group--checkbox">
+                        <label>
+                            @* The hidden false companion is this page's idiom for every bool (see
+                               Form.MainBuildingCleaning / Form.IsOrganisation): an unchecked box
+                               posts nothing at all, so without it the binder never sees false. *@
+                            <input type="checkbox" name="Form.AllergyConsent" value="true"
+                                   checked="@_form.AllergyConsent" />
+                            <input type="hidden" name="Form.AllergyConsent" value="false" />
+                            <span>
+                                Jag godkänner att Åkerögården behandlar de allergier vi angett ovan.
+                                Allergier är hälsouppgifter, och vi använder dem enbart för att laga
+                                säker mat under er vistelse — se vår
+                                <a href="/integritetspolicy" target="_blank">integritetspolicy</a>.
+                                Behövs bara om ni har angett någon allergi.
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
                 <div class="completion-submit">
                     <button type="submit" name="Action" value="complete" class="btn">Skicka in uppgifter</button>
                     <span class="hint">Du kan skicka in nu — vi hör av oss om något behöver kompletteras.</span>
@@ -422,7 +454,8 @@ else
     </div></section>
 }
 
-<script src="/js/completion-form.js"></script>
+@* Fingerprinted via @Assets — see the note on BookInquiry's script tag. *@
+<script src="@Assets["js/completion-form.js"]"></script>
 
 @code {
     [Parameter]

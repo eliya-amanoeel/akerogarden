@@ -89,7 +89,7 @@ public class BuildingAssignmentIntegrationTests : IClassFixture<DbFixture>
             CheckOut = checkOut,
             OvernightGuestCount = overnightGuests,
             MealPlan = MealPlan.SelfCateringAll,
-            AcceptPrivacyPolicy = true,
+            AcceptTerms = true,
         }, createdByAdmin: true);
 
         return new Seeded(booking.Id, building.Id, building.Name, room.Id, physical.Name, checkIn, checkOut);

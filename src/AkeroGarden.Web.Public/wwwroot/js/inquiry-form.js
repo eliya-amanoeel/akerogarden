@@ -78,7 +78,9 @@
         field('MealPlan', [function (v) { return isBlank(v) ? 'Välj en måltidsplan.' : null; }]),
         field('DayGuestCount', [function (v) { return !isBlank(v) && Number(v) < 0 ? 'Antal dagsgäster kan inte vara negativt.' : null; }]),
         field('OrgName', [function (v, vals) { return vals('IsOrganisation') && isBlank(v) ? 'Organisationsnamn krävs när bokningen görs för en organisation.' : null; }]),
-        field('AcceptPrivacyPolicy', [function (v) { return v !== 'true' ? 'Du måste godkänna integritetspolicyn för att skicka förfrågan.' : null; }])
+        // Mirrors StayRequestInput.AcceptTerms — field name and message must both match the server's,
+        // or this fires the wrong text (or, on a rename, silently stops firing at all).
+        field('AcceptTerms', [function (v) { return v !== 'true' ? 'Du måste godkänna integritetspolicyn och bokningsvillkoren för att skicka förfrågan.' : null; }])
     ];
 
     var generalFields = [
@@ -169,15 +171,30 @@
         });
 
         form.addEventListener('submit', function (ev) {
+            // Track the failing *field*, not its element. Tracking the element meant that a field
+            // whose input could not be found left firstInvalid null, so preventDefault never ran and
+            // the form posted for real — the browser then reloaded the page and landed at the top,
+            // which looks like "the page scrolled up" rather than like a broken validation gate. That
+            // is exactly what a stale field name in the list above produces, and it is silent.
             var firstInvalid = null;
             fields.forEach(function (f) {
-                if (!validateField(f) && !firstInvalid) firstInvalid = el(f.prop);
+                if (!validateField(f) && !firstInvalid) firstInvalid = f;
             });
-            if (firstInvalid) {
-                ev.preventDefault();
-                firstInvalid.focus();
-                firstInvalid.scrollIntoView({ block: 'center', behavior: 'smooth' });
-            }
+            if (!firstInvalid) return;
+
+            ev.preventDefault();
+            var target = el(firstInvalid.prop);
+            if (!target) return;
+
+            // preventScroll: focus() scrolls the element into view on its own, and it does so
+            // without honouring the 'nearest' below — the two calls fought and focus() won.
+            target.focus({ preventScroll: true });
+            // 'nearest', not 'center': the acknowledgement checkbox is the last field and sits
+            // directly above the submit button, so the guest is already looking at it when they
+            // click. Centring a field that is already on screen scrolls the page anyway, pulling the
+            // view up and away from the button. 'nearest' is a no-op when the field is fully visible
+            // and still brings a far-off field (e.g. the name at the top) into view.
+            target.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         });
     }
 

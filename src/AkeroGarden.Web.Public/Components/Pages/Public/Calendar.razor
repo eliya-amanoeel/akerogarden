@@ -83,8 +83,9 @@
 @* Keeps --header-h equal to the header's real height so the sticky .cal-selection bar clears
    it at any text size. Loaded here and not in App.razor: this is the only public page with
    anything sticking below the header, and the public site deliberately ships no site-wide JS. *@
-<script src="_content/AkeroGarden.Web.Core/js/sticky-offsets.js"></script>
-<script src="/js/calendar.js"></script>
+<script src="@Assets["_content/AkeroGarden.Web.Core/js/sticky-offsets.js"]"></script>
+@* Fingerprinted via @Assets — see the note on BookInquiry's script tag. *@
+<script src="@Assets["js/calendar.js"]"></script>
 
 @code {
     private static readonly CultureInfo Sv = CultureInfo.GetCultureInfo("sv-SE");

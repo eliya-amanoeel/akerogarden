@@ -492,3 +492,9 @@ $RECYCLE.BIN/
 
 #intentionally non-tracked files by me.
 /docs/temp/findings.md
+
+# Client questionnaire, generated for sending — not tracked.
+# The source of truth is docs/legal/klientfragor-juridiska-underlag.md, which IS tracked.
+# Dated globs so a regenerated copy is covered too.
+/docs/legal/klientfragor-*.html
+/docs/legal/Akerogarden-klientfragor-*.pdf

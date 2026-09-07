@@ -12,6 +12,7 @@ namespace AkeroGarden.Unit;
 public class BookingEmailTemplatesTests
 {
     private const string Ref = "AG-2026-0042";
+    private const string TermsUrl = "https://akerogarden.se/bokningsvillkor";
 
     [Fact]
     public void StayRequestAcknowledgement_IsSwedish_AndGreetsGuest()
@@ -92,7 +93,7 @@ public class BookingEmailTemplatesTests
         var expiry = new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc);
         var c = BookingEmailTemplates.Approval(
             "Anna", "https://akerogarden.se/slutfor/TOKEN", expiry, Ref, ["Smedjan"],
-            new TimeOnly(14, 0), new TimeOnly(12, 0));
+            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl);
 
         Assert.Contains("https://akerogarden.se/slutfor/TOKEN", c.HtmlBody);
         Assert.Contains("Smedjan", c.HtmlBody);       // assigned lodging stated (FR-103)
@@ -100,6 +101,10 @@ public class BookingEmailTemplatesTests
         Assert.Contains("14:00", c.HtmlBody);
         Assert.Contains("20 %", c.HtmlBody);          // deposit policy
         Assert.Contains(Ref, c.HtmlBody);
+
+        // §1 of the terms makes the booking binding at approval, so the full terms must be reachable
+        // from this email — the deposit/cancellation paragraphs above are only a summary of them.
+        Assert.Contains(TermsUrl, c.HtmlBody);
     }
 
     [Fact]
@@ -111,7 +116,7 @@ public class BookingEmailTemplatesTests
         var c = BookingEmailTemplates.Approval(
             "Anna", "https://akerogarden.se/slutfor/TOKEN",
             new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc), Ref, [],
-            new TimeOnly(8, 0), new TimeOnly(18, 30));
+            new TimeOnly(8, 0), new TimeOnly(18, 30), TermsUrl);
 
         Assert.Contains("Incheckning sker kl. 08:00", c.HtmlBody);
         Assert.Contains("utcheckning kl. 18:30", c.HtmlBody);
@@ -122,7 +127,7 @@ public class BookingEmailTemplatesTests
     {
         var c = BookingEmailTemplates.Approval(
             "Anna", "https://akerogarden.se/slutfor/TOKEN",
-            new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc), Ref, [], null, null);
+            new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc), Ref, [], null, null, TermsUrl);
 
         Assert.Contains("Incheckning sker kl. 14:00", c.HtmlBody);
         Assert.Contains("utcheckning kl. 12:00", c.HtmlBody);
@@ -135,7 +140,7 @@ public class BookingEmailTemplatesTests
         // show a link or an expiry — it tells the guest nothing is required of them yet.
         var c = BookingEmailTemplates.Approval(
             "Anna", magicLinkUrl: null, expiryUtc: null, Ref, ["Smedjan"],
-            new TimeOnly(14, 0), new TimeOnly(12, 0));
+            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl);
 
         Assert.DoesNotContain("/slutfor/", c.HtmlBody);
         Assert.DoesNotContain("Länken är giltig", c.HtmlBody);
@@ -146,6 +151,9 @@ public class BookingEmailTemplatesTests
         Assert.Contains("Smedjan", c.HtmlBody);
         Assert.Contains("20 %", c.HtmlBody);
         Assert.Contains(Ref, c.HtmlBody);
+        // The booking is binding regardless of whether the completion link was issued yet, so the
+        // terms link is not part of the link variant.
+        Assert.Contains(TermsUrl, c.HtmlBody);
     }
 
     [Fact]

@@ -54,6 +54,8 @@ erDiagram
         bool DayGuestLunch "…three flags, all day guests on the booking"
         int VegetarianCount "dietary preference as a count (§4.6)"
         int VeganCount "dietary preference as a count (§4.6)"
+        datetime TermsAcceptedAt "terms accepted at inquiry, null if admin-created (FR-111)"
+        datetime AllergyConsentAt "art. 9 consent, null when no allergy declared (FR-110)"
         bool MainBuildingCleaningPurchased "completion choice, FR-93"
         bool SleepingCleaningPurchased "completion choice; rows resolve from assigned buildings"
         bool ConferenceCleaningPurchased "completion choice, only if Konferensrum booked"

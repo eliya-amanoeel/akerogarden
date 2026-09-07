@@ -90,6 +90,33 @@ public class FunnelTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Client_side_acknowledgement_message_names_both_documents()
+    {
+        // inquiry-form.js mirrors the server's field names and messages by hand, and nothing tested
+        // it — so when AcceptPrivacyPolicy became AcceptTerms (FR-109) the mirror kept the old field
+        // name and the pre-FR-109 wording. The client gate silently stopped matching the field while
+        // still rendering a message that named only the privacy policy. Found by hand, not by CI.
+        await Page.GotoAsync("/boka");
+        await FillValidStayFormAsync(Page);
+        await Page.Locator(".track--stay label:has-text('bokningsvillkoren') input[type=checkbox]").UncheckAsync();
+
+        var postsToBoka = new List<string>();
+        void OnRequest(object? _, IRequest r)
+        {
+            if (r.Method == "POST" && r.Url.Contains("/boka")) postsToBoka.Add(r.Url);
+        }
+        Page.Request += OnRequest;
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
+
+        var message = Page.GetByText("Du måste godkänna integritetspolicyn och bokningsvillkoren för att skicka förfrågan.");
+        await Assertions.Expect(message).ToBeVisibleAsync();
+        Page.Request -= OnRequest;
+
+        // Still caught in the browser, like every other client-detectable rule.
+        Assert.Empty(postsToBoka);
+    }
+
+    [Fact]
     public async Task With_javascript_disabled_the_server_still_blocks_an_invalid_email()
     {
         // Graceful degradation (A2d): with the client-side script inert, the invalid email must

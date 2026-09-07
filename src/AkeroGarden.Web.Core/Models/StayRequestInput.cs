@@ -5,8 +5,8 @@ namespace AkeroGarden.Web.Core.Models;
 
 /// <summary>
 /// The public stay-request inquiry form (FR-03). Bound by the <c>/boka</c> page and passed to
-/// <see cref="Services.BookingService"/>. Cross-field rules (dates, org details, privacy
-/// acknowledgement) are validated here; the day-guest rule is re-applied server-side by
+/// <see cref="Services.BookingService"/>. Cross-field rules (dates, org details, the privacy-policy
+/// and booking-terms acknowledgement) are validated here; the day-guest rule is re-applied server-side by
 /// <see cref="Services.InquiryNormalizer"/> regardless of client input. Cleaning is not
 /// selected here — it is chosen on the completion form (FR-93, §5.5).
 /// </summary>
@@ -83,8 +83,19 @@ public class StayRequestInput : IValidatableObject
     [StringLength(5000, ErrorMessage = "Meddelandet får vara högst 5000 tecken.")]
     public string? Message { get; set; }
 
-    /// <summary>Explicit privacy-policy acknowledgement, required at submission (NFR-21).</summary>
-    public bool AcceptPrivacyPolicy { get; set; }
+    /// <summary>Explicit acknowledgement of <b>both</b> the privacy policy (NFR-21) and the booking
+    /// terms, required at submission. One flag for two documents because the inquiry form asks once,
+    /// in one checkbox (C1, decided 2026-08-17) — the terms must be accepted before the booking
+    /// becomes binding, and a second control would be pure funnel friction.
+    ///
+    /// <para>Renamed from <c>AcceptPrivacyPolicy</c> (2026-08-17) once the flag started covering two
+    /// documents and the old name under-described it. It is the posted field name on a Static-SSR
+    /// form, so the rename changes the wire format — nothing persists it, so there is nothing to
+    /// migrate, but any future reference to the old field name is stale.
+    /// <see cref="GeneralInquiryInput"/> deliberately keeps <c>AcceptPrivacyPolicy</c>: a general
+    /// question is not a booking, so no terms apply to it and the old name is still the accurate
+    /// one there. The two flags differing in name is the point, not an oversight.</para></summary>
+    public bool AcceptTerms { get; set; }
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {
@@ -95,11 +106,11 @@ public class StayRequestInput : IValidatableObject
                 [nameof(CheckOut)]);
         }
 
-        if (!AcceptPrivacyPolicy)
+        if (!AcceptTerms)
         {
             yield return new ValidationResult(
-                "Du måste godkänna integritetspolicyn för att skicka förfrågan.",
-                [nameof(AcceptPrivacyPolicy)]);
+                "Du måste godkänna integritetspolicyn och bokningsvillkoren för att skicka förfrågan.",
+                [nameof(AcceptTerms)]);
         }
 
         // Only when a confirmation was actually entered — a blank one is reported by [Required].

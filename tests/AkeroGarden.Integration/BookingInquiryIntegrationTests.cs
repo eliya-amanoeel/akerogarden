@@ -41,6 +41,81 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
         });
     }
 
+    /// <summary>FR-111: the guest's acceptance of the privacy policy and the booking terms is
+    /// recorded, not validated and discarded. The clock is pinned because the assertion is the exact
+    /// instant, not merely that something was stamped — an assertion on "not null" would pass on a
+    /// value read from the wrong clock.
+    ///
+    /// <para>The three cases are one test because the point is the *contrast* between them: a
+    /// guest-submitted stay request records the acceptance, and the two paths where nobody ticked
+    /// anything must record nothing rather than a plausible-looking timestamp.</para></summary>
+    [Fact]
+    public async Task Terms_acceptance_is_recorded_for_a_guest_submission_and_for_nothing_else()
+    {
+        var pinned = new DateTimeOffset(2026, 8, 17, 10, 15, 0, TimeSpan.Zero);
+        var provider = _fixture.BuildServices(s =>
+        {
+            s.AddSingleton<IEmailService>(new FakeEmailService());
+            s.AddScoped<BookingEmailService>();
+            s.AddScoped<BookingService>();
+            s.AddScoped<CleaningZoneService>();
+            s.AddScoped<FacilityService>();
+            s.Configure<BookingEmailOptions>(o =>
+            {
+                o.PublicBaseUrl = "https://akerogarden.se";
+                o.AdminBaseUrl = "https://admin.akerogarden.se";
+                o.AdminNotificationEmail = "admin@test.se";
+                o.ContactEmail = "info@test.se";
+            });
+            DbFixture.PinClock(s, pinned);
+        });
+
+        static StayRequestInput Stay() => new()
+        {
+            ContactName = "Anna Andersson",
+            ContactEmail = $"anna-{Guid.NewGuid():N}@test.se",
+            CheckIn = new DateOnly(2026, 9, 1),
+            CheckOut = new DateOnly(2026, 9, 5),
+            OvernightGuestCount = 12,
+            MealPlan = MealPlan.FullBoardAll,
+            AcceptTerms = true,
+        };
+
+        Guid guestId, adminId, generalId;
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            guestId = (await service.CreateStayRequestAsync(Stay())).Id;
+            adminId = (await service.CreateStayRequestAsync(Stay(), createdByAdmin: true)).Id;
+            generalId = (await service.CreateGeneralInquiryAsync(new GeneralInquiryInput
+            {
+                ContactName = "Berit",
+                ContactEmail = $"berit-{Guid.NewGuid():N}@test.se",
+                Message = "En fråga",
+                AcceptPrivacyPolicy = true,
+            })).Id;
+        }
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+            // The guest ticked the box: the instant is the injected clock's, not wall-clock now.
+            var guest = await db.Bookings.SingleAsync(b => b.Id == guestId);
+            Assert.Equal(pinned.UtcDateTime, guest.TermsAcceptedAt);
+
+            // Created on the guest's behalf (FR-47). ManualBooking sets AcceptTerms itself purely to
+            // satisfy validation, so trusting that flag here would manufacture evidence of an
+            // acceptance that never happened.
+            var admin = await db.Bookings.SingleAsync(b => b.Id == adminId);
+            Assert.Null(admin.TermsAcceptedAt);
+
+            // A question is not a booking, so no terms apply to it and there is nothing to record.
+            var general = await db.Bookings.SingleAsync(b => b.Id == generalId);
+            Assert.Null(general.TermsAcceptedAt);
+        }
+    }
+
     private static async Task<Facility> SeedFacilityAsync(ApplicationDbContext db, decimal amount, decimal vat)
     {
         var f = new Facility
@@ -78,7 +153,7 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
                 OvernightGuestCount = 12,
                 MealPlan = MealPlan.FullBoardAll,
                 SelectedFacilityIds = [facility.Id],
-                AcceptPrivacyPolicy = true
+                AcceptTerms = true
             });
             bookingId = booking.Id;
         }
@@ -134,7 +209,7 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
             OvernightGuestCount = 4,
             MealPlan = MealPlan.SelfCateringAll,
             DayGuestCount = 5, // must be ignored server-side (§4.2)
-            AcceptPrivacyPolicy = true
+            AcceptTerms = true
         });
 
         Assert.Null(booking.DayGuestCount);
@@ -194,7 +269,7 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
             CheckOut = new DateOnly(2026, 12, 3),
             OvernightGuestCount = 2,
             MealPlan = MealPlan.FullBoardAll,
-            AcceptPrivacyPolicy = true
+            AcceptTerms = true
         });
 
         Assert.NotEqual(first.BookingReference, second.BookingReference);
@@ -225,7 +300,7 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
                 OvernightGuestCount = 2,
                 MealPlan = MealPlan.FullBoardAll,
                 SelectedFacilityIds = [facility.Id],
-                AcceptPrivacyPolicy = true
+                AcceptTerms = true
             });
             bookingId = booking.Id;
         }

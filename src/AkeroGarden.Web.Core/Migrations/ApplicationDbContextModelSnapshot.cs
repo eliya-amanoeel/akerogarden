@@ -204,6 +204,9 @@ namespace AkeroGarden.Web.Core.Migrations
                     b.Property<string>("AdminNotes")
                         .HasColumnType("text");
 
+                    b.Property<DateTime?>("AllergyConsentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<bool>("ArrivalBreakfast")
                         .HasColumnType("boolean");
 
@@ -357,6 +360,9 @@ namespace AkeroGarden.Web.Core.Migrations
                         .IsRequired()
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
+
+                    b.Property<DateTime?>("TermsAcceptedAt")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");

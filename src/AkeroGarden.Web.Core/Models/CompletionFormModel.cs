@@ -80,6 +80,18 @@ public class CompletionFormModel
     /// was actually selected on the booking (§5.5); ignored otherwise regardless of what posts.</summary>
     public bool ConferenceCleaning { get; set; }
 
+    // ── Allergy consent (FR-110, art. 9.2 a) ─────────────────────────────────────
+    /// <summary>Explicit consent to processing the declared allergies, which are health data and
+    /// therefore special-category under GDPR art. 9. Required **only when at least one allergy is
+    /// actually declared** on this form (see
+    /// <see cref="AkeroGarden.Web.Core.Services.CompletionNormalizer.ValidateAllergyConsent"/>).
+    ///
+    /// <para><b>Why conditional and not always required.</b> Most groups declare no allergies at
+    /// all. Demanding consent to process health data nobody supplied is meaningless, and worse, a
+    /// consent the guest must give to get past the form is not "freely given" in the sense of art.
+    /// 7.4 — making it mandatory would weaken the very basis it exists to establish.</para></summary>
+    public bool AllergyConsent { get; set; }
+
     // ── Org / invoice (FR-60) ────────────────────────────────────────────────────
     public bool IsOrganisation { get; set; }
 

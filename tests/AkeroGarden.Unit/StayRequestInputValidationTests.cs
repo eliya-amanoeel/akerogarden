@@ -22,7 +22,7 @@ public class StayRequestInputValidationTests
         CheckOut = new DateOnly(2026, 8, 3),
         OvernightGuestCount = 4,
         MealPlan = MealPlan.FullBoardAll,
-        AcceptPrivacyPolicy = true,
+        AcceptTerms = true,
     };
 
     private static List<ValidationResult> Validate(StayRequestInput model)
@@ -34,6 +34,22 @@ public class StayRequestInputValidationTests
 
     [Fact]
     public void Baseline_model_is_valid() => Assert.Empty(Validate(Valid()));
+
+    [Fact]
+    public void Unaccepted_terms_are_rejected_and_the_message_names_both_documents()
+    {
+        // FR-109: one checkbox covers the privacy policy and the booking terms, so the message has
+        // to name both — a guest told only about the policy has not knowingly accepted the deposit
+        // and cancellation rules. The rule had no test at all until 2026-08-17, which is how the
+        // client-side mirror in inquiry-form.js kept showing the pre-FR-109 wording unnoticed.
+        var model = Valid();
+        model.AcceptTerms = false;
+
+        var results = Validate(model);
+        var result = Assert.Single(results, r => r.MemberNames.Contains(nameof(StayRequestInput.AcceptTerms)));
+        Assert.Contains("integritetspolicyn", result.ErrorMessage);
+        Assert.Contains("bokningsvillkoren", result.ErrorMessage);
+    }
 
     [Fact]
     public void Not_an_organisation_leaves_org_name_optional()

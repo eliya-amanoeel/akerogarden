@@ -67,7 +67,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
             CheckOut = arrival.AddDays(3),
             OvernightGuestCount = 3,
             MealPlan = MealPlan.FullBoardAll,
-            AcceptPrivacyPolicy = true
+            AcceptTerms = true
         }, createdByAdmin: true);
 
         // Approval requires a lodging assignment (FR-103/D1).
@@ -222,7 +222,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
                 CheckOut = new DateOnly(2026, 8, 12),
                 OvernightGuestCount = 1,
                 MealPlan = MealPlan.FullBoardAll,
-                AcceptPrivacyPolicy = true
+                AcceptTerms = true
             }, createdByAdmin: true);
             // Approval requires a lodging assignment (FR-103/D1).
             await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
@@ -239,6 +239,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
             MealChoices = occasions.AllSittings
                 .Select(s => (string?)(s.MealType == MealType.Lunch ? lunchId : dinnerId).ToString())
                 .ToList(),
+            AllergyConsent = true, // the participant below declares an allergy, so FR-110 requires it
         };
         form.Overnight.Add(new OvernightParticipantEntry
         {

@@ -1,0 +1,198 @@
+@page "/bokningsvillkor"
+@layout MainLayout
+
+@* The published text is generated from docs/legal/Boknings-och-ordningsvillkor.md — the two are
+   kept in sync by hand, and the markdown file is the one the jurist reviews. If you change wording
+   here, change it there too; a divergence means the reviewed document is not the published one.
+
+   This page exists ahead of its content on purpose (C1 of docs/legal/klientfragor-juridiska-underlag.md,
+   decided 2026-08-17). The wiring — route, footer link, the combined inquiry checkbox, the link in
+   the approval email — is built now so that the client's answers become a text-fill rather than a
+   feature. Seven clauses are still awaiting those answers and say so in place, via .legal-note:
+   §2 (balance due date, non-payment/no-show), §3 (late-cancellation scope), §5 (further house
+   rules), §6 (damage excess and claims process), §7 (force majeure), §9 (governing law/ARN).
+
+   Terms carrying a deposit and a cancellation rule are only worth what a guest was actually shown,
+   so a clause that is not settled must read as unsettled rather than be quietly omitted — an
+   omission looks like a complete document that happens to be silent, which is worse.
+
+   At sign-off: fill the seven clauses, drop the banner, add the "Senast uppdaterad" date. *@
+
+<PageTitle>Boknings- och ordningsvillkor — Åkerögården</PageTitle>
+
+<section class="page-head">
+    <div class="container">
+        <span class="eyebrow">Om sidan</span>
+        <h1>Boknings- och ordningsvillkor</h1>
+        <div class="page-head__rule"></div>
+        <p class="page-head__intro">
+            Villkoren för att boka och vistas på Åkerögården — bokning, betalning, avbokning
+            och ordningsregler.
+        </p>
+    </div>
+</section>
+
+<section class="section">
+    <div class="container">
+
+        <div class="alert alert--warn legal-draft">
+            <span class="alert__ic" aria-hidden="true">!</span>
+            <div>
+                <b>Denna text är ännu inte färdig och inte juridiskt granskad.</b> Vissa villkor är
+                ännu inte fastställda och är markerade nedan. Den slutliga versionen publiceras
+                efter granskning av jurist, innan webbplatsen tas i drift.
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <div class="prose">
+                <p>
+                    Åkerögården drivs av Kaldeiska katolska Mar Narsay Missionen i Södertälje,
+                    org.nr 815601-0129. Dessa villkor gäller för bokningar av Åkerögården,
+                    Åkerövägen 81, 761 94 Norrtälje.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">1. Bokningsförfarande</h2>
+            <div class="prose">
+                <ul>
+                    <li>För att skicka en bokningsförfrågan fyller ni i bokningsformuläret på akerogarden.se.</li>
+                    <li>
+                        Bokningsförfrågan är inte bindande förrän den har godkänts av oss och ni har
+                        mottagit en bokningsbekräftelse.
+                    </li>
+                    <li>
+                        Efter godkännande skickas en länk där kompletterande uppgifter (deltagarlista,
+                        måltidsval, ankomst- och avresetid) ska fyllas i. Ligger ankomsten längre fram
+                        än cirka sex veckor skickas länken först när det närmar sig —
+                        bokningsbekräftelsen anger detta.
+                    </li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">2. Handpenning och betalning</h2>
+            <div class="prose">
+                <ul>
+                    <li>
+                        En handpenning om <b>20 %</b> av det totala beloppet ska betalas i förskott för
+                        att bokningen ska vara bekräftad.
+                    </li>
+                </ul>
+                <p class="legal-note">
+                    <b>Kompletteras innan publicering:</b> när resterande belopp ska vara betalt, samt
+                    vad som gäller vid utebliven betalning eller utebliven ankomst.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">3. Avbokning</h2>
+            <div class="prose">
+                <ul>
+                    <li>Vid avbokning senast <b>två månader</b> före ankomst återbetalas handpenningen.</li>
+                    <li>Vid avbokning senare än två månader före ankomst återbetalas <b>inte</b> handpenningen.</li>
+                </ul>
+                <p class="legal-note">
+                    <b>Kompletteras innan publicering:</b> vad som gäller för ett restbelopp som redan
+                    har betalats vid en sen avbokning.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">4. Deltagarlista och måltidsval</h2>
+            <div class="prose">
+                <ul>
+                    <li>
+                        Senast <b>två veckor</b> före ankomst ska en fullständig namnlista samt val av
+                        måltider, inklusive eventuella allergier och specialkost, skickas till oss via
+                        kompletteringsformuläret.
+                    </li>
+                    <li>Vi kan inte garantera att specialkost som meddelas senare än så kan tillgodoses.</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">5. Ordningsregler</h2>
+            <div class="prose">
+                <ul>
+                    <li>
+                        Åkerögården är rök- och djurfri. Rökning är endast tillåten utomhus på
+                        anvisade platser.
+                    </li>
+                    <li>Det är inte tillåtet att flytta ut inomhusmöbler till utomhusmiljö.</li>
+                    <li>
+                        Det är inte tillåtet att fästa tejp eller liknande på väggarna, då detta kan
+                        orsaka skador.
+                    </li>
+                    <li>
+                        Standardtid för incheckning är kl. 14:00 och för utcheckning kl. 12:00. Vid
+                        bokningsförfrågan kan gästen ange en önskad in- och utcheckningstid; en tid som
+                        avviker från standardtiderna är ett önskemål som bekräftas separat av
+                        Åkerögården och kan medföra en tilläggsavgift.
+                    </li>
+                </ul>
+                <p class="legal-note">
+                    <b>Kompletteras innan publicering:</b> eventuella ytterligare ordningsregler, till
+                    exempel tystnad efter viss tid, alkoholpolicy och regler kring gemensamma
+                    utrymmen och kök.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">6. Skador och ansvar</h2>
+            <div class="prose">
+                <ul>
+                    <li>
+                        Bokande gäst ansvarar för skador som uppkommer på anläggningen, dess möbler
+                        eller utrustning under vistelsen, orsakade av gästen eller deltagare i
+                        sällskapet.
+                    </li>
+                </ul>
+                <p class="legal-note">
+                    <b>Kompletteras innan publicering:</b> självrisk eller ersättningsprincip, samt
+                    processen för skadeanmälan och fakturering av skador i efterhand.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">7. Force majeure</h2>
+            <div class="prose">
+                <p class="legal-note">
+                    <b>Kompletteras innan publicering:</b> klausul om att part befrias från ansvar när
+                    avtalet inte kan fullgöras på grund av omständigheter utanför partens kontroll,
+                    samt vad som gäller för redan inbetald handpenning i ett sådant fall.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">8. Personuppgifter</h2>
+            <div class="prose">
+                <p>
+                    Personuppgifter som lämnas i samband med bokning behandlas i enlighet med vår
+                    <a href="/integritetspolicy">integritetspolicy</a>.
+                </p>
+            </div>
+        </div>
+
+        <div class="legal-block">
+            <h2 class="subhead">9. Tvist</h2>
+            <div class="prose">
+                <p class="legal-note">
+                    <b>Kompletteras innan publicering:</b> tillämplig lag, samt hänvisning till
+                    Allmänna reklamationsnämnden (ARN) om bokningar görs av privatpersoner i egenskap
+                    av konsument.
+                </p>
+            </div>
+        </div>
+
+    </div>
+</section>

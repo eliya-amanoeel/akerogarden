@@ -71,7 +71,7 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
             CheckOut = new DateOnly(2026, 8, 12),
             OvernightGuestCount = 2,
             MealPlan = MealPlan.FullBoardAll,
-            AcceptPrivacyPolicy = true
+            AcceptTerms = true
         }, createdByAdmin: true);
         // Approval requires a lodging assignment (FR-103/D1).
         await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);

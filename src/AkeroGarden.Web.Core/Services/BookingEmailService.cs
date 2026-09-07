@@ -76,7 +76,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             booking.BookingReference,
             AssignedBuildingNames(booking),
             booking.CheckInTime,
-            booking.CheckOutTime);
+            booking.CheckOutTime,
+            BuildTermsUrl());
         return SendToGuestAsync(booking, content);
     }
 
@@ -195,6 +196,9 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
     private string BuildCompletionUrl(string token) =>
         $"{_opts.PublicBaseUrl.TrimEnd('/')}/slutfor/{token}";
+
+    private string BuildTermsUrl() =>
+        $"{_opts.PublicBaseUrl.TrimEnd('/')}/bokningsvillkor";
 
     private string BuildAdminBookingUrl(Guid bookingId) =>
         $"{_opts.AdminBaseUrl.TrimEnd('/')}/bokningar/{bookingId}";

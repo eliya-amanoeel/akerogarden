@@ -834,8 +834,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 fieldset.form-group { border: 0; padding: 0; }
 fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--color-heading); padding: 0; margin-bottom: 0.5rem; }
 
-/* Single-checkbox rows (privacy, organisation) */
-.form-group--checkbox { flex-direction: row; align-items: flex-start; gap: 0.6rem; }
+/* Single-checkbox rows (acknowledgement, organisation, "kom ihåg mig").
+   Inherits .form-group's column direction — it must NOT be a row. The row is *inside* the label
+   (checkbox + text, rule below); this container stacks the label and its validation message. It was
+   `flex-direction: row` until 2026-08-17, which put the message *beside* the label and split the
+   available width three ways: at 360px the FR-109 label rendered "Jag godkänner" as a two-line
+   column with the error as a third, clipped column. It only ever looked acceptable because the
+   label was short and the message almost never appeared. */
+.form-group--checkbox { align-items: flex-start; }
 .form-group--checkbox label { font-weight: 400; color: var(--color-text); font-size: 0.95rem; display: flex; gap: 0.6rem; align-items: flex-start; }
 
 /* Validation */
@@ -1602,15 +1608,41 @@ fieldset.participant legend {
 .prose { max-width: 65ch; overflow-wrap: break-word; }
 .prose p { font-size: 1.0625rem; color: var(--color-text); margin: 0 0 1.2rem; }
 .prose p:last-child { margin-bottom: 0; }
+/* Sub-heading and bullet list inside a prose column. Added for the privacy policy (the first
+   public page with real document structure — numbered sections, sub-headings, a rights list);
+   the reset strips list markers and .prose previously styled paragraphs only.
+
+   The size is the *prose body* size, not the type scale's H3 (~21px): .subhead — the numbered
+   section head this sits beneath — is 1.25rem, so a scale H3 here would outrank its own parent.
+   It separates from body copy by family and weight instead, and is recorded as its own step in
+   design.md's type scale rather than left as a loose number. */
+.prose h3 {
+    font-family: var(--font-heading);
+    color: var(--color-heading);
+    font-weight: 700;
+    font-size: 1.0625rem;
+    margin: 1.5rem 0 0.75rem;
+}
+/* Bottom margin matches .prose p above, not the 4-based step: a list and a paragraph in the same
+   column must separate from what follows them identically, and matching the immediate sibling is
+   the stronger consistency here. */
+.prose ul { margin: 0 0 1.2rem; padding-left: 1.5rem; list-style: disc; }
+.prose li { font-size: 1.0625rem; color: var(--color-text); margin-bottom: 0.5rem; }
+.prose li:last-child { margin-bottom: 0; }
 
 /* Inline links inside running text are underlined so they're distinguishable without relying on
    colour (WCAG 1.4.1 — axe "link-in-text-block"). Nav/footer/cards/buttons are excluded: they're
    set apart by layout, not sitting inside a sentence. */
-/* `.findmap-figure__caption a` joined on 2026-08-18: the OpenStreetMap attribution sits inside a
-   sentence under the map, so it is the same case again — added here, to the one definition, rather
-   than to the map's own block. */
+/* Two selectors joined this list rather than getting rules of their own, for the same reason
+   each time — there must be exactly one definition of "inline links are underlined":
+   `.form-group--checkbox label a` (2026-08-17) — the allergy-consent label (FR-110) is a full
+   sentence with the policy link inside it, which axe correctly reported as link-in-text-block;
+   the acknowledgement label on /boka passed only because it is almost entirely link text with
+   little prose around it, i.e. the same latent failure one longer sentence away.
+   `.findmap-figure__caption a` (2026-08-18) — the OpenStreetMap attribution sits inside a
+   sentence under the map. */
 .prose a, .section p a, .menu-note a, .contact-dl dd a,
-.findmap-figure__caption a { text-decoration: underline; text-underline-offset: 0.15em; }
+.form-group--checkbox label a, .findmap-figure__caption a { text-decoration: underline; text-underline-offset: 0.15em; }
 
 /* Section eyebrow + subhead on content pages */
 .subhead {
@@ -1806,6 +1838,29 @@ fieldset.participant legend {
 .data-table__season { color: var(--color-secondary); font-size: 0.85rem; white-space: nowrap; }
 .price-note { font-size: 0.875rem; color: var(--color-muted); margin: 0 0 1.25rem; }
 .price-block + .price-block { margin-top: 2.5rem; }
+
+/* Legal document pages (integritetspolicy, and the booking terms when they land) — numbered
+   sections of prose interleaved with .data-table blocks. The prose column is capped at 65ch for
+   readability while the tables run full width, so each section is a block wrapper rather than one
+   .prose element around everything. */
+/* Block separation reuses .price-block's 2.5rem rather than introducing a second value for the
+   same job — two content-page block rhythms 4px apart is exactly the near-duplicate drift the
+   duplication rule in design.md exists to prevent. */
+.legal-block + .legal-block { margin-top: 2.5rem; }
+.legal-block .prose + .data-table-wrap,
+.legal-block .data-table-wrap + .prose { margin-top: 1.2rem; }
+.legal-draft { margin-bottom: 2.5rem; }
+/* An aside that qualifies the table above it (e.g. "the audit log holds no guest data") — set
+   apart from the running text so it doesn't read as another body paragraph. */
+.prose p.legal-note {
+    border-left: 3px solid var(--color-line);
+    padding-left: 1rem;
+    color: var(--color-muted);
+    /* 0.85rem is the house small/caption size (design.md type scale, ~13.5px) — the same value
+       .sec-note and the admin table's .sub already use. It was 0.95rem, a fourth muted-note size
+       four hundredths off three existing ones. */
+    font-size: 0.85rem;
+}
 
 /* Contact — a location photo anchor beside two labelled info groups (Kontakta oss / Hitta
    hit), rather than one flat six-row definition list with no visual hierarchy. */

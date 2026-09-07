@@ -110,6 +110,7 @@ public sealed class HostSeparationIntegrationTests : IClassFixture<DbFixture>, I
     [Theory]
     [InlineData("/boka")]              // inquiry form
     [InlineData("/integritetspolicy")] // privacy policy
+    [InlineData("/bokningsvillkor")]   // booking terms
     [InlineData("/om-oss")]            // about
     public async Task Admin_host_returns_404_for_public_routes(string path)
     {

@@ -2285,3 +2285,71 @@ fieldset.participant legend {
 /* Selected range (JS adds .cal-selected to the day <td>). */
 .cal-day.cal-selected { background: var(--color-primary); }
 .cal-day.cal-selected a { color: var(--color-heading); font-weight: 700; }
+
+/* ── Print ────────────────────────────────────────────────────────────────────────────────────
+   The site shipped no print styles until 2026-09-08, so printing any page carried the header,
+   the footer, the docked mobile CTA and the "Vill du boka?" card, and broke pages wherever they
+   happened to fall. This is the minimal, site-wide pass: hide what cannot be acted on from paper,
+   put black on white, and keep blocks that mean nothing when split from splitting.
+
+   Deliberately NOT the "document treatment" of /kontakt, /integritetspolicy and /bokningsvillkor
+   (the three pages people actually print) — that is worth doing only if someone asks for it.
+   Everything here is scoped to @media print, so nothing on screen can be affected by it. */
+@media print {
+    /* The warm off-white ground and the muted greys are screen decisions: on paper they cost
+       toner and lose contrast. Overriding the tokens rather than the rules means every component
+       follows without being listed here individually. */
+    :root {
+        --color-bg: #fff;
+        --color-bg-warm: #fff;
+        --color-text: #000;
+        --color-heading: #000;
+        --color-muted: #333;   /* still a step lighter than body copy, but readable in greyscale */
+        --color-line: #999;
+    }
+
+    body {
+        background: #fff;
+        color: #000;
+    }
+
+    /* Chrome a reader cannot act on once the page is paper: site navigation, the footer, the
+       docked mobile call-to-action, and the "Vill du boka?" card (`.cta-card`, on /kontakt and
+       /om-oss) whose whole purpose is a button. */
+    .site-header,
+    .site-footer,
+    .mobile-cta,
+    .cta-card {
+        display: none !important;
+    }
+
+    /* The space reserved for the docked CTA goes with it, or every printout starts with a band
+       of nothing. */
+    .has-mobile-cta main { padding-bottom: 0; }
+
+    /* Blocks that mean nothing split in half: the drawn map and its caption, a booking summary,
+       the facts strip, a card. */
+    .findmap-figure,
+    .booking-summary,
+    .facts,
+    .card,
+    .data-card {
+        break-inside: avoid;
+    }
+
+    /* A definition list's term and its value are one unit — `dt` and `dd` are siblings here, not
+       wrapped, so the pair is held together from both sides rather than by a container. */
+    .contact-dl dt { break-after: avoid; }
+    .contact-dl dd { break-before: avoid; }
+
+    /* A heading must not be stranded at the foot of a page with its section overleaf. */
+    h1, h2, h3 { break-after: avoid; }
+
+    /* Section padding is tuned for screen rhythm; on paper it is mostly wasted sheets. */
+    .section { padding: 1.25rem 0; }
+
+    /* Nothing may run past the sheet edge. */
+    img, svg { max-width: 100%; }
+
+    @page { margin: 15mm; }
+}

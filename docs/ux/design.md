@@ -158,6 +158,30 @@ Two fixes, deliberately separate. `--color-muted` is deepened to `#646159` (5.20
 | Small / caption | Roboto 400 | ~13.5px, colour `--color-muted` |
 | Button | Roboto 700 | ~15px |
 
+### Print — one minimal `@media print` block
+
+The site shipped no print styles until 2026-09-08, so printing any page carried the header, the
+footer, the docked mobile CTA and the "Vill du boka?" card. The block at the foot of `site.css`
+hides that chrome, overrides the colour **tokens** rather than individual rules (so every component
+follows without being listed), holds atomic blocks together across page breaks — the drawn map, a
+`dt`/`dd` pair, a booking summary — and sets a 15mm `@page` margin.
+
+Two things to know before extending it:
+
+- **Measure it, don't read it.** The rules were verified by emulating print media in Chromium and
+  printing each page to PDF, before and after. Honest result: the chrome disappears and the ground
+  goes white on every page, but the **page-count saving is modest** — `/` 6 → 5, `/om-oss` 3 → 2,
+  `/integritetspolicy` 7 → 6, and `/kontakt`, `/bokningsvillkor` and `/mat-och-priser` unchanged.
+  Anyone expecting a dramatic reduction should measure rather than assume.
+- **Media emulation is asynchronous.** Switching the emulated media triggers a style recalc that is
+  *not* complete when the emulation call returns, so a single immediate `getComputedStyle` read
+  observes the previous media's values. Use a polling assertion (`ToHaveCSSAsync`), never a one-shot
+  `EvaluateAsync` — this cost a false failure while writing `PrintStylesheetTests`, and it is the
+  same class of trap as the injected-stylesheet oddity recorded under Text scaling.
+
+This is deliberately **not** the "document treatment" of `/kontakt`, `/integritetspolicy` and
+`/bokningsvillkor` — the three pages people actually print. That is worth doing only if someone asks.
+
 ### No inline `style` attributes — the CSP blocks them
 
 Styling lives in `site.css`, never in a `style="…"` attribute on an element. This is not a taste

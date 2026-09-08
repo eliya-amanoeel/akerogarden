@@ -131,6 +131,13 @@ app.UseForwardedHeaders();
 // Interactive Server circuit can connect (see AkeroSecurityHeaders).
 app.UseAkeroSecurityHeaders(interactiveCircuit: true);
 
+// Nothing on the admin host belongs in a search index (see the robots.txt below).
+app.Use(async (context, next) =>
+{
+    context.Response.Headers["X-Robots-Tag"] = "noindex, nofollow";
+    await next(context);
+});
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error", createScopeForErrors: true);
@@ -144,6 +151,13 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+// ── The admin host is never indexed (Phase 11) ────────────────────────────────────────────────
+// It is login-gated, so a crawler sees only the login page — but a login page in search results is
+// still an invitation. robots.txt refuses crawling; X-Robots-Tag refuses indexing even if a URL is
+// reached some other way (a crawler that ignores robots.txt, or a link from elsewhere).
+app.MapGet("/robots.txt", () => Results.Text("User-agent: *\nDisallow: /\n", "text/plain"));
+
 // ContentSecurityFrameAncestorsPolicy: Blazor Server emits its OWN Content-Security-Policy header
 // on interactive pages, containing only frame-ancestors, and it defaults to 'self'. That left the
 // admin host answering with two CSP headers that disagreed — ours saying 'none', the framework's

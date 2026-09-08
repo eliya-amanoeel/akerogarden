@@ -90,15 +90,22 @@ stages:
           #
           # Cache keyed on the resolved playwright.ps1 (reflects the exact browser build the
           # restored package requires — Microsoft.Playwright floats on "*"). A cache hit skips the
-          # Chromium download; --with-deps' apt-level OS dependency check still runs either way
-          # (cheap) since hosted agents don't persist those between runs.
+          # browser downloads; --with-deps' apt-level OS dependency check still runs either way
+          # since hosted agents don't persist those between runs.
           - task: Cache@2
             displayName: Cache Playwright browsers
             inputs:
               key: 'playwright | "$(Agent.OS)" | tests/AkeroGarden.E2E/bin/Release/net10.0/playwright.ps1'
               path: $(PLAYWRIGHT_BROWSERS_PATH)
 
-          - script: pwsh tests/AkeroGarden.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium
+          # All three engines, and --with-deps for all three. Chromium drives the whole suite;
+          # Firefox and WebKit are used by CrossBrowserTextScalingTests. Downloading a browser is
+          # NOT enough on a hosted agent: WebKit needs OS libraries (libwoff2, gstreamer, libenchant
+          # and friends) that ubuntu-latest does not carry, and without them it cannot launch at all.
+          # That is exactly how this failed the first time — the E2E fixture downloaded all three,
+          # but only Chromium had its dependencies here, so the six WebKit cases failed while
+          # everything else passed. Adding an engine to the fixture means adding it here too.
+          - script: pwsh tests/AkeroGarden.E2E/bin/Release/net10.0/playwright.ps1 install --with-deps chromium firefox webkit
             displayName: Install Playwright browsers
 
           - script: dotnet test tests/AkeroGarden.E2E --no-build --configuration Release --logger "console;verbosity=normal" --logger trx --results-directory $(Agent.TempDirectory)/testresults

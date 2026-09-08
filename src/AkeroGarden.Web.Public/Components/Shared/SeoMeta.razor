@@ -1,0 +1,57 @@
+@using AkeroGarden.Web.Core.Services
+@using Microsoft.Extensions.Options
+@inject IOptions<BookingEmailOptions> EmailOptions
+
+@* Per-page metadata: the description search results show, the canonical URL, and the Open Graph /
+   Twitter tags that decide what a shared link looks like in a message (Phase 11).
+
+   One component rather than nine copies of eight tags — the copies would drift, and the drift would
+   be invisible, since nothing on the page changes when a meta tag is wrong.
+
+   The absolute URL comes from BookingEmailOptions.PublicBaseUrl, which already has to be right in
+   every environment (the completion magic link is built from it) and is verified end to end at every
+   cutover. A second base-URL setting would be a second thing to get wrong.
+
+   No og:image: every photograph on the site is still a placeholder, and the only real raster asset
+   is a 32px favicon. A tag pointing at a placeholder would put "Platshållare — foto vid lansering"
+   into every shared preview, which is worse than no image at all. Add one when the real photographs
+   land — it is one line here, and `twitter:card` should become `summary_large_image` with it. *@
+
+<HeadContent>
+    <meta name="description" content="@Description" />
+    <link rel="canonical" href="@AbsoluteUrl" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Åkerögården" />
+    <meta property="og:locale" content="sv_SE" />
+    <meta property="og:title" content="@Title" />
+    <meta property="og:description" content="@Description" />
+    <meta property="og:url" content="@AbsoluteUrl" />
+
+    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:title" content="@Title" />
+    <meta name="twitter:description" content="@Description" />
+</HeadContent>
+
+@code {
+    /// <summary>The page's own title, without the " — Åkerögården" suffix the tab title carries:
+    /// og:title sits beside og:site_name, so repeating the site name reads as a stutter in a
+    /// shared preview.</summary>
+    [Parameter, EditorRequired] public required string Title { get; set; }
+
+    /// <summary>One or two plain Swedish sentences. This is what a search result shows underneath
+    /// the title, so it is written for a person deciding whether to click, not for a crawler.</summary>
+    [Parameter, EditorRequired] public required string Description { get; set; }
+
+    /// <summary>The page's route, e.g. "/kontakt". "/" for the home page.</summary>
+    [Parameter, EditorRequired] public required string Path { get; set; }
+
+    private string AbsoluteUrl
+    {
+        get
+        {
+            var root = EmailOptions.Value.PublicBaseUrl.TrimEnd('/');
+            return Path == "/" ? root + "/" : root + Path;
+        }
+    }
+}

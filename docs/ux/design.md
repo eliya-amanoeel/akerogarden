@@ -158,6 +158,36 @@ Two fixes, deliberately separate. `--color-muted` is deepened to `#646159` (5.20
 | Small / caption | Roboto 400 | ~13.5px, colour `--color-muted` |
 | Button | Roboto 700 | ~15px |
 
+### Text scaling across engines — what is verified, and where
+
+The 540 public + 165 admin combinations recorded below were all measured in **Chromium**. Since
+2026-09-08 the other two engines are covered too, unequally and deliberately:
+
+| Engine | Root sizes | How the size is set | Covers |
+|---|---|---|---|
+| Chromium | 100–200% | CDP `Page.setFontSizes` | the full matrix |
+| **Firefox** | 100 / 150 / **200%** | `font.size.variable.x-western` launch pref | all 9 public pages at 360px, plus 768/1280 at 200% |
+| **WebKit** | **default only** | *not possible* | engine layout differences at 100%, 360 and 1280px |
+
+**WebKit at 200% is not covered and cannot be, with this harness.** Playwright exposes no way to
+set WebKit's default font size, and the CDP call Chromium uses does not exist there. A green
+cross-browser run therefore does **not** mean "WebKit is verified at 200%" — that would need a real
+Safari driven outside Playwright. The gap is stated in the test file itself, next to the assertions.
+
+Firefox is the engine that matters most for SC 1.4.4 anyway: Chromium's own font-size control stops
+at 24px (150%), so the 200% the criterion names is reachable by a real reader mainly through
+Firefox's *text-only* zoom — the exact mode this work exists to serve.
+
+**Two tests in that file exist only to keep the rest honest**, and both are load-bearing: one asserts
+the font preference actually applied (a silently-failing pref would make every overflow assertion
+pass trivially at 16px), and one injects a 3000px element and asserts the overflow detector reports
+it (otherwise the assertions could all be passing because nothing is being measured at all). A
+cross-browser suite whose only evidence is that it printed no failure is not evidence.
+
+Note also that the preference is **launch-time**, so each root size needs its own browser instance —
+which is why this could not simply reuse the existing suite's browser, and why the Phase 11 item
+called the harness, not the assertions, the blocker.
+
 ### Print — one minimal `@media print` block
 
 The site shipped no print styles until 2026-09-08, so printing any page carried the header, the

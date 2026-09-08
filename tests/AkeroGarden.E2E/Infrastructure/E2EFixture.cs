@@ -64,8 +64,18 @@ public sealed class E2EFixture : IAsyncLifetime
 
         await SeedReferenceDataAsync();
 
-        // Ensure the Chromium build is present (no-op if CI already installed it with OS deps).
-        var exit = Microsoft.Playwright.Program.Main(["install", "chromium"]);
+        // Chromium drives the whole suite; Firefox and WebKit are used only by
+        // CrossBrowserTextScalingTests. They are installed here rather than lazily because a
+        // browser download inside a test is a timeout waiting to happen, and because a
+        // conditionally-installed engine turns into a conditionally-skipped test, which reads as
+        // coverage without being any. (No-op when CI has already installed them with OS deps.)
+        //
+        // ⚠️ This call downloads browsers but does NOT install their OS dependencies. On a hosted
+        // Linux agent WebKit cannot launch without libwoff2/gstreamer/libenchant, so the pipeline
+        // runs `playwright.ps1 install --with-deps chromium firefox webkit` before the E2E step.
+        // Adding an engine here means adding it there too — otherwise it downloads fine, fails to
+        // launch, and only that engine's tests go red (which is exactly how this was found).
+        var exit = Microsoft.Playwright.Program.Main(["install", "chromium", "firefox", "webkit"]);
         if (exit != 0)
             throw new InvalidOperationException($"Playwright browser install failed (exit {exit}).");
 

@@ -3,6 +3,7 @@ using AkeroGarden.Web.Core.Security;
 using AkeroGarden.Web.Core.Services;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -98,6 +99,31 @@ app.UseHttpsRedirection();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+
+// ── Technical SEO (Phase 11) — robots.txt + sitemap.xml ───────────────────────────────────────
+// Both are generated rather than served as files in wwwroot, for two reasons: the sitemap is built
+// from the app's OWN routes (a hand-kept list goes stale silently — a missing page produces no
+// error anywhere), and robots.txt has to differ by environment. Only Production invites crawlers;
+// staging.akerogarden.se is publicly reachable and serves the same pages, so anywhere else answers
+// "Disallow: /" rather than competing with the real site as duplicate content.
+app.MapGet("/robots.txt", (IOptions<BookingEmailOptions> emailOptions, IWebHostEnvironment env) =>
+    Results.Text(
+        SitemapBuilder.BuildRobots(emailOptions.Value.PublicBaseUrl, allowIndexing: env.IsProduction()),
+        "text/plain"));
+
+app.MapGet("/sitemap.xml", (
+    IOptions<BookingEmailOptions> emailOptions, EndpointDataSource endpoints) =>
+{
+    var patterns = endpoints.Endpoints
+        .OfType<RouteEndpoint>()
+        .Select(endpoint => endpoint.RoutePattern.RawText ?? string.Empty);
+
+    return Results.Text(
+        SitemapBuilder.BuildSitemap(
+            emailOptions.Value.PublicBaseUrl, SitemapBuilder.SelectIndexablePaths(patterns)),
+        "application/xml");
+});
+
 app.MapRazorComponents<App>();
 
 app.Run();

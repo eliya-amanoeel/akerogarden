@@ -48,10 +48,21 @@ public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, T
             .ToListAsync(cancellationToken);
 
         var now = clock.GetUtcNow().UtcDateTime;
+        var warned = 0;
         foreach (var booking in toWarn)
         {
-            await emails.SendPreDeletionWarningAsync(booking);
+            // The marker is written only on a confirmed send (post-launch security review, finding
+            // #11). Sending is non-throwing by design (NFR-13), so this loop previously stamped
+            // DeletionWarningEmailSentAt whether or not the mail left the building — a silent SMTP
+            // failure recorded the FR-66 warning as delivered, and the booking was hard-deleted 30 days
+            // later with nobody having been told. Leaving the marker null on failure means the next
+            // nightly run retries, which is the right behaviour for a warning that exists to give the
+            // admin a chance to intervene before data is destroyed.
+            if (!await emails.SendPreDeletionWarningAsync(booking))
+                continue;
+
             booking.DeletionWarningEmailSentAt = now; // dedupe marker — warning fires once
+            warned++;
         }
         await db.SaveChangesAsync(cancellationToken);
 
@@ -63,7 +74,9 @@ public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, T
             .Where(a => a.BookingId == null && a.Timestamp < auditCutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
-        return new RetentionRunSummary(due.Count, toWarn.Count, auditPurged);
+        // `warned` counts confirmed sends, not candidates — a run where the mail server was down now
+        // reports 0 warned rather than overstating what the guests' admin was actually told.
+        return new RetentionRunSummary(due.Count, warned, auditPurged);
     }
 
     /// <summary>The current date in Europe/Stockholm — retention dates are civil dates, not UTC.</summary>

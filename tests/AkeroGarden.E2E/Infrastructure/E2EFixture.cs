@@ -401,6 +401,21 @@ public sealed class E2EFixture : IAsyncLifetime
         psi.Environment["RateLimit__KeyPrefix"] = $"ratelimit:e2e:{Guid.NewGuid():N}:";
         psi.Environment["RateLimit__MaxRequests"] = "1000";
 
+        // The admin login throttle (post-launch security review, finding #8) has exactly the same
+        // collision with this suite, for the same reason: every admin test signs in through the real
+        // form from 127.0.0.1, so the whole run shares one bucket. At the production limit of 20 per
+        // 15 minutes the suite exhausts it partway through and every later admin test fails — measured:
+        // 47 admin tests, 20 allowed, 27 failures, all of them "correct" behaviour from a limiter doing
+        // its job against a client that genuinely did attempt 47 logins in 14 minutes.
+        //
+        // Raised here rather than disabled, and the coverage is NOT lost: the limiter's own logic is
+        // unit-tested in LoginAttemptLimiterTests (window boundary, per-client isolation, separate
+        // login/reset budgets), and the *wiring* — that the login form actually consults it — is proven
+        // at the HTTP level in LoginRateLimitIntegrationTests against a host configured with a low
+        // limit. This value only stops the suite throttling itself.
+        psi.Environment["LoginRateLimit__MaxLoginAttempts"] = "1000";
+        psi.Environment["LoginRateLimit__MaxPasswordResetRequests"] = "1000";
+
         var app = new Process { StartInfo = psi, EnableRaisingEvents = true };
         app.OutputDataReceived += (_, e) => Capture(label, e.Data);
         app.ErrorDataReceived += (_, e) => Capture(label, e.Data);

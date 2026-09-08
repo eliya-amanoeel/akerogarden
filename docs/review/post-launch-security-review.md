@@ -1,0 +1,247 @@
+# Åkerögården — Post-Launch Architecture & Security Review (Phase 11)
+
+**Date:** 2026-09-08
+**Reviewed against:** production as it was actually running, `main` at `aaf0604` (PR !65)
+**Scope:** the whole running system after go-live — the two hosts' composition roots, the security-header middleware, authentication/authorisation, the completion-token and scheduled-job engines, email dispatch, secrets at rest, the Bicep templates, and the live Azure resource configuration in `akerogarden-prod`.
+
+**Method:** two passes.
+1. **Static review** of `src/AkeroGarden.Web.Public/Program.cs`, `src/AkeroGarden.Web.Admin/Program.cs`, `AkeroGarden.Web.Core/Security`, the service layer, and `infra/azure/*.bicep`.
+2. **Live verification** against production — read-only `az` against every resource in `akerogarden-prod`, `curl` against both public hostnames, and KQL against the Log Analytics workspace (`jmk-ag-prod-logs`).
+
+Every finding below states whether it is **live-verified** or **source-only**. Where the two disagreed, the running system won.
+
+> **Why this exists and what it is not.** This is the *second* security pass. `security-review.md` (Phase 7, 2026-07-08) was written before production existed and before any real guest PII flowed through the system; it was a static review that explicitly parked three items for live verification and recorded a verdict of "no vulnerabilities found" against the state of the code at that time. **It is not superseded and should not be edited.** This document does what that one could not: it examines the system as deployed and serving real guests. Two of its three deferrals close here; one remains open.
+>
+> **Point-in-time record.** Findings are as of 2026-09-08 and are not retro-edited. Blunt by design, per the phase-completion gate in `.claude/CLAUDE.md`.
+
+---
+
+## Verdict
+
+**The application layer is in good shape. The risk has moved into the infrastructure and the operational seams.**
+
+The areas most commonly got wrong in a system like this are right here: the authorisation model has no holes, there is no raw SQL anywhere, the completion-token policy is cryptographically sound and carefully reasoned, the CSP work is genuine enforcement rather than convention, and the nightly job engine demonstrably runs. Phase 7's verdict holds for the code it reviewed.
+
+What Phase 7 structurally could not see is where the findings now are: **secrets at rest in App Service configuration, an over-privileged database identity, an unused internet-reachable deployment path, and a credential-bearing URL landing in a log store.**
+
+**24 standing findings — 6 high, 9 medium, 9 low — plus 3 unresolved unknowns.** Two are live defects producing errors in production today. None constitutes an active compromise; none was known to have been exploited.
+
+---
+
+## Corrections register — what the second pass changed
+
+The first pass produced 25 findings. Re-verification changed six of them. Recorded here because the *pattern* matters more than the individual errors: **every incorrect finding came from reasoning out of source code to a conclusion about production without running the query that would settle it** — in one case, a query that had already been run.
+
+| Item | First pass said | Second pass established |
+|---|---|---|
+| Nightly jobs | "GDPR retention could stop in complete silence — no evidence a run happened" | **Wrong.** All three jobs fire daily, 3/3, for at least 10 consecutive days, logged explicitly in `AppTraces` with 30-day retention. Downgraded to "no *alert* if they stop" (#18) |
+| `AdminSeeder` logs admin emails | Reported as a live PII exposure in telemetry | **Retracted.** The regex sweep across `AppTraces`/`AppExceptions` returned **zero** email addresses. The logging paths are one-time and have already run |
+| Redis HA drift | "Confirmed real, not noise — resolves one of the three DO-NOT-APPLY unknowns" | **Over-claimed.** The property is live and undeclared, but whether a re-apply removes it depends on the API default for `Balanced_B0`, which was never determined. **Still unresolved; leave the banner as it is** |
+| Login enumeration | "An attacker can enumerate accounts" | **Narrowed.** Only distinguishes an account that exists *and is deactivated*. Non-existent and wrong-password both return the same generic error |
+| `PK_AuditLogs` crash | Root cause stated as circuit-scoped `DbContext` | **Reframed.** Defect is real; the cause was a hypothesis presented as a conclusion. See #2 |
+| 404 router exception | Root cause hypothesised as a stale deployed build | **Reframed.** `@page "/not-found"` has been present since `b0eb057` (Phase 10b). The deployed build has the attribute. **Unexplained** — see #16 |
+| DB durability (#15) | Cited geo-redundant backup and HA as open options | **Scope corrected during triage.** Geo-redundancy is unsupported on Burstable, and `infra/azure/README.md` already records HA, read replicas and geo-redundancy as accepted on 2026-07-20. `prod.parameters.json` pointed at that section and the pointer was not followed. Finding narrowed to autogrow, a storage alert, and backup retention |
+
+One finding moved the other way: the ARRAffinity cookies (#10) were filed as low/informational in the first pass and upgraded to medium in the second, once `docs/legal/Integritetspolicy.md` §7 was actually read.
+
+---
+
+## ❌ Live defects — producing errors in production now
+
+### 1. Completion magic-link tokens are written verbatim to Application Insights — HIGH
+
+**Live-verified.** `AppRequests.Url` records the full request URL, so every `/slutfor/{token}` hit stores the token. The workspace holds **3 distinct tokens across 6 requests, each 43 characters** — exactly `Convert.ToBase64String(32 bytes)` minus padding, confirming these are real 256-bit `CompletionTokenPolicy` tokens and not incidental strings. One originates from the end-to-end magic-link verification performed at the 2026-09-07 cutover.
+
+The token is a bearer credential. Per `CompletionAccessPolicy`, holding it grants read access to the booking and the right to submit the completion form — guest names and allergy data. It is retained 30 days in Log Analytics, readable by both subscription Owners and by the deploy service principal (Contributor at RG scope), and it is not redacted anywhere.
+
+NFR-05 is satisfied in the letter — no personal data appears in the URL. But the credential *to* the personal data now sits in a log store, which is the same class of problem the NFR exists to prevent. `CompletionTokenPolicy` itself is not at fault; the telemetry configuration is.
+
+### 2. `PK_AuditLogs` duplicate-key violation tears down admin circuits — HIGH
+
+**Live-verified.** On 2026-09-08 at 16:00:03, 16:00:04 and 16:00:05, `jmk-ag-prod-admin` logged `Npgsql.PostgresException 23505: duplicate key value violates unique constraint "PK_AuditLogs"`. Telemetry properties show it surfacing as `ExceptionRenderingComponent` and then `CircuitUnhandledException` — an admin lost their session to an unhandled error.
+
+**What is established:** there is exactly **one** place an `AuditLog` is constructed (`AuditWriter.RecordAsync`), its `Id` is always `Guid.NewGuid()`, and **no component injects `ApplicationDbContext` directly** (zero occurrences; no `OwningComponentBase`, no `IDbContextFactory` anywhere in the solution). A GUID collision is therefore not the explanation. The only remaining mechanism is a **re-insert of an entity EF still held in `Added` state**, which requires either two overlapping `SaveChangesAsync` calls on one context, or a save that committed server-side while throwing client-side.
+
+**What is not established:** the root cause. `ApplicationDbContext` is registered scoped (`AkeroServiceCollectionExtensions.cs:38`) and the admin host runs Interactive Server, where a DI scope lives as long as the circuit — that is what makes an overlapping or repeated save on one context *possible*, and three occurrences inside two seconds is consistent with a rapid repeat or double-click on a single admin action. **This is a hypothesis, not a conclusion.** Reproduce before changing anything.
+
+### 3. The published privacy policy's cookie table is incomplete — MEDIUM
+
+**Live-verified against the document.** `docs/legal/Integritetspolicy.md` §7 states the site uses **"endast strikt nödvändiga kakor"** and then gives an exhaustive two-row table: the antiforgery cookie and the admin auth cookie. Production sets **`ARRAffinity` and `ARRAffinitySameSite` on every response of both hosts**, including the public site. Neither appears in the table; one carries `SameSite=None`.
+
+Three consequences. The table is factually incomplete on a live legal document. The no-cookie-banner argument in §7 rests on that table being complete. And on the **public** host, affinity serves no purpose — Static SSR, stateless, single instance — so it is not defensible as "strictly necessary" there in the way it is for the admin host's Blazor circuits.
+
+Note how this was missed: line 3 of the file records the content as *"verifierat mot koden … kakor"*. Verified against the code — and ARRAffinity is set by the App Service platform, not by the code. The verification was real but scoped too narrowly.
+
+`clientAffinityEnabled` is also not declared in `main.bicep`, so the live value is undeclared state.
+
+---
+
+## ⚠️ Gaps and concerns
+
+### High
+
+**4. Three production secrets sit as plaintext App Service settings while others correctly use Key Vault.** *Live-verified.* `ConnectionStrings__Postgres` (both sites), `DataProtection__KeysBlobConnectionString` (both sites), `Blob__ConnectionString` (admin) and `Seed__AdminPassword` (admin) are literal values. `Smtp__Username`, `Smtp__Password` and `Redis__ConnectionString` are `@Microsoft.KeyVault(...)` references. The pattern is half-applied. Anyone holding Contributor — which includes the deploy service principal — reads them with one CLI call. Phase 7's "no secrets in source (verified)" was and remains true; it simply never asked where secrets live at rest in configuration.
+
+**5. The application connects to PostgreSQL as the server administrator.** *Live-verified, definitive.* Both sites' live connection strings use `Username=akerogarden_admin`; the server's `administratorLogin` is `akerogarden_admin`. The application runtime therefore holds rights to drop the database and manage roles. This compounds #4: the credential exposed in plaintext is the most privileged one available.
+
+**6. SCM and FTP basic publishing credentials are enabled and internet-reachable on both production sites.** *Live-verified.* `basicPublishingCredentialsPolicies/ftp` and `/scm` both return `allow: true`, and both `jmk-ag-prod-{public,admin}.scm.azurewebsites.net` answer **401** (reachable, auth required) rather than 403. Deploys authenticate via the Azure DevOps service principal, so this is a credential-based path into the container that nothing uses. Kudu grants file-system and console access to a container whose environment holds the database administrator password. Neither policy is declared in Bicep.
+
+**7. Key Vault is the weakest link in an otherwise careful secrets design.** *Live-verified.* `enablePurgeProtection` is null (off), `softDeleteRetentionInDays` is 7 (the minimum), `publicNetworkAccess` is Enabled with `networkAcls: null`, RBAC is disabled in favour of vault-wide access policies, and there are no diagnostic settings. The vault holds the RSA key wrapping **both** hosts' DataProtection master keys: without purge protection that key can be deleted and purged outright, permanently invalidating every auth cookie and antiforgery token. With no diagnostics there is no record of who read which secret, ever.
+
+### Medium
+
+**8. No diagnostic settings on any resource in the production resource group.** *Live-verified* — all 23 checked; Key Vault, PostgreSQL, both App Services and the storage account all return `[]`. There is no infrastructure-layer audit trail for a system holding guest PII.
+
+**9. The admin login form leaks deactivated-account existence, and neither login nor password reset is rate-limited.** *Source-verified.* `Login.razor` returns "Det här kontot är inaktiverat." before `PasswordSignInAsync`, so that one state is observable without a password and without tripping lockout. The contrast is instructive: `ForgotPassword.razor` deliberately does the opposite, always reporting success, with a comment saying so. Separately, `AddAkeroInquiryRateLimiting` is public-host-only. Identity lockout is per-account, so an attacker can also lock out a named admin at will, and the password-reset form is an unauthenticated email trigger sharing the One.com SMTP account with guest booking mail — abusing it degrades the booking funnel.
+
+**10. One storage account key spans both DataProtection containers.** *Source-verified against live config.* Both hosts receive the same `blobConnectionString`, built from `storageAccount.listKeys()`. The public site can therefore read the admin site's `dataprotection-keys-admin` container. The isolation is real at the DataProtection *application-name* layer but not at the credential layer — which is not what the "shared nothing" comments in either `Program.cs` imply. `allowBlobPublicAccess` is true account-wide (required for facility images) and `networkRuleSet.defaultAction` is `Allow`.
+
+**11. A failed email still marks itself as sent.** *Source-verified.* `SendPreDeletionWarningAsync` → `SendToAdminAsync` → `SmtpEmailService.SendAsync`, which swallows every exception by design (NFR-13). `RetentionJob` then sets `booking.DeletionWarningEmailSentAt = now` unconditionally. A silent SMTP failure therefore records the FR-66 pre-deletion warning as delivered, and the record is deleted 30 days later with nobody having been warned. The marker records an attempt, not a delivery.
+
+**12. SMTP is awaited inline in the public booking POST, with no client timeout.** *Source-verified.* `CreateStayRequestAsync` awaits two sends sequentially, each up to `MaxSendAttempts = 3`. `TrySendAsync` sets no `client.Timeout`, so MailKit's 120-second default applies per operation. A hung One.com connection can hold a guest's booking submission open for minutes. NFR-13 guarantees mail failure never *fails* the booking — not that it never *blocks* it.
+
+**13. Telemetry runs at 55–60 % of its daily cap at near-zero traffic.** *Live-verified.* Ingestion is 0.054–0.059 GB/day against `dailyQuotaGb: 0.1`. It has never tripped. `AppMetrics` (2.16 GB cumulative) and `AppPerformanceCounters` dominate; traces and exceptions are 0.0007 GB each. An incident will hit the cap and stop ingestion precisely when the logs are needed.
+
+**14. No `EnableRetryOnFailure` against a Burstable PostgreSQL.** *Source-verified.* `AddAkeroDatabase` calls plain `UseNpgsql`. Flexible Server performs maintenance failovers; every transient blip currently becomes a user-facing 500.
+
+**15. PostgreSQL storage has no autogrow and no alert; backup retention is at the 7-day minimum.** *Live-verified.* `storage.autoGrow: Disabled` at 32 GB with no storage alert, and `backupRetentionDays: 7`.
+
+**Scope corrected after first drafting.** This finding originally also cited `geoRedundantBackup: Disabled` and HA disabled. Both are **withdrawn**: geo-redundant backup is not available on the Burstable tier at all, and `infra/azure/README.md` §"SKU limitations" already records the absence of HA, read replicas and geo-redundancy as **deliberately accepted on 2026-07-20**, with the cost reasoning stated. Not open questions, and not reopened here.
+
+What remains is genuinely open, and the first half is endorsed by that same README, which says storage autogrow *"can be enabled after creation, so this is a monitoring concern rather than a provisioning decision"* — the mitigation is named there and was never implemented. There is a `pg-cpu-credits-remaining` alert but nothing watching storage; if the database fills 32 GB, PostgreSQL goes read-only and the booking system stops accepting writes, with no warning. Backup retention is adjustable to 35 days on Burstable and is not discussed anywhere in the repo.
+
+### Low
+
+**16. Every 404 throws a router exception — unexplained.** *Live-verified*, 15 on 2026-09-08 and 25 on 2026-09-07, public host only: `The type AkeroGarden.Web.Public.Components.Pages.Public.NotFound does not have a Microsoft.AspNetCore.Components.RouteAttribute applied to it`. The source **does** carry `@page "/not-found"` and has since `b0eb057` (Phase 10b), so the deployed build has the attribute. Both `Router.NotFoundPage` and `UseStatusCodePagesWithReExecute("/not-found")` are wired. No candidate cause remains; needs a repro.
+
+**17. `/Error` returned 500 repeatedly at 15:58 on 2026-09-08** — entirely within the cold-start window after a container restart, consistent with the documented deploy-window behaviour. Not treated as a new defect.
+
+**18. No alert if the nightly jobs stop.** The jobs demonstrably run (see the corrections register), and `alwaysOn` is true with `numberOfWorkers: 1`, so the design holds. Nothing notifies anyone if the daily count drops to zero. Related latent risk: nothing enforces single-instance, so a future scale-out would silently double-send every reminder.
+
+**19. `Server: Kestrel` disclosed on every response.** *Live-verified.*
+
+**20. No `healthCheckPath`; HTTP/2 disabled; `HEAD` returns 405 on all pages.** *Live-verified.* App Service cannot detect an unhealthy instance, and some uptime monitors use HEAD.
+
+**21. `ReturnUrl` is captured but never honoured.** *Source-verified.* The auth cookie appends it; `Login.razor` always routes to the role-aware landing path. No open redirect — that is the safe failure — but it partly defeats the deliberate `SameSite=Lax` cookie decision, whose stated purpose was letting an admin click through from a notification email.
+
+**22. Two subscription Owners; one service principal holds Contributor on prod *and* staging.** *Live-verified.* Relevant to handover: a compromise of the deploy service connection reaches production configuration, and therefore the secrets in #4.
+
+**23. No smart-detection alert rule exists.** *Live-verified* — zero `smartDetectorAlertRules` in the RG. The `Failure-Anomalies-Alert-Rule-Deployment` of 2026-07-20 failed and was never noticed. Explicit 5xx alerts cover the same ground.
+
+**24. `clientAffinityEnabled` is not declared in Bicep.** Folded into #3.
+
+**Context, not a finding:** the public site receives sustained hostile scanning — 902 requests to `xmlrpc.php` plus `/blog` probes, all 404. No WAF is in place (B1, no Front Door), and none is proposed at this scale. It does reinforce finishing the WordPress decommission.
+
+---
+
+## ❔ Unresolved
+
+**DataProtection key-ring durability** — the last open Phase 7 deferral. The key-ring blobs could not be listed: the CLI identity holds no Storage Blob data-plane role. Two ways to close it: grant `Storage Blob Data Reader` on `jmkagprodblob` and confirm both containers hold a key XML, or confirm behaviourally that an admin session survived a deploy without re-login.
+
+**Redis high-availability drift** — `highAvailability: Enabled` is live on the cluster and absent from `main.bicep`. Whether a re-apply would remove it depends on the API default for `Balanced_B0`, which was not determined. **Exactly as unresolved as before this review began** — the DO-NOT-APPLY banner in `main.bicep` should not be amended on the strength of this document.
+
+**`SslMode=Require`** — both live connection strings use it. Certificate-validation semantics vary across Npgsql major versions and the behaviour under 10.0.3 was not confirmed. Noticed, not claimed. Low impact inside a delegated VNet.
+
+---
+
+## ✅ Confirmed sound
+
+**Two Phase 7 deferrals close here with live evidence:**
+
+- **NFR-25 — PostgreSQL VNet isolation.** `publicNetworkAccess: Disabled`, delegated `db-subnet`, private DNS zone, `require_secure_transport on`, `ssl_min_protocol_version TLSv1.2`, `password_encryption scram-sha-256`.
+- **NFR-01 — HTTPS and HSTS at the edge.** `http://` → 301, `www` → 308 → apex, `Strict-Transport-Security: max-age=31536000` on both hosts.
+
+**Also verified:**
+
+- **CSP and all four companion headers are correct on both hosts**, including on 404 responses, with the per-host runtime-computed import-map hash working as designed and `X-Robots-Tag: noindex, nofollow` on admin.
+- **Authorisation has no holes.** Every routable admin page carries an explicit `[Authorize]`; the five without (`Login`, `Error`, `NotFound`, `ForgotPassword`, `ResetPassword`) are correctly anonymous. The list-download minimal APIs are role-gated to `AdminRoles.All`. Unauthenticated probes of `/`, `/bokningar` and a list-download URL all 302 to `/login`.
+- **No raw SQL anywhere** — no `FromSqlRaw`, `ExecuteSqlRaw`, or interpolated variants in the solution.
+- **No open redirect.**
+- **Image upload is properly validated server-side** — content-type allowlist, 5 MB cap, random blob names never derived from user input.
+- **No emails, names or connection strings anywhere in telemetry** — verified by regex sweep across `AppTraces`, `AppExceptions` and `AppRequests`; zero hits.
+- **Forgot-password is enumeration-safe**, and email logging consistently masks recipient addresses to the domain.
+- **The inquiry rate limiter's fail-open is complete** — handled at the call site in `BookInquiry.razor`, covering a runtime Redis outage and not only startup misconfiguration.
+- **The nightly job engine runs** — all three jobs, 3/3, every day for at least 10 consecutive days at 03:00 Stockholm.
+- **Alerting and cost control exist** — four metric alerts (public availability, both hosts' 5xx, Postgres CPU credits), an action group to `info@akerogarden.se`, and a monthly budget.
+
+---
+
+## Triage
+
+Four questions per finding: is it a live defect or hardening; who owns it; does it need a decision before any code; what does it cost. Verdicts are recommendations pending sign-off.
+
+| # | Finding | Defect / Hardening | Owner | Decision first? | Cost | Verdict |
+|---|---|---|---|---|---|---|
+| 1 | Completion tokens in App Insights | Defect (live exposure) | Dev | No | ~1h | **FIX NOW** |
+| 2 | `PK_AuditLogs` crash | Defect (live) | Dev | No | Unknown | **INVESTIGATE** → fix |
+| 3 | Plaintext secrets in app settings | Hardening | Dev + owner | ✅ Decided | ~2h | **FIX** — move all four to Key Vault refs |
+| 4 | App runs as Postgres server admin | Hardening | Owner | ✅ Decided | ½ day + window | **FIX** — least-privilege app role, rotate off `akerogarden_admin` |
+| 5 | SCM/FTP basic auth enabled | Hardening | Owner (`az`) | No | 5 min | **FIX — staging first** ⚠️ |
+| 6 | Key Vault purge protection / soft-delete / network | Hardening | Owner (`az`) | ✅ Decided | 15 min | **FIX** — purge protection + 90d soft delete + diagnostics; network stays public |
+| 7 | No diagnostic settings anywhere | Hardening | Dev (Bicep) | ✅ Decided | ~1h | **FIX** — Key Vault + Postgres only |
+| 8 | Login enumeration + no rate limit on login/reset | Defect (minor) | Dev | No | ~2h | **FIX SOON** |
+| 9 | One storage key spans both DP containers | Hardening | Dev + owner | ✅ Decided | ½ day | **FIX** — per-host credential or managed identity |
+| 10 | Privacy policy §7 omits ARRAffinity (+ #24 Bicep) | Defect (document wrong) | Dev + owner | Minor — disclose vs disable on public | ~30 min | **FIX NOW** |
+| 11 | Failed email still sets dedupe marker | Defect (correctness) | Dev | No | ~1h | **FIX SOON** |
+| 12 | SMTP inline, no client timeout | Resilience | Dev | No | ~30 min | **FIX SOON** |
+| 13 | Telemetry at 55–60 % of daily cap | Hardening | Owner | ✅ Decided | 15 min | **FIX** — trim `AppMetrics`/perf counters, keep the 0.1 GB cap |
+| 14 | No `EnableRetryOnFailure` | Resilience | Dev | No | 15 min | **FIX NOW** |
+| 15 | autoGrow off, no storage alert, 7-day backups | Risk position | Owner | ✅ Decided | ~30 min | **FIX** — autoGrow + storage alert + 35-day retention |
+| 16 | Every 404 throws router exception | Defect | Dev | No | Unknown | **INVESTIGATE** |
+| 17 | `/Error` 500s on cold start | Defect? | Dev | ✅ Decided | ~1h | **INVESTIGATE** — does it 500 outside a restart window? |
+| 18 | No alert if nightly jobs stop | Hardening | Dev (Bicep) | No | ~30 min | **FIX SOON** |
+| 19 | `Server: Kestrel` disclosed | Hardening | Dev | No | 5 min | **FIX NOW** |
+| 20 | No `healthCheckPath`, HTTP/2 off, HEAD→405 | Hardening | Dev + owner | No | ~30 min | **FIX SOON** |
+| 21 | `ReturnUrl` never honoured | UX defect | Dev | No | ~30 min | **FIX SOON** |
+| 22 | Two Owners, SP Contributor on both envs | Risk position | Owner | ✅ Decided | 15 min | **✅ DONE 2026-09-08** — SP now `Website Contributor` on both RGs; Owner roles unchanged |
+| 23 | No smart-detection rule | Hardening | Dev | ✅ Decided | ~1h | **INVESTIGATE** — is anomaly detection worth adding over threshold alerts? |
+| 24 | `clientAffinityEnabled` undeclared | Hardening | — | — | — | Folded into #10 |
+
+**Unknowns:** DataProtection durability → one answer closes it · Redis HA drift → **INVESTIGATE**, ~10 min · `SslMode=Require` → **INVESTIGATE**, ~5 min
+
+**Tally:** 19 to fix · 4 to investigate · **0 accepted** · #24 folded into #10. Plus all 3 unknowns to be resolved. **Every row is ratified; nothing is left undecided and nothing is being left open.**
+
+> ⚠️ **#5 carries a caveat.** Disabling SCM basic auth can break `AzureWebApp@1` depending on how the task authenticates. Apply to staging and confirm a deploy still succeeds before touching production.
+
+### Decisions taken — 2026-09-08
+
+All eight previously-undecided items were resolved in one pass. Recorded here with the reasoning, because the *rejected* options matter as much as the chosen ones.
+
+**#3 + #4 + #9 — full secrets and least-privilege cleanup.** All four plaintext values move behind Key Vault references; a least-privilege application role replaces `akerogarden_admin` in both connection strings; each host gets its own storage credential (or DataProtection moves to managed identity). `main.bicep` is updated to match, but the changes are applied with **targeted `az` commands** — the full template re-apply stays deferred, so this closes the exposure without inheriting the DO-NOT-APPLY risk. The DB role swap needs a maintenance window; the rest does not.
+
+**#6 — Key Vault: purge protection, 90-day soft delete, diagnostics.** Network access deliberately stays public (AAD-gated). Restricting it to the VNet was rejected: the operator's own CLI already hits `Forbidden` on `secrets list`, and locking the network as well would make break-glass access materially harder for a solo maintainer. Purge protection is irreversible and was enabled knowingly.
+
+**#7 + #13 — trim metrics, add Key Vault and Postgres diagnostics, keep the 0.1 GB/day cap.** `AppMetrics` and `AppPerformanceCounters` are ~99 % of current ingestion and near-worthless for this workload; cutting them funds the diagnostics that matter at no extra cost and restores headroom to survive an incident. Raising the cap was rejected as removing a cost ceiling that was set deliberately.
+
+**#15 — autogrow, a storage alert, and 35-day backup retention.** Geo-redundancy and HA were withdrawn from the finding entirely, not merely declined — see the corrections register.
+
+**#22 — tighten the deploy service principal only.** The client's Owner role on their own subscription is **left unchanged**: that is a conversation to have with them, not a unilateral change, and is recorded in the handover material instead.
+
+> **✅ Implemented 2026-09-08.** `akerogarden-devops-deploy` (object id `31698afd-c2c7-4fae-b3fa-b163856782ef`) moved from **Contributor** to **Website Contributor** on both `akerogarden-staging` and `akerogarden-prod`. Zero Contributor assignments remain. Applied to staging first and validated by a successful staging deploy before production was touched; both production sites verified healthy afterwards (200 / 302). No production deploy was run to test it — staging exercised the identical `AzureWebApp@1` task, and the next real deploy will confirm it.
+>
+> **Correction to the original rationale.** This finding was first written up as shrinking the blast radius behind #3 ("that principal can read every plaintext secret"). **That is wrong.** `Website Contributor` grants `Microsoft.Web/sites/*`, which includes `Microsoft.Web/sites/config/list/action` — a downgraded principal can still read every app-setting *value*. The app-settings exposure is closed by **#3** (Key Vault references), not by this change: once the values are references, the principal reads only the reference string and holds no vault access policy.
+>
+> What the downgrade actually removes is still material: as RG Contributor the principal could call `listKeys()` on the storage account — obtaining the DataProtection key rings for **both** hosts — and could modify or delete PostgreSQL, Redis, Key Vault's management plane and the VNet. None of that is reachable now.
+>
+> **Operational consequence:** the deploy principal can no longer touch any non-web resource, so no part of the remaining infra work (#3, #6, #7, #9, #13, #15) can be automated through the pipeline. That is consistent with Bicep never having been in CI/CD; those changes are run interactively by an Owner.
+
+### Ratification of the remaining rows — 2026-09-08
+
+The eight items above were the ones flagged as needing a decision. The other fifteen rows carried a *recommendation* and no sign-off, which is not the same as decided. They were ratified in a second pass:
+
+- **Nothing is accepted.** Both proposed ACCEPT rows were rejected as accepts. **#17** (`/Error` 500s) becomes an investigation with a specific question: the 500s observed on 2026-09-08 were all inside a restart window, so establish whether `/Error` ever fails *outside* cold start — if it does, the styled error page is broken and that is a real defect rather than known deploy-window behaviour. **#23** becomes an investigation into whether anomaly detection earns its place alongside the existing threshold alerts.
+- **#2 and #16 are investigated without a timebox** — root cause before any change, explicitly chosen over a defensive fix that would suppress the symptom while leaving the mechanism unknown.
+- **All three unknowns are to be resolved**, including the DataProtection key-ring durability check that closes the last outstanding Phase 7 deferral.
+- **All eleven remaining fix items are in scope** as a single batch (#1, #5, #8, #10, #11, #12, #14, #18, #19, #20, #21).
+
+The net position is that this review leaves **no accepted risk at all** — unusual, and worth stating plainly, because it means the exit criterion cannot close until all 26 work items reach a terminal state. Recorded as an explicit decision, not an oversight.
+
+---
+
+## Phase 11 exit criterion
+
+> *"the post-launch architecture/security review is complete with findings resolved or explicitly logged"*
+
+The review is **complete** and every finding has a **ratified verdict** — 19 to fix, 4 to investigate, 0 accepted, plus 3 unknowns to resolve. No fixes were applied and no commits made as part of the review itself.
+
+The criterion closes when each of the 26 work items reaches a terminal state. Because nothing was accepted, every one of them must be either fixed or investigated to a conclusion. If an investigation ends without a tractable cause, moving that item to *accepted* is still legitimate — but it becomes a new decision to take deliberately at that point, and the reasoning must be written down here. It is not a silent fallback.

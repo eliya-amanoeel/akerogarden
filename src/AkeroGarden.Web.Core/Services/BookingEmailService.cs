@@ -16,7 +16,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
     /// <summary>Guest acknowledgement immediately after an inquiry is submitted (FR-05).
     /// Content differs by booking type.</summary>
-    public Task SendInquiryAcknowledgementAsync(Booking booking)
+    public Task<bool> SendInquiryAcknowledgementAsync(Booking booking)
     {
         var content = booking.BookingType == BookingType.StayRequest
             ? BookingEmailTemplates.StayRequestAcknowledgement(booking.ContactName, booking.BookingReference)
@@ -27,7 +27,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     /// <summary>Admin notification of a new inquiry with a direct link to the booking (FR-06).
     /// Reply-To is the guest's own address — hitting "Reply" in the mail client should reach the
     /// guest who submitted the inquiry, not bounce back to the notification mailbox itself.</summary>
-    public Task SendAdminNewInquiryAsync(Booking booking)
+    public Task<bool> SendAdminNewInquiryAsync(Booking booking)
     {
         var content = BookingEmailTemplates.AdminNewInquiry(booking, BuildAdminBookingUrl(booking.Id));
         return SendToAdminAsync(content, booking);
@@ -35,14 +35,14 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
     /// <summary>Admin notification that the guest submitted the completion form (FR-61). Requires
     /// <see cref="Booking.Participants"/> to be loaded for the participant count.</summary>
-    public Task SendAdminDetailsCompleteAsync(Booking booking)
+    public Task<bool> SendAdminDetailsCompleteAsync(Booking booking)
     {
         var content = BookingEmailTemplates.AdminDetailsComplete(booking, BuildAdminBookingUrl(booking.Id));
         return SendToAdminAsync(content, booking);
     }
 
     /// <summary>Denial email to the guest, including the admin's reason (FR-50).</summary>
-    public Task SendDenialAsync(Booking booking)
+    public Task<bool> SendDenialAsync(Booking booking)
     {
         var content = BookingEmailTemplates.Denial(booking.ContactName, booking.DenialReason ?? string.Empty, booking.BookingReference);
         return SendToGuestAsync(booking, content);
@@ -65,7 +65,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     /// <para>The variant is decided from the booking's own state rather than a parameter, so an
     /// unissued link cannot be reported to the guest as an issued one by a caller that got the
     /// argument wrong.</para></summary>
-    public Task SendApprovalAsync(Booking booking)
+    public Task<bool> SendApprovalAsync(Booking booking)
     {
         var hasLink = !string.IsNullOrEmpty(booking.CompletionToken) && booking.CompletionTokenExpiry is not null;
 
@@ -85,7 +85,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     /// job when check-in comes within 40 days of a booking approved too far ahead to be given a link
     /// at the time, and by the admin's manual resend (FR-49). Requires
     /// <see cref="Booking.CompletionToken"/> and <see cref="Booking.CompletionTokenExpiry"/> to be set.</summary>
-    public Task SendCompletionLinkAvailableAsync(Booking booking)
+    public Task<bool> SendCompletionLinkAvailableAsync(Booking booking)
     {
         if (string.IsNullOrEmpty(booking.CompletionToken) || booking.CompletionTokenExpiry is null)
             throw new InvalidOperationException("Länkmejlet kräver en genererad slutförandelänk och utgångstid.");
@@ -103,7 +103,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     /// <see cref="Booking.MealSelections"/> and <see cref="Booking.BuildingAssignments"/> to be
     /// loaded; each one silently renders as "none" rather than failing, so the caller must load
     /// them deliberately.</summary>
-    public Task SendGuestDetailsReceivedAsync(Booking booking)
+    public Task<bool> SendGuestDetailsReceivedAsync(Booking booking)
     {
         var content = BookingEmailTemplates.GuestDetailsReceived(
             booking, AssignedBuildingNames(booking), _opts.PropertyAddress);
@@ -112,7 +112,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
     /// <summary>Standard 14-day reminder to the guest (FR-64). Requires <see cref="Booking.Participants"/>
     /// to be loaded for the counts.</summary>
-    public Task SendTwoWeekReminderAsync(Booking booking)
+    public Task<bool> SendTwoWeekReminderAsync(Booking booking)
     {
         var overnight = booking.Participants.Count(p => p.ParticipantType == ParticipantType.Overnight);
         var dayGuests = booking.Participants.Count(p => p.ParticipantType == ParticipantType.DayGuest);
@@ -126,7 +126,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
     /// <summary>Completion nudge to a guest who has not yet submitted 14 days before check-in (FR-63).
     /// Requires the (freshly regenerated) <see cref="Booking.CompletionToken"/>/expiry to be set.</summary>
-    public Task SendCompletionNudgeAsync(Booking booking)
+    public Task<bool> SendCompletionNudgeAsync(Booking booking)
     {
         if (string.IsNullOrEmpty(booking.CompletionToken) || booking.CompletionTokenExpiry is null)
             throw new InvalidOperationException("Påminnelse kräver en genererad slutförandelänk och utgångstid.");
@@ -139,7 +139,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
     /// <summary>Admin alert that a guest has not completed 14 days before check-in (FR-63).
     /// Requires <see cref="Booking.CompletionTokenExpiry"/> (the new link expiry) to be set.</summary>
-    public Task SendAdminGuestNotCompletedAsync(Booking booking)
+    public Task<bool> SendAdminGuestNotCompletedAsync(Booking booking)
     {
         if (booking.CompletionTokenExpiry is null)
             throw new InvalidOperationException("Adminvarning kräver en satt utgångstid för slutförandelänken.");
@@ -151,7 +151,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
     /// <summary>Admin warning 30 days before a record is auto-deleted (FR-66). Requires
     /// <see cref="Booking.DeleteAfter"/> to be set.</summary>
-    public Task SendPreDeletionWarningAsync(Booking booking)
+    public Task<bool> SendPreDeletionWarningAsync(Booking booking)
     {
         if (booking.DeleteAfter is null)
             throw new InvalidOperationException("Gallringsvarning kräver ett satt raderingsdatum (DeleteAfter).");
@@ -162,14 +162,14 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     }
 
     /// <summary>Standard fixed thank-you email when the admin marks the booking Completed (FR-65).</summary>
-    public Task SendThankYouAsync(Booking booking)
+    public Task<bool> SendThankYouAsync(Booking booking)
     {
         var content = BookingEmailTemplates.ThankYou(booking.ContactName, booking.BookingReference);
         return SendToGuestAsync(booking, content);
     }
 
     /// <summary>Cancellation email with the deposit clause resolved per initiator and timing (FR-79).</summary>
-    public Task SendCancellationAsync(Booking booking)
+    public Task<bool> SendCancellationAsync(Booking booking)
     {
         if (booking.CancellationInitiator is null)
             throw new InvalidOperationException("Avbokningsmejl kräver att avbokningens initiativtagare är satt.");
@@ -186,10 +186,10 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     }
 
     // ── Dispatch ────────────────────────────────────────────────────────────────
-    private Task SendToGuestAsync(Booking booking, EmailContent content) =>
+    private Task<bool> SendToGuestAsync(Booking booking, EmailContent content) =>
         email.SendAsync(booking.ContactEmail, booking.ContactName, content.Subject, WithFooter(content.HtmlBody));
 
-    private Task SendToAdminAsync(EmailContent content, Booking? replyToBooking = null) =>
+    private Task<bool> SendToAdminAsync(EmailContent content, Booking? replyToBooking = null) =>
         email.SendAsync(
             _opts.AdminNotificationEmail, _opts.AdminNotificationName, content.Subject, WithFooter(content.HtmlBody),
             replyToBooking?.ContactEmail, replyToBooking?.ContactName);

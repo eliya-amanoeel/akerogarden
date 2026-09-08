@@ -36,7 +36,22 @@ public static class AkeroServiceCollectionExtensions
     public static IServiceCollection AddAkeroDatabase(this IServiceCollection services, IConfiguration configuration)
     {
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseNpgsql(configuration.GetConnectionString("Postgres")));
+            options.UseNpgsql(
+                configuration.GetConnectionString("Postgres"),
+                // Retry transient faults (post-launch security review, finding #14). Azure Database for
+                // PostgreSQL Flexible Server performs maintenance failovers and, on the Burstable tier,
+                // can briefly drop connections; without this every such blip surfaces as a 500 on
+                // whatever page the guest or admin was on. Npgsql's execution strategy retries only
+                // errors it classifies as transient, so a genuine constraint violation or bad query
+                // still fails immediately rather than being retried five times.
+                //
+                // Note for future work: an execution strategy disallows *user-initiated* transactions
+                // spanning multiple SaveChanges calls — if one is ever introduced, it must be wrapped in
+                // strategy.ExecuteAsync(...) rather than the retry being removed.
+                npgsql => npgsql.EnableRetryOnFailure(
+                    maxRetryCount: 5,
+                    maxRetryDelay: TimeSpan.FromSeconds(10),
+                    errorCodesToAdd: null)));
         return services;
     }
 
@@ -91,6 +106,23 @@ public static class AkeroServiceCollectionExtensions
     public static IServiceCollection AddAkeroAdminInvites(this IServiceCollection services)
     {
         services.AddScoped<AdminInviteService>();
+        return services;
+    }
+
+    /// <summary>
+    /// Per-IP throttling for the admin host's two unauthenticated forms — sign-in and password reset
+    /// (post-launch security review, finding #8). Admin only: the public host throttles its inquiry
+    /// form through <see cref="AddAkeroInquiryRateLimiting"/> instead.
+    ///
+    /// <para>Singleton because the counters are the state. In-memory rather than Redis — see
+    /// <see cref="LoginAttemptLimiter"/> for why the public host's limiter is deliberately not reused
+    /// here (its fail-open behaviour is right for a booking form and wrong for a login form).</para>
+    /// </summary>
+    public static IServiceCollection AddAkeroLoginRateLimiting(
+        this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<LoginRateLimitOptions>(configuration.GetSection("LoginRateLimit"));
+        services.AddSingleton<LoginAttemptLimiter>();
         return services;
     }
 

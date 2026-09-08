@@ -104,6 +104,7 @@ Webbplatsen använder **endast strikt nödvändiga kakor**. Vi använder inga ka
 |---|---|---|
 | Formulärskydd (`.AspNetCore.Antiforgery.*`) | Säkerhetsspärr som hindrar att bokningsförfrågan, kontaktformulär eller komplettering av bokning skickas in i ditt namn från en annan webbplats (CSRF-skydd). Placeras när du öppnar en sida med ett formulär. | Sessionskaka — raderas när webbläsaren stängs |
 | Inloggningskaka (**endast adminpanelen**) | Håller en inloggad administratör inloggad. Placeras aldrig när du besöker den publika webbplatsen. | Sessionen, eller 30 dagar om administratören valt "kom ihåg mig" |
+| Serverkoppling (`ARRAffinity`, `ARRAffinitySameSite`) (**endast adminpanelen**) | Placeras av webbhotellet (Microsoft Azure) och håller administratörens pågående session mot samma server, så att adminpanelen fungerar utan avbrott. Innehåller ingen information om dig och används inte för analys eller spårning. Placeras aldrig när du besöker den publika webbplatsen. | Sessionskaka — raderas när webbläsaren stängs |
 
 Dessa kakor är nödvändiga för att en tjänst du uttryckligen har begärt ska fungera. Något samtycke krävs därför inte enligt 9 kap. lagen (2022:482) om elektronisk kommunikation, och webbplatsen visar av samma skäl ingen samtyckesruta för kakor.
 

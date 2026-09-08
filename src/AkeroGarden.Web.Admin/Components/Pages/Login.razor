@@ -5,6 +5,7 @@
 @using Microsoft.AspNetCore.Identity
 @inject SignInManager<ApplicationUser> SignInManager
 @inject NavigationManager Nav
+@inject LoginAttemptLimiter Limiter
 
 <PageTitle>Logga in — Åkerögården Admin</PageTitle>
 
@@ -23,6 +24,11 @@
 
     <EditForm Model="_model" OnValidSubmit="HandleLogin" FormName="login" method="post">
         <DataAnnotationsValidator />
+
+        @* The form posts to /login with no query string, so the destination has to survive the POST
+           as a field. It is re-validated with LocalUrl.IsSafe after sign-in — a value arriving here
+           is attacker-controllable and is never trusted just because it round-tripped. *@
+        <input type="hidden" name="PostedReturnUrl" value="@(ReturnUrl ?? PostedReturnUrl)" />
 
         <div class="form-group">
             <label for="email">E-postadress</label>
@@ -53,6 +59,15 @@
     [SupplyParameterFromForm]
     private LoginModel? _model { get; set; }
 
+    // Where the auth cookie bounced this request from (post-launch security review, finding #21).
+    // Preserved across the POST by the hidden field in the form below, because the form action carries
+    // no query string. Validated against LocalUrl.IsSafe before it is ever navigated to.
+    [SupplyParameterFromQuery]
+    private string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromForm]
+    private string? PostedReturnUrl { get; set; }
+
     private string? _error;
 
     [CascadingParameter]
@@ -76,15 +91,38 @@
 
     private async Task HandleLogin()
     {
+        // Per-IP throttle (post-launch security review, finding #8). Identity's lockout is per ACCOUNT,
+        // which does nothing against password spraying across many accounts and lets an attacker lock a
+        // named admin out at will. This bounds attempts from one source regardless of which account is
+        // targeted. Deliberately looser than the lockout so a shared office IP is not a problem.
+        if (!Limiter.TryLogin(ClientId()))
+        {
+            _error = "För många inloggningsförsök. Försök igen om en stund.";
+            return;
+        }
+
         var user = await SignInManager.UserManager.FindByEmailAsync(_model!.Email);
-        if (user is { IsActive: false })
+
+        // The deactivated-account message is withheld until the PASSWORD has been verified (finding
+        // #8). It used to be returned on the email alone, which let an unauthenticated caller discover
+        // which addresses exist and are deactivated — and did so before any lockout counting, so it was
+        // not even rate-limited by Identity. Revealing it to someone who already proved they know the
+        // password gives away nothing, and keeps the message useful for the admin it is meant for.
+        // CheckPasswordSignInAsync verifies and counts the failure without issuing the cookie.
+        var check = user is null
+            ? Microsoft.AspNetCore.Identity.SignInResult.Failed
+            : await SignInManager.CheckPasswordSignInAsync(user, _model.Password, lockoutOnFailure: true);
+
+        if (check.Succeeded && user is { IsActive: false })
         {
             _error = "Det här kontot är inaktiverat.";
             return;
         }
 
-        var result = await SignInManager.PasswordSignInAsync(
-            _model!.Email, _model.Password, _model.RememberMe, lockoutOnFailure: true);
+        // Credentials are good and the account is active — now establish the auth cookie.
+        var result = check.Succeeded
+            ? await SignInUserAsync(user!, _model.RememberMe)
+            : check;
 
         if (result.Succeeded)
         {
@@ -92,9 +130,16 @@
             // The cookie has just been issued but this request's principal is still anonymous, so
             // ask the user store for the roles and apply the shared rule to them.
             var users = SignInManager.UserManager;
-            Nav.NavigateTo(AdminRoles.LandingPath(
+            var landing = AdminRoles.LandingPath(
                 isAdministrator: user is not null && await users.IsInRoleAsync(user, AdminRoles.Administrator),
-                isCoordinator: user is not null && await users.IsInRoleAsync(user, AdminRoles.Coordinator)));
+                isCoordinator: user is not null && await users.IsInRoleAsync(user, AdminRoles.Coordinator));
+
+            // Return to where the admin was actually headed, when that is a path on this site (FR-104
+            // landing stays the fallback). A Samordnare sent to an Administratör-only deep link lands on
+            // /ingen-behorighet, which is the correct answer — the permission boundary, not a silent
+            // detour to a page they did not ask for.
+            var requested = ReturnUrl ?? PostedReturnUrl;
+            Nav.NavigateTo(LocalUrl.IsSafe(requested) ? requested! : landing);
             return;
         }
 
@@ -102,6 +147,21 @@
             ? "Kontot är tillfälligt låst på grund av för många felaktiga försök."
             : "Felaktig e-postadress eller lösenord.";
     }
+
+    /// <summary>Issues the auth cookie for an already password-verified, active user. Split out so the
+    /// verify step (which must not sign anyone in) stays separate from the sign-in step.</summary>
+    private async Task<Microsoft.AspNetCore.Identity.SignInResult> SignInUserAsync(
+        ApplicationUser user, bool isPersistent)
+    {
+        await SignInManager.SignInAsync(user, isPersistent);
+        return Microsoft.AspNetCore.Identity.SignInResult.Success;
+    }
+
+    /// <summary>The throttle key. Real client IP, via ForwardedHeaders (NFR-04) — App Service
+    /// terminates TLS, so without that middleware every request would look like the load balancer and
+    /// the whole site would share one bucket.</summary>
+    private string ClientId() =>
+        HttpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown";
 
     private sealed class LoginModel
     {

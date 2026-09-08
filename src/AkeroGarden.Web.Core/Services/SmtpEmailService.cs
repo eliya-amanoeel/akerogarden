@@ -9,7 +9,7 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
 {
     private readonly SmtpOptions _opts = options.Value;
 
-    public async Task SendAsync(
+    public async Task<bool> SendAsync(
         string toAddress, string toName, string subject, string htmlBody,
         string? replyToAddress = null, string? replyToName = null)
     {
@@ -28,7 +28,7 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
             try
             {
                 await TrySendAsync(message);
-                return; // sent
+                return true; // sent
             }
             catch (Exception ex)
             {
@@ -50,6 +50,10 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
                 }
             }
         }
+
+        // Every attempt failed. Reported rather than thrown, so a caller that persists "we notified
+        // them" can tell the difference — see IEmailService.SendAsync (finding #11).
+        return false;
     }
 
     /// <summary>Reduces a recipient address to its domain for logging — enough to diagnose a
@@ -62,7 +66,18 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
 
     private async Task TrySendAsync(MimeMessage message)
     {
-        using var client = new SmtpClient();
+        using var client = new SmtpClient
+        {
+            // Bound how long a single SMTP operation may hang (post-launch security review, finding
+            // #12). MailKit's default is 120 seconds per operation, and the guest-facing sends are
+            // awaited inline in the /boka POST — with three attempts across two messages, an
+            // unresponsive One.com endpoint could hold a booking submission open for many minutes and
+            // tie up request threads on a B1 instance. NFR-13 promises a mail failure never *fails* the
+            // booking; it says nothing about how long it may block one. A short timeout turns a hung
+            // connection into a fast, logged failure.
+            Timeout = Math.Max(1, _opts.TimeoutSeconds) * 1000,
+        };
+
         var socketOptions = _opts.Port switch
         {
             1025 => SecureSocketOptions.None,        // Mailpit — no TLS

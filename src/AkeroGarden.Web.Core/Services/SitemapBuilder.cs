@@ -52,6 +52,12 @@ public static class SitemapBuilder
             if (path.StartsWith("/_", StringComparison.Ordinal))
                 continue;
 
+            // The App Service health probe target (post-launch security review, finding #20). It is a
+            // liveness endpoint, not a page: it has no extension and no "_" prefix, so without this it
+            // would be advertised to search engines like any other route.
+            if (path.Equals("/health", StringComparison.Ordinal))
+                continue;
+
             // Anything file-shaped is not a page. MapStaticAssets registers a route endpoint per
             // asset — and per *variant*, so the first version of this shipped a sitemap advertising
             // /js/calendar.js, /js/calendar.js.gz and the fingerprinted forms of both. robots.txt

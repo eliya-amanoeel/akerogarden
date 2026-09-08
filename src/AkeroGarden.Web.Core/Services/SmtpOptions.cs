@@ -15,4 +15,16 @@ public class SmtpOptions
     /// <summary>Base delay between retry attempts, in milliseconds; scaled linearly by attempt
     /// number. Set to 0 to retry immediately (used in tests).</summary>
     public int RetryDelayMs { get; set; } = 1000;
+
+    /// <summary>
+    /// Per-operation SMTP timeout in seconds (post-launch security review, finding #12). MailKit
+    /// defaults to 120 s, which is far too generous here: the guest acknowledgement and the admin
+    /// notification are both awaited inline in the public <c>/boka</c> submission, so a hung SMTP
+    /// endpoint would hold the guest's request — and a request thread — for minutes.
+    ///
+    /// <para>15 s is comfortably above a normal One.com send (well under a second) while turning an
+    /// unresponsive server into a prompt, logged failure. Worst case across the retry budget is now
+    /// roughly 45 s per message rather than six minutes.</para>
+    /// </summary>
+    public int TimeoutSeconds { get; set; } = 15;
 }

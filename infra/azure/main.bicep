@@ -226,6 +226,15 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
   properties: {
     serverFarmId: appServicePlan.id
     httpsOnly: true
+    // ARR session affinity — ON for admin, OFF for public (post-launch security review, finding #10).
+    // App Service sets two cookies (ARRAffinity + ARRAffinitySameSite) when this is enabled. The public
+    // site is pure Static SSR and holds no server-side session, so on that host they are cookies nobody
+    // asked for on a site whose privacy policy §7 turns on there being no unnecessary ones — and whose
+    // absence of a cookie banner rests on that §7 table being complete and true. The admin host keeps
+    // affinity: its Blazor Interactive Server circuits are stateful and would need it the moment the
+    // plan runs more than one instance, and it is disclosed in §7 accordingly.
+    // Previously undeclared here, so the live value was drift rather than a decision.
+    clientAffinityEnabled: app.role == 'admin'
     // App Service must use the user-assigned identity (not the absent system one)
     // to resolve @Microsoft.KeyVault(...) references in app settings.
     keyVaultReferenceIdentity: appIdentities[i].id
@@ -233,6 +242,16 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
     siteConfig: {
       linuxFxVersion: 'DOTNETCORE|10.0'
       alwaysOn: true // Basic B1 supports Always On (only Free/Shared do not); required on the ADMIN site so the daily BackgroundService (Phase 5 — reminders, retention warning, GDPR deletion) is not unloaded on idle. Kept on for public too (free — the plan is billed whether awake or idle).
+      // Liveness probe (post-launch security review, finding #20). Both apps map /health via
+      // AddHealthChecks with NO dependency checks registered: App Service takes a failing instance out
+      // of rotation, and on a single-worker B1 a database-backed probe would escalate a transient
+      // Postgres fault into an outage. Previously unset, so App Service had no way to detect a wedged
+      // instance at all.
+      healthCheckPath: '/health'
+      // HTTP/2 (finding #20). Off by default, and there is no reason for it to be: it reduces
+      // round-trips for the several static assets each page pulls, at no cost or compatibility risk —
+      // clients that do not negotiate it simply stay on HTTP/1.1.
+      http20Enabled: true
       appSettings: concat([
         {
           name: 'ASPNETCORE_ENVIRONMENT'

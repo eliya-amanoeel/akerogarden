@@ -317,12 +317,16 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
     {
         public bool Armed { get; set; }
 
-        public Task SendAsync(
+        public Task<bool> SendAsync(
             string toAddress, string toName, string subject, string htmlBody,
             string? replyToAddress = null, string? replyToName = null) =>
             Armed
+                // Deliberately THROWS rather than returning false. SmtpEmailService swallows its own
+                // failures and reports them via the return value, so a false is the ordinary path; an
+                // exception escaping the mail layer is the harsher case, and this test exists to prove
+                // the guest's submission survives even that.
                 ? throw new InvalidOperationException("SMTP 535 — simulerat sändningsfel")
-                : Task.CompletedTask;
+                : Task.FromResult(true);
     }
 
     /// <summary>A failing mail server must not cost the guest their submission. Both notifications

@@ -220,3 +220,58 @@ resource availabilityAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
     actions: [{ actionGroupId: actionGroup.id }]
   }
 }
+
+// ── Nightly job liveness (post-launch security review, finding #18) ───────────────────────────
+// The daily automation — GDPR retention deletion, the completion-link issuance sweep and the 14-day
+// reminder — runs as an in-process BackgroundService on the ADMIN site. It works: the three jobs have
+// logged a run every day since launch. Nothing, however, notices if it stops.
+//
+// That matters more than an ordinary background job, because one of the three performs the statutory
+// erasure in requirements.md §2.7. If the loop dies (an unhandled fault in ExecuteAsync, Jobs:Enabled
+// flipped, the site left stopped) retention silently stops running and the only signal is an absence —
+// no error is raised, and RetentionJob deliberately leaves no audit trail behind, since a deleted
+// booking's audit rows are cascade-deleted with it.
+//
+// An absence cannot be seen by a metric alert, so this is a scheduled query rule over the traces the
+// runner already writes. Cost, from the Azure retail price list for Sweden Central: EUR 0.0429/month
+// at 15-minute evaluation.
+//
+// Threshold reasoning: three jobs log "Kör schemalagt jobb" once per daily run, so a healthy 24 hours
+// contains exactly 3. Alerting at fewer than 3 catches both the loop dying and a single job being
+// dropped from the runner. The 24-hour window is wider than the once-daily cadence on purpose — a
+// narrower one would fire every day simply because the run happens at 03:00.
+resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
+  name: '${prefix}-logs'
+}
+
+resource nightlyJobsAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-preview' = {
+  name: '${prefix}-nightly-jobs-not-running'
+  location: location
+  properties: {
+    displayName: '${prefix}-nightly-jobs-not-running'
+    description: 'The daily job runner (GDPR retention, completion-link issuance, 14-day reminder) has logged fewer than three runs in 24 hours. Statutory erasure may not be running.'
+    severity: 1
+    enabled: true
+    scopes: [logAnalyticsWorkspace.id]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'P1D'
+    criteria: {
+      allOf: [
+        {
+          query: 'AppTraces | where Message startswith "Kör schemalagt jobb"'
+          timeAggregation: 'Count'
+          operator: 'LessThan'
+          threshold: 3
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    autoMitigate: true
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}

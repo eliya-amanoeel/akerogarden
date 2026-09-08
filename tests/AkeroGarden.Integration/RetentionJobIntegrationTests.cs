@@ -239,6 +239,54 @@ public class RetentionJobIntegrationTests : IClassFixture<DbFixture>
         Assert.Single(email.Sent); // still just the one
     }
 
+    /// <summary>
+    /// A pre-deletion warning that could not be sent must NOT be recorded as sent (post-launch security
+    /// review, finding #11). Sending is non-throwing by design (NFR-13), so before this the job stamped
+    /// <c>DeletionWarningEmailSentAt</c> regardless of outcome: an SMTP outage on the one night a
+    /// booking entered the window meant the FR-66 warning was marked delivered, never retried, and the
+    /// record was hard-deleted 30 days later with nobody told.
+    ///
+    /// <para>Asserts the whole claim rather than just "the marker is null": the run must also report 0
+    /// warned, and — the part that matters to the admin — a later run with mail working must actually
+    /// deliver the warning it previously failed to send.</para>
+    /// </summary>
+    [Fact]
+    public async Task FailedWarningEmail_LeavesNoSentMarker_AndIsRetriedOnTheNextRun()
+    {
+        var provider = NewProvider(out var email);
+        var today = new DateOnly(2026, 7, 5);
+        var id = await SeedAsync(provider, BookingStatus.Completed, deleteAfter: today.AddDays(20));
+
+        // The mail server is down for this run.
+        email.Delivers = false;
+
+        var failed = await RunAsync(provider, today);
+
+        Assert.Equal(0, failed.Warned);
+        Assert.Empty(email.Sent);
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.Null((await db.Bookings.SingleAsync(b => b.Id == id)).DeletionWarningEmailSentAt);
+        }
+
+        // Mail is restored; the booking is still inside the window and must now actually be warned.
+        email.Delivers = true;
+
+        var recovered = await RunAsync(provider, today);
+
+        Assert.Equal(1, recovered.Warned);
+        Assert.Single(email.Sent);
+        Assert.Contains(email.Sent, e =>
+            e.ToAddress == "admin@test.se"
+            && e.Subject.Contains("gallring", StringComparison.OrdinalIgnoreCase));
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            Assert.NotNull((await db.Bookings.SingleAsync(b => b.Id == id)).DeletionWarningEmailSentAt);
+        }
+    }
+
     [Fact]
     public async Task DoesNotWarn_OutsideWindow_OrWhenAlreadyWarned()
     {

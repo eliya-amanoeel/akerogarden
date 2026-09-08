@@ -37,6 +37,12 @@
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.10" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <!-- UrlRedactingProcessor (Security/TelemetryUrlRedactor.cs) derives from BaseProcessor<Activity>.
+         Both hosts already pull this in transitively via Azure.Monitor.OpenTelemetry.AspNetCore 1.5.0;
+         it is referenced explicitly here so the processor can live in Core and be registered identically
+         by both, rather than being duplicated in two Program.cs files. Version pinned to the one that
+         package already resolves — a mismatch would silently give two OpenTelemetry assemblies. -->
+    <PackageReference Include="OpenTelemetry" Version="1.15.3" />
     <PackageReference Include="QuestPDF" Version="2026.7.1" />
     <PackageReference Include="StackExchange.Redis" Version="3.0.17" />
   </ItemGroup>

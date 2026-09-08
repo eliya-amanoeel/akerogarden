@@ -15,11 +15,22 @@ public sealed class FakeEmailService : IEmailService
 
     public ConcurrentBag<SentEmail> Sent { get; } = [];
 
-    public Task SendAsync(
+    /// <summary>
+    /// When false, every send reports failure (and records nothing) without throwing — the shape of a
+    /// real SMTP outage, which <see cref="SmtpEmailService"/> swallows and reports via its return value
+    /// rather than by raising. Lets a test drive the "mail did not go out" branch that finding #11 was
+    /// about. Defaults to true so existing tests are unaffected.
+    /// </summary>
+    public bool Delivers { get; set; } = true;
+
+    public Task<bool> SendAsync(
         string toAddress, string toName, string subject, string htmlBody,
         string? replyToAddress = null, string? replyToName = null)
     {
+        if (!Delivers)
+            return Task.FromResult(false);
+
         Sent.Add(new SentEmail(toAddress, toName, subject, htmlBody, replyToAddress, replyToName));
-        return Task.CompletedTask;
+        return Task.FromResult(true);
     }
 }

@@ -4,8 +4,14 @@ using AkeroGarden.Web.Core.Services;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Suppress the "Server: Kestrel" response header (post-launch security review, finding #19). It names
+// the server software on every response and buys an attacker a free fingerprint; nothing needs it.
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
 // ── Diagnostics (Phase 11) — structured logging, correlation IDs, failure diagnosis ──────────
 // Config-gated: local dev (no connection string) exports nothing; staging/prod send traces/logs/
@@ -13,8 +19,14 @@ var builder = WebApplication.CreateBuilder(args);
 var appInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
 if (!string.IsNullOrEmpty(appInsightsConnectionString))
 {
-    builder.Services.AddOpenTelemetry().UseAzureMonitor(options =>
-        options.ConnectionString = appInsightsConnectionString);
+    builder.Services.AddOpenTelemetry()
+        // Strips the completion token out of /slutfor/{token} before anything is exported (post-launch
+        // security review, finding #1 — the token is a bearer credential for guest data and was being
+        // written verbatim into Log Analytics). Registered BEFORE UseAzureMonitor on purpose:
+        // processors run in registration order and the exporter is itself a processor, so adding this
+        // afterwards would redact too late. See UrlRedactingProcessor.
+        .WithTracing(tracing => tracing.AddProcessor(new UrlRedactingProcessor()))
+        .UseAzureMonitor(options => options.ConnectionString = appInsightsConnectionString);
 }
 
 // ── Forwarded headers (NFR-04 — real client IP behind the App Service load balancer) ──────────
@@ -67,6 +79,13 @@ builder.Services.AddAkeroInquiryRateLimiting(builder.Configuration);
 
 // ── Blazor (pure Static SSR — no Interactive Server, no Identity, no SignalR) ───
 builder.Services.AddRazorComponents();
+
+// ── Health probe (Phase 11 — post-launch security review, finding #20) ────────
+// Liveness ONLY: no database or dependency checks are registered, deliberately. App Service removes a
+// failing instance from rotation, and on a single-worker B1 plan a health check that touches Postgres
+// would turn a transient database blip into a full site outage — strictly worse than having no probe.
+// This answers "is the process up and serving HTTP", which is what App Service actually needs.
+builder.Services.AddHealthChecks();
 
 // ── HSTS (Phase 11 security headers) ──────────────────────────────────────────
 // The framework default is 30 days; a year is the conventional setting and is simply a longer-lived
@@ -123,6 +142,10 @@ app.MapGet("/sitemap.xml", (
             emailOptions.Value.PublicBaseUrl, SitemapBuilder.SelectIndexablePaths(patterns)),
         "application/xml");
 });
+
+// Liveness probe for App Service (finding #20). Excluded from sitemap.xml by SitemapBuilder — it is
+// an infrastructure endpoint, not a page.
+app.MapHealthChecks("/health");
 
 app.MapRazorComponents<App>();
 

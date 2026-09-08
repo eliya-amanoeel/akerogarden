@@ -7,8 +7,14 @@ using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using OpenTelemetry;
+using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Suppress the "Server: Kestrel" response header (post-launch security review, finding #19). It names
+// the server software on every response and buys an attacker a free fingerprint; nothing needs it.
+builder.WebHost.ConfigureKestrel(options => options.AddServerHeader = false);
 
 // ── Diagnostics (Phase 11) — structured logging, correlation IDs, failure diagnosis ──────────
 // Config-gated: local dev (no connection string) exports nothing; staging/prod send traces/logs/
@@ -16,8 +22,15 @@ var builder = WebApplication.CreateBuilder(args);
 var appInsightsConnectionString = builder.Configuration["APPLICATIONINSIGHTS_CONNECTION_STRING"];
 if (!string.IsNullOrEmpty(appInsightsConnectionString))
 {
-    builder.Services.AddOpenTelemetry().UseAzureMonitor(options =>
-        options.ConnectionString = appInsightsConnectionString);
+    builder.Services.AddOpenTelemetry()
+        // Strips the ?code= payload out of the password-reset and invite links before anything is
+        // exported (post-launch security review, finding #1 — that payload is a DataProtection-protected
+        // {email}|{token} blob and was being written verbatim into Log Analytics). Registered BEFORE
+        // UseAzureMonitor on purpose: processors run in registration order and the exporter is itself a
+        // processor, so adding this afterwards would redact too late. The same processor also covers
+        // /slutfor/{token}; it is applied on both hosts so a route moving between them cannot leak.
+        .WithTracing(tracing => tracing.AddProcessor(new UrlRedactingProcessor()))
+        .UseAzureMonitor(options => options.ConnectionString = appInsightsConnectionString);
 }
 
 // ── Forwarded headers (NFR-04 — real client IP behind the App Service load balancer) ──────────
@@ -102,6 +115,7 @@ builder.Services.AddScoped<IAuditActorAccessor, AuditActorAccessor>();
 // ── Admin-only concerns: image upload, invite lifecycle, background jobs, seeding ─────────────
 builder.Services.AddAkeroImageStorage(builder.Configuration);
 builder.Services.AddAkeroAdminInvites();
+builder.Services.AddAkeroLoginRateLimiting(builder.Configuration);
 builder.Services.AddAkeroScheduledJobs(builder.Configuration);
 builder.Services.AddAkeroSeeding();
 
@@ -110,6 +124,12 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddCascadingAuthenticationState();
+
+// ── Health probe (Phase 11 — post-launch security review, finding #20) ────────
+// Liveness ONLY, for the same reason as the public host: App Service pulls a failing instance out of
+// rotation, and with one worker a database-backed check would convert a transient Postgres fault into
+// an admin-panel outage. Anonymous by design — a probe that required a login could never succeed.
+builder.Services.AddHealthChecks();
 
 // ── HSTS (Phase 11 security headers) ──────────────────────────────────────────
 // The framework default is 30 days; a year is the conventional setting and is simply a longer-lived
@@ -157,6 +177,10 @@ app.MapStaticAssets();
 // still an invitation. robots.txt refuses crawling; X-Robots-Tag refuses indexing even if a URL is
 // reached some other way (a crawler that ignores robots.txt, or a link from elsewhere).
 app.MapGet("/robots.txt", () => Results.Text("User-agent: *\nDisallow: /\n", "text/plain"));
+
+// Liveness probe for App Service (finding #20). Anonymous — no RequireAuthorization — because the
+// platform probe carries no credentials. It reveals nothing: a fixed "Healthy" and a status code.
+app.MapHealthChecks("/health");
 
 // ContentSecurityFrameAncestorsPolicy: Blazor Server emits its OWN Content-Security-Policy header
 // on interactive pages, containing only frame-ancestors, and it defaults to 'self'. That left the

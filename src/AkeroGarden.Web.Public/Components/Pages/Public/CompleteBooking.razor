@@ -85,9 +85,9 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
 
             @if (_errors.Count > 0)
             {
-                <div class="alert alert--error" role="alert" style="flex-direction:column;align-items:flex-start;gap:0.4rem;margin-top:1.25rem">
+                <div class="alert alert--error alert--stacked" role="alert">
                     <strong>Kontrollera följande:</strong>
-                    <ul style="margin:0;padding-left:1.2rem">
+                    <ul class="alert__list">
                         @foreach (var error in _errors)
                         {
                             <li>@error</li>
@@ -152,8 +152,9 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                         var mealLabel = item.Slot.MealType == MealType.Lunch ? "Lunch" : "Middag";
                                         var chosen = _form.MealChoices.ElementAtOrDefault(sittingIndex);
                                         var edge = isArrival ? "arrival" : isDeparture ? "departure" : null;
-                                        <div data-sitting="@sittingIndex" data-meal="@item.Slot.MealType"
-                                             data-edge="@edge" style="@(_occasions.IsSelectable(sittingIndex) ? "" : "display:none")">
+                                        <div class="meal-cell @(_occasions.IsSelectable(sittingIndex) ? null : "meal-cell--hidden")"
+                                             data-sitting="@sittingIndex" data-meal="@item.Slot.MealType"
+                                             data-edge="@edge">
                                             <label for="m@(sittingIndex)">@mealLabel</label>
                                             <select class="inp" id="m@(sittingIndex)" name="Form.MealChoices[@sittingIndex]"
                                                     data-meal-select="@item.Slot.MealType">

@@ -1,4 +1,5 @@
 using AkeroGarden.Web.Public.Components;
+using AkeroGarden.Web.Core.Security;
 using AkeroGarden.Web.Core.Services;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -66,12 +67,25 @@ builder.Services.AddAkeroInquiryRateLimiting(builder.Configuration);
 // ── Blazor (pure Static SSR — no Interactive Server, no Identity, no SignalR) ───
 builder.Services.AddRazorComponents();
 
+// ── HSTS (Phase 11 security headers) ──────────────────────────────────────────
+// The framework default is 30 days; a year is the conventional setting and is simply a longer-lived
+// promise to the browser that this host is HTTPS-only. Deliberately WITHOUT IncludeSubDomains and
+// WITHOUT preload: both bind subdomains that do not exist yet, and neither can be withdrawn quickly
+// once a browser has recorded it — the wrong trade for a solo-maintained site.
+builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
+
 var app = builder.Build();
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────
 // Forwarded headers first, so RemoteIpAddress/scheme reflect the real client before any downstream
 // middleware (HTTPS redirect, rate limiter) reads them (NFR-04).
 app.UseForwardedHeaders();
+
+// ── Security headers (Phase 11) — CSP + nosniff/frame/referrer/permissions ────────────────────
+// Registered early so every response carries them, including error pages and static assets.
+// interactiveCircuit: false — the public host is pure Static SSR, so no WebSocket origin is
+// added to connect-src.
+app.UseAkeroSecurityHeaders(interactiveCircuit: false);
 
 if (!app.Environment.IsDevelopment())
 {

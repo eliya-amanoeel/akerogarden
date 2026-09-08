@@ -44,7 +44,7 @@ else
                 {
                     <tr>
                         <td>@(HasName(user) ? $"{user.FirstName} {user.LastName}".Trim() : "—")</td>
-                        <td><span class="rowlink">@user.Email</span>@if (user.Id == _currentUserId) {<span class="chip" style="margin-left:0.5rem">Du</span>}</td>
+                        <td><span class="rowlink">@user.Email</span>@if (user.Id == _currentUserId) {<span class="chip chip--trailing">Du</span>}</td>
                         <td>@(string.IsNullOrWhiteSpace(user.PhoneNumber) ? "—" : user.PhoneNumber)</td>
                         @* Applies on change, no save button — the same house rule the reference-data
                            and building-assignment controls follow. Your own role is read-only:
@@ -130,7 +130,7 @@ else
                     @(HasName(user) ? $"{user.FirstName} {user.LastName}".Trim() : "—")
                     @if (user.Id == _currentUserId)
                     {
-                        <span class="chip" style="margin-left:0.5rem">Du</span>
+                        <span class="chip chip--trailing">Du</span>
                     }
                 </Sub>
                 <Fields>

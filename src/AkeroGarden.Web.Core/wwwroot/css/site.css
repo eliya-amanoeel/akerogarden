@@ -854,7 +854,12 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 .form-section > h2 { font-family: var(--font-heading); font-weight: 700; font-size: 1.15rem; color: var(--color-heading); margin: 0 0 0.9rem; }
 .form-section .sec-note { font-size: 0.85rem; color: var(--color-muted); margin: -0.4rem 0 0.9rem; }
 .field-opt { color: var(--color-muted); font-weight: 400; }
+/* In a heading, the optional marker keeps the body face — the display face at heading size
+   reads as a second heading rather than as an aside. */
+.field-opt--heading { font-family: var(--font-body); font-size: 0.85rem; }
 .form-hint { font-size: 0.8rem; color: var(--color-muted); margin: 0.35rem 0 0; }
+/* Alongside a submit button the hint is already spaced by the row's gap. */
+.form-hint--flush { margin: 0; }
 
 /* "Från kalender" prefill chip */
 .prefill { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--color-primary-ink); background: rgba(113, 176, 2, 0.14); padding: 0.12rem 0.5rem; border-radius: 1rem; margin-left: 0.4rem; vertical-align: middle; }
@@ -880,6 +885,7 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 /* Reassurance banner + submit row */
 .reassure { margin-bottom: 1.6rem; }
 .submit-row { margin-top: 1.75rem; display: flex; gap: 1.1rem; align-items: center; flex-wrap: wrap; }
+.submit-row--center { justify-content: center; }
 
 /* Acknowledgement (Tack) */
 .tack { text-align: center; padding: 3.5rem 0; max-width: 40rem; margin: 0 auto; }
@@ -955,6 +961,9 @@ select.inp {
    match. `.day__meals` shared two of those selectors and is still live, so it keeps them. */
 .meals { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; margin: 0.4rem 0 1rem; }
 .day__meals { display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.75rem; }
+/* One sitting's meal picker. Hidden when the group did not take that arrival/departure meal —
+   server-rendered for the initial state, toggled by completion-form.js thereafter. */
+.meal-cell--hidden { display: none; }
 /* `30em` for the same reason as .form-row above. Not directly measured — /slutfor needs a
    live completion token — but it is the identical two-column-of-labelled-controls shape. */
 @media (min-width: 30em) { .day__meals { grid-template-columns: 1fr 1fr; } }
@@ -1153,6 +1162,7 @@ select.inp {
     background: var(--color-bg-warm); border: 1px solid var(--color-line);
     border-radius: 999px; padding: 0.05rem 0.55rem;
 }
+.chip--trailing { margin-left: 0.5rem; }
 
 /* Admin button modifiers */
 .btn-sm { padding: 0.32rem 0.7rem; font-size: 0.8rem; }
@@ -1211,6 +1221,8 @@ table.admin-table td { padding: 0.62rem 0.8rem; border-bottom: 1px solid var(--c
 table.admin-table tr:last-child td { border-bottom: 0; }
 table.admin-table tbody tr:hover { background: var(--color-bg-warm); }
 table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+/* End-aligned cell that is not a number (a status badge), so it takes no tabular figures. */
+.admin-table .cell-end { text-align: right; }
 .admin-table .mono { font-variant-numeric: tabular-nums; }
 .admin-table .rowlink { font-weight: 600; color: var(--color-heading); text-decoration: none; }
 /* Only a real <a> (Bookings/Dashboard/AdminCalendar, genuine navigation to booking detail) gets
@@ -1446,8 +1458,13 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
    because unlike a table's second line these sit on the same line as the value. */
 .kv .sub { font-size: 0.8125rem; color: var(--color-muted); }
 .rail-actions { display: flex; flex-direction: column; gap: 0.5rem; }
+.rail-actions--spaced { margin-top: 0.6rem; }
 .rail-actions .btn, .rail-actions .btn-outline { justify-content: center; }
 .action-note { font-size: 0.85rem; color: var(--color-muted); margin: 0.7rem 0 0; }
+/* Guest-authored text (the inquiry message, a denial reason): the line breaks the writer typed
+   are meaning, not formatting, so they are preserved rather than collapsed. */
+.freetext { white-space: pre-wrap; }
+.notes-save { margin-top: 0.6rem; }
 /* Building assignment (FR-103) — admin booking detail. Replaced .paycheck, whose last consumers
    were the payment checkboxes (FR-42, removed) and the room-choice toggle (FR-56, tombstoned). */
 .assign-list { display: flex; flex-direction: column; gap: 0.15rem; border: 0; margin: 0; padding: 0; }
@@ -1918,6 +1935,7 @@ fieldset.participant legend {
 
 /* Reassurance note next to a CTA */
 .cta-note { font-size: 0.9rem; color: var(--color-muted); }
+.cta-note--spaced { margin-top: 1.6rem; }
 
 /* Find-here map (/kontakt) — inline SVG drawn from OpenStreetMap data. Inline rather than
    <img> precisely so it inherits the tokens and fonts from here; see the comment in
@@ -2020,6 +2038,7 @@ fieldset.participant legend {
 .utility h1 { font-weight: 400; font-size: clamp(1.6rem, 4vw, 2rem); margin: 0.75rem 0 0.6rem; }
 .utility p { color: var(--color-text); margin: 0 0 1.6rem; }
 .utility__actions { display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap; align-items: center; }
+.utility__actions--start { justify-content: flex-start; margin-top: 2.25rem; }
 
 /* ── Phase 3: inquiry form, admin booking mgmt, availability calendar ───────── */
 
@@ -2049,6 +2068,11 @@ fieldset.participant legend {
     font-size: 0.95rem;
     border: 1px solid transparent;
 }
+/* Stacked variant: a heading above a list of field errors, rather than one line of text. */
+.alert--stacked { flex-direction: column; align-items: flex-start; gap: 0.4rem; margin-top: 1.25rem; }
+/* .alert__list already exists below and is shared; inside the stacked variant the flex gap
+   already separates it from the heading, so only its top margin is overridden. */
+.alert--stacked .alert__list { margin: 0; padding-left: 1.2rem; }
 /* Round badge so the glyph reads as an info/error indicator, not stray punctuation (a bare bold
    "i" was mistaken for an upside-down exclamation mark). Italic "i" = the conventional info mark. */
 .alert__ic {

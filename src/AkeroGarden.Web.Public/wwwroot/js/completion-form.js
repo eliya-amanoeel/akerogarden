@@ -22,7 +22,10 @@
             }
             var prefix = edge === "arrival" ? "Arrival" : "Departure";
             var visible = edgeChecked(prefix, cell.getAttribute("data-meal"));
-            cell.style.display = visible ? "" : "none";
+            // Toggling the class, not cell.style.display: the initial hidden state is now
+            // server-rendered as .meal-cell--hidden, and a class cannot be overridden by
+            // clearing an inline style that is no longer there.
+            cell.classList.toggle("meal-cell--hidden", !visible);
             if (!visible) {
                 var select = cell.querySelector("select");
                 if (select) {

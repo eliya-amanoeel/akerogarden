@@ -17,7 +17,7 @@
                 <div class="tack__badge" aria-hidden="true">✓</div>
                 <h1>Tack!</h1>
                 <p>@_confirmation</p>
-                <div class="submit-row" style="justify-content:center">
+                <div class="submit-row submit-row--center">
                     <a class="btn" href="/">Till startsidan</a>
                     <a class="btn-ghost" href="/faciliteter">Se faciliteter</a>
                 </div>
@@ -167,7 +167,7 @@ else
                     @if (_facilities.Count > 0)
                     {
                         <div class="form-section">
-                            <h2>Tillval <span class="field-opt" style="font-family:var(--font-body);font-size:.85rem">(valfritt)</span></h2>
+                            <h2>Tillval <span class="field-opt field-opt--heading">(valfritt)</span></h2>
                             <p class="sec-note">Kan väljas nu eller bekräftas senare.</p>
 
                             <fieldset class="form-group">
@@ -185,7 +185,7 @@ else
                     }
 
                     <div class="form-section">
-                        <h2>Organisation <span class="field-opt" style="font-family:var(--font-body);font-size:.85rem">(valfritt)</span></h2>
+                        <h2>Organisation <span class="field-opt field-opt--heading">(valfritt)</span></h2>
                         <div class="form-group form-group--checkbox">
                             <label>
                                 <InputCheckbox id="s-isorg" @bind-Value="StayModel!.IsOrganisation" />
@@ -210,7 +210,7 @@ else
                     </div>
 
                     <div class="form-section">
-                        <h2>Meddelande <span class="field-opt" style="font-family:var(--font-body);font-size:.85rem">(valfritt)</span></h2>
+                        <h2>Meddelande <span class="field-opt field-opt--heading">(valfritt)</span></h2>
                         <div class="form-group">
                             <label for="s-message">Berätta gärna mer om ert sällskap</label>
                             <InputTextArea id="s-message" @bind-Value="StayModel!.Message" />
@@ -245,7 +245,7 @@ else
 
                     <div class="submit-row">
                         <button type="submit" class="btn">Skicka bokningsförfrågan</button>
-                        <span class="form-hint" style="margin:0">Vi svarar oftast inom några dagar.</span>
+                        <span class="form-hint form-hint--flush">Vi svarar oftast inom några dagar.</span>
                     </div>
                 </EditForm>
             </div>

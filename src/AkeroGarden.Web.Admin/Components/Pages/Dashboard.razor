@@ -48,7 +48,7 @@ else
                                         <span class="sub">@BookingDisplay.TypeLabel(b.BookingType)@GuestSuffix(b)</span>
                                     </td>
                                     <td class="num mono">@DateRange(b)</td>
-                                    <td style="text-align:right">@Badge(b.Status)</td>
+                                    <td class="cell-end">@Badge(b.Status)</td>
                                 </tr>
                             }
                         </tbody>
@@ -91,7 +91,7 @@ else
                                         <a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a>
                                         <span class="sub">Godkänd@(GuestSuffix(b))</span>
                                     </td>
-                                    <td style="text-align:right">@ExpiryBadge(b)</td>
+                                    <td class="cell-end">@ExpiryBadge(b)</td>
                                 </tr>
                             }
                         </tbody>

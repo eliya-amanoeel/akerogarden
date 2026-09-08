@@ -158,6 +158,33 @@ Two fixes, deliberately separate. `--color-muted` is deepened to `#646159` (5.20
 | Small / caption | Roboto 400 | ~13.5px, colour `--color-muted` |
 | Button | Roboto 700 | ~15px |
 
+### No inline `style` attributes — the CSP blocks them
+
+Styling lives in `site.css`, never in a `style="…"` attribute on an element. This is not a taste
+rule: since the Content-Security-Policy shipped (NFR-39), `style-src 'self'` admits no inline
+styling, so an attribute that reaches the browser is **dropped** — the element simply renders
+unstyled, with nothing in the page to say why. Nineteen such attributes were converted when the
+policy landed.
+
+Two consequences worth knowing before reaching for one:
+
+- **Put the rule beside the component it modifies**, as a modifier (`.chip--trailing`,
+  `.alert--stacked`, `.cta-note--spaced`, `.utility__actions--start`), not in a utilities block at
+  the end of the file. The August 2026 design-system audit was about rules drifting away from what
+  they style; a `.mt-sm` bucket is that drift by construction. Where the value is genuinely about
+  the content rather than the layout, name it for the content — `.freetext` (`white-space: pre-wrap`)
+  holds guest-authored text whose line breaks are meaning, not formatting.
+- **Script may still write to the style object.** `el.style.display = "none"` is CSSOM, not inline
+  styling, and CSP does not govern it — `inquiry-form.js` and `completion-form.js` both rely on
+  this. But a class beats a cleared inline style, so the moment an element's *initial* state is
+  server-rendered as a class, the script toggling it must toggle the class too. That is exactly
+  what happened to the completion form's meal cells (`.meal-cell--hidden`): the markup half and the
+  script half had to move together, and moving only one would have left cells stuck hidden.
+
+A unit test (`NoInlineStyleAttributeTests`) scans every `.razor` file for the attribute, because the
+end-to-end CSP tests only see the pages they visit — and an inline style is most likely to appear on
+an admin detail view or an error page, which is precisely what those tests do not open.
+
 ### Text scaling — the reader's setting is an input
 
 `html { font-size: 100% }`, never an absolute size. An absolute root overrides the reader's own

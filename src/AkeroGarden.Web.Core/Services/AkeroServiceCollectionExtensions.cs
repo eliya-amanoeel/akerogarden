@@ -1,4 +1,5 @@
 using AkeroGarden.Web.Core.Data;
+using AkeroGarden.Web.Core.Security;
 using Microsoft.EntityFrameworkCore;
 using StackExchange.Redis;
 
@@ -25,6 +26,9 @@ public static class AkeroServiceCollectionExtensions
     public static IServiceCollection AddAkeroCommon(this IServiceCollection services)
     {
         services.AddSingleton(TimeProvider.System);
+        // Backs script-src in the CSP. Singleton because the inline import map is fixed for the
+        // lifetime of a deployment; it resolves itself lazily on first request (see the type).
+        services.AddSingleton<ImportMapScriptHash>();
         return services;
     }
 

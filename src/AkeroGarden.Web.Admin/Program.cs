@@ -1,5 +1,6 @@
 using AkeroGarden.Web.Admin.Components;
 using AkeroGarden.Web.Core.Data;
+using AkeroGarden.Web.Core.Security;
 using AkeroGarden.Web.Core.Services;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.Antiforgery;
@@ -110,12 +111,25 @@ builder.Services.AddRazorComponents()
 
 builder.Services.AddCascadingAuthenticationState();
 
+// ── HSTS (Phase 11 security headers) ──────────────────────────────────────────
+// The framework default is 30 days; a year is the conventional setting and is simply a longer-lived
+// promise to the browser that this host is HTTPS-only. Deliberately WITHOUT IncludeSubDomains and
+// WITHOUT preload: both bind subdomains that do not exist yet, and neither can be withdrawn quickly
+// once a browser has recorded it — the wrong trade for a solo-maintained site.
+builder.Services.AddHsts(options => options.MaxAge = TimeSpan.FromDays(365));
+
 var app = builder.Build();
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────
 // Forwarded headers first, so RemoteIpAddress/scheme reflect the real client before any downstream
 // middleware reads them (NFR-04).
 app.UseForwardedHeaders();
+
+// ── Security headers (Phase 11) — CSP + nosniff/frame/referrer/permissions ────────────────────
+// Registered early so every response carries them, including error pages and static assets.
+// interactiveCircuit: true — the admin CSP names this host's wss: origin so the Blazor
+// Interactive Server circuit can connect (see AkeroSecurityHeaders).
+app.UseAkeroSecurityHeaders(interactiveCircuit: true);
 
 if (!app.Environment.IsDevelopment())
 {
@@ -130,8 +144,14 @@ app.UseAuthorization();
 app.UseAntiforgery();
 
 app.MapStaticAssets();
+// ContentSecurityFrameAncestorsPolicy: Blazor Server emits its OWN Content-Security-Policy header
+// on interactive pages, containing only frame-ancestors, and it defaults to 'self'. That left the
+// admin host answering with two CSP headers that disagreed — ours saying 'none', the framework's
+// saying 'self'. Nothing was actually weakened (browsers apply every CSP header and take the
+// intersection, so 'none' still won), but a reader checking the headers would have concluded the
+// panel is frameable by itself. Set to match, so the two headers say the same thing.
 app.MapRazorComponents<App>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode(options => options.ContentSecurityFrameAncestorsPolicy = "'none'");
 
 // The admin host has no public home: "/" is the dashboard itself (see Dashboard.razor, [Authorize]).
 // An unauthenticated request to "/" is redirected to /login via the auth cookie's LoginPath. (Before

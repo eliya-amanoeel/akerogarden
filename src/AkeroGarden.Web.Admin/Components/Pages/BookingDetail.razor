@@ -379,7 +379,7 @@ else
                         <span class="detail-acc__chev" aria-hidden="true">▾</span>
                     </summary>
                     <div class="detail-acc__body">
-                        <p style="white-space:pre-wrap">@_booking.Message</p>
+                        <p class="freetext">@_booking.Message</p>
                     </div>
                 </details>
             }
@@ -392,7 +392,7 @@ else
                         <span class="detail-acc__chev" aria-hidden="true">▾</span>
                     </summary>
                     <div class="detail-acc__body">
-                        <p style="white-space:pre-wrap">@_booking.DenialReason</p>
+                        <p class="freetext">@_booking.DenialReason</p>
                     </div>
                 </details>
             }
@@ -500,7 +500,7 @@ else
                     {
                         <p class="action-note"><strong>Slutförandelänk:</strong><br />Skickas automatiskt cirka sex veckor före ankomst.</p>
                     }
-                    <div class="rail-actions" style="margin-top:0.6rem">
+                    <div class="rail-actions rail-actions--spaced">
                         @* FR-49: the same button sends the link early to a guest who asks for it
                            before the automatic issue, so its label cannot assume a previous link. *@
                         <button class="btn-outline" @onclick="() => _pending = PendingBookingAction.Regenerate">
@@ -563,7 +563,7 @@ else
             <section class="card">
                 <div class="card__head"><h2>Interna anteckningar</h2></div>
                 <InputTextArea @bind-Value="_notes" rows="4" aria-label="Interna anteckningar" />
-                <button class="btn btn-sm" style="margin-top:0.6rem" @onclick="SaveNotes">Spara anteckningar</button>
+                <button class="btn btn-sm notes-save" @onclick="SaveNotes">Spara anteckningar</button>
             </section>
         </aside>
     </div>

@@ -1,5 +1,54 @@
 // Åkerögården — Azure infrastructure
 // Deploy: az deployment group create --resource-group <rg> --template-file main.bicep --parameters @<env>.parameters.json
+//
+// ═══════════════════════════════════════════════════════════════════════════════
+//  ⛔ DO NOT RE-APPLY THIS TEMPLATE TO **PRODUCTION** WITHOUT READING THIS FIRST
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Production went live 2026-09-07 and now holds real guest data. On 2026-09-08 a
+// `what-if` against akerogarden-prod reported 17 resources to modify, and three of
+// those predictions would be serious if they are real rather than what-if noise:
+//
+//   • Microsoft.DBforPostgreSQL/flexibleServers/jmk-ag-prod-pg
+//       - properties.network.publicNetworkAccess: "Disabled"
+//     If applied, the database becomes reachable from the public internet —
+//     a direct violation of NFR-06/24/25, on a server holding guest PII.
+//
+//   • Microsoft.KeyVault/vaults/jmk-ag-prod-kv
+//       - properties.accessPolicies: [both entries]
+//     Those are the public and admin managed identities (get/wrapKey/unwrapKey on
+//     keys, get/list on secrets). Removing them breaks DataProtection and takes
+//     BOTH sites down. The template adds them back via a separate
+//     `accessPolicies/add` resource, which what-if explicitly cannot predict
+//     ("Unsupported"), so the net effect and its ordering are unverified.
+//
+//   • Microsoft.Cache/redisEnterprise/jmk-ag-prod-redis
+//       - highAvailability: "Enabled", redundancyMode: "ZR"
+//     If applied, high availability is lost.
+//
+// They are PROBABLY noise — Azure warns that what-if produces false positives, and
+// these are all "template does not mention the property" cases. But "probably" is
+// not the standard for a live database, and nobody has confirmed which.
+//
+// This does NOT mean the template is wrong for a fresh deployment: production and
+// staging were both built from it, and staging can be re-applied freely (synthetic
+// data, rebuildable). It means the template has drifted from what production
+// actually is, and closing that gap is unfinished work — not a step to take
+// casually because "if it's not in code, it doesn't exist".
+//
+// Before any production re-apply:
+//   1. az deployment group what-if -g akerogarden-prod --template-file main.bicep \
+//        --parameters @prod.parameters.json
+//   2. Resolve every `-` line above to noise-or-real, and declare the real ones in
+//      this template so what-if comes back clean.
+//   3. Pass all five secrets as THE VALUES ALREADY IN USE (from jmk-ag-prod-kv).
+//      Omitting them resets the Postgres admin password and overwrites the Key
+//      Vault SMTP secrets. See prod.parameters.json.
+//
+// Note that the deploy pipelines do NOT apply Bicep — they run AzureWebApp@1 only,
+// application code. Nothing reconciles this automatically, so nothing will trip
+// this by accident; it takes a human running the command above.
+// ═══════════════════════════════════════════════════════════════════════════════
 
 @description('Environment name — used as a suffix on all resource names')
 param environmentName string

@@ -7,8 +7,22 @@ Bicep templates for Åkerögården. Both production and staging deploy from the 
 > **Status:** staging is live in **Sweden Central** (`akerogarden-staging`), in the **client's own Azure subscription/tenant** (PAYG), on `staging.akerogarden.se` (public) + `admin.staging.akerogarden.se` (admin).
 > **Phase 10a ✅ done (2026-07-16)** — staging was recreated fresh in the client's tenant from these same Bicep templates (a redeploy, not a migration; Azure's resource-move feature doesn't work across tenants) and the old MSDN-hosted copy deleted.
 > **Phase 10b ✅ done (2026-07-17)** — the single web app was split into two App Service sites on the one shared plan (see "Two-app topology" below); staging is cut over and verified.
-> **Phase 10c (production pre-stage) — not started.** Production is provisioned directly in the client's tenant against this same two-app topology, and runs on its Azure default `*.azurewebsites.net` hostnames throughout 10c — no DNS involvement. ⚠️ `prod.parameters.json` is **not yet deployable**: `seedAdminEmail` / `seedAdminPassword` are required by `main.bicep` and still absent, pending creation of the `info@akerogarden.se` mailbox. It also still declares the real hostnames in `publicHostnames`/`adminHostnames`, which cannot bind while the apex resolves to WordPress — empty both for the 10c deploy and populate them in 10d. `location` reads `swedencentral` (staging was forced there by a 0 App Service quota in North Europe) — verify that quota actually exists in the client's subscription before deploying, since a quota request is a multi-day support ticket.
-> **Phase 10d (cutover) — not started.** Custom-hostname binding, managed SSL (`ssl.bicep`) and the WordPress retirement. Split out from 10c because Azure cannot issue a managed certificate until the domain already resolves to the App Service, so these are the only genuinely DNS-dependent steps.
+> **Phase 10c ✅ done (2026-07-21)** — production provisioned in the client's tenant on the same two-app topology, deployed and verified on its Azure default `*.azurewebsites.net` hostnames.
+> **Phase 10d ✅ done (2026-09-07) — 🚀 `akerogarden.se` IS LIVE.** Custom hostnames bound, managed SSL issued via `ssl.bicep`, `www` 308-redirecting to the apex, base URLs flipped. WordPress is powered but unlinked, pending decommission. Full record in `infra/ops/dns-cutover-runbook.md`.
+
+## ⛔ Do not re-apply `main.bicep` to **production**
+
+**Production holds real guest data.** A `what-if` on 2026-09-08 predicted 17 resources to modify, three of which would be serious if real rather than what-if noise:
+
+| Resource | Predicted change | If real |
+|---|---|---|
+| `jmk-ag-prod-pg` | removes `publicNetworkAccess: "Disabled"` | guest PII reachable from the public internet — NFR-06/24/25 |
+| `jmk-ag-prod-kv` | removes **both** app-identity access policies | DataProtection breaks, both sites go down |
+| `jmk-ag-prod-redis` | removes `highAvailability` / `redundancyMode: "ZR"` | HA lost |
+
+They are *probably* false positives — Azure warns about them, and each is a "template doesn't mention the property" case — but nobody has confirmed which, and "probably" is not the standard for a live database. **The full analysis is in the header comment of `main.bicep`. Read it before running any production deployment.**
+
+**Staging is unaffected** — synthetic data, rebuildable, re-apply freely. And nothing does this automatically: the deploy pipelines run `AzureWebApp@1` only (application code, no infrastructure), so it takes a human deliberately running the command.
 
 ## What `main.bicep` creates
 

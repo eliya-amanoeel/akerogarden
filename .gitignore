@@ -498,3 +498,7 @@ $RECYCLE.BIN/
 # Dated globs so a regenerated copy is covered too.
 /docs/legal/klientfragor-*.html
 /docs/legal/Akerogarden-klientfragor-*.pdf
+
+# Handover manual, generated for sending — not tracked.
+# The source of truth is docs/handover/admin-manual.html, which IS tracked.
+/docs/handover/Akerogarden-handbok-*.pdf

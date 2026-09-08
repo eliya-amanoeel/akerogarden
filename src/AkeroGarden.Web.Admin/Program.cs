@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using OpenTelemetry;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -30,6 +31,11 @@ if (!string.IsNullOrEmpty(appInsightsConnectionString))
         // processor, so adding this afterwards would redact too late. The same processor also covers
         // /slutfor/{token}; it is applied on both hosts so a route moving between them cannot leak.
         .WithTracing(tracing => tracing.AddProcessor(new UrlRedactingProcessor()))
+        // Drop metric export entirely (finding #13) — same reasoning as the public host: AppMetrics and
+        // AppPerformanceCounters were ~99% of ingestion and held the shared workspace at 55–60% of its
+        // 0.1 GB/day cap, so a real incident would hit the cap and stop ingesting just when the logs
+        // mattered. Traces and logs are untouched, and no existing alert reads an app metric.
+        .WithMetrics(metrics => metrics.AddView(_ => MetricStreamConfiguration.Drop))
         .UseAzureMonitor(options => options.ConnectionString = appInsightsConnectionString);
 }
 

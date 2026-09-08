@@ -23,6 +23,22 @@ public class DataProtectionOptions
     /// </summary>
     public string KeysBlobConnectionString { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Blob service endpoint for the key-ring storage account, e.g.
+    /// <c>https://jmkagprodblob.blob.core.windows.net</c>. When set, the key ring is reached with the
+    /// app's <b>managed identity</b> and <see cref="KeysBlobConnectionString"/> is not needed at all.
+    /// Takes precedence over the connection string.
+    ///
+    /// <para><strong>Why this exists (post-launch security review, finding #9).</strong> Both hosts
+    /// were handed the same storage <em>account key</em>, which meant the public site could read the
+    /// admin site's key-ring container. The "shared nothing" isolation the two rings were designed for
+    /// was real at the DataProtection application-name layer and absent at the credential layer: one
+    /// leaked app setting exposed both rings, and the key that protects the admin auth cookie with it.
+    /// A managed identity scoped to this storage account removes the shared secret entirely rather
+    /// than splitting it in two.</para>
+    /// </summary>
+    public string KeysBlobServiceUri { get; set; } = string.Empty;
+
     /// <summary>Private container holding the key ring. Must NOT allow public access (unlike facility images).</summary>
     public string KeysContainer { get; set; } = "dataprotection-keys";
 

@@ -18,6 +18,20 @@ public enum DataProtectionMode
     BlobWithKeyVault,
 }
 
+/// <summary>How the key-ring blob is authenticated to.</summary>
+public enum DataProtectionCredentialMode
+{
+    /// <summary>No blob persistence configured.</summary>
+    None,
+
+    /// <summary>Storage account key, via a connection string. Local dev (Azurite) only — see
+    /// <see cref="DataProtectionOptions.KeysBlobServiceUri"/> for why Azure no longer uses it.</summary>
+    ConnectionString,
+
+    /// <summary>The app's user-assigned managed identity. The deployed configuration.</summary>
+    ManagedIdentity,
+}
+
 /// <summary>
 /// Wires ASP.NET Core Data Protection key persistence per <see cref="DataProtectionOptions"/> (Phase 7,
 /// NFR-30). The gating decision is the pure <see cref="ResolveMode"/> so it can be unit-tested without Azure.
@@ -38,12 +52,28 @@ public static class DataProtectionSetup
     /// </summary>
     public static DataProtectionMode ResolveMode(DataProtectionOptions options)
     {
-        if (string.IsNullOrWhiteSpace(options.KeysBlobConnectionString))
+        if (ResolveCredentialMode(options) == DataProtectionCredentialMode.None)
             return DataProtectionMode.Ephemeral;
 
         return string.IsNullOrWhiteSpace(options.KeyVaultKeyId)
             ? DataProtectionMode.BlobOnly
             : DataProtectionMode.BlobWithKeyVault;
+    }
+
+    /// <summary>
+    /// How the key-ring blob is authenticated to — no I/O, so it is unit-testable. A blob service URI
+    /// wins over a connection string: it is the deployed configuration (finding #9), and having it take
+    /// precedence means a stale connection-string setting left behind in App Service cannot quietly
+    /// keep the shared account key in play.
+    /// </summary>
+    public static DataProtectionCredentialMode ResolveCredentialMode(DataProtectionOptions options)
+    {
+        if (!string.IsNullOrWhiteSpace(options.KeysBlobServiceUri))
+            return DataProtectionCredentialMode.ManagedIdentity;
+
+        return string.IsNullOrWhiteSpace(options.KeysBlobConnectionString)
+            ? DataProtectionCredentialMode.None
+            : DataProtectionCredentialMode.ConnectionString;
     }
 
     /// <summary>
@@ -59,25 +89,36 @@ public static class DataProtectionSetup
         if (mode == DataProtectionMode.Ephemeral)
             return services;
 
+        // The app runs under a user-assigned managed identity, so DefaultAzureCredential must be told
+        // which one to use. Built once and shared by the blob client and the Key Vault wrap below.
+        var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
+        {
+            ManagedIdentityClientId = string.IsNullOrWhiteSpace(options.ManagedIdentityClientId)
+                ? null
+                : options.ManagedIdentityClientId,
+        });
+
         // The DP blob provider does not create the container; ensure it exists as a PRIVATE container
         // (no public access — these are secret keys, unlike the anonymously-read facility images).
-        var container = new BlobContainerClient(options.KeysBlobConnectionString, options.KeysContainer);
+        var container = ResolveCredentialMode(options) switch
+        {
+            // Deployed configuration (finding #9): managed identity against the blob endpoint, so no
+            // storage account key is handed to either host. Requires the app's identity to hold
+            // "Storage Blob Data Contributor" on the account — Contributor at the control plane is NOT
+            // enough, data-plane access is a separate grant.
+            DataProtectionCredentialMode.ManagedIdentity => new BlobContainerClient(
+                new Uri($"{options.KeysBlobServiceUri.TrimEnd('/')}/{options.KeysContainer}"), credential),
+
+            // Local dev against Azurite, which has no AAD. Never used in Azure.
+            _ => new BlobContainerClient(options.KeysBlobConnectionString, options.KeysContainer),
+        };
+
         container.CreateIfNotExists(PublicAccessType.None);
         var keyBlob = container.GetBlobClient(options.KeysBlobName);
         builder.PersistKeysToAzureBlobStorage(keyBlob);
 
         if (mode == DataProtectionMode.BlobWithKeyVault)
-        {
-            // The app runs under a user-assigned managed identity, so DefaultAzureCredential must be
-            // told which identity to use; locally this id is empty and this branch is never reached.
-            var credential = new DefaultAzureCredential(new DefaultAzureCredentialOptions
-            {
-                ManagedIdentityClientId = string.IsNullOrWhiteSpace(options.ManagedIdentityClientId)
-                    ? null
-                    : options.ManagedIdentityClientId,
-            });
             builder.ProtectKeysWithAzureKeyVault(new Uri(options.KeyVaultKeyId), credential);
-        }
 
         return services;
     }

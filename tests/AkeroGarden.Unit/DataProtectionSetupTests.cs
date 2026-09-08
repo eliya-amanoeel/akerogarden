@@ -62,4 +62,69 @@ public class DataProtectionSetupTests
         };
         Assert.Equal(DataProtectionMode.BlobWithKeyVault, DataProtectionSetup.ResolveMode(options));
     }
+
+    // ── Credential mode (post-launch security review, finding #9) ───────────────
+    // Both hosts used to receive the same storage ACCOUNT KEY, so the public site could read the admin
+    // site's key ring — the "shared nothing" isolation held at the DataProtection application-name
+    // layer and not at the credential layer. Azure now authenticates with each app's managed identity.
+
+    [Fact]
+    public void CredentialMode_NothingConfigured_IsNone()
+    {
+        Assert.Equal(
+            DataProtectionCredentialMode.None,
+            DataProtectionSetup.ResolveCredentialMode(new DataProtectionOptions()));
+    }
+
+    [Fact]
+    public void CredentialMode_ConnectionStringOnly_IsConnectionString()
+    {
+        // Local dev against Azurite, which has no AAD.
+        var options = new DataProtectionOptions { KeysBlobConnectionString = "UseDevelopmentStorage=true" };
+        Assert.Equal(
+            DataProtectionCredentialMode.ConnectionString,
+            DataProtectionSetup.ResolveCredentialMode(options));
+    }
+
+    [Fact]
+    public void CredentialMode_BlobServiceUri_IsManagedIdentity()
+    {
+        var options = new DataProtectionOptions
+        {
+            KeysBlobServiceUri = "https://jmkagprodblob.blob.core.windows.net",
+        };
+        Assert.Equal(
+            DataProtectionCredentialMode.ManagedIdentity,
+            DataProtectionSetup.ResolveCredentialMode(options));
+    }
+
+    [Fact]
+    public void CredentialMode_BlobServiceUri_WinsOverAConnectionString()
+    {
+        // The precedence is the point of the finding, not a detail. If a stale
+        // DataProtection__KeysBlobConnectionString is ever left behind in App Service configuration,
+        // it must NOT quietly put the shared account key back in play.
+        var options = new DataProtectionOptions
+        {
+            KeysBlobServiceUri = "https://jmkagprodblob.blob.core.windows.net",
+            KeysBlobConnectionString = "DefaultEndpointsProtocol=https;AccountName=x;AccountKey=y;EndpointSuffix=core.windows.net",
+        };
+        Assert.Equal(
+            DataProtectionCredentialMode.ManagedIdentity,
+            DataProtectionSetup.ResolveCredentialMode(options));
+    }
+
+    [Fact]
+    public void ResolveMode_BlobServiceUriAndKeyVaultKey_IsBlobWithKeyVault()
+    {
+        // A managed-identity blob URI switches persistence on exactly as a connection string did —
+        // otherwise moving to managed identity would silently drop back to the ephemeral key ring and
+        // invalidate every auth cookie on each restart.
+        var options = new DataProtectionOptions
+        {
+            KeysBlobServiceUri = "https://jmkagprodblob.blob.core.windows.net",
+            KeyVaultKeyId = "https://jmk-ag-prod-kv.vault.azure.net/keys/dataprotection-key",
+        };
+        Assert.Equal(DataProtectionMode.BlobWithKeyVault, DataProtectionSetup.ResolveMode(options));
+    }
 }

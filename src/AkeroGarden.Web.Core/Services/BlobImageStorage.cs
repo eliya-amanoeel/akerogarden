@@ -1,3 +1,4 @@
+using Azure.Identity;
 using Azure.Storage.Blobs;
 using Azure.Storage.Blobs.Models;
 using Microsoft.Extensions.Options;
@@ -19,7 +20,21 @@ public class BlobImageStorage(IOptions<BlobOptions> options) : IImageStorage
         string contentType,
         CancellationToken cancellationToken = default)
     {
-        var container = new BlobContainerClient(_options.ConnectionString, _options.FacilityImagesContainer);
+        // Managed identity in Azure, connection string only for local Azurite (post-launch security
+        // review, finding #9). The connection string carries the storage ACCOUNT KEY, which grants
+        // full access to the whole account — including the two Data Protection key-ring containers.
+        // Removing it from configuration entirely is the point; hiding it behind a Key Vault
+        // reference would have kept a credential that no longer needs to exist.
+        var container = _options.UsesManagedIdentity
+            ? new BlobContainerClient(
+                new Uri($"{_options.ServiceUri.TrimEnd('/')}/{_options.FacilityImagesContainer}"),
+                new DefaultAzureCredential(new DefaultAzureCredentialOptions
+                {
+                    ManagedIdentityClientId = string.IsNullOrWhiteSpace(_options.ManagedIdentityClientId)
+                        ? null
+                        : _options.ManagedIdentityClientId,
+                }))
+            : new BlobContainerClient(_options.ConnectionString, _options.FacilityImagesContainer);
         // Facility images are non-personal public assets shown on the public site (FR-81).
         await container.CreateIfNotExistsAsync(PublicAccessType.Blob, cancellationToken: cancellationToken);
 

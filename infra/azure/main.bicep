@@ -41,9 +41,24 @@
 //        --parameters @prod.parameters.json
 //   2. Resolve every `-` line above to noise-or-real, and declare the real ones in
 //      this template so what-if comes back clean.
-//   3. Pass all five secrets as THE VALUES ALREADY IN USE (from jmk-ag-prod-kv).
-//      Omitting them resets the Postgres admin password and overwrites the Key
-//      Vault SMTP secrets. See prod.parameters.json.
+//   3. Pass postgresAdminPassword, smtpUsername and smtpPassword as THE VALUES
+//      ALREADY IN USE (from jmk-ag-prod-kv). Omitting them resets the Postgres
+//      admin password and overwrites the Key Vault SMTP secrets. See
+//      prod.parameters.json. seedAdminPassword is now OPTIONAL and must be left
+//      EMPTY for production — supplying it re-creates a readable admin password
+//      in App Service configuration (finding #3).
+//
+// Amended 2026-09-08 by the post-launch security review. Since it was written:
+//   • No storage account key is produced by this template at all. Both Data
+//     Protection key rings and the facility-image store authenticate with each
+//     site's managed identity (finding #9), so listKeys() is gone and the sites
+//     hold Storage Blob Data Contributor instead.
+//   • ConnectionStrings__Postgres is a Key Vault reference, not a plaintext app
+//     setting, backed by a new `postgres-connection` secret (finding #3).
+//   • clientAffinityEnabled, healthCheckPath and http20Enabled are now declared
+//     rather than left as undeclared live state (findings #10, #20).
+// These CLOSE drift rather than adding it — but they are new resources and new
+// role assignments, so the what-if above must still be re-read before applying.
 //
 // Note that the deploy pipelines do NOT apply Bicep — they run AzureWebApp@1 only,
 // application code. Nothing reconciles this automatically, so nothing will trip
@@ -93,8 +108,12 @@ param adminHostnames array = []
 param seedAdminEmail string
 
 @secure()
-@description('Bootstrap admin password — seeds the first admin account on startup if none exists')
-param seedAdminPassword string
+@description('''Bootstrap admin password — seeds the first admin account on startup if none exists.
+Supply this ONLY when standing up a new environment or recovering one into an empty user table.
+Leave it empty afterwards: AdminSeeder ignores it once any user exists, and the setting is then just a
+live admin password sitting readable in App Service configuration (post-launch security review,
+finding #3). When empty, the app setting is not emitted at all.''')
+param seedAdminPassword string = ''
 
 @description('Public site base URL used in booking emails (magic link, privacy link) — §9')
 param publicBaseUrl string
@@ -129,10 +148,14 @@ var apps = [
   }
 ]
 
-// Shared connection strings, defined once so both sites' app settings stay identical where they
-// overlap. The Blob string is used for the admin image store AND both sites' Data-Protection rings.
+// The PostgreSQL connection string is built here and stored as a KEY VAULT SECRET below; each site's
+// app setting is a @Microsoft.KeyVault(...) reference to it rather than the value (post-launch
+// security review, finding #3 — it carries the database administrator password).
 var postgresConnectionString = 'Host=${postgresServer.properties.fullyQualifiedDomainName};Database=akerogarden;Username=${postgresAdminLogin};Password=${postgresAdminPassword};SslMode=Require'
-var blobConnectionString = 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=core.windows.net'
+// NOTE: there is deliberately no blob connection string here any more (post-launch security review,
+// finding #9). Both the Data Protection key rings and the facility-image store now authenticate with
+// each site's managed identity, so this template never calls storageAccount.listKeys() and no storage
+// account key is written into App Service configuration. Re-introducing one would undo that.
 
 // ── User-Assigned Managed Identities (one per site) ──────────────────────────
 // Created before Key Vault and the sites so each principalId is available for the Key Vault access
@@ -185,6 +208,17 @@ resource smtpPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
 
 // Redis connection string (contains the access key) — stored as a secret, read by the app
 // via managed identity like the SMTP secrets (NFR-30). Distributed rate-limit store (NFR-04).
+// PostgreSQL connection string (contains the administrator password) — held as a secret and read by
+// each app via managed identity, rather than sitting in plaintext App Service configuration
+// (post-launch security review, finding #3).
+resource postgresConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
+  parent: keyVault
+  name: 'postgres-connection'
+  properties: {
+    value: postgresConnectionString
+  }
+}
+
 resource redisConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = {
   parent: keyVault
   name: 'redis-connection'
@@ -258,8 +292,13 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           value: environmentName == 'prod' ? 'Production' : 'Staging'
         }
         {
+          // Read from Key Vault at runtime via managed identity (post-launch security review,
+          // finding #3). This was a plaintext app setting containing the PostgreSQL administrator
+          // password — readable with one CLI call by anyone holding Contributor, including the deploy
+          // service principal. SMTP and Redis already used Key Vault references; this brings the
+          // database credential in line with them.
           name: 'ConnectionStrings__Postgres'
-          value: postgresConnectionString
+          value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=postgres-connection)'
         }
         {
           name: 'Smtp__Host'
@@ -286,8 +325,16 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
         {
           // Data Protection key ring persisted to Blob (Phase 7 — NFR-30). Its presence is what
           // switches on persistence — absent in local dev, so dev keeps the default filesystem ring.
-          name: 'DataProtection__KeysBlobConnectionString'
-          value: blobConnectionString
+          //
+          // A blob service URI, NOT a connection string (post-launch security review, finding #9).
+          // Both hosts previously received the same storage ACCOUNT KEY, so the public site could read
+          // the admin site's key-ring container: the "shared nothing" isolation was real at the
+          // DataProtection application-name layer and absent at the credential layer. The app now
+          // authenticates with its own managed identity, which holds Storage Blob Data Contributor
+          // (granted below) — no shared secret exists to leak. Local dev still uses a connection
+          // string against Azurite, which has no AAD.
+          name: 'DataProtection__KeysBlobServiceUri'
+          value: storageAccount.properties.primaryEndpoints.blob
         }
         {
           // Per-site private container so the two rings share no storage (Phase 10b — shared nothing).
@@ -334,7 +381,7 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           name: 'Redis__ConnectionString'
           value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=redis-connection)'
         }
-      ] : [
+      ] : concat([
         {
           // Bootstraps the first admin on startup if no users exist (AdminSeeder) — admin site only.
           // The same startup pass also creates the two FR-104 roles; no setting governs that.
@@ -342,16 +389,37 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           value: seedAdminEmail
         }
         {
+          // Facility image upload store (FR-27) — admin only. The public site renders images from
+          // their anonymous Blob URLs and needs no storage credential.
+          //
+          // Managed identity, not a connection string (post-launch security review, finding #9). The
+          // connection string carried the storage ACCOUNT KEY, which grants full access to the whole
+          // account — including both Data Protection key-ring containers. Moving it behind a Key Vault
+          // reference would have preserved a credential that no longer needs to exist; this removes it.
+          name: 'Blob__ServiceUri'
+          value: storageAccount.properties.primaryEndpoints.blob
+        }
+        {
+          name: 'Blob__ManagedIdentityClientId'
+          value: appIdentities[i].properties.clientId
+        }
+      ],
+      // Seed__AdminPassword is emitted ONLY when a password is actually supplied (post-launch
+      // security review, finding #3). AdminSeeder creates an account solely when the user table is
+      // empty, so once an environment is bootstrapped this setting does nothing except leave a live
+      // admin password readable in App Service configuration to anyone with Contributor — which it
+      // did in production from 2026-07-20 until this change.
+      //
+      // Pass the parameter when standing up a NEW environment (or recovering one into an empty
+      // database); leave it empty thereafter and App Service drops the setting, because appSettings is
+      // declarative. That keeps the declared and actual configuration identical either way, rather
+      // than deleting it by hand and creating drift.
+      empty(seedAdminPassword) ? [] : [
+        {
           name: 'Seed__AdminPassword'
           value: seedAdminPassword
         }
-        {
-          // Facility image upload store (FR-27) — admin only. The public site renders images from
-          // their anonymous Blob URLs and needs no storage credential.
-          name: 'Blob__ConnectionString'
-          value: blobConnectionString
-        }
-      ])
+      ]))
     }
   }
 }]
@@ -546,6 +614,28 @@ resource dataProtectionKeysContainers 'Microsoft.Storage/storageAccounts/blobSer
   name: 'dataprotection-keys-${app.role}'
   properties: {
     publicAccess: 'None'
+  }
+}]
+
+// ── Blob data-plane access for each site's managed identity (finding #9) ──────────────────────
+// Storage Blob Data Contributor on the storage account, so each app can read and write its own
+// Data Protection key ring without being handed the account key. Control-plane Contributor does NOT
+// grant data-plane access on Storage — it is a separate role, which is why the key was used before.
+//
+// Scoped to the account rather than the container because the admin site also needs the
+// facility-images container (FR-27), and a per-container split would still leave each identity able
+// to reach the other's container only via a role it does not hold. The account key it replaces gave
+// both hosts everything, so this is strictly narrower even at account scope.
+var storageBlobDataContributor = subscriptionResourceId(
+  'Microsoft.Authorization/roleDefinitions', 'ba92f5b4-2d11-453d-a403-e96b0029c9fe')
+
+resource blobDataRoleAssignments 'Microsoft.Authorization/roleAssignments@2022-04-01' = [for (app, i) in apps: {
+  name: guid(storageAccount.id, appIdentities[i].id, storageBlobDataContributor)
+  scope: storageAccount
+  properties: {
+    roleDefinitionId: storageBlobDataContributor
+    principalId: appIdentities[i].properties.principalId
+    principalType: 'ServicePrincipal'
   }
 }]
 

@@ -35,6 +35,11 @@ param http5xxThreshold int = 10
 @description('PostgreSQL remaining CPU credits (avg over 15 min) that triggers an alert — the leading indicator of Burstable throttling')
 param postgresCpuCreditsRemainingThreshold int = 20
 
+@description('''PostgreSQL storage used (%) that triggers an alert. Storage autogrow fires around 90%,
+so 80 warns while there is still time to look rather than reporting after the platform has already
+acted and billed for a larger disk.''')
+param postgresStoragePercentThreshold int = 80
+
 @description('''Availability test ping interval in seconds (300/600/900 only). 900 (15 min) keeps
 cost low (~$2.88/mo at 2 EU locations) — Application Insights availability tests are billed per
 test execution ($0.0005 each), unlike metric alerts, which are free up to 10 time series.''')
@@ -273,5 +278,39 @@ resource nightlyJobsAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pre
     actions: {
       actionGroups: [actionGroup.id]
     }
+  }
+}
+
+// ── PostgreSQL storage pressure (post-launch security review, finding #15) ────────────────────
+// Storage autogrow is now enabled, which removes the "disk fills, server goes read-only, booking
+// system stops accepting writes" failure the review flagged. It does not remove the need to know:
+// autogrow raises the disk silently and each step costs money, and on Burstable it cannot grow
+// without bound. This is the signal that growth is happening at all.
+//
+// 80% rather than something tighter: autogrow triggers around 90%, so 80 gives warning BEFORE the
+// platform acts rather than reporting after the fact.
+resource postgresStorageAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
+  name: '${prefix}-pg-storage-percent'
+  location: 'global'
+  properties: {
+    severity: 2
+    enabled: true
+    scopes: [postgresServer.id]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT1H'
+    criteria: {
+      'odata.type': 'Microsoft.Azure.Monitor.SingleResourceMultipleMetricCriteria'
+      allOf: [
+        {
+          name: 'StoragePercent'
+          metricName: 'storage_percent'
+          operator: 'GreaterThan'
+          threshold: postgresStoragePercentThreshold
+          timeAggregation: 'Average'
+          criterionType: 'StaticThresholdCriterion'
+        }
+      ]
+    }
+    actions: [{ actionGroupId: actionGroup.id }]
   }
 }

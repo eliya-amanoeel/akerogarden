@@ -27,6 +27,13 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
         return _fixture.BuildServices(s =>
         {
             s.AddSingleton<IEmailService>(fake);
+            // Pinned because two tests here assert an exact retention date: DeleteAfter is computed
+            // by BookingService from its own TimeProvider at creation, and the assertion recomputes
+            // the expected value. Read from two clocks a few milliseconds apart, those agree — until
+            // the run straddles midnight, when they differ by exactly one day and the test goes red
+            // with no code change. Found by the 2026-09-08 sweep; it was a latent flake, not a
+            // failing test.
+            DbFixture.PinClock(s, DbFixture.FixedNow);
             s.AddScoped<BookingEmailService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
@@ -168,7 +175,7 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
 
             Assert.Equal(BookingStatus.Pending, reloaded.Status);
             Assert.Equal(BookingType.StayRequest, reloaded.BookingType);
-            Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(12), reloaded.DeleteAfter);
+            Assert.Equal(DbFixture.TodayIn(provider).AddMonths(12), reloaded.DeleteAfter);
             // FR-92: reference is assigned at creation, format AG-YYYY-NNNN from the real DB sequence.
             Assert.Matches(@"^AG-\d{4}-\d{4}$", reloaded.BookingReference);
             Assert.True(reloaded.SequenceNumber > 0);
@@ -234,7 +241,7 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
         Assert.Equal(BookingStatus.Pending, booking.Status);
         Assert.Equal("Har ni ledigt i sommar?", booking.Message);
         Assert.Null(booking.CheckIn);
-        Assert.Equal(DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(12), booking.DeleteAfter);
+        Assert.Equal(DbFixture.TodayIn(provider).AddMonths(12), booking.DeleteAfter);
 
         Assert.Contains(email.Sent, e => e.ToAddress == "david@test.se");
         var adminNotification = Assert.Single(email.Sent, e => e.ToAddress == "admin@test.se");

@@ -26,6 +26,11 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
         return _fixture.BuildServices(s =>
         {
             s.AddSingleton<IEmailService>(fake);
+            // Pinned. Three separate clocks met in this file before: BookingService mints the token
+            // expiry from its injected TimeProvider, the seed derived check-in from DateTime.UtcNow,
+            // and each evaluation passed DateTime.UtcNow again. The assertions are about distances
+            // (a token still live, one 60 days past expiry), so all three must be the same instant.
+            DbFixture.PinClock(s, DbFixture.FixedNow);
             s.AddScoped<BookingEmailService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
@@ -47,11 +52,15 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
     /// date would approve without one and every caller here would then be evaluating a null token —
     /// reporting NotFound rather than the access state it means to test.</para>
     /// </summary>
+    /// <summary>The pinned instant — the single "now" every date in this file derives from.</summary>
+    private static DateTime NowIn(IServiceProvider provider) =>
+        provider.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
+
     private static async Task<(Guid Id, string Token)> ApprovedBookingAsync(IServiceProvider provider)
     {
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
-        var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30);
+        var checkIn = DbFixture.TodayIn(provider).AddDays(30);
         var booking = await service.CreateStayRequestAsync(new StayRequestInput
         {
             ContactName = "Gäst",
@@ -84,7 +93,7 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
 
-        var (access, booking) = await service.EvaluateCompletionAccessAsync(token, DateTime.UtcNow);
+        var (access, booking) = await service.EvaluateCompletionAccessAsync(token, NowIn(provider));
 
         Assert.Equal(CompletionAccess.Valid, access);
         Assert.NotNull(booking);
@@ -102,7 +111,7 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
 
-        var (access, booking) = await service.EvaluateCompletionAccessAsync(token, DateTime.UtcNow);
+        var (access, booking) = await service.EvaluateCompletionAccessAsync(token, NowIn(provider));
 
         Assert.Equal(CompletionAccess.NotFound, access);
         Assert.Null(booking);
@@ -118,7 +127,7 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
 
         // Evaluate well after any possible expiry (>30-day ceiling).
-        var (access, _) = await service.EvaluateCompletionAccessAsync(token, DateTime.UtcNow.AddDays(60));
+        var (access, _) = await service.EvaluateCompletionAccessAsync(token, NowIn(provider).AddDays(60));
 
         Assert.Equal(CompletionAccess.Expired, access);
     }
@@ -141,7 +150,7 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
         using (var scope = provider.CreateScope())
         {
             var service = scope.ServiceProvider.GetRequiredService<BookingService>();
-            var (access, _) = await service.EvaluateCompletionAccessAsync(token, DateTime.UtcNow);
+            var (access, _) = await service.EvaluateCompletionAccessAsync(token, NowIn(provider));
             Assert.Equal(CompletionAccess.AlreadyCompleted, access);
         }
     }

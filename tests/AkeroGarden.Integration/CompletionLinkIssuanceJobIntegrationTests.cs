@@ -25,7 +25,12 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         return _fixture.BuildServices(s =>
         {
             s.AddSingleton<IEmailService>(fake);
-            s.AddSingleton(TimeProvider.System);
+            // Pinned, not TimeProvider.System: every assertion in this file is about a *distance*
+            // (the 40-day issue window, the 14-day nudge, the link outliving it), which is the one
+            // thing a midnight crossing breaks. Every date below is then taken from this same clock
+            // via DbFixture.TodayIn — a pinned service with a wall-clock seed holds two disagreeing
+            // "now"s and is worse than not pinning.
+            DbFixture.PinClock(s, DbFixture.FixedNow);
             s.AddScoped<BookingEmailService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
@@ -49,6 +54,9 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     {
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        // The container's clock, which is pinned — not DateTime.UtcNow. The expiry seeded here is
+        // compared against the job's `today`, so the two must come from the same instant.
+        var now = scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
         var booking = new Booking
         {
             Id = Guid.NewGuid(),
@@ -62,9 +70,9 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
             MealPlan = MealPlan.FullBoardAll,
             CompletionLinkSentAt = linkSentAt,
             CompletionToken = linkSentAt is null ? null : "already-issued",
-            CompletionTokenExpiry = linkSentAt is null ? null : DateTime.UtcNow.AddDays(20),
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
+            CompletionTokenExpiry = linkSentAt is null ? null : now.AddDays(20),
+            CreatedAt = now,
+            UpdatedAt = now,
         };
         db.Bookings.Add(booking);
         await db.SaveChangesAsync();
@@ -79,6 +87,11 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         return await scope.ServiceProvider.GetRequiredService<CompletionLinkIssuanceJob>().RunAsync(today);
     }
 
+    /// <summary>The pinned instant this container's clock holds. Every date a test compares must
+    /// come from here, so the seed, the job's <c>today</c> and the assertions share one "now".</summary>
+    private static DateTime NowIn(IServiceProvider provider) =>
+        provider.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
+
     private async Task<Booking> ReloadAsync(IServiceProvider provider, Guid id)
     {
         using var scope = provider.CreateScope();
@@ -90,7 +103,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     public async Task WithinTheWindow_IssuesTheLink_EmailsIt_AndDoesNotRepeat()
     {
         var provider = NewProvider(out var email);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DbFixture.TodayIn(provider);
         var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(30));
 
         var issued = await RunAsync(provider, today);
@@ -117,7 +130,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         // Why the lead time is 40 and not 44 (§2.6). If the link the job issues cannot survive to the
         // 14-day nudge that replaces it, the dead-link gap deferred issuance exists to close is back.
         var provider = NewProvider(out _);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DbFixture.TodayIn(provider);
         var checkIn = today.AddDays(CompletionTokenPolicy.IssueLeadDays);
         var id = await SeedApprovedAsync(provider, checkIn: checkIn);
 
@@ -135,7 +148,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     public async Task BeyondTheWindow_IssuesNothing()
     {
         var provider = NewProvider(out var email);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DbFixture.TodayIn(provider);
         var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(60));
 
         Assert.Equal(0, await RunAsync(provider, today));
@@ -150,9 +163,9 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         // Approval inside the window issues the link itself; the job must not replace it and mail a
         // second one, which would invalidate the URL the guest is already holding.
         var provider = NewProvider(out var email);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DbFixture.TodayIn(provider);
         var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(20),
-            linkSentAt: DateTime.UtcNow.AddDays(-1));
+            linkSentAt: NowIn(provider).AddDays(-1));
 
         Assert.Equal(0, await RunAsync(provider, today));
 
@@ -169,7 +182,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         // holding a dead URL until the 14-day nudge — the gap FR-108 exists to close, reopened
         // through the one path that is allowed to issue outside the window (found 2026-08-10).
         var provider = NewProvider(out var email);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DbFixture.TodayIn(provider);
         var checkIn = today.AddDays(CompletionTokenPolicy.IssueLeadDays);
 
         var id = await SeedApprovedAsync(provider, checkIn: checkIn);
@@ -178,8 +191,8 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var b = await db.Bookings.SingleAsync(x => x.Id == id);
             b.CompletionToken = "early-link-now-dead";
-            b.CompletionTokenExpiry = DateTime.UtcNow.AddDays(-1); // sent early, since expired
-            b.CompletionLinkSentAt = DateTime.UtcNow.AddDays(-31);
+            b.CompletionTokenExpiry = NowIn(provider).AddDays(-1); // sent early, since expired
+            b.CompletionLinkSentAt = NowIn(provider).AddDays(-31);
             await db.SaveChangesAsync();
         }
 
@@ -187,7 +200,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
 
         var booking = await ReloadAsync(provider, id);
         Assert.NotEqual("early-link-now-dead", booking.CompletionToken);
-        Assert.True(booking.CompletionTokenExpiry > DateTime.UtcNow, "the replacement link must be live");
+        Assert.True(booking.CompletionTokenExpiry > NowIn(provider), "the replacement link must be live");
         Assert.Single(email.Sent, e => e.Subject.Contains("fylla i era uppgifter"));
 
         // And the replacement survives to the nudge that replaces it in turn (§2.6).
@@ -203,7 +216,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         // guest does not need one yet, and issuing here would restart the 30-day ceiling early and
         // reproduce the original problem one window further along.
         var provider = NewProvider(out var email);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DbFixture.TodayIn(provider);
         var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(180));
 
         using (var scope = provider.CreateScope())
@@ -211,8 +224,8 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var b = await db.Bookings.SingleAsync(x => x.Id == id);
             b.CompletionToken = "early-link-now-dead";
-            b.CompletionTokenExpiry = DateTime.UtcNow.AddDays(-1);
-            b.CompletionLinkSentAt = DateTime.UtcNow.AddDays(-31);
+            b.CompletionTokenExpiry = NowIn(provider).AddDays(-1);
+            b.CompletionLinkSentAt = NowIn(provider).AddDays(-31);
             await db.SaveChangesAsync();
         }
 
@@ -230,7 +243,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     public async Task OnlyBookingsAwaitingCompletionAreIssuedALink(BookingStatus status)
     {
         var provider = NewProvider(out var email);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DbFixture.TodayIn(provider);
         var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(30), status: status);
 
         Assert.Equal(0, await RunAsync(provider, today));
@@ -243,7 +256,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     public async Task PastCheckIn_IsNotIssuedALink()
     {
         var provider = NewProvider(out var email);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DbFixture.TodayIn(provider);
         var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(-1));
 
         Assert.Equal(0, await RunAsync(provider, today));

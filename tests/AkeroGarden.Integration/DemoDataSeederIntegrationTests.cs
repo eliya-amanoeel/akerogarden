@@ -22,11 +22,29 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
 
     private DemoDataSeeder NewSeeder(out IServiceScope scope, out ApplicationDbContext db)
     {
-        var services = _fixture.BuildServices(s => s.AddScoped<DemoDataSeeder>());
+        // Pinned, and the seeder now takes the same TimeProvider. This file asserts where the seeded
+        // bookings sit *relative to today* — one of them with check-in exactly at the 40-day issuance
+        // lead time, an exact boundary. While the seeder read DateTime.UtcNow and the assertions
+        // recomputed "today" separately, a run straddling midnight put those one day apart and
+        // flipped ShouldIssueOn. Pinning the test alone could not have fixed it; the clock had to
+        // become an input to the seeder as well.
+        var services = _fixture.BuildServices(s =>
+        {
+            DbFixture.PinClock(s, DbFixture.FixedNow);
+            s.AddScoped<DemoDataSeeder>();
+        });
         scope = services.CreateScope();
+        Today = DbFixture.TodayIn(services);
+        Now = services.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
         db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         return scope.ServiceProvider.GetRequiredService<DemoDataSeeder>();
     }
+
+    /// <summary>"Today" per the pinned clock the seeder also uses — set by <see cref="NewSeeder"/>.</summary>
+    private DateOnly Today { get; set; }
+
+    /// <summary>The pinned instant, for comparisons against seeded timestamps.</summary>
+    private DateTime Now { get; set; }
 
     [Fact]
     public async Task ResetAndSeed_ProducesValidDatasetCoveringEveryState()
@@ -68,7 +86,7 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         // 1. Link already issued and sent.
         var approved = Assert.Single(approvedAll, b => b.ContactEmail == "johan.bergstrom@example.com");
         Assert.NotNull(approved.CompletionToken);
-        Assert.True(approved.CompletionTokenExpiry > DateTime.UtcNow);
+        Assert.True(approved.CompletionTokenExpiry > Now);
         Assert.NotNull(approved.CompletionLinkSentAt); // dates the link for the nudge grace (FR-63)
 
         // 2. Check-in exactly at the lead time and no link yet — what the issuance job picks up.
@@ -76,13 +94,13 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         Assert.Null(awaitingLink.CompletionToken);
         Assert.Null(awaitingLink.CompletionLinkSentAt);
         Assert.True(CompletionTokenPolicy.ShouldIssueOn(
-            DateOnly.FromDateTime(DateTime.UtcNow), awaitingLink.CheckIn!.Value));
+            Today, awaitingLink.CheckIn!.Value));
 
         // 3. Far beyond the window — no link, and none due yet.
         var farOut = Assert.Single(approvedAll, b => b.ContactEmail == "nils.akerlund@example.com");
         Assert.Null(farOut.CompletionToken);
         Assert.False(CompletionTokenPolicy.ShouldIssueOn(
-            DateOnly.FromDateTime(DateTime.UtcNow), farOut.CheckIn!.Value));
+            Today, farOut.CheckIn!.Value));
 
         var completed = await db.Bookings.SingleAsync(b => b.Status == BookingStatus.Completed);
         Assert.NotNull(completed.DeleteAfter);
@@ -166,7 +184,7 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
 
         await seeder.ResetAndSeedAsync();
 
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = Today;
         var windowEnd = today.AddDays(ReminderSchedule.LeadDays);
 
         var due = await db.Bookings

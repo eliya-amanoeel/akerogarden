@@ -22,7 +22,7 @@ namespace AkeroGarden.Web.Core.Services;
 /// lived-in. Snapshots are captured faithfully (as a real submission would — NFR-15/16/33/34) and
 /// retention dates follow <see cref="RetentionCalculator"/> (FR-91).</para>
 /// </summary>
-public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> logger)
+public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> logger, TimeProvider clock)
 {
     public async Task ResetAndSeedAsync()
     {
@@ -324,7 +324,13 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
     // ── Bookings + blocks ─────────────────────────────────────────────────────────
     private void SeedBookingsAndBlocks(RefData r)
     {
-        var nowUtc = DateTime.UtcNow;
+        // From the injected clock, not DateTime.UtcNow: this seeder positions bookings *relative to
+        // today* — one with check-in exactly at the 40-day issuance lead time — and the integration
+        // test then asserts that placement. With the seeder on the wall clock the test had no way to
+        // agree with it: pinning the test's clock alone would have left a pinned "today" comparing
+        // against a wall-clock seed, which is worse than not pinning. ("The clock is an input, never
+        // an ambient fact.")
+        var nowUtc = clock.GetUtcNow().UtcDateTime;
         var today = DateOnly.FromDateTime(nowUtc);
 
         var utflykt = r.Facilities.First(f => f.Name == "Utflykt - gården");
@@ -657,7 +663,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             PhysicalBuildingNameSnapshot =
                 db.PhysicalBuildings.Local.FirstOrDefault(x => x.Id == building.PhysicalBuildingId)?.Name
                 ?? string.Empty,
-            AssignedAt = DateTime.UtcNow,
+            AssignedAt = clock.GetUtcNow().UtcDateTime,
         });
 
     // Overnight participant — a roster entry only (§8.5). No meals (the group chooses once per

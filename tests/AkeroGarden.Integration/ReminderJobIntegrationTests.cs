@@ -26,7 +26,11 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         return _fixture.BuildServices(s =>
         {
             s.AddSingleton<IEmailService>(fake);
-            s.AddSingleton(TimeProvider.System);
+            // Pinned: this file asserts distances — the 14-day nudge, the grace period before it,
+            // and how much life the replacement link has left. Every date below comes from this
+            // same clock, never from DateTime.UtcNow, so the seed and the job's `today` cannot
+            // disagree across a midnight.
+            DbFixture.PinClock(s, DbFixture.FixedNow);
             s.AddScoped<BookingEmailService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
@@ -54,6 +58,7 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
     {
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var now = scope.ServiceProvider.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
         var booking = new Booking
         {
             Id = Guid.NewGuid(),
@@ -66,12 +71,12 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
             OvernightGuestCount = 4,
             MealPlan = MealPlan.FullBoardAll,
             CompletionToken = withToken ? "old-token" : null,
-            CompletionTokenExpiry = withToken ? DateTime.UtcNow.AddDays(1) : null,
+            CompletionTokenExpiry = withToken ? now.AddDays(1) : null,
             CompletionLinkSentAt = linkSentAt,
             CompletionNudgeSentAt = nudgeSentAt,
             ReminderEmailSentAt = reminderSentAt,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
+            CreatedAt = now,
+            UpdatedAt = now,
         };
         if (withParticipant)
             booking.Participants.Add(new Participant
@@ -87,6 +92,10 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         await db.SaveChangesAsync();
         return booking.Id;
     }
+
+    /// <summary>The pinned instant this container holds — the only source of "now" in this file.</summary>
+    private static DateTime NowIn(IServiceProvider provider) =>
+        provider.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
 
     private async Task<ReminderRunSummary> RunAsync(IServiceProvider provider, DateOnly today)
     {
@@ -126,7 +135,7 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         var provider = NewProvider(out var email);
         var today = new DateOnly(2026, 7, 5);
         var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: today.AddDays(10),
-            withToken: true, linkSentAt: DateTime.UtcNow.AddDays(-10)); // link long past its grace
+            withToken: true, linkSentAt: NowIn(provider).AddDays(-10)); // link long past its grace
 
         var summary = await RunAsync(provider, today);
 
@@ -157,10 +166,10 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         // because the 03:00 run read as earlier than the 14:00 check-in instant. It must give the
         // same window a late approval gets (FR-53).
         var provider = NewProvider(out _);
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = DbFixture.TodayIn(provider);
         var checkIn = today.AddDays(ReminderSchedule.LeadDays);
         var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: checkIn,
-            withToken: true, linkSentAt: DateTime.UtcNow.AddDays(-10));
+            withToken: true, linkSentAt: NowIn(provider).AddDays(-10));
 
         Assert.Equal(1, (await RunAsync(provider, today)).Nudges);
 
@@ -169,7 +178,7 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
                        - CompletionTokenPolicy.LateIssueLeadTime;
 
         Assert.Equal(expected, expiry);
-        Assert.True(expiry - DateTime.UtcNow > TimeSpan.FromDays(10),
+        Assert.True(expiry - NowIn(provider) > TimeSpan.FromDays(10),
             $"the nudge link expires {expiry:u}, leaving the guest under ten days to respond");
     }
 
@@ -182,7 +191,7 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         var provider = NewProvider(out var email);
         var today = new DateOnly(2026, 7, 5);
         var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: today.AddDays(10),
-            withToken: true, linkSentAt: DateTime.UtcNow.AddHours(-13));
+            withToken: true, linkSentAt: NowIn(provider).AddHours(-13));
 
         var first = await RunAsync(provider, today);
 
@@ -195,7 +204,7 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var b = await db.Bookings.SingleAsync(x => x.Id == id);
-            b.CompletionLinkSentAt = DateTime.UtcNow - ReminderSchedule.NudgeGrace.Add(TimeSpan.FromHours(1));
+            b.CompletionLinkSentAt = NowIn(provider) - ReminderSchedule.NudgeGrace.Add(TimeSpan.FromHours(1));
             await db.SaveChangesAsync();
         }
 
@@ -214,7 +223,7 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         var today = new DateOnly(2026, 7, 5);
         var checkIn = today.AddDays(14);
         var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: checkIn,
-            withToken: true, linkSentAt: DateTime.UtcNow.AddDays(-10), withParticipant: true);
+            withToken: true, linkSentAt: NowIn(provider).AddDays(-10), withParticipant: true);
 
         var nudgeRun = await RunAsync(provider, today);
         Assert.Equal(1, nudgeRun.Nudges);

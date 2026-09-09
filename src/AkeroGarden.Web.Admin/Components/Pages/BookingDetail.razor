@@ -6,6 +6,7 @@
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject MealOptionService MealOptionService
+@inject Microsoft.Extensions.Options.IOptions<BookingEmailOptions> EmailOptions
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Bokning — Åkerögården Admin</PageTitle>
@@ -44,7 +45,19 @@ else
                 <div class="detail-acc__body">
                     <dl class="kv">
                         <dt>Namn</dt><dd>@_booking.ContactName</dd>
-                        <dt>E-post</dt><dd>@_booking.ContactEmail</dd>
+                        <dt>E-post</dt>
+                        <dd>
+                            @_booking.ContactEmail
+                            @* FR-112: on an on-behalf-of booking this address belongs to the ADMIN,
+                               not the guest. Unmarked it reads as a staff address entered by mistake,
+                               and someone would eventually "correct" it. *@
+                            @if (_booking.OnBehalfOfAdminId is not null)
+                            {
+                                <br />
+                                <small><b>Administratörens adress</b> — gästen har ingen e-post.
+                                Kontakta gästen på telefon.</small>
+                            }
+                        </dd>
                         <dt>Telefon</dt><dd>@(_booking.ContactPhone ?? "—")</dd>
                         @if (_booking.IsOrganisation)
                         {
@@ -495,6 +508,17 @@ else
                     @if (_booking.CompletionTokenExpiry is { } linkExpiry)
                     {
                         <p class="action-note"><strong>Slutförandelänk giltig till:</strong><br />@linkExpiry.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</p>
+                        @* FR-112: shown in the panel, not only mailed. On an on-behalf-of booking the
+                           admin fills the form in themselves, and hunting a shared inbox for a link
+                           that was sent to a colleague is the obvious failure. It also means a link
+                           mailed to someone who is away is never the only copy. *@
+                        @if (_booking.OnBehalfOfAdminId is not null && CompletionLink() is { } link)
+                        {
+                            <p class="action-note">
+                                <strong>Fyll i deltagare åt gästen:</strong><br />
+                                <a href="@link" target="_blank" rel="noopener">Öppna slutförandeformuläret</a>
+                            </p>
+                        }
                     }
                     else
                     {
@@ -587,6 +611,16 @@ else
 }
 
 @code {
+    /// <summary>
+    /// The guest completion URL for this booking, or null when no link is currently issued (FR-112).
+    /// Built from the same base URL and route the email uses, so the two cannot drift.
+    /// </summary>
+    private string? CompletionLink() =>
+        string.IsNullOrEmpty(_booking?.CompletionToken)
+            ? null
+            : $"{EmailOptions.Value.PublicBaseUrl.TrimEnd('/')}/slutfor/{_booking.CompletionToken}";
+
+
     [Parameter] public Guid Id { get; set; }
 
     // Guest-facing actions gate behind a confirmation (Phase 11) — each one emails or otherwise

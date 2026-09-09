@@ -231,6 +231,37 @@ public class Booking
     /// <summary>True when the admin created the booking on behalf of a guest (FR-47).</summary>
     public bool CreatedByAdmin { get; set; }
 
+    /// <summary>
+    /// The admin who is handling this booking on the guest's behalf because the guest has no email
+    /// address — null for every other booking (FR-112).
+    ///
+    /// <para>Some groups book entirely by telephone and have no email at all. For them
+    /// <see cref="ContactEmail"/> holds the <em>admin's</em> address, not the guest's: the approval
+    /// mail and the completion link have to reach whoever is going to fill the form in. This field is
+    /// what stops that being read as a mistake — without it a booking simply shows a staff address in
+    /// the guest's contact field and nobody can tell whether that was deliberate.</para>
+    ///
+    /// <para><see cref="ContactName"/>, <see cref="ContactPhone"/> and <see cref="OrgName"/> still
+    /// describe the <b>guest</b>. Only the email is substituted.</para>
+    /// </summary>
+    public Guid? OnBehalfOfAdminId { get; set; }
+
+    /// <summary>
+    /// When an admin attested that they went through the booking terms with the guest verbally
+    /// (FR-112). Set only for on-behalf-of bookings; null otherwise.
+    ///
+    /// <para><b>Deliberately NOT <see cref="TermsAcceptedAt"/>, and the two must never be conflated.</b>
+    /// That field records that a guest ticked a box having been shown the terms. This one records that
+    /// a member of staff says they read them out on the phone. They are different claims with
+    /// different evidential weight, and merging them would let the system assert that a guest accepted
+    /// terms they never saw — the one record that would actually matter if the deposit or cancellation
+    /// rule were ever disputed.</para>
+    ///
+    /// <para>A guest with no email cannot be sent the terms, so an attestation is the only honest
+    /// record available. It is weaker than acceptance, and it is stored as the weaker thing.</para>
+    /// </summary>
+    public DateTime? TermsAttestedAt { get; set; }
+
     public DateTime CreatedAt { get; set; }
 
     public DateTime UpdatedAt { get; set; }

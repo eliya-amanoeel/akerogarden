@@ -49,7 +49,13 @@ public class BookingService(
     /// <summary>Creates a Pending stay request from the public inquiry form (FR-03).
     /// When <paramref name="createdByAdmin"/> is true the booking is created on the guest's
     /// behalf (FR-47) and no acknowledgement/notification emails are sent.</summary>
-    public async Task<Booking> CreateStayRequestAsync(StayRequestInput input, bool createdByAdmin = false)
+    /// <param name="onBehalfOfAdminId">
+    /// Set when the admin is handling the booking for a guest who has no email address (FR-112). The
+    /// caller has already put the admin's own address in <c>input.ContactEmail</c>; this records who,
+    /// and stamps the terms attestation. Ignored unless <paramref name="createdByAdmin"/> is true.
+    /// </param>
+    public async Task<Booking> CreateStayRequestAsync(
+        StayRequestInput input, bool createdByAdmin = false, Guid? onBehalfOfAdminId = null)
     {
         if (input.MealPlan is null)
             throw new ArgumentException("Måltidsplan krävs för en bokningsförfrågan.", nameof(input));
@@ -88,6 +94,11 @@ public class BookingService(
             // anything, and ManualBooking sets input.AcceptTerms itself to satisfy validation, so
             // trusting the flag here would manufacture evidence of an acceptance that never occurred.
             TermsAcceptedAt = createdByAdmin ? null : now,
+            // On-behalf-of provenance (FR-112). TermsAttestedAt is a SEPARATE claim from
+            // TermsAcceptedAt — see the field docs; an admin saying they read the terms out is not a
+            // guest ticking a box, and the two must never be merged.
+            OnBehalfOfAdminId = createdByAdmin ? onBehalfOfAdminId : null,
+            TermsAttestedAt = createdByAdmin && onBehalfOfAdminId is not null ? now : null,
             IsOrganisation = input.IsOrganisation,
             OrgName = input.IsOrganisation ? input.OrgName?.Trim() : null,
             OrgNumber = input.IsOrganisation ? input.OrgNumber?.Trim() : null,
@@ -129,7 +140,10 @@ public class BookingService(
         {
             // FR-95: manual admin creation is audited; a public inquiry submission is not.
             await RecordBookingAuditAsync(booking, AuditAction.BookingCreatedByAdmin,
-                "Bokningsförfrågan skapades av administratör.");
+                onBehalfOfAdminId is null
+                    ? "Bokningsförfrågan skapades av administratör."
+                    : "Bokningsförfrågan skapades av administratör för gäst utan e-post. "
+                      + "Administratören intygar att bokningsvillkoren gåtts igenom med gästen.");
             await db.SaveChangesAsync();
         }
         else

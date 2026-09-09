@@ -329,4 +329,144 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
             Assert.Equal(1000m, selection.AmountExVatSnapshot); // unchanged snapshot
         }
     }
+
+    // ── On-behalf-of bookings (FR-112) ──────────────────────────────────────────
+    // Some groups book entirely by telephone and have no email address at all. The admin puts their
+    // OWN address on the booking so the approval mail and completion link reach whoever will fill the
+    // form in, and attests that the terms were gone through verbally.
+
+    private static StayRequestInput OnBehalfOfStay() => new()
+    {
+        ContactName = "Gunnel Persson",              // the GUEST — only the email is substituted
+        ContactEmail = "admin@akerogarden.se",       // the ADMIN's address
+        ContactPhone = "070-1234567",
+        CheckIn = new DateOnly(2026, 11, 2),
+        CheckOut = new DateOnly(2026, 11, 5),
+        OvernightGuestCount = 18,
+        MealPlan = MealPlan.FullBoardAll,
+        AcceptTerms = true,
+    };
+
+    [Fact]
+    public async Task OnBehalfOf_RecordsTheAdminAndTheAttestation()
+    {
+        var provider = NewProvider(out _);
+        var adminId = Guid.NewGuid();
+
+        Guid bookingId;
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            bookingId = (await service.CreateStayRequestAsync(
+                OnBehalfOfStay(), createdByAdmin: true, onBehalfOfAdminId: adminId)).Id;
+        }
+
+        using var check = provider.CreateScope();
+        var booking = await check.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .Bookings.SingleAsync(b => b.Id == bookingId);
+
+        Assert.Equal(adminId, booking.OnBehalfOfAdminId);
+        Assert.NotNull(booking.TermsAttestedAt);
+        Assert.True(booking.CreatedByAdmin);
+    }
+
+    /// <summary>
+    /// The guarantee the whole design rests on: an admin saying they read the terms out on the phone
+    /// must NEVER be recorded as the guest having accepted them. They are different claims with
+    /// different evidential weight, and if the deposit or cancellation rule were ever disputed this is
+    /// the record that would be produced.
+    /// </summary>
+    [Fact]
+    public async Task OnBehalfOf_NeverSetsTermsAcceptedAt()
+    {
+        var provider = NewProvider(out _);
+
+        Guid bookingId;
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            bookingId = (await service.CreateStayRequestAsync(
+                OnBehalfOfStay(), createdByAdmin: true, onBehalfOfAdminId: Guid.NewGuid())).Id;
+        }
+
+        using var check = provider.CreateScope();
+        var booking = await check.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .Bookings.SingleAsync(b => b.Id == bookingId);
+
+        Assert.Null(booking.TermsAcceptedAt);
+        Assert.NotNull(booking.TermsAttestedAt);
+    }
+
+    [Fact]
+    public async Task AnOrdinaryAdminBooking_IsNotMarkedOnBehalfOf()
+    {
+        // An admin entering a booking for a guest who DOES have an email is the ordinary FR-47 case:
+        // no substitution, so no attestation and no marker.
+        var provider = NewProvider(out _);
+
+        Guid bookingId;
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            var input = OnBehalfOfStay();
+            input.ContactEmail = $"gunnel-{Guid.NewGuid():N}@test.se";
+            bookingId = (await service.CreateStayRequestAsync(input, createdByAdmin: true)).Id;
+        }
+
+        using var check = provider.CreateScope();
+        var booking = await check.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .Bookings.SingleAsync(b => b.Id == bookingId);
+
+        Assert.Null(booking.OnBehalfOfAdminId);
+        Assert.Null(booking.TermsAttestedAt);
+        Assert.Null(booking.TermsAcceptedAt);   // FR-111: still the open gap for this case
+        Assert.True(booking.CreatedByAdmin);
+    }
+
+    [Fact]
+    public async Task OnBehalfOf_IsIgnoredForAGuestSubmittedBooking()
+    {
+        // Defensive: the flag only means anything alongside createdByAdmin. A public submission must
+        // never come out marked as handled by staff.
+        var provider = NewProvider(out _);
+
+        Guid bookingId;
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            var input = OnBehalfOfStay();
+            input.ContactEmail = $"guest-{Guid.NewGuid():N}@test.se";
+            bookingId = (await service.CreateStayRequestAsync(
+                input, createdByAdmin: false, onBehalfOfAdminId: Guid.NewGuid())).Id;
+        }
+
+        using var check = provider.CreateScope();
+        var booking = await check.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .Bookings.SingleAsync(b => b.Id == bookingId);
+
+        Assert.Null(booking.OnBehalfOfAdminId);
+        Assert.Null(booking.TermsAttestedAt);
+        Assert.NotNull(booking.TermsAcceptedAt);   // the guest genuinely accepted
+    }
+
+    [Fact]
+    public async Task OnBehalfOf_AuditEntryStatesTheAttestation()
+    {
+        var provider = NewProvider(out _);
+
+        Guid bookingId;
+        using (var scope = provider.CreateScope())
+        {
+            var service = scope.ServiceProvider.GetRequiredService<BookingService>();
+            bookingId = (await service.CreateStayRequestAsync(
+                OnBehalfOfStay(), createdByAdmin: true, onBehalfOfAdminId: Guid.NewGuid())).Id;
+        }
+
+        using var check = provider.CreateScope();
+        var entry = await check.ServiceProvider.GetRequiredService<ApplicationDbContext>()
+            .AuditLogs.SingleAsync(a => a.BookingId == bookingId);
+
+        Assert.Contains("utan e-post", entry.Summary);
+        Assert.Contains("intygar", entry.Summary);
+    }
 }

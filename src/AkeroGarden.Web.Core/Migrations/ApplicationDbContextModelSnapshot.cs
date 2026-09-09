@@ -333,6 +333,9 @@ namespace AkeroGarden.Web.Core.Migrations
                         .HasMaxLength(5000)
                         .HasColumnType("character varying(5000)");
 
+                    b.Property<Guid?>("OnBehalfOfAdminId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("OrgName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
@@ -362,6 +365,9 @@ namespace AkeroGarden.Web.Core.Migrations
                         .HasColumnType("character varying(30)");
 
                     b.Property<DateTime?>("TermsAcceptedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("TermsAttestedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime>("UpdatedAt")

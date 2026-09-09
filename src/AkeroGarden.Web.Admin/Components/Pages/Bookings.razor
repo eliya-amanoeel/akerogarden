@@ -82,7 +82,9 @@ else
                         <td class="mono">@b.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
                         <td>
                             <a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a>
-                            <span class="sub">@b.ContactEmail</span>
+                            @* FR-112: on an on-behalf-of booking this is the ADMIN's address, not
+                               the guest's. Unmarked in a list it reads as data entered wrongly. *@
+                            <span class="sub">@b.ContactEmail@(b.OnBehalfOfAdminId is null ? "" : " · via admin")</span>
                         </td>
                         <td>@BookingDisplay.TypeLabel(b.BookingType)</td>
                         <td class="mono">
@@ -109,7 +111,7 @@ else
         {
             <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
                 <Badge><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></Badge>
-                <Sub>@b.ContactEmail</Sub>
+                <Sub>@b.ContactEmail@(b.OnBehalfOfAdminId is null ? "" : " · via admin")</Sub>
                 <Fields>
                     <div><dt>Referens</dt><dd>@b.BookingReference</dd></div>
                     <div><dt>Typ</dt><dd>@BookingDisplay.TypeLabel(b.BookingType)</dd></div>

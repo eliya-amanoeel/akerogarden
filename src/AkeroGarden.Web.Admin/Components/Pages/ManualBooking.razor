@@ -7,6 +7,7 @@
 @inject BookingService BookingService
 @inject FacilityService FacilityService
 @inject NavigationManager Nav
+@inject IAuditActorAccessor ActorAccessor
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Skapa bokning — Åkerögården Admin</PageTitle>
@@ -37,6 +38,31 @@
            (that safeguard is guest-facing). Mirror ContactEmail → ConfirmEmail so the shared model's
            confirm-match rule is satisfied without burdening the admin. *@
         <div class="form-group"><label for="mb-email">E-post</label><InputText id="mb-email" @bind-Value="_stay.ContactEmail" @bind-Value:after="() => _stay.ConfirmEmail = _stay.ContactEmail" /><ValidationMessage For="() => _stay.ContactEmail" /></div>
+
+        @* On-behalf-of (FR-112). Some groups book entirely by telephone and have no email at all —
+           the form cannot be submitted without one, so without this the admin would invent an address.
+           Ticking this fills in the admin's own, records who is handling it, and records that the
+           terms were gone through verbally. *@
+        <div class="form-group form-group--checkbox">
+            <label>
+                <InputCheckbox @bind-Value="_onBehalfOf" @bind-Value:after="ApplyOnBehalfOf" />
+                Gästen har ingen e-post — jag sköter bokningen åt dem
+            </label>
+        </div>
+        @if (_onBehalfOf)
+        {
+            <div class="note">
+                <p>
+                    Bekräftelsen och länken för att fylla i deltagare skickas till <b>@_adminEmail</b>,
+                    och länken visas även på bokningens sida. Namn, telefon och eventuell organisation
+                    ovan ska vara <b>gästens</b> — bara e-postadressen är din.
+                </p>
+                <p>
+                    Genom att kryssa i rutan intygar du att du gått igenom
+                    <b>bokningsvillkoren</b> med gästen per telefon.
+                </p>
+            </div>
+        }
         <div class="form-group"><label for="mb-phone">Telefon</label><InputText id="mb-phone" @bind-Value="_stay.ContactPhone" /><ValidationMessage For="() => _stay.ContactPhone" /></div>
 
         <div class="form-row">
@@ -131,9 +157,42 @@ else
     private readonly HashSet<Guid> _selectedFacilities = [];
     private List<Facility> _facilities = [];
 
+    // On-behalf-of (FR-112): the signed-in admin, resolved once. Reuses the audit actor accessor
+    // rather than re-reading the auth state — it already resolves the admin's id, email and name from
+    // the circuit, and this needs exactly the same three things.
+    private bool _onBehalfOf;
+    private Guid? _adminId;
+    private string? _adminEmail;
+    private string? _guestEmailBeforeOnBehalfOf;
+
     protected override async Task OnInitializedAsync()
     {
         _facilities = await FacilityService.GetActiveAsync();
+
+        var actor = await ActorAccessor.GetCurrentAsync();
+        _adminId = actor.UserId;
+        _adminEmail = actor.Email;
+    }
+
+    /// <summary>
+    /// Swaps the contact email to the admin's when the box is ticked, and puts back whatever was
+    /// typed when it is unticked — so a mis-click does not silently discard a guest address the admin
+    /// had already entered.
+    /// </summary>
+    private void ApplyOnBehalfOf()
+    {
+        if (_onBehalfOf)
+        {
+            _guestEmailBeforeOnBehalfOf = _stay.ContactEmail;
+            _stay.ContactEmail = _adminEmail ?? string.Empty;
+        }
+        else
+        {
+            _stay.ContactEmail = _guestEmailBeforeOnBehalfOf ?? string.Empty;
+        }
+
+        // The shared input model cross-checks the confirmation field; keep it consistent.
+        _stay.ConfirmEmail = _stay.ContactEmail;
     }
 
     private static void Toggle(HashSet<Guid> set, Guid id, ChangeEventArgs e)
@@ -144,7 +203,8 @@ else
     private async Task CreateStay()
     {
         _stay.SelectedFacilityIds = _selectedFacilities.ToList();
-        var booking = await BookingService.CreateStayRequestAsync(_stay, createdByAdmin: true);
+        var booking = await BookingService.CreateStayRequestAsync(
+            _stay, createdByAdmin: true, onBehalfOfAdminId: _onBehalfOf ? _adminId : null);
         Nav.NavigateTo($"/bokningar/{booking.Id}");
     }
 

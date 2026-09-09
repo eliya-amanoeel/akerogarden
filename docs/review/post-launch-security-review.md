@@ -219,6 +219,29 @@ That single test settles three things at once. The key ring **is durable across 
 
 ---
 
+## 📌 Open observation — logging pipeline faults on the public host (noted 2026-09-09)
+
+**Not a finding from the review, and not user-impacting.** Recorded here because this document is where production oddities are tracked, and because it is growing.
+
+`System.BadImageFormatException` — *"An error occurred while writing to logger(s). (Format of the executable (.exe) or library (.dll) is invalid.)"*, and *"Could not load file or assembly '&lt;Unknown&gt;'"* at `RuntimeHelpers.CompileMethod`. The JIT failing to compile a method in the **logging path**, so some log writes fail.
+
+| Day | Public restarts | Occurrences |
+|---|---|---|
+| 2026-07-21 → 2026-08-31 | 13 | **none** |
+| 2026-09-07 (go-live) | 3 | 2 |
+| 2026-09-08 | 4 | 20 |
+| 2026-09-09 | 8 | 60 |
+
+**It began on go-live day**, never having occurred across thirteen restarts in the preceding six weeks, and it is growing faster than restart count — roughly 0.7, then 5, then 7.5 per restart. Confined to the **public** host; the admin host has never logged one.
+
+**Ruled out:** App Service auto-instrumentation conflicting with the OpenTelemetry SDK — the classic cause of `CompileMethod` + `BadImageFormatException`. None of `ApplicationInsightsAgent_EXTENSION_VERSION`, `APPINSIGHTS_INSTRUMENTATIONKEY` or the `XDT_*` settings is present on either site.
+
+**Why it is only an observation.** Request serving is unaffected: zero non-cold-start 5xx, both sites healthy. What it costs is *telemetry completeness* — occasionally a log write is lost — and telemetry is what every other conclusion in this document rests on. That makes it worth knowing about and not worth chasing yet.
+
+**Revisit if:** the rate keeps climbing independently of deploy frequency, it appears on the admin host, or a real incident turns out to have gaps in its logs. The first of those is the signal that matters.
+
+---
+
 ## Triage
 
 Four questions per finding: is it a live defect or hardening; who owns it; does it need a decision before any code; what does it cost. Verdicts are recommendations pending sign-off.

@@ -5,6 +5,7 @@ using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using OpenTelemetry;
+using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -26,26 +27,25 @@ if (!string.IsNullOrEmpty(appInsightsConnectionString))
         // processors run in registration order and the exporter is itself a processor, so adding this
         // afterwards would redact too late. See UrlRedactingProcessor.
         .WithTracing(tracing => tracing.AddProcessor(new UrlRedactingProcessor()))
-        // Drop the two telemetry streams that dominate ingestion (finding #13). Measured on
-        // production: AppMetrics and AppPerformanceCounters were ~99% of it, holding the workspace at
-        // 55-60% of its 0.1 GB/day cap on a site with almost no traffic — so any real incident would
-        // hit the cap and silently stop ingesting exactly when the logs were needed. Traces and logs,
-        // which are what actually gets used to diagnose this system, are untouched.
+        // Drop the OpenTelemetry instrument metrics (finding #13). These are the bulk of AppMetrics:
+        // on 2026-09-08 http.client.open_connections alone produced 35,594 rows and
+        // http.client.active_requests 21,677, against 2,074 for everything else combined. With this
+        // view active, AppMetrics contained ONLY the internal _APPRESOURCEPREVIEW_ row — measured, not
+        // assumed.
         //
-        // These two options are the supported switches. An earlier attempt used
-        // AddView(_ => MetricStreamConfiguration.Drop) and had NO effect: AppMetrics is emitted by the
-        // distro's standard-metrics emitter, not by OpenTelemetry instruments, so no view applies to
-        // it. That was only caught by measuring ingestion after deploying — it looked plausible in
-        // review and was simply wrong.
-        //
-        // Checked before doing this rather than assumed: all four production metric alerts read
-        // PLATFORM metrics (Microsoft.Web/sites Http5xx, Postgres cpu_credits_remaining) or the
-        // availability webtest. None reads an app metric, so nothing that alerts today depends on it.
+        // Two mechanisms are needed and they cover different sources, which cost three deploy cycles
+        // to establish: this view stops the OTel instruments, while EnablePerformanceCounters below
+        // stops AppPerformanceCounters, which no view can reach. Removing either one lets that half
+        // back in.
+        .WithMetrics(metrics => metrics.AddView(_ => MetricStreamConfiguration.Drop))
         .UseAzureMonitor(options =>
         {
             options.ConnectionString = appInsightsConnectionString;
-            options.EnableStandardMetrics = false;
+            // Verified off: AppPerformanceCounters went to zero rows within minutes of this shipping.
             options.EnablePerformanceCounters = false;
+            // No observable effect either way — those metrics do not appear to be flowing on this
+            // configuration. Kept because it is the documented switch for them.
+            options.EnableStandardMetrics = false;
         });
 }
 
@@ -93,6 +93,12 @@ builder.Services.AddAkeroAudit();
 // AuditActor.Guest explicitly, so this accessor is never invoked; it satisfies AuditWriter's
 // constructor and defaults any stray public audit entry to the system actor.
 builder.Services.AddScoped<IAuditActorAccessor, SystemAuditActorAccessor>();
+
+// ── Facility image reads (the CSP/image finding) ──────────────────────────────
+// The public host now SERVES images from /bilder/{name} rather than pointing the browser at the
+// storage account, so it needs blob read access it previously did not. Its managed identity already
+// holds the data-plane role; Bicep now supplies Blob__ServiceUri to this site too.
+builder.Services.AddAkeroImageStorage(builder.Configuration);
 
 // ── Public-only concern: distributed inquiry rate limiting (NFR-04) ───────────────────────────
 builder.Services.AddAkeroInquiryRateLimiting(builder.Configuration);
@@ -166,6 +172,32 @@ app.MapGet("/sitemap.xml", (
 // Liveness probe for App Service (finding #20). Excluded from sitemap.xml by SitemapBuilder — it is
 // an infrastructure endpoint, not a page.
 app.MapHealthChecks("/health");
+
+// ── Facility images (post-launch security review — the CSP/image finding) ─────────────────────
+// Images are served BY THE APP, not fetched from the storage account by the browser. The
+// img-src 'self' Content-Security-Policy shipped for NFR-39 blocks a Blob URL outright, so FR-81's
+// "render from their anonymous Blob URLs" and the CSP could not both be true. This endpoint makes
+// them so — and the visitor's browser never contacts the storage domain, which is what NFR-35 is
+// actually about.
+//
+// The name is validated against an exact allow-list before it reaches storage: it must look like a
+// name this app generated. Blob names are random GUIDs whose content never changes, so the response
+// is immutable and cacheable for a year — that keeps essentially all image traffic off the B1
+// instance after the first fetch.
+app.MapGet($"{FacilityImagePath.Prefix}/{{blobName}}", async (
+    string blobName, IImageStorage storage, HttpContext http, CancellationToken ct) =>
+{
+    if (!FacilityImagePath.IsValidBlobName(blobName))
+        return Results.NotFound();
+
+    var image = await storage.OpenFacilityImageAsync(blobName, ct);
+    if (image is null)
+        return Results.NotFound();
+
+    http.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
+    return Results.Stream(image.Content, image.ContentType, enableRangeProcessing: true,
+        entityTag: image.ETag is null ? null : new Microsoft.Net.Http.Headers.EntityTagHeaderValue(image.ETag));
+});
 
 app.MapRazorComponents<App>();
 

@@ -39,9 +39,9 @@ else
         <div class="container">
             <div class="teaser">
                 <div class="teaser__photo">
-                    @if (!string.IsNullOrEmpty(lead.ImageUrl))
+                    @if (FacilityImagePath.ToDisplayPath(lead.ImageUrl) is { } leadImage)
                     {
-                        <img src="@lead.ImageUrl" alt="@lead.Name" />
+                        <img src="@leadImage" alt="@lead.Name" />
                     }
                     else
                     {
@@ -76,9 +76,9 @@ else
 
                         <article class="@cardClass">
                             <div class="fac-card__img">
-                                @if (!string.IsNullOrEmpty(facility.ImageUrl))
+                                @if (FacilityImagePath.ToDisplayPath(facility.ImageUrl) is { } facilityImage)
                                 {
-                                    <img src="@facility.ImageUrl" alt="@facility.Name" />
+                                    <img src="@facilityImage" alt="@facility.Name" />
                                 }
                                 else
                                 {

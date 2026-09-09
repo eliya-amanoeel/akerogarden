@@ -142,10 +142,10 @@ else
                 {
                     <p role="alert">@_imageError</p>
                 }
-                @if (!string.IsNullOrEmpty(_form.ImageUrl))
+                @if (FacilityImagePath.ToDisplayPath(_form.ImageUrl) is { } previewImage)
                 {
                     <p>Uppladdad bild:</p>
-                    <img src="@_form.ImageUrl" alt="Förhandsvisning av @_form.Name" width="200" />
+                    <img src="@previewImage" alt="Förhandsvisning av @_form.Name" width="200" />
                 }
             </div>
         </ChildContent>

@@ -374,6 +374,23 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           name: 'APPLICATIONINSIGHTS_CONNECTION_STRING'
           value: appInsights.properties.ConnectionString
         }
+        {
+          // Facility images (FR-27). BOTH sites now, not admin only: admin uploads, and the public
+          // site SERVES them from its own /bilder/{name} endpoint rather than pointing the browser at
+          // the storage account — img-src 'self' (NFR-39) blocks a Blob URL outright, so FR-81 and the
+          // CSP could not both hold. See FacilityImagePath.
+          //
+          // Managed identity, not a connection string (finding #9): that string carried the storage
+          // ACCOUNT KEY, which grants full access to the whole account including both Data Protection
+          // key-ring containers. Removing it is the point; a Key Vault reference would have preserved
+          // a credential that no longer needs to exist.
+          name: 'Blob__ServiceUri'
+          value: storageAccount.properties.primaryEndpoints.blob
+        }
+        {
+          name: 'Blob__ManagedIdentityClientId'
+          value: appIdentities[i].properties.clientId
+        }
       ], app.role == 'public' ? [
         {
           // Distributed rate-limit store (NFR-04) — public only (the inquiry form is the only rate-
@@ -387,21 +404,6 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           // The same startup pass also creates the two FR-104 roles; no setting governs that.
           name: 'Seed__AdminEmail'
           value: seedAdminEmail
-        }
-        {
-          // Facility image upload store (FR-27) — admin only. The public site renders images from
-          // their anonymous Blob URLs and needs no storage credential.
-          //
-          // Managed identity, not a connection string (post-launch security review, finding #9). The
-          // connection string carried the storage ACCOUNT KEY, which grants full access to the whole
-          // account — including both Data Protection key-ring containers. Moving it behind a Key Vault
-          // reference would have preserved a credential that no longer needs to exist; this removes it.
-          name: 'Blob__ServiceUri'
-          value: storageAccount.properties.primaryEndpoints.blob
-        }
-        {
-          name: 'Blob__ManagedIdentityClientId'
-          value: appIdentities[i].properties.clientId
         }
       ],
       // Seed__AdminPassword is emitted ONLY when a password is actually supplied (post-launch
@@ -601,13 +603,18 @@ resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices
   parent: blobService
   name: 'facility-images'
   properties: {
-    publicAccess: 'Blob' // anonymous read of individual blobs; no container listing
+    // PRIVATE (was 'Blob' — anonymous read). Images are now served through each app's own
+    // /bilder/{name} endpoint using managed identity, so nothing fetches them anonymously — and the
+    // browser could not anyway, since img-src 'self' (NFR-39) blocks the storage origin outright.
+    // That contradiction between FR-81 and the CSP is what the image proxy resolves. Making the
+    // container private also clears the way to turn off account-wide allowBlobPublicAccess.
+    publicAccess: 'None'
   }
 }
 
 // Holds each site's Data Protection key ring (Phase 7 — NFR-30). One PRIVATE container per site
 // (Phase 10b — the public and admin rings share no storage). PRIVATE (no public access): these are
-// secret keys, unlike the anonymously-read facility images. Each ring's master key is additionally
+// secret keys. (Facility images are private too now — see the container above.) Each ring's master key is additionally
 // wrapped by the Key Vault key above.
 resource dataProtectionKeysContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [for app in apps: {
   parent: blobService

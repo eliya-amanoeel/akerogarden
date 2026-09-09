@@ -24,7 +24,7 @@ The areas most commonly got wrong in a system like this are right here: the auth
 
 What Phase 7 structurally could not see is where the findings now are: **secrets at rest in App Service configuration, an over-privileged database identity, an unused internet-reachable deployment path, and a credential-bearing URL landing in a log store.**
 
-**24 standing findings — 6 high, 9 medium, 9 low — plus 3 unresolved unknowns.** Two are live defects producing errors in production today. None constitutes an active compromise; none was known to have been exploited.
+**24 standing findings — 6 high, 9 medium, 9 low — plus 3 unresolved unknowns.** (A 25th was found on 2026-09-09 while verifying the remediation; see #25.) Two are live defects producing errors in production today. None constitutes an active compromise; none was known to have been exploited.
 
 ---
 
@@ -73,6 +73,22 @@ Three consequences. The table is factually incomplete on a live legal document. 
 Note how this was missed: line 3 of the file records the content as *"verifierat mot koden … kakor"*. Verified against the code — and ARRAffinity is set by the App Service platform, not by the code. The verification was real but scoped too narrowly.
 
 `clientAffinityEnabled` is also not declared in `main.bicep`, so the live value is undeclared state.
+
+---
+
+### 25. The CSP blocks every facility image — MEDIUM, found 2026-09-09
+
+**Found after the review, by testing something else.** Verifying the managed-identity switchover (#9) meant uploading a facility image on staging. It uploaded fine — and did not display.
+
+**Two live requirements contradict each other.** FR-81 has the public site render facility images from their anonymous Blob URLs. `img-src 'self' data:`, shipped for NFR-39 on 2026-09-08, does not list the storage account, so the browser blocks every one of them. The blob itself is healthy: it returns 200 and the container was publicly readable. Nothing is wrong with storage; the browser simply refuses to fetch it.
+
+**Production was not visibly affected, which is why nobody noticed.** It has never had a facility image uploaded, so there was nothing to block. The defect would have surfaced the first time the client added a photo — silently, with no error anywhere, on the page that sells the venue.
+
+**This is a gap in the review itself, not only in the code.** The audit verified the CSP was present, correct, identical across both hosts, and that it did not break the admin circuit. It never asked whether the policy broke a *feature*. A policy can be perfectly formed and still forbid something the system is required to do, and no amount of header inspection reveals that — only exercising the feature does. The two requirements shipped a day apart and neither review caught the collision.
+
+**Fixed by serving images from the app** (`/bilder/{name}`) rather than widening `img-src`. Widening was the one-line option and was rejected: routing through the app keeps the policy tight, and the visitor's browser never contacts the storage domain at all, which is what NFR-35 is actually about. It follows the precedent already set by `/kontakt`'s map, which is drawn from OpenStreetMap geometry rather than embedded for the same reason.
+
+Consequences worth knowing: the database now stores a blob **name** rather than a URL (both shapes are still accepted, so no data migration was needed); the `facility-images` container is **private**, since nothing fetches it anonymously any more; and the **public** host now needs blob read access it never had before, because it serves the bytes.
 
 ---
 
@@ -188,7 +204,7 @@ Four questions per finding: is it a live defect or hardening; who owns it; does 
 | 10 | Privacy policy §7 omits ARRAffinity (+ #24 Bicep) | Defect (document wrong) | Dev + owner | Minor | ~30 min | **✅ DONE, both halves verified live** — public sites set zero cookies (2026-09-08); published §7 now carries the `Serverkoppling` row (2026-09-09) |
 | 11 | Failed email still sets dedupe marker | Defect (correctness) | Dev | No | ~1h | **✅ deployed 2026-09-09** — verified by integration test, not externally observable |
 | 12 | SMTP inline, no client timeout | Resilience | Dev | No | ~30 min | **✅ deployed 2026-09-09** — not externally observable |
-| 13 | Telemetry at 55–60 % of daily cap | Hardening | Owner | ✅ Decided | 15 min | **◑ REWRITTEN 2026-09-09 after the first attempt failed in production.** `AddView(_ => MetricStreamConfiguration.Drop)` had no effect — `AppMetrics` comes from the distro's standard-metrics emitter, not from OTel instruments, and ingestion stayed flat at ~2 MB/h through the deploy. Now uses the supported switches, `AzureMonitorOptions.EnableStandardMetrics` and `EnablePerformanceCounters` = false. **Awaiting deploy; close only on a measured ingestion drop** |
+| 13 | Telemetry at 55–60 % of daily cap | Hardening | Owner | ✅ Decided | 15 min | **◑ PARKED 2026-09-09 — good enough, not worth more cycles.** `AppPerformanceCounters` is off and verified at zero rows. The OTel-instrument view is restored after being removed on a bad measurement (see below) and ships with the next deploy, no cycle of its own. Nothing is broken and the cap has never been hit; close it opportunistically |
 | 14 | No `EnableRetryOnFailure` | Resilience | Dev | No | 15 min | **✅ merged PR !66 and OBSERVED WORKING** — retried a real transient Postgres timeout on `/boka`, 2026-09-09 08:47 |
 | 15 | autoGrow off, no storage alert, 7-day backups | Risk position | Owner | ✅ Decided | ~30 min | **✅ DONE 2026-09-08/09** — `autoGrow: Enabled`, `backupRetentionDays: 35`, 80 % storage alert in `alerts.bicep` |
 | 16 | Every 404 throws router exception | Defect | Dev | No | Unknown | **INVESTIGATE** |
@@ -200,6 +216,7 @@ Four questions per finding: is it a live defect or hardening; who owns it; does 
 | 22 | Two Owners, SP Contributor on both envs | Risk position | Owner | ✅ Decided | 15 min | **✅ DONE 2026-09-08** — SP now `Website Contributor` on both RGs; Owner roles unchanged |
 | 23 | No smart-detection rule | Hardening | Dev | ✅ Decided | ~1h | **INVESTIGATE** — is anomaly detection worth adding over threshold alerts? |
 | 24 | `clientAffinityEnabled` undeclared | Hardening | — | — | — | Folded into #10 |
+| 25 | CSP blocks every facility image | Defect (latent in prod) | Dev | ✅ Decided | ~3h | **✅ FIXED (code) 2026-09-09** — app-hosted `/bilder/{name}` endpoint, container made private. Awaiting deploy |
 
 **Unknowns:** DataProtection durability → one answer closes it · Redis HA drift → **INVESTIGATE**, ~10 min · `SslMode=Require` → **INVESTIGATE**, ~5 min
 
@@ -207,7 +224,11 @@ Four questions per finding: is it a live defect or hardening; who owns it; does 
 
 **Progress at 2026-09-09, after both deployments.** **Verified against the running system:** #1 (a probe request came back as `/slutfor/redacted`), #10 (zero cookies on the public sites, `Serverkoppling` row published), #19 (no `Server` header), #20's `/health` endpoint, plus #3, #6, #9, #15, #22 on the Azure side. **Deployed but not externally observable** — covered by tests rather than by a live probe: #8, #11, #12, #21. **Half done:** #5 and #7 on staging only; #20's Bicep half unapplied, so App Service still does not probe `/health`.
 
-**#13 was reopened and rewritten the same day.** Deploying the first attempt proved it did not work; the replacement uses the distro's supported switches instead of an OpenTelemetry view. It is not closed — the previous version also looked right in review, so this one closes only on a measured ingestion drop, not on a green build. That is the third time in this review a conclusion drawn from source lost to the running system. Of the three unknowns, **DataProtection durability is closed**; Redis HA drift and `SslMode=Require` remain open exactly as recorded.
+**#13 is parked, and the way it got there is the lesson.** The original view-based fix *worked* — with it live, `AppMetrics` contained only the internal `_APPRESOURCEPREVIEW_` row, against 35,594 rows for a single http metric the day before. It was nevertheless declared a failure and deleted, because the measurement used to judge it was taken from a window that was almost entirely **before the fix was deployed**. A replacement was written and shipped, and only then did the row-level data show what had actually happened.
+
+Both mechanisms are needed and they cover different sources: the view stops the OpenTelemetry instruments, `EnablePerformanceCounters` stops `AppPerformanceCounters`, and neither reaches the other's. Both are now in place.
+
+Two things worth carrying forward. The measurement error is the same one the corrections register already records — a conclusion drawn from data that could not support it — but this time it destroyed working code rather than just producing a wrong claim. And the item never justified the attention: #13 is spare headroom on a cap that has never been hit, and it consumed three deploy cycles. Severity should govern how much effort a finding gets, and here it did not. Of the three unknowns, **DataProtection durability is closed**; Redis HA drift and `SslMode=Require` remain open exactly as recorded.
 
 Still outstanding: **#4** (least-privilege Postgres role — the only item needing a maintenance window), **#5 prod**, **#7 Postgres logs**, **#13 (rewritten, awaiting deploy)**, **#20's Bicep apply**, **#18's alert rule apply**, and the four investigations (#2, #16, #17, #23).
 

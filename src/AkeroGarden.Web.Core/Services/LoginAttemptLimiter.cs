@@ -25,6 +25,18 @@ public class LoginRateLimitOptions
 
     /// <summary>Password-reset window in seconds.</summary>
     public int PasswordResetWindowSeconds { get; set; } = 3600;
+
+    /// <summary>
+    /// How many client entries may accumulate before expired ones are pruned. Only real attempts
+    /// against the two unauthenticated admin forms create entries, so on this site the dictionary
+    /// stays tiny — but nothing else ever removes an entry, and a long-running process must not grow
+    /// without bound.
+    ///
+    /// <para>Configurable purely so the pruning path can be driven by a test. A default of 5000 means
+    /// it effectively never runs in production, and an unexercised branch that also never executes is
+    /// a liability rather than a safeguard.</para>
+    /// </summary>
+    public int MaxTrackedClients { get; set; } = 5000;
 }
 
 /// <summary>
@@ -98,7 +110,7 @@ public sealed class LoginAttemptLimiter(IOptions<LoginRateLimitOptions> options,
         // Entries are only created by real attempts against an unauthenticated admin form, so this
         // dictionary stays tiny — but it must not grow without bound over a long-running process, and
         // nothing else ever removes an entry.
-        if (_counters.Count > 5000)
+        if (_counters.Count > _opts.MaxTrackedClients)
             PruneExpired(now);
 
         return allowed;

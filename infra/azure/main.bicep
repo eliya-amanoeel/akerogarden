@@ -5,65 +5,90 @@
 //  ⛔ DO NOT RE-APPLY THIS TEMPLATE TO **PRODUCTION** WITHOUT READING THIS FIRST
 // ═══════════════════════════════════════════════════════════════════════════════
 //
-// Production went live 2026-09-07 and now holds real guest data. On 2026-09-08 a
-// `what-if` against akerogarden-prod reported 17 resources to modify, and three of
-// those predictions would be serious if they are real rather than what-if noise:
+// Production went live 2026-09-07 and holds real guest data. The pipelines do NOT
+// apply Bicep — they run AzureWebApp@1 only — so nothing reconciles this
+// automatically and nothing will trip it by accident. It takes a human.
 //
-//   • Microsoft.DBforPostgreSQL/flexibleServers/jmk-ag-prod-pg
-//       - properties.network.publicNetworkAccess: "Disabled"
-//     If applied, the database becomes reachable from the public internet —
-//     a direct violation of NFR-06/24/25, on a server holding guest PII.
+// ── Status 2026-09-09: APPLIED. The drift is closed. ──────────────────────────
+//    `main` was applied to staging (15:53) and then production (16:10), both
+//    Succeeded. Production was verified afterwards: Redis HA still Enabled,
+//    Postgres still private with 35-day backups and autogrow, the Key Vault
+//    holding exactly the two app identities, the db-subnet service endpoint
+//    intact, facility-images no longer anonymously readable, and both hosts
+//    answering 200. Before this, `main` had last been applied 2026-07-20.
 //
-//   • Microsoft.KeyVault/vaults/jmk-ag-prod-kv
-//       - properties.accessPolicies: [both entries]
-//     Those are the public and admin managed identities (get/wrapKey/unwrapKey on
-//     keys, get/list on secrets). Removing them breaks DataProtection and takes
-//     BOTH sites down. The template adds them back via a separate
-//     `accessPolicies/add` resource, which what-if explicitly cannot predict
-//     ("Unsupported"), so the net effect and its ordering are unverified.
+// Everything the post-launch security review changed by hand is now declared here:
+// per-site database credentials (public = least-privilege, admin = owner),
+// managed identity for both Data Protection key rings and the image store, Key
+// Vault references for the database, purge protection, storage autogrow, 35-day
+// backups, client affinity, health check, HTTP/2, the private image container and
+// the blob data-plane role assignments.
 //
-//   • Microsoft.Cache/redisEnterprise/jmk-ag-prod-redis
-//       - highAvailability: "Enabled", redundancyMode: "ZR"
-//     If applied, high availability is lost.
+// **Declaring them was itself the fix for a trap.** Before 2026-09-09 this template
+// still said BOTH sites use `postgres-connection` (the owner account) and that
+// backup retention was 7 days. Applying it would silently have put the
+// internet-facing site back on an account that can drop the database, and undone
+// the retention increase. Hand-applied `az` changes buy speed and create drift in
+// exactly this direction: the template does not merely lag, it actively contradicts.
 //
-// They are PROBABLY noise — Azure warns that what-if produces false positives, and
-// these are all "template does not mention the property" cases. But "probably" is
-// not the standard for a live database, and nobody has confirmed which.
+// ── The three unresolved predictions were RESOLVED on 2026-09-09 ──────────────
+// A what-if against STAGING (same template, synthetic data) settled all three. Two
+// were noise; one was a real defect in this template, now fixed.
 //
-// This does NOT mean the template is wrong for a fresh deployment: production and
-// staging were both built from it, and staging can be re-applied freely (synthetic
-// data, rebuildable). It means the template has drifted from what production
-// actually is, and closing that gap is unfinished work — not a step to take
-// casually because "if it's not in code, it doesn't exist".
+//   • Postgres `network.publicNetworkAccess: "Disabled"` shown as removed — NOISE.
+//     With `delegatedSubnetResourceId` set the property is derived and immutable;
+//     it cannot be flipped to Enabled while VNet integration stands. It appeared in
+//     the same `-` cluster as storage.iops/tier and replicationRole, all read-only.
 //
-// Before any production re-apply:
-//   1. az deployment group what-if -g akerogarden-prod --template-file main.bicep \
-//        --parameters @prod.parameters.json
-//   2. Resolve every `-` line above to noise-or-real, and declare the real ones in
-//      this template so what-if comes back clean.
-//   3. Pass postgresAdminPassword, smtpUsername and smtpPassword as THE VALUES
-//      ALREADY IN USE (from jmk-ag-prod-kv). Omitting them resets the Postgres
-//      admin password and overwrites the Key Vault SMTP secrets. See
-//      prod.parameters.json. seedAdminPassword is now OPTIONAL and must be left
-//      EMPTY for production — supplying it re-creates a readable admin password
-//      in App Service configuration (finding #3).
+//   • Key Vault `accessPolicies` shown as removed — REAL, and the diagnosis in the
+//     old banner was wrong. This was never a "template omits the property" case:
+//     the vault declared `accessPolicies: []` outright and a child
+//     `accessPolicies/add` resource refilled it, so every apply emptied and
+//     restored the array. FIXED — the policies are now declared inline on the
+//     vault and the child resource is gone. See the comment there.
 //
-// Amended 2026-09-08 by the post-launch security review. Since it was written:
-//   • No storage account key is produced by this template at all. Both Data
-//     Protection key rings and the facility-image store authenticate with each
-//     site's managed identity (finding #9), so listKeys() is gone and the sites
-//     hold Storage Blob Data Contributor instead.
-//   • ConnectionStrings__Postgres is a Key Vault reference, not a plaintext app
-//     setting, backed by a new `postgres-connection` secret (finding #3).
-//   • clientAffinityEnabled, healthCheckPath and http20Enabled are now declared
-//     rather than left as undeclared live state (findings #10, #20).
-// These CLOSE drift rather than adding it — but they are new resources and new
-// role assignments, so the what-if above must still be re-read before applying.
+//   • Redis `highAvailability: "Enabled"` shown as removed — NOISE. The resource
+//     declares no `properties` block at all, so `kind`, `redundancyMode` and
+//     `minimumTlsVersion` come back as `-` alongside it and those are plainly
+//     read-only. HA is the Balanced_B0 default.
 //
-// Note that the deploy pipelines do NOT apply Bicep — they run AzureWebApp@1 only,
-// application code. Nothing reconciles this automatically, so nothing will trip
-// this by accident; it takes a human running the command above.
+// ── The role-assignment collision — HIT, and now spent ────────────────────────
+// Both managed identities already held Storage Blob Data Contributor, granted
+// with `az` during the security review and therefore carrying RANDOM assignment
+// names while this template names them with a deterministic `guid()`. What-if
+// compared by name and reported two creates; Azure RBAC compares by
+// principal+role+scope and would have rejected the second with
+// RoleAssignmentExists, failing the whole deployment. It hit in BOTH environments.
+//
+// Resolved on 2026-09-09 by deleting the hand-made assignments immediately before
+// each apply. The template owns them now, so this does not recur — but the same
+// trap waits for any role granted by hand from here on.
+//
+// ── Before any FUTURE production apply ─────────────────────────────────────────
+// The 2026-09-09 apply closed the drift, so the next one should be near-clean.
+// That is the point: what-if is now readable, and a surprise in it means
+// something changed outside this template.
+//   1. Run what-if against BOTH environments, not just staging. Staging is not a
+//      proof for production — its db-subnet lacked the Microsoft.Storage service
+//      endpoint that production's has, so a clean staging run said nothing about
+//      the subnet change that would have stripped it (see the vnet comment).
+//        az deployment group what-if -g akerogarden-prod \
+//          --template-file main.bicep --parameters @prod.parameters.json
+//   2. Resolve every `-` line to noise-or-real, and declare the real ones here.
+//      A `-` on a property Azure manages for you is the dangerous shape: the PUT
+//      replaces the parent wholesale, so "not declared" means "removed".
+//   3. Pass FOUR secrets as THE VALUES ALREADY IN USE, from jmk-ag-prod-kv:
+//      postgresAdminPassword, postgresAppPassword, smtpUsername, smtpPassword.
+//      Omitting any of them resets or overwrites a live credential.
+//      seedAdminPassword must stay EMPTY for production (finding #3).
+//   4. Have the rollback ready: the public site's connection string is one
+//      `az webapp config appsettings set` away from either credential.
+//
+// Reading a secret out of the vault needs an access policy you no longer have —
+// every apply removes human policies by design. Grant yourself `get`/`list`, read
+// the values, apply, and expect the apply itself to take the grant away again.
 // ═══════════════════════════════════════════════════════════════════════════════
+
 
 @description('Environment name — used as a suffix on all resource names')
 param environmentName string
@@ -106,6 +131,14 @@ param adminHostnames array = []
 
 @description('Bootstrap admin email — seeds the first admin account on startup if none exists')
 param seedAdminEmail string
+
+@secure()
+@description('''Password for the least-privilege PostgreSQL role the PUBLIC site connects as
+(`akerogarden_public`, post-launch security review #4). Created by hand inside the database — Bicep
+cannot create a Postgres role, only carry its credential — so this parameter exists to keep the Key
+Vault secret declared rather than orphaned. Pass THE VALUE ALREADY IN USE; a different one locks the
+public site out of the database.''')
+param postgresAppPassword string = ''
 
 @secure()
 @description('''Bootstrap admin password — seeds the first admin account on startup if none exists.
@@ -174,10 +207,35 @@ resource keyVault 'Microsoft.KeyVault/vaults@2023-07-01' = {
     sku: { family: 'A', name: 'standard' }
     tenantId: subscription().tenantId
     enableRbacAuthorization: false
-    // With RBAC disabled, Azure requires an accessPolicies array to be present.
-    // Start empty; the kvAccessPolicy resource below adds the app's policy.
-    accessPolicies: []
+    // Declared INLINE, not via a child `accessPolicies/add` resource. Both spellings end up with the
+    // same two policies, but the child-resource form declared `accessPolicies: []` here first, so every
+    // apply emptied the array and then refilled it — a real remove-then-restore, seconds wide, during
+    // which Data Protection wrapKey/unwrapKey fails on BOTH hosts and in-flight requests can 500. It
+    // also made what-if unreadable: the removal showed as a `-` on a live property while the restore
+    // was reported "Unsupported — cannot predict", so the net effect could not be verified before
+    // applying (that unresolved prediction is what gated the re-apply from 2026-09-08). The principalIds
+    // resolve at deploy time, so inline is a genuine no-op and what-if now says so.
+    //
+    // Human policies are deliberately absent: grant yourself `get`/`list` by hand when you need to read
+    // a secret, and expect the next apply to take it away again.
+    accessPolicies: [for (app, i) in apps: {
+      tenantId: subscription().tenantId
+      objectId: appIdentities[i].properties.principalId
+      permissions: {
+        secrets: ['get', 'list']
+        // wrap/unwrap the Data Protection master key (Phase 7 — NFR-30); get lets the DP
+        // provider read the key's metadata/version.
+        keys: ['get', 'wrapKey', 'unwrapKey']
+      }
+    }]
     enableSoftDelete: true
+    // Irreversible once on, and deliberately so (post-launch security review #6): this vault holds the
+    // RSA key wrapping BOTH hosts' Data Protection master keys, and without purge protection that key
+    // could be deleted and purged outright, permanently invalidating every auth cookie and antiforgery
+    // token. Applied by hand on 2026-09-08; declared here so it is not drift.
+    enablePurgeProtection: true
+    // 7, not by choice: softDeleteRetentionInDays is IMMUTABLE once set, and Azure refused to raise it
+    // to 90 on 2026-09-09. This is a permanent constraint of this vault, not an outstanding task.
     softDeleteRetentionInDays: 7
   }
 }
@@ -216,6 +274,18 @@ resource postgresConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01'
   name: 'postgres-connection'
   properties: {
     value: postgresConnectionString
+  }
+}
+
+// The PUBLIC site's least-privilege connection string (post-launch security review #4). The role
+// itself lives inside PostgreSQL and cannot be expressed in Bicep; what is declared here is the
+// credential the site reads. Emitted only when the password is supplied, so a deploy that omits it
+// leaves the existing secret untouched rather than overwriting it with an empty value.
+resource postgresAppConnectionSecret 'Microsoft.KeyVault/vaults/secrets@2023-07-01' = if (!empty(postgresAppPassword)) {
+  parent: keyVault
+  name: 'postgres-connection-public'
+  properties: {
+    value: 'Host=${postgresServer.properties.fullyQualifiedDomainName};Database=akerogarden;Username=akerogarden_public;Password=${postgresAppPassword};SslMode=Require'
   }
 }
 
@@ -297,8 +367,15 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           // password — readable with one CLI call by anyone holding Contributor, including the deploy
           // service principal. SMTP and Redis already used Key Vault references; this brings the
           // database credential in line with them.
+          // PER-SITE, and the difference is the point (post-launch security review #4): the public
+          // host connects as a least-privilege role that cannot alter the schema; the admin host
+          // connects as the owner because it runs EF migrations at startup, and migrations cannot move
+          // to the pipeline while PostgreSQL is VNet-only. Collapsing these back to one secret would
+          // silently put the internet-facing site back on an account that can drop the database.
           name: 'ConnectionStrings__Postgres'
-          value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=postgres-connection)'
+          value: app.role == 'public'
+            ? '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=postgres-connection-public)'
+            : '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=postgres-connection)'
         }
         {
           name: 'Smtp__Host'
@@ -426,27 +503,6 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
   }
 }]
 
-// ── Key Vault access policy — both sites' managed identities read secrets ─────
-// One 'add' operation carrying a policy per site identity. The access-policy model is per-vault
-// (not per-secret), so both identities can read every secret; the Redis-vs-seed split is enforced by
-// which app SETTING each site carries, not by the vault ACL.
-resource kvAccessPolicy 'Microsoft.KeyVault/vaults/accessPolicies@2023-07-01' = {
-  parent: keyVault
-  name: 'add'
-  properties: {
-    accessPolicies: [for (app, i) in apps: {
-      tenantId: subscription().tenantId
-      objectId: appIdentities[i].properties.principalId
-      permissions: {
-        secrets: ['get', 'list']
-        // wrap/unwrap the Data Protection master key (Phase 7 — NFR-30); get lets the DP
-        // provider read the key's metadata/version.
-        keys: ['get', 'wrapKey', 'unwrapKey']
-      }
-    }]
-  }
-}
-
 // ── Custom hostname bindings (per site) ───────────────────────────────────────
 // DNS must point to the App Service before running ssl.bicep to issue managed certs. Public
 // hostnames bind to sites[0], admin hostnames to sites[1] (the `apps` array order).
@@ -497,6 +553,18 @@ resource vnet 'Microsoft.Network/virtualNetworks@2023-11-01' = {
         name: 'db-subnet'
         properties: {
           addressPrefix: '10.0.2.0/24'
+          // Azure adds this itself to a Flexible Server delegated subnet, for the server's own
+          // backup traffic to storage. Declared here because a VNet PUT REPLACES the subnet array
+          // wholesale: leaving it out does not mean "leave it alone", it means "remove it", and the
+          // 2026-09-09 production what-if showed exactly that (staging never had it, so staging gave
+          // no warning). Nothing of ours depends on it — the storage account is defaultAction:Allow
+          // with no VNet rules — but stripping Azure-managed networking off the subnet a LIVE
+          // database is delegated into is not a thing to do to find out what happens.
+          serviceEndpoints: [
+            {
+              service: 'Microsoft.Storage'
+            }
+          ]
           delegations: [
             {
               name: 'postgres-delegation'
@@ -535,9 +603,16 @@ resource postgresServer 'Microsoft.DBforPostgreSQL/flexibleServers@2023-12-01-pr
     version: '16'
     storage: {
       storageSizeGB: 32
+      // Applied 2026-09-09 (post-launch security review #15). Without it a full disk puts PostgreSQL
+      // into read-only and the booking system stops accepting writes, with no warning. The 80 %
+      // storage_percent alert in alerts.bicep fires ahead of the ~90 % autogrow trigger.
+      autoGrow: 'Enabled'
     }
     backup: {
-      backupRetentionDays: 7
+      // 35, raised from the 7-day minimum on 2026-09-09 (#15): corruption discovered on day 8 was
+      // otherwise unrecoverable. Geo-redundancy stays off — unsupported on Burstable, and recorded as
+      // accepted in README.md.
+      backupRetentionDays: 35
       geoRedundantBackup: 'Disabled'
     }
     network: {

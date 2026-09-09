@@ -1,23 +1,62 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
+  "_comment": "postgresAppPassword is deliberately not listed. akerogarden_public exists in staging and the secret postgres-connection-public was created by hand (2026-09-09); an empty parameter means the template does not touch it, and the app setting reference still resolves. Supply it only when rebuilding staging from scratch.",
   "parameters": {
-    "environmentName": { "value": "staging" },
-    "location": { "value": "swedencentral" },
-    "appServiceSkuName": { "value": "B1" },
-    "postgresAdminLogin": { "value": "akerogarden_admin" },
-    "postgresAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
-    "smtpPort": { "value": 465 },
-    "smtpFromAddress": { "value": "staging@akerogarden.se" },
-    "smtpUsername": { "value": "REPLACE_VIA_CI_SECRET" },
-    "smtpPassword": { "value": "REPLACE_VIA_CI_SECRET" },
-    "seedAdminEmail": { "value": "REPLACE_AT_DEPLOY" },
-    "seedAdminPassword": { "value": "REPLACE_VIA_CI_SECRET" },
-    "publicHostnames": { "value": ["staging.akerogarden.se"] },
-    "adminHostnames": { "value": ["admin.staging.akerogarden.se"] },
-    "publicBaseUrl": { "value": "https://staging.akerogarden.se" },
-    "adminBaseUrl": { "value": "https://admin.staging.akerogarden.se" },
-    "adminNotificationEmail": { "value": "staging@akerogarden.se" },
-    "contactEmail": { "value": "staging@akerogarden.se" }
+    "environmentName": {
+      "value": "staging"
+    },
+    "location": {
+      "value": "swedencentral"
+    },
+    "appServiceSkuName": {
+      "value": "B1"
+    },
+    "postgresAdminLogin": {
+      "value": "akerogarden_admin"
+    },
+    "postgresAdminPassword": {
+      "value": "REPLACE_VIA_CI_SECRET"
+    },
+    "smtpPort": {
+      "value": 465
+    },
+    "smtpFromAddress": {
+      "value": "staging@akerogarden.se"
+    },
+    "smtpUsername": {
+      "value": "REPLACE_VIA_CI_SECRET"
+    },
+    "smtpPassword": {
+      "value": "REPLACE_VIA_CI_SECRET"
+    },
+    "seedAdminEmail": {
+      "value": "REPLACE_AT_DEPLOY"
+    },
+    "seedAdminPassword": {
+      "value": "REPLACE_VIA_CI_SECRET"
+    },
+    "publicHostnames": {
+      "value": [
+        "staging.akerogarden.se"
+      ]
+    },
+    "adminHostnames": {
+      "value": [
+        "admin.staging.akerogarden.se"
+      ]
+    },
+    "publicBaseUrl": {
+      "value": "https://staging.akerogarden.se"
+    },
+    "adminBaseUrl": {
+      "value": "https://admin.staging.akerogarden.se"
+    },
+    "adminNotificationEmail": {
+      "value": "staging@akerogarden.se"
+    },
+    "contactEmail": {
+      "value": "staging@akerogarden.se"
+    }
   }
 }

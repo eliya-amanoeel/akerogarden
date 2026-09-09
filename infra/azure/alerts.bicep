@@ -52,6 +52,22 @@ param availabilityTestLocations array = [
   { Id: 'emea-gb-db3-azr' } // Dublin
 ]
 
+@description('''Absolute URL the availability test pings, e.g. https://akerogarden.se/.
+
+Leave EMPTY to fall back to the site's own `*.azurewebsites.net` hostname, which is what this
+template did unconditionally until 2026-09-09 — written 2026-07-22, when that WAS the site. After the
+2026-09-07 cutover it was testing a URL no guest uses: a DNS fault, a bad CNAME or a broken hostname
+binding on the real domain would take the site down for everyone while this alert stayed green.
+
+It also decides which certificate `SSLCheck` watches. Against the Azure hostname it validates
+Microsoft's wildcard cert — not ours, and not something that fails. The certificate that CAN fail is
+the App Service managed cert on the custom domain, and nothing was watching it.
+
+The cost of pointing this at the real domain is that DNS and the registrar are now inside the blast
+radius: a one.com problem alerts, and one.com is not ours to fix. That is deliberate — this is the
+test that is supposed to answer "can a guest reach the site", not "is the container running".''')
+param publicSiteUrl string = ''
+
 @description('Budget start date, first-of-month — do not hardcode; utcNow is only evaluable as a parameter default')
 param budgetStartDate string = utcNow('yyyy-MM-01')
 
@@ -194,7 +210,7 @@ resource availabilityTest 'Microsoft.Insights/webtests@2022-06-15' = {
     RetryEnabled: true
     Locations: availabilityTestLocations
     Request: {
-      RequestUrl: 'https://${sites[0].properties.defaultHostName}/'
+      RequestUrl: empty(publicSiteUrl) ? 'https://${sites[0].properties.defaultHostName}/' : publicSiteUrl
       HttpVerb: 'GET'
       ParseDependentRequests: false
       FollowRedirects: true
@@ -267,9 +283,18 @@ resource nightlyJobsAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pre
           timeAggregation: 'Count'
           operator: 'LessThan'
           threshold: 3
+          // TWO consecutive failing evaluations, not one. The window is a rolling 24h and the jobs
+          // run at 01:00:00.1–01:00:01.5 (measured over 7 days in production, 2026-09-09), so for a
+          // few minutes after 01:00 yesterday's three traces have just aged out of the window while
+          // today's — which DID run — are not queryable yet, because Log Analytics ingestion lags by
+          // minutes. With minFailingPeriodsToAlert: 1 that reads as "fewer than three runs" and
+          // fires a severity-1 alert almost every night, auto-resolving each time. An alert that
+          // cries wolf nightly gets muted, and this is the one guarding statutory GDPR erasure.
+          // Two periods = 30 minutes of sustained shortfall, far longer than ingestion lag and far
+          // shorter than a genuinely dead job, which stays short for a whole day.
           failingPeriods: {
-            numberOfEvaluationPeriods: 1
-            minFailingPeriodsToAlert: 1
+            numberOfEvaluationPeriods: 2
+            minFailingPeriodsToAlert: 2
           }
         }
       ]

@@ -1,10 +1,12 @@
 {
   "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
   "contentVersion": "1.0.0.0",
-  "_comment": "Phase 11 — cost + health alerts, deliberately minimal (see infra/azure/README.md 'Cost + health alerts' section for what was left out and why). notificationEmail reuses the existing admin-notification address (info@akerogarden.se) rather than a new mailbox, per 2026-07-22 decision. Run any time after main.bicep — no dependency on a code redeploy. CORRECTED 2026-07-22: monthlyBudgetAmount is in SEK, not USD — this subscription bills in SEK (confirmed via `az consumption budget show ... currentSpend.unit`), and Microsoft.Consumption/budgets has no currency property to override that. The original 60 was entered assuming USD and was live for a short window; 600 SEK (~$60 at ~9.7 SEK/USD, 2026-07-22) actually covers the ~$45/mo (~440 SEK) real spend with headroom.",
+  "_comment": "Phase 11 — cost + health alerts, deliberately minimal (see infra/azure/README.md 'Cost + health alerts' section for what was left out and why). notificationEmail reuses the existing admin-notification address (info@akerogarden.se) rather than a new mailbox, per 2026-07-22 decision. Run any time after main.bicep — no dependency on a code redeploy. CORRECTED 2026-07-22: monthlyBudgetAmount is in SEK, not USD — this subscription bills in SEK (confirmed via `az consumption budget show ... currentSpend.unit`), and Microsoft.Consumption/budgets has no currency property to override that. The original 60 was entered assuming USD and was live for a short window; 600 SEK (~$60 at ~9.7 SEK/USD, 2026-07-22) actually covers the ~$45/mo (~440 SEK) real spend with headroom. budgetStartDate is PINNED to the budget\u0027s real start (2026-07-01) rather than left to the template default, which is utcNow(\u0027yyyy-MM-01\u0027) and therefore moves the start date forward on every single apply — drift manufactured by the template itself. Pinning it makes a re-apply idempotent for the budget. Harmless either way for a monthly budget, since the tracked period is the calendar month regardless, but Azure can reject a start-date change on an existing budget and there is no reason to find out.",
   "parameters": {
     "environmentName": { "value": "prod" },
     "notificationEmail": { "value": "info@akerogarden.se" },
-    "monthlyBudgetAmount": { "value": 600 }
+    "monthlyBudgetAmount": { "value": 600 },
+    "budgetStartDate": { "value": "2026-07-01" },
+    "publicSiteUrl": { "value": "https://akerogarden.se/" }
   }
 }

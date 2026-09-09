@@ -10,9 +10,9 @@
 
 Every finding below states whether it is **live-verified** or **source-only**. Where the two disagreed, the running system won.
 
-> **Why this exists and what it is not.** This is the *second* security pass. `security-review.md` (Phase 7, 2026-07-08) was written before production existed and before any real guest PII flowed through the system; it was a static review that explicitly parked three items for live verification and recorded a verdict of "no vulnerabilities found" against the state of the code at that time. **It is not superseded and should not be edited.** This document does what that one could not: it examines the system as deployed and serving real guests. Two of its three deferrals close here; one remains open.
+> **Why this exists and what it is not.** This is the *second* security pass. `security-review.md` (Phase 7, 2026-07-08) was written before production existed and before any real guest PII flowed through the system; it was a static review that explicitly parked three items for live verification and recorded a verdict of "no vulnerabilities found" against the state of the code at that time. **It is not superseded and should not be edited.** This document does what that one could not: it examines the system as deployed and serving real guests. Two of its three deferrals closed during the review itself; **the third — DataProtection key-ring durability — closed on 2026-09-09**, so all three are now settled.
 >
-> **Point-in-time record.** Findings are as of 2026-09-08 and are not retro-edited. Blunt by design, per the phase-completion gate in `.claude/CLAUDE.md`.
+> **Point-in-time record, with a tracked status column.** The *findings* are as of 2026-09-08 and are **not** retro-edited — if a finding was wrong, it is corrected in the register above rather than quietly rewritten. What does get updated is the **verdict column of the triage table**, plus the unresolved section, so the document doubles as the tracker for its own remediation. A finding's text and its status are deliberately different things. Blunt by design, per the phase-completion gate in `.claude/CLAUDE.md`.
 
 ---
 
@@ -136,7 +136,11 @@ What remains is genuinely open, and the first half is endorsed by that same READ
 
 ## ❔ Unresolved
 
-**DataProtection key-ring durability** — the last open Phase 7 deferral. The key-ring blobs could not be listed: the CLI identity holds no Storage Blob data-plane role. Two ways to close it: grant `Storage Blob Data Reader` on `jmkagprodblob` and confirm both containers hold a key XML, or confirm behaviourally that an admin session survived a deploy without re-login.
+**~~DataProtection key-ring durability~~ — ✅ CLOSED 2026-09-09.** The last open Phase 7 deferral, raised 2026-07-08 and unverifiable from source. Closed behaviourally on production: an authenticated admin session survived `az webapp restart -g akerogarden-prod -n jmk-ag-prod-admin` with no re-login.
+
+That single test settles three things at once. The key ring **is durable across a restart** — the original question. It **survived the switch to managed identity unchanged**, which was the real risk in #9: the app is reading the same ring the connection string wrote, not a newly created one. And it explains the two `AntiforgeryValidationException`s logged at 08:49 that day — they arrived within seconds of a restart while a browser held a page rendered before it, and were stale submissions rather than a key-ring regression. A recreated ring would have invalidated the auth cookie too, and did not.
+
+**All three Phase 7 deferrals are now closed** — NFR-25 and NFR-01 during this review, DataProtection durability here.
 
 **Redis high-availability drift** — `highAvailability: Enabled` is live on the cluster and absent from `main.bicep`. Whether a re-apply would remove it depends on the API default for `Balanced_B0`, which was not determined. **Exactly as unresolved as before this review began** — the DO-NOT-APPLY banner in `main.bicep` should not be amended on the strength of this document.
 
@@ -172,34 +176,42 @@ Four questions per finding: is it a live defect or hardening; who owns it; does 
 
 | # | Finding | Defect / Hardening | Owner | Decision first? | Cost | Verdict |
 |---|---|---|---|---|---|---|
-| 1 | Completion tokens in App Insights | Defect (live exposure) | Dev | No | ~1h | **FIX NOW** |
+| 1 | Completion tokens in App Insights | Defect (live exposure) | Dev | No | ~1h | **✅ DONE, VERIFIED IN PRODUCTION 2026-09-09** — a probe request to `/slutfor/<token>` was recorded as `…/slutfor/redacted`. Historic rows: purge still `pending` (below) |
 | 2 | `PK_AuditLogs` crash | Defect (live) | Dev | No | Unknown | **INVESTIGATE** → fix |
-| 3 | Plaintext secrets in app settings | Hardening | Dev + owner | ✅ Decided | ~2h | **FIX** — move all four to Key Vault refs |
+| 3 | Plaintext secrets in app settings | Hardening | Dev + owner | ✅ Decided | ~2h | **✅ DONE 2026-09-09** — Postgres → Key Vault ref; blob key removed via #9; `Seed__AdminPassword` deleted. Verified: **no plaintext secret in any of the four apps** |
 | 4 | App runs as Postgres server admin | Hardening | Owner | ✅ Decided | ½ day + window | **FIX** — least-privilege app role, rotate off `akerogarden_admin` |
-| 5 | SCM/FTP basic auth enabled | Hardening | Owner (`az`) | No | 5 min | **FIX — staging first** ⚠️ |
-| 6 | Key Vault purge protection / soft-delete / network | Hardening | Owner (`az`) | ✅ Decided | 15 min | **FIX** — purge protection + 90d soft delete + diagnostics; network stays public |
-| 7 | No diagnostic settings anywhere | Hardening | Dev (Bicep) | ✅ Decided | ~1h | **FIX** — Key Vault + Postgres only |
-| 8 | Login enumeration + no rate limit on login/reset | Defect (minor) | Dev | No | ~2h | **FIX SOON** |
-| 9 | One storage key spans both DP containers | Hardening | Dev + owner | ✅ Decided | ½ day | **FIX** — per-host credential or managed identity |
-| 10 | Privacy policy §7 omits ARRAffinity (+ #24 Bicep) | Defect (document wrong) | Dev + owner | Minor — disclose vs disable on public | ~30 min | **FIX NOW** |
-| 11 | Failed email still sets dedupe marker | Defect (correctness) | Dev | No | ~1h | **FIX SOON** |
-| 12 | SMTP inline, no client timeout | Resilience | Dev | No | ~30 min | **FIX SOON** |
-| 13 | Telemetry at 55–60 % of daily cap | Hardening | Owner | ✅ Decided | 15 min | **FIX** — trim `AppMetrics`/perf counters, keep the 0.1 GB cap |
-| 14 | No `EnableRetryOnFailure` | Resilience | Dev | No | 15 min | **FIX NOW** |
-| 15 | autoGrow off, no storage alert, 7-day backups | Risk position | Owner | ✅ Decided | ~30 min | **FIX** — autoGrow + storage alert + 35-day retention |
+| 5 | SCM/FTP basic auth enabled | Hardening | Owner (`az`) | No | 5 min | **◑ staging DONE 2026-09-08** (all four policies `allow=false`) · prod pending |
+| 6 | Key Vault purge protection / soft-delete / network | Hardening | Owner (`az`) | ✅ Decided | 15 min | **✅ DONE 2026-09-08** — purge protection on, audit logging on. **90-day retention REFUSED by Azure** — `softDeleteRetentionInDays` is immutable once set, so 7 days is permanent for this vault |
+| 7 | No diagnostic settings anywhere | Hardening | Dev (Bicep) | ✅ Decided | ~1h | **◑ Key Vault `AuditEvent` DONE 2026-09-08** · Postgres logs pending, gated on #13's ingestion drop |
+| 8 | Login enumeration + no rate limit on login/reset | Defect (minor) | Dev | No | ~2h | **✅ deployed 2026-09-09** — not externally verified; exercising it means hammering a live auth form. Covered by unit + integration tests |
+| 9 | One storage key spans both DP containers | Hardening | Dev + owner | ✅ Decided | ½ day | **✅ DONE 2026-09-09** — managed identity for **both** key rings and image upload. No storage account key exists in any app or in `main.bicep` |
+| 10 | Privacy policy §7 omits ARRAffinity (+ #24 Bicep) | Defect (document wrong) | Dev + owner | Minor | ~30 min | **✅ DONE, both halves verified live** — public sites set zero cookies (2026-09-08); published §7 now carries the `Serverkoppling` row (2026-09-09) |
+| 11 | Failed email still sets dedupe marker | Defect (correctness) | Dev | No | ~1h | **✅ deployed 2026-09-09** — verified by integration test, not externally observable |
+| 12 | SMTP inline, no client timeout | Resilience | Dev | No | ~30 min | **✅ deployed 2026-09-09** — not externally observable |
+| 13 | Telemetry at 55–60 % of daily cap | Hardening | Owner | ✅ Decided | 15 min | **◑ REWRITTEN 2026-09-09 after the first attempt failed in production.** `AddView(_ => MetricStreamConfiguration.Drop)` had no effect — `AppMetrics` comes from the distro's standard-metrics emitter, not from OTel instruments, and ingestion stayed flat at ~2 MB/h through the deploy. Now uses the supported switches, `AzureMonitorOptions.EnableStandardMetrics` and `EnablePerformanceCounters` = false. **Awaiting deploy; close only on a measured ingestion drop** |
+| 14 | No `EnableRetryOnFailure` | Resilience | Dev | No | 15 min | **✅ merged PR !66 and OBSERVED WORKING** — retried a real transient Postgres timeout on `/boka`, 2026-09-09 08:47 |
+| 15 | autoGrow off, no storage alert, 7-day backups | Risk position | Owner | ✅ Decided | ~30 min | **✅ DONE 2026-09-08/09** — `autoGrow: Enabled`, `backupRetentionDays: 35`, 80 % storage alert in `alerts.bicep` |
 | 16 | Every 404 throws router exception | Defect | Dev | No | Unknown | **INVESTIGATE** |
 | 17 | `/Error` 500s on cold start | Defect? | Dev | ✅ Decided | ~1h | **INVESTIGATE** — does it 500 outside a restart window? |
-| 18 | No alert if nightly jobs stop | Hardening | Dev (Bicep) | No | ~30 min | **FIX SOON** |
-| 19 | `Server: Kestrel` disclosed | Hardening | Dev | No | 5 min | **FIX NOW** |
-| 20 | No `healthCheckPath`, HTTP/2 off, HEAD→405 | Hardening | Dev + owner | No | ~30 min | **FIX SOON** |
-| 21 | `ReturnUrl` never honoured | UX defect | Dev | No | ~30 min | **FIX SOON** |
+| 18 | No alert if nightly jobs stop | Hardening | Dev (Bicep) | No | ~30 min | **◑ rule written in `alerts.bicep`** — not applied to Azure |
+| 19 | `Server: Kestrel` disclosed | Hardening | Dev | No | 5 min | **✅ DONE, verified live 2026-09-09** — no `Server` header on either host |
+| 20 | No `healthCheckPath`, HTTP/2 off, HEAD→405 | Hardening | Dev + owner | No | ~30 min | **◑ `/health` LIVE on both hosts (returns `Healthy`, and absent from sitemap.xml — verified 2026-09-09)**. `healthCheckPath` + HTTP/2 are Bicep-only and **not applied**, so App Service still does not probe. HEAD→405 deliberately not pursued |
+| 21 | `ReturnUrl` never honoured | UX defect | Dev | No | ~30 min | **✅ deployed 2026-09-09** — needs an authenticated session to observe; covered by `LocalUrl` unit tests |
 | 22 | Two Owners, SP Contributor on both envs | Risk position | Owner | ✅ Decided | 15 min | **✅ DONE 2026-09-08** — SP now `Website Contributor` on both RGs; Owner roles unchanged |
 | 23 | No smart-detection rule | Hardening | Dev | ✅ Decided | ~1h | **INVESTIGATE** — is anomaly detection worth adding over threshold alerts? |
 | 24 | `clientAffinityEnabled` undeclared | Hardening | — | — | — | Folded into #10 |
 
 **Unknowns:** DataProtection durability → one answer closes it · Redis HA drift → **INVESTIGATE**, ~10 min · `SslMode=Require` → **INVESTIGATE**, ~5 min
 
-**Tally:** 19 to fix · 4 to investigate · **0 accepted** · #24 folded into #10. Plus all 3 unknowns to be resolved. **Every row is ratified; nothing is left undecided and nothing is being left open.**
+**Tally:** 19 to fix · 4 to investigate · **0 accepted** · #24 folded into #10. **Every row is ratified; nothing is left undecided and nothing is being left open.**
+
+**Progress at 2026-09-09, after both deployments.** **Verified against the running system:** #1 (a probe request came back as `/slutfor/redacted`), #10 (zero cookies on the public sites, `Serverkoppling` row published), #19 (no `Server` header), #20's `/health` endpoint, plus #3, #6, #9, #15, #22 on the Azure side. **Deployed but not externally observable** — covered by tests rather than by a live probe: #8, #11, #12, #21. **Half done:** #5 and #7 on staging only; #20's Bicep half unapplied, so App Service still does not probe `/health`.
+
+**#13 was reopened and rewritten the same day.** Deploying the first attempt proved it did not work; the replacement uses the distro's supported switches instead of an OpenTelemetry view. It is not closed — the previous version also looked right in review, so this one closes only on a measured ingestion drop, not on a green build. That is the third time in this review a conclusion drawn from source lost to the running system. Of the three unknowns, **DataProtection durability is closed**; Redis HA drift and `SslMode=Require` remain open exactly as recorded.
+
+Still outstanding: **#4** (least-privilege Postgres role — the only item needing a maintenance window), **#5 prod**, **#7 Postgres logs**, **#13 (rewritten, awaiting deploy)**, **#20's Bicep apply**, **#18's alert rule apply**, and the four investigations (#2, #16, #17, #23).
+
+**The historic-token purge has not completed.** The seven purge operations issued on 2026-09-08 all still report `pending` ~20 hours later, and six unredacted `/slutfor` rows remain in `AppRequests`. New requests are redacted, so the exposure is not growing; the backlog is simply still there. Purge is asynchronous and Azure gives no completion estimate, so this needs re-checking rather than assuming, and the rows age out of the 30-day retention regardless.
 
 > ⚠️ **#5 carries a caveat.** Disabling SCM basic auth can break `AzureWebApp@1` depending on how the task authenticates. Apply to staging and confirm a deploy still succeeds before touching production.
 
@@ -245,3 +257,5 @@ The net position is that this review leaves **no accepted risk at all** — unus
 The review is **complete** and every finding has a **ratified verdict** — 19 to fix, 4 to investigate, 0 accepted, plus 3 unknowns to resolve. No fixes were applied and no commits made as part of the review itself.
 
 The criterion closes when each of the 26 work items reaches a terminal state. Because nothing was accepted, every one of them must be either fixed or investigated to a conclusion. If an investigation ends without a tractable cause, moving that item to *accepted* is still legitimate — but it becomes a new decision to take deliberately at that point, and the reasoning must be written down here. It is not a silent fallback.
+
+**A merged PR is not a terminal state.** Nine items are currently merged and awaiting deployment; until a deploy runs they change nothing in production. #1 is the one to watch — completion tokens continue reaching Log Analytics until the redaction processor is actually running. Mark an item done against the running system, not against `main`, which is the same rule the review itself was built on.

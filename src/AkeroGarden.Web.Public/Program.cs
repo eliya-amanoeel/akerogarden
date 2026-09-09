@@ -5,7 +5,6 @@ using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using OpenTelemetry;
-using OpenTelemetry.Metrics;
 using OpenTelemetry.Trace;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -27,17 +26,27 @@ if (!string.IsNullOrEmpty(appInsightsConnectionString))
         // processors run in registration order and the exporter is itself a processor, so adding this
         // afterwards would redact too late. See UrlRedactingProcessor.
         .WithTracing(tracing => tracing.AddProcessor(new UrlRedactingProcessor()))
-        // Drop metric export entirely (finding #13). Measured on production: AppMetrics and
-        // AppPerformanceCounters were ~99% of ingestion, holding the workspace at 55–60% of its
-        // 0.1 GB/day cap on a site with almost no traffic — so any real incident would hit the cap and
-        // silently stop ingesting exactly when the logs were needed. Traces and logs, which are what
-        // actually gets used to diagnose this system, are untouched.
+        // Drop the two telemetry streams that dominate ingestion (finding #13). Measured on
+        // production: AppMetrics and AppPerformanceCounters were ~99% of it, holding the workspace at
+        // 55-60% of its 0.1 GB/day cap on a site with almost no traffic — so any real incident would
+        // hit the cap and silently stop ingesting exactly when the logs were needed. Traces and logs,
+        // which are what actually gets used to diagnose this system, are untouched.
         //
-        // Verified before doing this: all four production metric alerts read PLATFORM metrics
-        // (Microsoft.Web/sites Http5xx, Postgres cpu_credits_remaining) or the availability webtest.
-        // None reads an app metric, so nothing that alerts today depends on this export.
-        .WithMetrics(metrics => metrics.AddView(_ => MetricStreamConfiguration.Drop))
-        .UseAzureMonitor(options => options.ConnectionString = appInsightsConnectionString);
+        // These two options are the supported switches. An earlier attempt used
+        // AddView(_ => MetricStreamConfiguration.Drop) and had NO effect: AppMetrics is emitted by the
+        // distro's standard-metrics emitter, not by OpenTelemetry instruments, so no view applies to
+        // it. That was only caught by measuring ingestion after deploying — it looked plausible in
+        // review and was simply wrong.
+        //
+        // Checked before doing this rather than assumed: all four production metric alerts read
+        // PLATFORM metrics (Microsoft.Web/sites Http5xx, Postgres cpu_credits_remaining) or the
+        // availability webtest. None reads an app metric, so nothing that alerts today depends on it.
+        .UseAzureMonitor(options =>
+        {
+            options.ConnectionString = appInsightsConnectionString;
+            options.EnableStandardMetrics = false;
+            options.EnablePerformanceCounters = false;
+        });
 }
 
 // ── Forwarded headers (NFR-04 — real client IP behind the App Service load balancer) ──────────

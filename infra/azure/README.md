@@ -10,19 +10,38 @@ Bicep templates for Åkerögården. Both production and staging deploy from the 
 > **Phase 10c ✅ done (2026-07-21)** — production provisioned in the client's tenant on the same two-app topology, deployed and verified on its Azure default `*.azurewebsites.net` hostnames.
 > **Phase 10d ✅ done (2026-09-07) — 🚀 `akerogarden.se` IS LIVE.** Custom hostnames bound, managed SSL issued via `ssl.bicep`, `www` 308-redirecting to the apex, base URLs flipped. WordPress is powered but unlinked, pending decommission. Full record in `infra/ops/dns-cutover-runbook.md`.
 
-## ⛔ Do not re-apply `main.bicep` to **production**
+## Re-applying `main.bicep` to production — done 2026-09-09, and what it taught
 
-**Production holds real guest data.** A `what-if` on 2026-09-08 predicted 17 resources to modify, three of which would be serious if real rather than what-if noise:
+**Production holds real guest data, and this is still a deliberate, manual act** — the deploy
+pipelines run `AzureWebApp@1` only (application code, no infrastructure), so nothing reconciles these
+templates automatically and nothing will trip it by accident.
 
-| Resource | Predicted change | If real |
+`main` was applied to staging (15:53) and production (16:10) on **2026-09-09**, both `Succeeded`,
+after having last been applied **2026-07-20**. The full analysis lives in the header comment of
+`main.bicep` — **read that before any future apply**, not this summary.
+
+The three predictions that had blocked the re-apply since 2026-09-08 were settled by running it:
+
+| Resource | Predicted | Verdict |
 |---|---|---|
-| `jmk-ag-prod-pg` | removes `publicNetworkAccess: "Disabled"` | guest PII reachable from the public internet — NFR-06/24/25 |
-| `jmk-ag-prod-kv` | removes **both** app-identity access policies | DataProtection breaks, both sites go down |
-| `jmk-ag-prod-redis` | removes `highAvailability` / `redundancyMode: "ZR"` | HA lost |
+| `jmk-ag-prod-pg` | removes `publicNetworkAccess: "Disabled"` | **noise** — derived and immutable under a delegated subnet |
+| `jmk-ag-prod-kv` | removes both app-identity access policies | **real.** The vault declared `accessPolicies: []` and a child `accessPolicies/add` resource refilled it, so every apply emptied then restored the array. Fixed — declared inline |
+| `jmk-ag-prod-redis` | removes `highAvailability` / `redundancyMode: "ZR"` | **noise** — the resource declares no `properties` block, so read-only siblings appear as removals beside it |
 
-They are *probably* false positives — Azure warns about them, and each is a "template doesn't mention the property" case — but nobody has confirmed which, and "probably" is not the standard for a live database. **The full analysis is in the header comment of `main.bicep`. Read it before running any production deployment.**
+**Two traps that only a production what-if revealed. Both would have caused an outage, and staging
+showed neither:**
 
-**Staging is unaffected** — synthetic data, rebuildable, re-apply freely. And nothing does this automatically: the deploy pipelines run `AzureWebApp@1` only (application code, no infrastructure), so it takes a human deliberately running the command.
+- **Hand-granted role assignments collide with template-declared ones.** Both identities already held
+  Storage Blob Data Contributor from `az role assignment create`, which generates a **random** name,
+  while Bicep names them with a deterministic `guid()`. What-if compares by name and reports a create;
+  Azure RBAC compares by principal+role+scope and rejects the duplicate with `RoleAssignmentExists`,
+  **failing the whole deployment**. Delete the hand-made assignment immediately before applying.
+- **An ARM PUT replaces child arrays wholesale, so "undeclared" means "removed".** Production's
+  `db-subnet` carried a `Microsoft.Storage` service endpoint that Azure adds for Flexible Server
+  backup traffic. Staging's does not — so a clean staging apply said nothing about it. Now declared.
+
+**The rule that follows: run what-if against BOTH environments.** Staging being green is not evidence
+about production. Staging is otherwise unaffected — synthetic data, rebuildable, re-apply freely.
 
 ## What `main.bicep` creates
 
@@ -349,12 +368,26 @@ set a team with an on-call rotation might build. It creates:
 - Http5xx alerts on both App Service sites
 - one Postgres alert on `cpu_credits_remaining` — the specific canary tied to the 2026-07-21
   decision to accept the Burstable B1ms tier and watch rather than load-test
-- one Application Insights availability ping test against the public site's default
-  `*.azurewebsites.net` hostname (survives the Phase 10d DNS cutover unchanged), from 2 EU
-  locations so a single edge PoP blip doesn't fire a false alert
+- one Postgres `storage_percent` alert at 80% (post-launch review #15), paired with `autoGrow` so the
+  alert is a warning rather than the only thing between the server and a full disk
+- one **log** alert (`scheduledQueryRules`): fewer than three `Kör schemalagt jobb` traces in 24 h,
+  meaning the nightly job runner has stopped and statutory GDPR erasure may not be running (#18).
+  It requires **two consecutive** failing evaluations — with one, it fired nightly on ingestion lag,
+  because shortly after the 01:00 run yesterday's traces have aged out of the rolling window while
+  today's are not yet queryable
+- one Application Insights availability ping test against **`https://akerogarden.se/`**, from 2 EU
+  locations so a single edge PoP blip doesn't fire a false alert. **It pings the real domain, not the
+  `*.azurewebsites.net` hostname** — that was the original design, on the reasoning that it "survives
+  the DNS cutover unchanged", and surviving the cutover unchanged was exactly the flaw: after
+  2026-09-07 it was testing a URL no guest uses, so a DNS fault, a bad CNAME or a broken hostname
+  binding would have taken the site down with the alert still green. It also decides which certificate
+  `SSLCheck` watches — Microsoft's wildcard cert on the Azure hostname, or our App Service managed cert
+  on the custom domain, which is the one that can fail a renewal quietly. Corrected 2026-09-09. The
+  cost is that DNS and one.com are now inside the blast radius; that is what an availability test is
+  for. Set via the `publicSiteUrl` parameter — leave it empty and the old behaviour returns
 
 Deliberately left out (add only if something real motivates it): response-time thresholds,
-Postgres cpu%/storage%/connection-count alerts, Key Vault availability, an admin-site ping (admin
+Postgres cpu%/connection-count alerts, Key Vault availability, an admin-site ping (admin
 shares the same App Service plan as public — if the plan is down, the public ping already catches
 it).
 

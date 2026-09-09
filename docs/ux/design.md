@@ -251,6 +251,44 @@ physical values may stay in `px`: hairline borders, radii, shadow offsets, and a
 `.site-header__logo .logo` (55px — an image, not text). The map labels on `/kontakt` are the
 worked precedent for the first category.
 
+#### The `px` audit — done 2026-09-09, and its two deliberate exceptions
+
+Every absolute `px` in `site.css` was classified: **157 declarations, of which 120 are borders,
+radii, shadows and outlines** (physical by definition) and 28 more are logo images, the 1px×1px
+visually-hidden clips on checkboxes and radios, 2px decorative rules, 1px hairline grid gaps
+standing in for borders, the hamburger icon geometry and the 6px progress bar. `.site-header__burger`
+at **44×44 is the WCAG 2.5.5 target-size floor** — it must not shrink and has no reason to grow, so
+it stays `px` on purpose.
+
+**Five were text-derived and converted:** `.detail-grid`'s rail (`320px → 20rem`), `.kv`
+(`480px → 30rem`), `.admin-panel` (`min(380px,92vw) → min(23.75rem,92vw)`), `.admin-editcard`
+(`640px → 40rem`), `.login-card` (`400px → 25rem`). All are 1:1 at a 16px root, so nothing moves for
+a default visitor. `.detail-grid` mattered most: it is the only **fixed grid track** in the
+stylesheet — every other value is a `max-width`, which merely cramps, while a fixed track holds its
+width and pushes the layout.
+
+**Two look like the same thing and must stay `px`: `--max-width` (1200) and `.admin-body` (1160).**
+They are the page **frame**, not a reading measure. Every measure here is already in `ch` — `.prose`
+65ch, `.section__head` 60ch, `.hero__sub` 44ch, `.teaser p` 46ch, `.cta-band p` 48ch,
+`.page-head__intro` 56ch, `.cta-card p` 52ch — and `ch` derives from font-size, so **those line
+lengths already scale on their own.** Converting the frame to `rem` would widen the page to 2400px at
+a 200% root without shortening a single line: more whitespace and a longer scroll, no better reading.
+On admin it is worse, since the content is tables and a 2320px row is harder to track across.
+`TextDerivedWidthUnitTests` asserts both directions, *and* asserts the `ch` measures still exist —
+if those ever stop being `ch`, the argument for keeping the frame in `px` collapses with them.
+
+> **The overflow guards are blind to this whole class, and that is why the audit was needed.** A
+> `max-width` pinned in `px` never causes a horizontal scrollbar; it just fits fewer characters per
+> line. 540 public and 165 admin combinations were green while all five values above were still
+> `px`. "Zero overflow" was never evidence this work was done — `TextDerivedWidthTests` asserts the
+> actual requirement instead: double the root, and the box doubles with it.
+>
+> **A trap for anyone extending that test:** `.detail-grid` collapses to one column at
+> `max-width: 53.75em`, and `em` in a media query resolves against the *browser's default font size*
+> — the very thing the test changes. At a 32px default that breakpoint is **1720px**, so on the
+> shared 1280 `Desktop` viewport the two-column layout is already gone and the rail is full width.
+> The test uses a 1920 viewport for exactly this reason.
+
 Three rules came out of measuring the site at 100 / 125 / 150 % text:
 
 - **Never pin the height of a box whose contents are type.** `.site-header .container` was
@@ -395,7 +433,7 @@ Each component supports the relevant states: **default / hover / focus / active 
 - **Modal** — dark scrim, `--radius-modal`, footer with primary + cancel; destructive confirmations use `--color-err` as the fill (white text, 6.3:1). Used sparingly, mostly in admin.
 - **Legal document page** (`.legal-block`, on `/integritetspolicy` and on the booking-terms page when it lands) — numbered `h2.subhead` sections, each a block wrapper rather than one `.prose` around the whole page: the prose column is capped at 65ch for readability while the `.data-table` blocks (sub-processors, retention, cookies) run full width, so they cannot live inside it. `.prose h3` (a lighter Playfair sub-head beneath the numbered one) and `.prose ul/li` were added here — the reset strips list markers and `.prose` had styled paragraphs only, so this is the first public page with real document structure. `p.legal-note` is an aside qualifying the table above it, set apart by a hairline left rule and `--color-muted` at the house small/caption size.
 
-  - **Why `.prose h3` is 17px and not the scale's H3.** The scale had no step below H3 (~21px), but `.subhead` — the numbered section head this sits *beneath* — is 20px, so a scale H3 here would outrank its own parent. It takes the prose body size and separates by family and weight instead. **The step is now in the scale above**, which is the point: the first version of this rule invented 17px as a loose number, along with a fourth muted-note size (0.95rem, four hundredths off the three that already existed), a list-item margin 0.05rem off `.alert__list`'s, and a block rhythm 4px off `.price-block`'s. All four were near-duplicates of house values — the drift the duplication rule exists to catch, arriving by exactly the route it describes: a new page needing something *almost* like what the system already had. Corrected 2026-08-17; if a size here needs changing again, change the scale, don't add a neighbour to it. `.legal-draft` is the `.alert--warn` banner marking text that is published but **not yet jurist-reviewed**; it is removed at sign-off, not restyled.
+  - **Why `.prose h3` is 17px and not the scale's H3.** The scale had no step below H3 (~21px), but `.subhead` — the numbered section head this sits *beneath* — is 20px, so a scale H3 here would outrank its own parent. It takes the prose body size and separates by family and weight instead. **The step is now in the scale above**, which is the point: the first version of this rule invented 17px as a loose number, along with a fourth muted-note size (0.95rem, four hundredths off the three that already existed), a list-item margin 0.05rem off `.alert__list`'s, and a block rhythm 4px off `.price-block`'s. All four were near-duplicates of house values — the drift the duplication rule exists to catch, arriving by exactly the route it describes: a new page needing something *almost* like what the system already had. Corrected 2026-08-17; if a size here needs changing again, change the scale, don't add a neighbour to it. `.legal-draft` was the `.alert--warn` banner marking text published but not yet jurist-reviewed. **Both banners were removed on 2026-09-07 and the class is now unused** — not because sign-off came, but because the jurist review was cancelled and will never happen (`docs/legal/known-conflicts-at-launch.md`). Only a one-line margin rule survives in `site.css`. Do not re-introduce the banner expecting a review to follow it.
 
 - **Find-here map** (`.findmap-figure` + `.findmap`, on `/kontakt`) — a hand-built map of Åkerögården's location, drawn from OpenStreetMap geometry (E 18, väg AB 1031 Åkerövägen, the coastline) and shipped as **inline SVG** wrapped in a link to the same Google Maps URL the address already uses. Attribution sits in the `figcaption`, as ODbL requires; it is text, not part of the drawing, so it can be selected and its link followed.
 

@@ -83,6 +83,13 @@
     --radius-modal: 6px;
     --transition:   160ms ease;
 
+    /* DELIBERATELY px, and it must stay px. This is the page FRAME, not a reading measure.
+       Every measure on this site is already in `ch` and therefore already scales with the reader's
+       text size — .prose 65ch, .section__head 60ch, .hero__sub 44ch, .teaser p 46ch, .cta-band p
+       48ch, .page-head__intro 56ch, .cta-card p 52ch. Converting this to rem would widen the page
+       to 2400px at a 200% root WITHOUT changing a single line length, because those ch caps still
+       govern: more whitespace and a longer scroll, no better reading. The 2026-09-09 px sweep
+       classified it as physical for that reason. Do not "finish the job" by converting it. */
     --max-width:  1200px;
 
     /* Sticky-bar heights. These are *fallbacks*, not the truth: `js/sticky-offsets.js`
@@ -1130,6 +1137,9 @@ select.inp {
 /* Underline the breadcrumb link so it is distinguishable from the surrounding crumb text by more
    than colour alone (WCAG 1.4.1 / axe link-in-text-block). */
 .admin-topbar .crumb a { text-decoration: underline; }
+/* px on purpose, same reasoning as --max-width: a page frame, not a measure. Here the case is
+   stronger — admin's content is tables, and in rem this reaches 2320px at a 200% root, forcing the
+   eye to track across a very long row. Widening the frame makes a table harder to read, not easier. */
 .admin-body { padding: 1.5rem 2rem 3rem; max-width: 1160px; }
 
 /* ── Status badges (all 8 booking states) ────────────────── */
@@ -1265,7 +1275,7 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .data-card__actions { display: flex; justify-content: flex-end; gap: 0.4rem; margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px solid var(--color-line); }
 
 /* Reference-CRUD add/edit panel (below the list) */
-.admin-editcard { margin-top: 1.5rem; max-width: 640px; }
+.admin-editcard { margin-top: 1.5rem; max-width: 40rem; }  /* 640px at a 16px root — a form, so it tracks the text */
 .admin-editcard h2, .admin-editcard h3 { font-family: var(--font-body); font-weight: 700; font-size: 1.05rem; margin: 0 0 1rem; }
 .admin-editcard .form-group:last-of-type { margin-bottom: 1.2rem; }
 .admin-subsection { font-family: var(--font-body); font-weight: 700; font-size: 1.15rem; margin: 2rem 0 1rem; }
@@ -1340,7 +1350,10 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .admin-scrim.is-open { opacity: 1; pointer-events: auto; }
 
 .admin-panel {
-    position: fixed; top: 0; right: 0; bottom: 0; width: min(380px, 92vw);
+    /* 23.75rem = 380px at a 16px root. This is a `width`, not a `max-width`, so on desktop it is
+       pinned regardless of text size — a form in a drawer that never grows with its own content.
+       The 92vw arm still caps it on a phone, where the viewport binds long before the rem value. */
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(23.75rem, 92vw);
     background: var(--color-bg); border-left: 1px solid var(--color-line);
     box-shadow: 0 12px 40px rgba(26, 23, 20, 0.16);
     transform: translateX(100%); transition: transform 220ms ease;
@@ -1418,7 +1431,12 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 /* ── Booking detail: main column + sticky action rail ────── */
 .admin-detail-head { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-bottom: 1.3rem; }
 .admin-detail-head h1 { font-size: 1.6rem; font-weight: 400; margin: 0; }
-.detail-grid { display: grid; grid-template-columns: 1fr 320px; gap: 1.4rem; align-items: start; }
+/* The rail is `20rem`, not `320px`. Identical at a 16px root; the difference is that it follows the
+   reader's text size. This is the only width in the admin stylesheet that is a FIXED GRID TRACK
+   rather than a max-width — everything else merely gets cramped when text grows, this one holds its
+   width and pushes the layout. It carries the action rail: approval buttons, the completion-link
+   expiry, the on-behalf-of link (FR-112). At a 32px root, 320px is about ten characters. */
+.detail-grid { display: grid; grid-template-columns: 1fr 20rem; gap: 1.4rem; align-items: start; }
 .detail-rail { position: sticky; top: calc(var(--admin-topbar-h) + 0.5rem); max-height: calc(100vh - var(--admin-topbar-h) - 1rem); overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; }
 /* Booking detail sections (Kontaktuppgifter, Vistelse, Deltagare, ...) are each a native
    <details class="detail-acc">, not a plain <div> — collapsing what's already been reviewed is
@@ -1447,7 +1465,10 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .detail-acc__body { padding: 1rem; }
 .detail-acc__body > h3:first-child { margin-top: 0; }
 .detail-acc__body > h3 { font-family: var(--font-body); font-weight: 700; font-size: 0.9rem; color: var(--color-heading); margin: 1.1rem 0 0.5rem; }
-.kv { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1rem; font-size: 0.9rem; max-width: 480px; }
+/* 30rem, not 480px: this grid renders the guest's CONTACT EMAIL, which is one long unbreakable
+   token. That is the same content that forced `overflow-wrap: anywhere` onto `.data-card__title`.
+   Pinned in px, a raised text size fits one address per line and then breaks it mid-token. */
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1rem; font-size: 0.9rem; max-width: 30rem; }
 .kv dt { color: var(--color-muted); }
 .kv dd { color: var(--color-heading); margin: 0; }
 /* Inline qualifier trailing a value in a dd — "2026-08-15 kl. 15:00", "1200 kr exkl. moms".
@@ -1528,7 +1549,7 @@ fieldset.participant legend {
 
 /* ── Login / password pages ──────────────────────────────── */
 .login-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; background: var(--color-bg-warm); padding: 3rem 1rem; }
-.login-card { width: 100%; max-width: 400px; background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 2.25rem 2rem; }
+.login-card { width: 100%; max-width: 25rem;  /* 400px at a 16px root — a form, so it tracks the text */ background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 2.25rem 2rem; }
 .login-card__logo { display: flex; justify-content: center; margin-bottom: 1.25rem; }
 /* 104px, not the 55px every other surface uses: this is the only place that renders the
    *stacked* lockup, whose box is 250x156 rather than the horizontal 192x52. At 55px the
@@ -2070,6 +2091,11 @@ fieldset.participant legend {
 }
 /* Stacked variant: a heading above a list of field errors, rather than one line of text. */
 .alert--stacked { flex-direction: column; align-items: flex-start; gap: 0.4rem; margin-top: 1.25rem; }
+/* An alert's body is a text block, so a link inside it must be distinguishable by more than
+   colour alone — WCAG 1.4.1, and axe's `link-in-text-block` fails the build on it. Same rule and
+   same fix as `.admin-topbar .crumb a`. Caught by the a11y suite on /bokningar/ny, 2026-09-09,
+   the first time a link was put inside an alert. */
+.alert a { text-decoration: underline; }
 /* .alert__list already exists below and is shared; inside the stacked variant the flex gap
    already separates it from the heading, so only its top margin is overridden. */
 .alert--stacked .alert__list { margin: 0; padding-left: 1.2rem; }

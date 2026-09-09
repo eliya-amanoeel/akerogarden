@@ -501,4 +501,6 @@ $RECYCLE.BIN/
 
 # Handover manual, generated for sending — not tracked.
 # The source of truth is docs/handover/admin-manual.html, which IS tracked.
-/docs/handover/Akerogarden-handbok-*.pdf
+# Personal working notes — one maintainer's reminders, deliberately not tracked.
+# The durable record of anything that matters lives in docs/.
+/loose-ends.md

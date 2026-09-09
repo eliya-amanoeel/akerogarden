@@ -15,6 +15,7 @@ stateDiagram-v2
     direction TB
 
     [*] --> Pending: guest submits an inquiry
+    [*] --> Pending: admin records it (FR-47/112)
 
     Pending --> Approved: admin approves (stay request)
     Pending --> Denied: admin denies (stay request)
@@ -37,6 +38,8 @@ stateDiagram-v2
     note right of Pending
         Guest: acknowledgement
         Admin: new inquiry
+        (neither is sent when an admin
+        recorded the booking — FR-47)
     end note
 
     note right of Approved
@@ -61,6 +64,22 @@ stateDiagram-v2
 `Denied`, `Closed`, `Cancelled` and `Completed` are terminal — nothing transitions out of them.
 `DetailsComplete` never returns to the completion form; corrections after submission are made by the
 admin in the panel and change no status (C10).
+
+### An admin-recorded booking enters at the same place, quietly
+
+A booking an admin takes by telephone starts in `Pending` like any other and follows the identical
+path — **it still waits for approval**, and approval still issues the completion link. What differs is
+only what is sent at creation: **no guest acknowledgement and no admin notification** (FR-47). The
+acknowledgement says *"we have received your booking request"*, which is untrue for a booking already
+agreed on the phone, and undeliverable to a guest with no email address at all. The approval mail is
+then the single, accurate first message the guest receives — which is also why the terms reach them
+there rather than earlier (FR-111's open residue).
+
+Where the guest has no email, the admin's own address stands in as the booking's contact email so the
+approval mail and completion link reach whoever will fill the form in, and the booking records which
+admin is acting and that the terms were read out verbally (FR-112, `OnBehalfOfAdminId` /
+`TermsAttestedAt`). Everything below applies unchanged to those bookings — the dates, the link
+lifetimes and the nightly decisions do not know or care how the booking was created.
 
 ---
 

@@ -8,9 +8,13 @@
   on it). The E2E project's Playwright/Chromium can also render it headlessly if a repeatable step is
   wanted.
 
-  Status 2026-09-09: NOTHING HAS BEEN SENT TO THE CLIENT. Both files exist in the repo only. The PDF
-  currently predates the "Bilder pa faciliteter" section added on 2026-09-09, so it must be
-  re-exported before it goes anywhere.
+  Status 2026-09-09: NOTHING HAS BEEN SENT TO THE CLIENT. Both files exist in the repo only.
+  The PDF is STALE and must be re-exported before it goes anywhere - it predates two sections
+  added on 2026-09-09: "Bilder pa faciliteter", and the on-behalf-of half of "Lagga in en bokning
+  som kommit per telefon eller mejl" (FR-112, guests with no e-mail address). The second matters
+  most: the client said he intends to start by entering bookings already agreed by telephone, and
+  that a meaningful share of his guests are elderly groups with no e-mail at all, so that is the
+  section he will reach for first.
 -->
 <html lang="sv">
 <head>
@@ -117,9 +121,32 @@
 
 <h3>Lägga in en bokning som kommit per telefon eller mejl</h3>
 <p>Under <b>Bokningar → Ny bokning</b> lägger ni in en bokning ni tagit emot på annat sätt än via webbformuläret.</p>
-<div class="note">
-  <p><b>Viktigt:</b> när ni lägger in en bokning på det här sättet skickar systemet <b>inget mejl</b> till gästen förrän ni godkänner den. Gästen har alltså inte sett bokningsvillkoren eller integritetspolicyn. Berätta för dem var villkoren finns — <b>akerogarden.se/bokningsvillkor</b> — eller be dem hellre fylla i formuläret på webbplatsen, så sköts det automatiskt.</p>
+
+<div class="step">
+  <p><b>Fråga alltid det här först — svaret avgör hur ni går vidare:</b></p>
+  <ol>
+    <li><b>Har ni en e-postadress, och läser ni den regelbundet?</b></li>
+    <li><b>Skulle ni kunna öppna ett bekräftelsemejl från oss och fylla i ett formulär där?</b></li>
+  </ol>
+  <p><b>Ja på båda</b> → be dem hellre fylla i <b>formuläret på webbplatsen</b> själva. Då får de villkoren och integritetspolicyn direkt, innan bokningen görs, och allt sköts automatiskt. Det är alltid det bästa alternativet när det går.</p>
+  <p><b>Nej på någon av dem</b> → lägg in bokningen här, och kryssa i rutan om gästen saknar e-post (se nedan).</p>
 </div>
+
+<div class="note">
+  <p><b>Viktigt:</b> när ni lägger in en bokning på det här sättet skickar systemet <b>inget mejl</b> till gästen förrän ni godkänner den. Gästen har alltså inte sett bokningsvillkoren eller integritetspolicyn. <b>Berätta därför alltid för dem var villkoren finns</b> — <b>akerogarden.se/bokningsvillkor</b> — och gå igenom dem i korthet i telefon.</p>
+</div>
+<p><b>Bokningen väntar fortfarande på ert godkännande.</b> Att ni lagt in den betyder inte att den är klar — den hamnar som <b>Väntar</b> precis som en förfrågan från webbplatsen, och det är först när ni godkänner den som gästen får sitt mejl med länken för att fylla i deltagare.</p>
+
+<h4>När gästen inte har någon e-postadress</h4>
+<p>Alla grupper har inte e-post. Formuläret kräver ändå en adress, och då ska ni <b>inte</b> hitta på en — kryssa i rutan:</p>
+<p style="margin-left:1.2em"><b>”Gästen har ingen e-post — jag sköter bokningen åt dem”</b></p>
+<ul>
+  <li><b>Er egen adress fylls i automatiskt.</b> Bekräftelsen och länken för att fylla i deltagare kommer till er, inte till gästen.</li>
+  <li><b>Namn, telefon och organisation ska vara gästens.</b> Det är bara e-postadressen som är er.</li>
+  <li><b>Ni intygar samtidigt att ni gått igenom bokningsvillkoren med gästen per telefon.</b> Gör det på riktigt — det är den enda noteringen som finns om villkoren senare skulle bli en diskussion, till exempel om depositionen eller avbokningsreglerna.</li>
+  <li><b>Länken finns också på bokningens sida</b>, under <i>Fyll i deltagare åt gästen</i>. Ni behöver alltså inte leta i mejlen, och ni kan fylla i uppgifterna tillsammans med gästen över telefon.</li>
+</ul>
+<p>Bokningar som lagts in så här är markerade <b>· via admin</b> i bokningslistan, och på bokningens sida står det <b>Administratörens adress — gästen har ingen e-post. Kontakta gästen på telefon.</b> Den markeringen finns för att ingen ska tro att en personaladress i gästens kontaktfält är ett misstag och ”rätta” den.</p>
 
 <h3>Blockera datum</h3>
 <p>Under <b>Blockeringar</b> stänger ni datum som inte ska gå att boka — eget underhåll, en helg ni håller stängt, eller en byggnad som renoveras. Blockerade datum syns som upptagna i gästernas kalender på webbplatsen.</p>

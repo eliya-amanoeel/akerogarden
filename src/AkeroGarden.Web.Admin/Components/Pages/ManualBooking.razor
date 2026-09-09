@@ -8,6 +8,7 @@
 @inject FacilityService FacilityService
 @inject NavigationManager Nav
 @inject IAuditActorAccessor ActorAccessor
+@inject Microsoft.Extensions.Options.IOptions<BookingEmailOptions> EmailOptions
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Skapa bokning — Åkerögården Admin</PageTitle>
@@ -18,6 +19,20 @@
 
 <div class="admin-detail-head"><h1>Skapa bokning</h1></div>
 <p class="form-hint">Skapas för gästens räkning. Inga automatiska e-postmeddelanden skickas.</p>
+
+@* FR-111's residue, closed as a process control rather than in code (Phase 11 completion gate,
+   2026-09-09). A booking entered here sends the guest nothing until it is approved, so the terms and
+   the privacy policy reach them later than they would from the public form. The case is prevented by
+   the admin asking first — but a control that lives only in the handover manual is not present at the
+   moment it is needed, which is while the admin is on the telephone looking at THIS page. *@
+<div class="alert alert--info alert--stacked">
+    <div><b>Fråga gästen först:</b> har de en e-postadress som de läser, och skulle de kunna öppna ett
+    bekräftelsemejl och fylla i ett formulär?</div>
+    <div><b>Ja</b> — be dem hellre fylla i <a href="@PublicBookingUrl" target="_blank" rel="noopener">formuläret på webbplatsen</a>.
+    Då får de bokningsvillkoren och integritetspolicyn direkt, innan bokningen görs.</div>
+    <div><b>Nej</b> — fortsätt här, kryssa i rutan om gästen saknar e-post, och gå igenom
+    bokningsvillkoren i telefon.</div>
+</div>
 
 <section class="card admin-editcard">
 <div class="form-group">
@@ -163,6 +178,11 @@ else
     private bool _onBehalfOf;
     private Guid? _adminId;
     private string? _adminEmail;
+    /// <summary>The public booking form, per environment — hardcoding the production URL here
+    /// would have pointed staging's admin at the live site.</summary>
+    private string PublicBookingUrl =>
+        $"{EmailOptions.Value.PublicBaseUrl.TrimEnd('/')}/boka";
+
     private string? _guestEmailBeforeOnBehalfOf;
 
     protected override async Task OnInitializedAsync()

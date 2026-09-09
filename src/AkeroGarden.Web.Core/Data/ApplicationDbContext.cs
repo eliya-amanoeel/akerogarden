@@ -9,8 +9,9 @@ namespace AkeroGarden.Web.Core.Data;
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
     : IdentityDbContext<ApplicationUser>(options)
 {
-    // Application entities are added incrementally per phase (implementation-plan.md).
-    // Phase 1 slice 1: reference data — Building, Room.
+    // Entities were introduced per phase during the build; that is history, not a live rule — the
+    // build is over and every schema change is now an incremental migration on the frozen baseline
+    // (see CLAUDE.md). The phase record lives in docs/archive/implementation-plan.md.
     public DbSet<Building> Buildings => Set<Building>();
     public DbSet<Room> Rooms => Set<Room>();
 

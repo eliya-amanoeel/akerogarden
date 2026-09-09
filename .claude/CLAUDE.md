@@ -30,11 +30,11 @@ A full-stack booking and admin system for Åkerögården, a rural retreat in Nor
 | File | Purpose |
 |---|---|
 | `docs/product/requirements.md` | Main SRS — single source of truth; unversioned living document, edited in place |
-| `docs/product/requirements-changelog.md` | Frozen archive of SRS history up to the retirement of document versioning. Not maintained — read-only reference |
+| `docs/archive/requirements-changelog.md` | Frozen archive of SRS history up to the retirement of document versioning. Not maintained — read-only reference |
 | `docs/product/erd.md` | Mermaid entity-relationship diagram (15 app entities) |
 | `docs/product/architecture.md` | Mermaid app-level architecture diagram — public/admin surfaces, hosting, external services, tech stack |
 | `docs/product/booking-lifecycle-timeline.md` | Mermaid lifecycle diagrams — status transitions and their emails, what the nightly run decides, and five dated approval scenarios showing every completion-link issuance outcome and expiry. Draws the rules in §2.5/2.6/2.7/§9; the SRS remains authoritative |
-| `docs/product/implementation-plan.md` | **Nearly spent, by design.** Phases 0–10d are done — the site went live 2026-09-07 — and each was collapsed to a summary table row as it closed. **The only thing live is Phase 11**, which carries six items inherited from 10d. Answers only "what order was it built in, what is left" — for current truth read the SRS. **Delete it once the Phase 11 items are done or moved to `requirements.md` §10** — that is now one phase away |
+| `docs/archive/implementation-plan.md` | **Closed history — nothing live.** Phases 0–11 are all done (Phase 11 closed 2026-09-09) and each was collapsed to a summary table row as it closed, because in every case the narrative began to contradict the system it described. Answers one question: *what was built, in what order, satisfying which requirements* — including the phase-to-requirement map at the bottom, the one piece of provenance the SRS deliberately does not carry. **Never a source of truth about current behaviour, and not to be reopened**: it takes a new row only if a new phase is opened. It was going to be deleted; that was reversed 2026-09-09 and the reasoning is in its header |
 | `docs/review/demo-feedback-2026-08-05.md` | Decision record for the client demo held 2026-08-05: every change request, the decision taken on each *and its reasoning*, two design corrections of our own (§7), and a conflict audit against the implementation (§8). Not a phase — it ran inside the window when 10d was still believed to be blocked on a jurist review, and landed before the 2026-09-07 cutover. Authoritative on this scope; the SRS carries the resulting requirements |
 | `docs/ux/design.md` | Visual design tokens, CSS classes, logo usage |
 | `infra/ops/dns-cutover-runbook.md` | DNS + one.com cutover steps for both Phase 10a (staging, client tenant) and Phase 10d (production, WordPress retirement) |
@@ -57,7 +57,7 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 
 ## Critical rules
 
-- **Swedish only** — all public and admin UI text is Swedish from day one. No English strings, no i18n framework (NFR-32).
+- **Swedish only** — all public and admin UI text is Swedish from day one. No English strings, no i18n framework (NFR-32). **Guarded since 2026-09-09**, after the Phase 11 gate found this was the one critical rule with no test: `SwedishOnlyRenderedTextTests` (E2E) scans the rendered text of 9 public and 13 admin routes, and `SwedishOnlyTextTests` (unit) covers validation messages and display names, which live in C# attributes and only render after a failed submit. Note the split — a source scan of `.razor` was tried first and flagged 129 false positives, all leakage from Razor control flow like `@foreach (var booking in Bookings)`; markup is checked as *rendered text* for that reason. Words spelled the same in both languages ("information", "total", "lunch") are deliberately outside the deny-list.
 - **No monetary totals stored, and no payment state at all** — `AmountExVat` on `CleaningZone` and `PriceRule` is reference data only. No computed totals anywhere (C8). The deposit/final-payment tracking booleans were removed from `Booking` in 2026-08 (FR-42 retired): invoicing is manual and entirely outside the system, so flags here tracked nothing the system could act on. The deposit *policy* still governs the approval and cancellation emails.
 - **Snapshot pattern** — `BookingMealSelection`, `BookingCleaningSelection`, `BookingFacilitySelection`, and `BookingBuildingAssignment` each keep a live FK **and** a snapshot of the agreed value taken at the time of agreement. The live FK powers queries; the snapshot preserves what was agreed if reference data is later edited (NFR-15/16/33/34).
 - **No hard-deletes of referenced reference data** — deactivate (soft) instead; block hard-delete when a record is referenced by a booking (FR-16/20/26/30/88).
@@ -97,13 +97,13 @@ A test must honestly verify the real behaviour it claims to. Never shape a test 
 
 ## Implementation phases
 
-**🚀 THE SITE IS LIVE.** `akerogarden.se` cut over to Azure on **2026-09-07**. **Phases 0–10d are done.** What is left:
+**🚀 THE SITE IS LIVE.** `akerogarden.se` cut over to Azure on **2026-09-07**. **Every phase is now closed** — Phase 11 (post-production hardening & handover) closed 2026-09-09 and passed its completion gate.
 
-- **11 — post-production hardening & handover**, open-ended. The open items are listed in the plan's "Still open" section — **read them there rather than from a summary**, which is how this line previously came to name four of them and omit the one marked blocking. Six of them were **inherited from 10d at launch**, including one marked blocking (an admin-created booking obtains no acknowledgement of anything) and re-applying Bicep, which was a 10d deliverable that never ran — production's `main` deployment is still from 2026-07-20.
+**There is no open phase, and no new phase is planned.** What remains is operational and client-side — sending the handover, decommissioning the WordPress hosting, and the legal follow-up — none of which is engineering work, and none of which should be turned back into a phase. Treat further work as ordinary changes against the SRS.
 
 > **The jurist review is not happening and never will be.** Any statement anywhere that 10d is "gated on the jurist review of the Swedish legal text" is **dead** — that was true for weeks and stopped being true on 2026-09-07. The client replaced the terms document instead of answering our questions, no review was commissioned, and the decision to launch without one was taken with the consequences stated and accepted. **`docs/legal/known-conflicts-at-launch.md` is the authority** on what was knowingly carried across the line — read it before touching anything legal, and do not re-raise the accepted risks.
 
-Detail, exit criteria and what each earlier phase delivered are in `docs/product/implementation-plan.md`. Don't restate the phase list here — it duplicated the plan, and two of its entries had gone stale (Phase 4 still claimed room assignment after FR-56 was withdrawn; Phase 6 still said "Figma-first", when HTML-mockup-first was what actually happened).
+What each phase delivered is in `docs/archive/implementation-plan.md`, as one row each. Don't restate the phase list here — it duplicated the plan, and two of its entries had gone stale (Phase 4 still claimed room assignment after FR-56 was withdrawn; Phase 6 still said "Figma-first", when HTML-mockup-first was what actually happened).
 
 ## Working style
 
@@ -117,14 +117,14 @@ Detail, exit criteria and what each earlier phase delivered are in `docs/product
 
 ## Phase completion gate
 
-**Before merging any phase branch to main**, run a structured evaluation pass against all deliverables for that phase. With phases 0–10d closed, this now applies to any **Phase 11** item large enough to get its own branch. It is *not* required for ordinary fix/chore branches. **Production now serves real guests**, so a finding that would once have been "fix before launch" is now a live defect — weigh them accordingly.
+**Before merging any branch large enough to warrant it**, run a structured evaluation pass. This began as a phase gate; **with every phase now closed it applies to any substantial branch** — a new feature, a schema change, anything touching auth, secrets, infrastructure or the booking state machine. It is *not* required for ordinary fix/chore branches. **Production now serves real guests**, so a finding that would once have been "fix before launch" is now a live defect — weigh them accordingly.
 
 The pass must check:
 
-1. **Phase exit criteria** (from `docs/product/implementation-plan.md`) — list each criterion as pass / partial / fail with evidence.
+1. **What the change set out to do** — list each intended outcome as pass / partial / fail with evidence. (This read "phase exit criteria, from `implementation-plan.md`" until 2026-09-09; there are no open phases and no live exit criteria any more.)
 2. **Critical rules** in this file — Swedish-only UI, no PII in URLs, no monetary totals stored, self-hosted fonts, no hard-deletes of referenced data, booking state machine transitions, no personnummer, EU regions only.
-3. **NFR compliance** — specifically the NFRs listed in the phase's "Satisfies" row.
-4. **FR compliance** — every FR listed in the phase's "Satisfies" row implemented and correctly.
+3. **NFR compliance** — specifically the NFRs the change touches.
+4. **FR compliance** — every FR the change claims to implement, verified against its SRS row rather than a summary.
 5. **Security** — auth, cookie settings, antiforgery, no secrets in source, no sensitive data in URLs or logs.
 6. **Tests** — unit and integration tests written with the feature (not after); CI passes.
 7. **Infra** — Bicep covers every resource introduced in the phase; nothing provisioned by clicking.

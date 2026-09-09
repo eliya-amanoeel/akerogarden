@@ -4,6 +4,24 @@ Feedback captured from the client demo held 2026-08-05. This document is the wor
 record for that feedback: what was asked, what the system does today, what is still
 undecided, and where each item lands.
 
+> **⏸️ Read as a point-in-time record. Two of its premises expired after it was written, and the body
+> is deliberately NOT rewritten** — it records what was decided and why, on the day, and editing that
+> retroactively would destroy the thing it exists to preserve.
+>
+> 1. **"Phase 10d is blocked on the jurist review"** (§"How this work is sequenced", and passim —
+>    §5a, §6, D7, §8). **That gate is gone.** No jurist review was ever commissioned and none will be;
+>    the client replaced the terms document instead of answering the questions, and the decision to
+>    launch without a review was taken, with the consequences stated and accepted, on 2026-09-07.
+>    `docs/legal/known-conflicts-at-launch.md` is the authority. Anywhere below that reasons from
+>    "before the jurist review" or "a second review round", read it as describing a constraint that
+>    was real when written and is now void.
+> 2. **"Launch" is past.** The site went live 2026-09-07. Items triaged here as BLOCKS-LAUNCH all
+>    shipped; 1b (participant-name upload) and 5a (reviews) remain deferred, and 1b's analysis in
+>    `requirements.md` §10 is the current version.
+>
+> Everything else here — the framings, the reasoning, the §7 design corrections, the §8 conflict
+> audit — stands and is still authoritative on this scope.
+
 **Status of this document:** all items are captured, triaged (launch-blocking except 1b) and
 **framed** — each under a "Framing" subsection recording the decision *and its reasoning*, so
 a future reader can tell a deliberate choice from an accident. The agreed working order is:

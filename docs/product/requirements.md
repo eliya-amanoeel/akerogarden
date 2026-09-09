@@ -7,7 +7,7 @@
 > the text is edited in place and the rationale goes in the commit body
 > (`git log --follow docs/product/requirements.md`). Where a change alters a live constraint, its
 > *why* is folded into the section that governs it. History up to the retirement of versioning is
-> archived in [`requirements-changelog.md`](requirements-changelog.md).
+> archived in [`requirements-changelog.md`](../archive/requirements-changelog.md).
 
 ---
 
@@ -117,6 +117,14 @@ flowchart TD
     JA --> N[Admin cancels — Approved → Cancelled\nCancellation email sent]
     N --> L
 ```
+
+> **This draws the guest-initiated path only.** An admin can also record a booking directly (FR-47),
+> which is how telephone bookings and guests without an email address enter the system (FR-112). Such a
+> booking is created straight into `Pending` and rejoins the flow at *"Admin reviews in panel"* — it
+> **still requires approval**, and approval still issues the completion link. The two emails at the top
+> of the diagram are what differ: neither the guest acknowledgement nor the admin notification is sent,
+> because "we have received your booking request" is untrue for a booking already agreed on the
+> telephone and undeliverable to a guest with no address. See `docs/product/booking-lifecycle-timeline.md`.
 
 ### 2.2 Phase 2 — Completion to Post-Stay
 
@@ -825,6 +833,8 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | `CancellationInitiator` | Enum? | `GuestInitiated \| PropertyInitiated` — required when cancelling; controls deposit clause in cancellation email |
 | `CancellationReason` | string? | Optional internal note entered by admin at cancellation |
 | `CreatedByAdmin` | bool | True when admin created booking on behalf of guest |
+| `OnBehalfOfAdminId` | GUID? | The admin recording a telephone booking **on the guest's behalf** (FR-112). Set only when `CreatedByAdmin` is true. Its presence is what marks the booking's `ContactEmail` as deliberately holding a staff address rather than the guest's — without it, a booking simply shows a staff address in the contact field and nobody can tell whether that was intended. `ContactName`, `ContactPhone` and `OrgName` continue to describe the **guest**; only the email is substituted |
+| `TermsAttestedAt` | datetime? | When an admin attested that the booking terms were gone through with the guest **verbally** (FR-112). Deliberately a separate field from `TermsAcceptedAt` and never written to it: an admin's statement that they read the terms out is a weaker claim than a guest ticking a box, and it is stored as the weaker thing. A guest with no email address cannot be sent the terms at all, so an attestation is the only honest record available for that case |
 | `CreatedAt` | datetime | Auto |
 | `UpdatedAt` | datetime | Auto |
 | `DeleteAfter` | date | Computed per FR-91 — value depends on the booking's terminal/pending state; null for live in-progress states |

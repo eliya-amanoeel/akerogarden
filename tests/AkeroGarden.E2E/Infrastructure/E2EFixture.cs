@@ -310,7 +310,12 @@ public sealed class E2EFixture : IAsyncLifetime
             BookingType = BookingType.StayRequest,
             Status = BookingStatus.Pending,
             ContactName = "Familjen Pendlar",
-            ContactEmail = "pendlar@example.se",
+            // Deliberately long, and deliberately a single unbreakable token: the admin booking
+            // detail renders the contact email inside `.kv`, and an email address is the widest
+            // thing that grid ever holds. A short seed address made `.kv` look fine at any text
+            // size while a real one did not fit — the same class of false green that
+            // `Tillgänglighetsanpassad` produced on /faciliteter (see the facilities seed above).
+            ContactEmail = "forestandare.familjen-pendlar@samfallighetsforeningen.example.se",
             CheckIn = checkIn.AddDays(5),
             CheckOut = checkIn.AddDays(7),
             OvernightGuestCount = 12,

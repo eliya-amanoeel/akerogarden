@@ -6,6 +6,10 @@ them. It replaces a decommissioned Payload CMS.
 
 All guest- and admin-facing UI is **Swedish**. The code, comments, and documentation are English.
 
+**🚀 Live since 2026-09-07.** `akerogarden.se` serves real guests, so anything here describes a running
+production system, not a project in build. **All phases are closed** — Phase 11 (post-production
+hardening and handover) closed 2026-09-09. What remains is operational, not engineering.
+
 | | |
 |---|---|
 | **Public site** | `akerogarden.se` — Blazor Static SSR |
@@ -38,10 +42,12 @@ infra/
   ops/                      Runbooks — DNS cutover, restore drill, DB access, seeding, operations
   pipelines/                Azure Pipelines YAML
 docs/
-  product/                  SRS, ERD, architecture, implementation plan
+  product/                  SRS, ERD, architecture, lifecycle diagrams — current truth
   ux/                       Design system, logo, imagery
-  legal/                    Privacy policy + booking terms (drafts, pending jurist review)
-  review/                   Architecture and security review artefacts
+  legal/                    Privacy policy + booking terms — published and live; no jurist review (cancelled, see known-conflicts-at-launch.md)
+  review/                   Review artefacts that still carry open items
+  archive/                  Closed history — read-only, nothing waiting on it (see docs/archive/README.md)
+  handover/                 Admin manual (source of truth is the .html)
 ```
 
 The public/admin split is **structural, not just routing** — the internet-facing public process loads no
@@ -133,7 +139,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 - **Swedish-only UI**, from day one. No English strings, no i18n framework.
 - **No personal data outside the EU** — all Azure resources in North Europe or Sweden Central.
 - **No PII in URLs**; **no Swedish personnummer** collected or stored, ever.
-- **Self-hosted fonts only** — no Google Fonts or any external font request (GDPR).
+- **Nothing loads from a third-party host** — no font CDN, analytics, tag manager, embedded map, video or social widget. Fonts are self-hosted. Widened from fonts-only in 2026-08 and **enforced since 2026-09-08 by a `default-src 'self'` Content-Security-Policy on both hosts** (NFR-39), so this is no longer a convention you could breach by accident — the browser blocks it. The same policy forbids inline styling, so `style="…"` attributes in `.razor` markup are dropped; use a modifier class in `site.css`.
 - **No monetary totals stored, and no payment state at all** — prices are reference data. Invoicing happens entirely outside the system, so there is nothing here to track it with (FR-42 retired 2026-08).
 - **No hard-deletes of referenced reference data** — deactivate instead.
 - **The booking state machine is one-way** — invalid transitions are blocked in code, not just hidden in the UI.
@@ -147,7 +153,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | [`docs/product/requirements.md`](docs/product/requirements.md) | The SRS — single source of truth. Unversioned living document |
 | [`docs/product/erd.md`](docs/product/erd.md) | Entity-relationship diagram (15 entities) |
 | [`docs/product/architecture.md`](docs/product/architecture.md) | App-level architecture — surfaces, hosting, external services |
-| [`docs/product/implementation-plan.md`](docs/product/implementation-plan.md) | What order it was built in, and what is left. Phases 0–10c are done and summarised; only the 10d cutover and four Phase 11 items are still live. Not a source of truth — the SRS is |
+| [`docs/archive/implementation-plan.md`](docs/archive/implementation-plan.md) | Closed history: what was built, in what order, satisfying which requirements. **All phases 0–11 are done** and each is one table row. Not a source of truth — the SRS is |
 | [`docs/ux/design.md`](docs/ux/design.md) | Design system — tokens, type scale, components |
 | [`infra/ops/`](infra/ops/) | Operational runbooks |
 

@@ -565,7 +565,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 
 | ID | Requirement |
 |---|---|
-| FR-27 | The admin shall be able to create a facility with: name, description, image, and display order. Image upload accepts JPEG, PNG, and WebP formats; maximum 5 MB per file. Violations show an inline error — no silent failures |
+| FR-27 | The admin shall be able to create a facility with: name, description, image, and display order. Image upload accepts JPEG, PNG, and WebP formats; maximum 5 MB per file. Violations show an inline error — no silent failures. The admin shall also be able to **remove** an existing image, returning the facility to having none. Selecting, replacing or removing an image takes effect only when the form is saved, and a replaced or removed image is deleted from storage rather than left behind |
 | FR-28 | The admin shall be able to edit any facility field |
 | FR-29 | The admin shall be able to deactivate a facility |
 | FR-30 | The admin shall not be able to hard-delete a facility referenced in an existing booking |

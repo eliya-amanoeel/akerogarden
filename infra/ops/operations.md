@@ -84,6 +84,24 @@ not `ILogger`).
 
 ## A corrected Key Vault secret doesn't reach the app on a restart
 
+> **Updated 2026-09-09 (post-launch security review #3, #4, #9).** The set of Key Vault-backed
+> settings grew, and two plaintext ones disappeared entirely:
+>
+> | Secret | Used by | Notes |
+> |---|---|---|
+> | `smtp-username`, `smtp-password` | both | unchanged |
+> | `redis-connection` | public | unchanged |
+> | `postgres-connection` | **admin only** | the owner account — admin runs EF migrations, which need DDL |
+> | `postgres-connection-public` | **public only** | least-privilege role: rows yes, schema no |
+>
+> Gone, not relocated: `Blob__ConnectionString` and `DataProtection__KeysBlobConnectionString` — both
+> apps now reach Blob with their own managed identity, so **no storage account key exists in
+> configuration at all**. `Seed__AdminPassword` was deleted rather than moved to the vault: it only
+> does anything when the user table is empty, so on an established environment it was a live admin
+> password sitting readable in App Service config and nothing else.
+>
+> The refresh gotcha below applies to the two new Postgres secrets exactly as it does to SMTP.
+
 The SMTP credentials (`Smtp__Username`, `Smtp__Password`), the Redis connection string, and the
 Data-Protection key are all delivered to the apps as `@Microsoft.KeyVault(...)` **references** in
 app settings (see `infra/azure/main.bicep`). App Service resolves each reference **once**, then

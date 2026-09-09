@@ -290,4 +290,70 @@ public class AdminInviteIntegrationTests : IClassFixture<DbFixture>
 
         Assert.Equal([AdminRoles.Coordinator], await users.GetRolesAsync(user));
     }
+
+    /// <summary>
+    /// The audit row must be COMMITTED before the invite email is sent (post-launch security review,
+    /// finding #2). Ordering, not behaviour, is the thing under test — and ordering is exactly what a
+    /// later refactor reinstates by accident.
+    ///
+    /// <para>Why it matters: the admin host shares one <see cref="ApplicationDbContext"/> for the whole
+    /// Blazor circuit. While a slow SMTP send is in flight with an unsaved audit row pending, a second
+    /// admin action adds its own row to the same change tracker; both then call SaveChangesAsync over a
+    /// tracker holding both, both try to insert both, and the loser gets a duplicate-key violation that
+    /// kills the circuit. Production, 2026-09-08 16:00, /konton.</para>
+    ///
+    /// <para>The email service asserts the invariant from inside the send: by the time it runs, the
+    /// audit row must already be readable on a SEPARATE connection, which is only true if the
+    /// transaction committed first.</para>
+    /// </summary>
+    [Fact]
+    public async Task InviteAsync_CommitsTheAuditRow_BeforeSendingTheEmail()
+    {
+        var (invites, _, _, _) = await NewProviderAsync();
+        var email = $"ordering-{Guid.NewGuid():N}@test.se";
+
+        // Rebuild with an email service that inspects the database mid-send.
+        bool? auditVisibleDuringSend = null;
+        var services = _fixture.BuildServices(s =>
+        {
+            s.AddSingleton<IEmailService>(sp => new AssertingEmailService(async () =>
+            {
+                // A fresh scope means a fresh connection: an uncommitted row is invisible here.
+                using var probe = sp.CreateScope();
+                var probeDb = probe.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                auditVisibleDuringSend = await probeDb.AuditLogs
+                    .AnyAsync(a => a.Summary.Contains(email));
+            }));
+            s.Configure<BookingEmailOptions>(o =>
+            {
+                o.AdminBaseUrl = "https://admin.akerogarden.se";
+                o.PublicBaseUrl = "https://akerogarden.se";
+            });
+            s.AddDataProtection();
+            s.AddScoped<AdminInviteService>();
+        });
+        using var scope = services.CreateScope();
+        await DbFixture.EnsureAdminRolesAsync(scope.ServiceProvider);
+        var service = scope.ServiceProvider.GetRequiredService<AdminInviteService>();
+
+        var result = await service.InviteAsync(email, AdminRoles.Administrator);
+
+        Assert.Equal(InviteResult.Sent, result);
+        Assert.True(
+            auditVisibleDuringSend,
+            "The invite email was sent while the audit row was still uncommitted. That is the window "
+            + "that produced the PK_AuditLogs duplicate-key crash — commit before sending.");
+    }
+
+    /// <summary>An email service that runs an assertion at send time instead of contacting SMTP.</summary>
+    private sealed class AssertingEmailService(Func<Task> onSend) : IEmailService
+    {
+        public async Task<bool> SendAsync(
+            string toAddress, string toName, string subject, string htmlBody,
+            string? replyToAddress = null, string? replyToName = null)
+        {
+            await onSend();
+            return true;
+        }
+    }
 }

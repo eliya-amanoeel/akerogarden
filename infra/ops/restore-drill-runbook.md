@@ -89,7 +89,13 @@ The drill server is private-only (see the safety box), so verify it from **insid
 
 ## Part C — (optional) app-level smoke against the restore
 
-Only for extra confidence: temporarily point the app's `ConnectionStrings__Postgres` at `$DRILL` (private FQDN), restart, load `/admin/bokningar`, confirm bookings render — then **revert the connection string** to `$SRC` and restart. Skip unless the Path 2 row counts leave doubt. *(On production, weigh the disruption — usually the row counts are enough.)*
+Only for extra confidence: temporarily point an app's `ConnectionStrings__Postgres` at `$DRILL` (private FQDN), restart, load `/admin/bokningar`, confirm bookings render — then **revert the connection string** to `$SRC` and restart. Skip unless the Path 2 row counts leave doubt. *(On production, weigh the disruption — usually the row counts are enough.)*
+
+> **Use the ADMIN app for this** (post-launch security review #4, 2026-09-09). The two sites now use
+> different database accounts, and `/admin/bokningar` is an admin page anyway. A PITR restore creates a
+> whole new server and Postgres roles are cluster-level, so both `akerogarden_admin` and
+> `akerogarden_public` come across with their existing passwords — the drill server's credentials are
+> the same ones already in Key Vault, and no re-granting is needed.
 
 ---
 

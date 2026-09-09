@@ -1,4 +1,17 @@
 <!doctype html>
+<!--
+  SOURCE OF TRUTH for the administrator handbook.
+
+  Akerogarden-handbok-administratorer.pdf in this folder is a PRINT OF THIS FILE, not a separate
+  document. Whenever this changes, re-export the PDF before sending anything: open in a browser,
+  Print -> Save as PDF, A4, background graphics ON (the @page rule and the coloured note boxes depend
+  on it). The E2E project's Playwright/Chromium can also render it headlessly if a repeatable step is
+  wanted.
+
+  Status 2026-09-09: NOTHING HAS BEEN SENT TO THE CLIENT. Both files exist in the repo only. The PDF
+  currently predates the "Bilder pa faciliteter" section added on 2026-09-09, so it must be
+  re-exported before it goes anywhere.
+-->
 <html lang="sv">
 <head>
 <meta charset="utf-8">
@@ -132,6 +145,12 @@
 
 <h3>Priser, byggnader, mat och städning</h3>
 <p>Under <b>Byggnader</b>, <b>Faciliteter</b>, <b>Matalternativ</b>, <b>Priser</b> och <b>Städzoner</b> ligger uppgifterna som visas på webbplatsen och som ni väljer bland i en bokning. Ändrar ni ett pris här ändras det på webbplatsen direkt.</p>
+<h4>Bilder på faciliteter</h4>
+<p>Under <b>Faciliteter</b> kan ni lägga till en bild som visas på webbplatsen. Välj <b>Bild</b>, peka ut filen (JPEG, PNG eller WebP, högst 5 MB) och klicka <b>Spara</b>. Vill ni ta bort bilden helt klickar ni <b>Ta bort bild</b> och därefter <b>Spara</b>.</p>
+<div class="note">
+  <p><b>Ingenting händer förrän ni klickar Spara.</b> Det gäller både när ni väljer en ny bild och när ni tar bort en. Stänger ni rutan utan att spara ligger den gamla bilden kvar precis som förut. När ni väl sparar ersätts eller raderas den gamla bilden — den går inte att få tillbaka.</p>
+</div>
+
 <div class="note">
   <p><b>Redan gjorda bokningar påverkas inte.</b> Varje bokning sparar vad som gällde när den ingicks. Höjer ni priset i höst ändras alltså inget för en grupp som bokade i våras — det är avsiktligt.</p>
 </div>

@@ -84,6 +84,12 @@ public sealed class DbFixture : IAsyncLifetime
         // the accessor via `configure` to assert admin attribution. TimeProvider backs the audit
         // timestamp; a test may replace it (last registration wins).
         services.AddSingleton(TimeProvider.System);
+
+        // FacilityService cleans up superseded facility images, so it needs the storage seam.
+        // A singleton so a test can reach the same instance it asserts against, via
+        // BuildServices(s => s.AddSingleton<IImageStorage>(myFake)) or by resolving it back out.
+        services.AddSingleton<FakeImageStorage>();
+        services.AddSingleton<IImageStorage>(sp => sp.GetRequiredService<FakeImageStorage>());
         services.AddScoped<IAuditActorAccessor, TestAuditActorAccessor>();
         services.AddScoped<IAuditWriter, AuditWriter>();
     }

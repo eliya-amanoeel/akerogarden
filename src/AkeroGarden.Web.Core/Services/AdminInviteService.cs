@@ -50,10 +50,12 @@ public class AdminInviteService(
             // A pending invite has never been used, so re-picking the role is a correction of the
             // original invite rather than a role change — no separate AdminRoleChanged entry.
             await ApplyRoleAsync(existing, role);
-            await SendInviteEmailAsync(existing);
             await RecordAccountAuditAsync(existing, AuditAction.AdminInviteResent,
                 $"Inbjudan skickades på nytt till: {email} (roll: {role}).");
+            // Commit BEFORE sending. See the note on SendInviteEmailAsync — an unsaved audit row must
+            // never be left pending across a slow SMTP call.
             await db.SaveChangesAsync();
+            await SendInviteEmailAsync(existing);
             return InviteResult.Sent;
         }
 
@@ -70,10 +72,11 @@ public class AdminInviteService(
             return InviteResult.CreateFailed(string.Join(" ", createResult.Errors.Select(e => e.Description)));
 
         await ApplyRoleAsync(newUser, role);
-        await SendInviteEmailAsync(newUser);
         await RecordAccountAuditAsync(newUser, AuditAction.AdminInvited,
             $"Konto bjöds in: {email} (roll: {role}).");
+        // Commit BEFORE sending — see the note on SendInviteEmailAsync.
         await db.SaveChangesAsync();
+        await SendInviteEmailAsync(newUser);
         return InviteResult.Sent;
     }
 
@@ -122,10 +125,11 @@ public class AdminInviteService(
     /// <summary>Regenerates and resends the setup link for an already-known pending user.</summary>
     public async Task ResendInviteAsync(ApplicationUser user)
     {
-        await SendInviteEmailAsync(user);
         await RecordAccountAuditAsync(user, AuditAction.AdminInviteResent,
             $"Inbjudan skickades på nytt till: {user.Email}.");
+        // Commit BEFORE sending — see the note on SendInviteEmailAsync.
         await db.SaveChangesAsync();
+        await SendInviteEmailAsync(user);
     }
 
     /// <summary>
@@ -203,6 +207,23 @@ public class AdminInviteService(
         return $"{emailOptions.Value.AdminBaseUrl.TrimEnd('/')}/aterstall-losenord?code={code}";
     }
 
+    /// <summary>
+    /// Sends the invite/setup email. <b>Always call this AFTER <c>SaveChangesAsync</c>, never before.</b>
+    ///
+    /// <para>SMTP is the slowest thing this service does, and every caller has an unsaved
+    /// <c>AuditLog</c> row pending when it runs. The admin host shares ONE <c>DbContext</c> for the
+    /// whole Blazor circuit, so while this call is in flight a second admin action on the same page
+    /// adds its own audit row to that same change tracker — and both operations then call
+    /// <c>SaveChangesAsync</c> over a tracker holding both rows. Both try to insert both, and the
+    /// loser gets <c>duplicate key value violates unique constraint "PK_AuditLogs"</c>, which takes
+    /// the circuit down with it. That is exactly what happened on production on 2026-09-08 at 16:00
+    /// on /konton: two interactions three seconds apart, the first still inside this method.</para>
+    ///
+    /// <para>Committing first shrinks that window to nothing. It also fixes an ordering bug in its own
+    /// right — the invite email used to go out before the commit, so a failed save left a real invite
+    /// sent with no record that it had been. Sending afterwards cannot un-send an email either, but a
+    /// send failure is logged and non-fatal (NFR-13), whereas a lost audit row is silent.</para>
+    /// </summary>
     private async Task SendInviteEmailAsync(ApplicationUser user)
     {
         var setupUrl = await GenerateSetupLinkAsync(user);

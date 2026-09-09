@@ -9,7 +9,11 @@ namespace AkeroGarden.Web.Core.Services;
 /// Business rules live here, not in the Razor component (NFR-26/27). Image upload itself
 /// is handled by <see cref="IImageStorage"/>; this service validates the upload's format/size.
 /// </summary>
-public class FacilityService(ApplicationDbContext db, IAuditWriter audit)
+public class FacilityService(
+    ApplicationDbContext db,
+    IAuditWriter audit,
+    IImageStorage images,
+    ILogger<FacilityService> logger)
 {
     /// <summary>5 MB upload ceiling for facility images (FR-27).</summary>
     public const long MaxImageBytes = 5 * 1024 * 1024;
@@ -52,6 +56,9 @@ public class FacilityService(ApplicationDbContext db, IAuditWriter audit)
         existing.Name = input.Name;
         existing.PhysicalBuildingId = input.PhysicalBuildingId;
         existing.Description = input.Description;
+        // Captured before the assignment so the superseded blob can be cleaned up after the commit.
+        var previousImage = existing.ImageUrl;
+
         existing.ImageUrl = input.ImageUrl;
         existing.AmountExVat = input.AmountExVat;
         existing.VatRate = input.VatRate;
@@ -59,6 +66,35 @@ public class FacilityService(ApplicationDbContext db, IAuditWriter audit)
         await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(Facility), existing.Id,
             $"Facilitet uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
+
+        // Replacing or clearing an image used to leave the old blob in storage forever — nothing in
+        // the app deleted a blob at all, so every edit orphaned a file that stayed fetchable by anyone
+        // holding its name. Raised by the maintainer on 2026-09-09; FR-27 covers upload and never
+        // mentions removal.
+        await DeleteSupersededImageAsync(previousImage, existing.ImageUrl);
+    }
+
+    /// <summary>
+    /// Removes a blob that the facility no longer points at. Runs AFTER the save, deliberately: the
+    /// database is the record of what the facility HAS, and a storage failure must not roll back a
+    /// completed edit. It also keeps the slow call outside the window where unsaved rows are pending
+    /// on the circuit-shared context — the same ordering that produced the #2 crash.
+    /// </summary>
+    private async Task DeleteSupersededImageAsync(string? previous, string? current)
+    {
+        var oldName = FacilityImagePath.ToBlobName(previous);
+        if (oldName is null || oldName == FacilityImagePath.ToBlobName(current))
+            return;
+
+        try
+        {
+            await images.DeleteFacilityImageAsync(oldName);
+        }
+        catch (Exception ex)
+        {
+            // An orphaned blob is a tidiness problem; a failed edit is a real one.
+            logger.LogWarning(ex, "Could not delete superseded facility image {BlobName}", oldName);
+        }
     }
 
     /// <summary>Deactivates (soft) or reactivates a facility without deleting history (FR-29, NFR-14).</summary>
@@ -86,10 +122,15 @@ public class FacilityService(ApplicationDbContext db, IAuditWriter audit)
         if (!CanHardDelete(await CountReferencesAsync(id)))
             return HardDeleteResult.Blocked;
 
+        var image = facility.ImageUrl;
+
         db.Facilities.Remove(facility);
         await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(Facility), facility.Id,
             $"Facilitet togs bort: \"{facility.Name}\".");
         await db.SaveChangesAsync();
+
+        // Delete the image too — the facility that referenced it is gone, so nothing ever will again.
+        await DeleteSupersededImageAsync(image, null);
         return HardDeleteResult.Deleted;
     }
 

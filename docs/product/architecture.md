@@ -47,7 +47,7 @@ flowchart TB
     subgraph Data["Data & storage (VNet-only, EU region)"]
         Postgres[("Azure Database for PostgreSQL\nFlexible Server (Burstable B1ms)\napp entities + AspNetUsers")]
         Redis[("Azure Managed Redis (Balanced B0)\ndistributed rate-limit counters")]
-        Blob[("Azure Blob Storage (Hot LRS)\nfacility images · list downloads")]
+        Blob[("Azure Blob Storage (Hot LRS)\nfacility images · list downloads\nPRIVATE — reached only by the apps,\nvia managed identity")]
     end
 
     SMTP["One.com SMTP\n(via MailKit)"]
@@ -55,11 +55,12 @@ flowchart TB
     Guest -->|"HTTPS"| Public
     Admin -->|"HTTPS + Identity cookie"| AdminApp
 
-    Public -->|"read-only availability query"| Postgres
+    Public -->|"read-only availability query\n(least-privilege role: no DDL)"| Postgres
     Public -->|"submit inquiry"| Postgres
     Public -->|"rate limit check"| Redis
+    Public -->|"serve facility images\nvia /bilder/{name}"| Blob
 
-    AdminApp -->|"CRUD reference data,\nbooking lifecycle, audit writes"| Postgres
+    AdminApp -->|"CRUD reference data,\nbooking lifecycle, audit writes\n(owner role: runs migrations)"| Postgres
     AdminApp -->|"upload/read images"| Blob
 
     BgJob -->|"scan due bookings,\nwrite AuditLog (ActorType=System)"| Postgres
@@ -98,6 +99,21 @@ flowchart TB
 
 6. **Postgres is VNet-only.** No public internet access to the database — reachable only via VNet integration from the App Service (NFR-25). This is also why staging is a fully separate resource group rather than a slot: network isolation and synthetic data can't leak into/from production this way (§11.1).
 
-7. **Identity tables live in the same Postgres instance** as the application schema, but are treated as infrastructure, not part of the application data model (§6.4) — see the note at the top of [erd.md](erd.md).
+7. **The browser never contacts Blob storage.** Facility images are served by each app from
+   `/bilder/{name}`, not from a Blob URL. `img-src 'self'` (NFR-39) blocks a storage-account origin
+   outright, so FR-81's "display the facility image" and the CSP could not both hold while images were
+   fetched directly — the images were silently invisible for a day before anyone noticed, because
+   production had none uploaded. Routing through the app satisfies both and means a visitor's IP never
+   reaches the storage domain, which is what NFR-35 is really about. The container is private and both
+   apps reach it with their own managed identity; no storage account key exists in configuration
+   (post-launch security review #9, #25).
 
-8. **Everything in this diagram must exist in Bicep.** Per the project's IaC rule, both production and staging are provisioned from the same `.bicep` templates with different parameter files — no resource shown here should ever be click-through-provisioned.
+8. **The two apps use different database accounts.** The public site connects as a least-privilege
+   role that can read and write rows but cannot create or alter tables; the admin site connects as the
+   owner because it runs EF migrations at startup. Migrations cannot move to the deploy pipeline —
+   PostgreSQL is VNet-only and the hosted build agent cannot reach it — so they must run from inside a
+   container, which is why the admin credential still exists (post-launch security review #4).
+
+9. **Identity tables live in the same Postgres instance** as the application schema, but are treated as infrastructure, not part of the application data model (§6.4) — see the note at the top of [erd.md](erd.md).
+
+10. **Everything in this diagram must exist in Bicep.** Per the project's IaC rule, both production and staging are provisioned from the same `.bicep` templates with different parameter files — no resource shown here should ever be click-through-provisioned.

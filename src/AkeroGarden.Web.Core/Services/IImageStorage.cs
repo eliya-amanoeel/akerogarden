@@ -40,4 +40,16 @@ public interface IImageStorage
     Task<StoredImage?> OpenFacilityImageAsync(
         string blobName,
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Deletes a stored facility image. Returns true if a blob was removed, false if there was
+    /// nothing to remove — a missing blob is not an error, since the caller's goal is that it be gone.
+    ///
+    /// <para>Never throws for a missing or malformed name: image cleanup runs after a facility has
+    /// already been saved, and a storage hiccup must not turn a completed edit into a failure. An
+    /// orphaned blob is a tidiness problem; a failed save is a real one.</para>
+    /// </summary>
+    Task<bool> DeleteFacilityImageAsync(
+        string blobName,
+        CancellationToken cancellationToken = default);
 }

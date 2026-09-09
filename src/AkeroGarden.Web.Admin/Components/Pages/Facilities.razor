@@ -142,15 +142,30 @@ else
                 {
                     <p role="alert">@_imageError</p>
                 }
+                @if (_pendingImage is not null)
+                {
+                    @* Deliberately no thumbnail: rendering the bytes back down the Blazor circuit as a
+                       data: URL would push megabytes over the WebSocket for no real gain. Naming the
+                       file and stating that it is not saved yet is clearer anyway. *@
+                    <p class="form-hint">
+                        Vald bild: <strong>@_pendingImage.FileName</strong> (@_pendingImage.SizeLabel).
+                        Den laddas upp när du klickar Spara.
+                    </p>
+                }
                 @if (FacilityImagePath.ToDisplayPath(_form.ImageUrl) is { } previewImage)
                 {
-                    <p>Uppladdad bild:</p>
+                    <p>@(_pendingImage is null ? "Uppladdad bild:" : "Nuvarande bild (ersätts vid Spara):")</p>
                     <img src="@previewImage" alt="Förhandsvisning av @_form.Name" width="200" />
+                    @* Clearing the reference here; the blob itself is deleted when the form is saved,
+                       by FacilityService, so cancelling the edit leaves the image untouched. *@
+                    <p>
+                        <button type="button" class="btn-ghost btn-sm" @onclick="RemoveImage">Ta bort bild</button>
+                    </p>
                 }
             </div>
         </ChildContent>
         <Footer>
-            <button type="submit" class="btn" disabled="@_uploading">Spara</button>
+            <button type="submit" class="btn">Spara</button>
             @if (!_isCreating)
             {
                 <button type="button" class="btn-outline" @onclick="ToggleActive">@(CurrentIsActive ? "Inaktivera" : "Aktivera")</button>
@@ -176,7 +191,7 @@ else
     private ToastMessage? _message;
     private ToastMessage? _panelError;
     private string? _imageError;
-    private bool _uploading;
+    private PendingImage? _pendingImage;
 
     private bool CurrentIsActive => _editingId is not null && (_facilities?.FirstOrDefault(f => f.Id == _editingId)?.IsActive ?? false);
 
@@ -191,37 +206,61 @@ else
     private string PhysicalBuildingName(Guid physicalBuildingId) =>
         _physicalBuildings.FirstOrDefault(p => p.Id == physicalBuildingId)?.Name ?? "—";
 
+    /// <summary>
+    /// Clears the image from the form (raised by the maintainer 2026-09-09 — the panel could only ever
+    /// REPLACE an image, never remove one, so a facility that got a photo by mistake kept it forever).
+    ///
+    /// <para>Only the form field is cleared. The blob is deleted by <c>FacilityService.UpdateAsync</c>
+    /// when the form is actually saved, so closing the panel without saving changes nothing — which is
+    /// what a user expects of a form, and what makes this safe to click by accident.</para>
+    /// </summary>
+    private void RemoveImage()
+    {
+        _form.ImageUrl = null;
+        _pendingImage = null;
+        _imageError = null;
+    }
+
+    /// <summary>
+    /// Holds the chosen file in memory. It is NOT uploaded here.
+    ///
+    /// <para>Uploading on selection meant that picking a file and then closing the panel left the blob
+    /// in storage with nothing referencing it — an orphan created by an action the admin explicitly
+    /// cancelled. It was also plainly inconsistent: removal waits for Spara, so selection must too.
+    /// Nothing about the image changes until the form is saved.</para>
+    /// </summary>
     private async Task OnImageSelected(InputFileChangeEventArgs e)
     {
         var file = e.File;
 
-        // Validate format/size before opening the stream (FR-27).
+        // Validate format/size before reading the stream (FR-27).
         var error = FacilityService.ValidateImage(file.ContentType, file.Size);
         if (error is not null)
         {
             _imageError = error;
+            _pendingImage = null;
             return;
         }
 
         _imageError = null;
-        _uploading = true;
         try
         {
             await using var source = file.OpenReadStream(FacilityService.MaxImageBytes);
             using var buffer = new MemoryStream();
             await source.CopyToAsync(buffer);
-            buffer.Position = 0;
-
-            _form.ImageUrl = await ImageStorage.UploadFacilityImageAsync(buffer, file.Name, file.ContentType);
+            _pendingImage = new PendingImage(buffer.ToArray(), file.Name, file.ContentType);
         }
         catch (Exception)
         {
-            _imageError = "Bilden kunde inte laddas upp. Försök igen.";
+            _imageError = "Bilden kunde inte läsas. Försök igen.";
+            _pendingImage = null;
         }
-        finally
-        {
-            _uploading = false;
-        }
+    }
+
+    /// <summary>A chosen-but-not-yet-saved image. Discarded if the panel closes without saving.</summary>
+    private sealed record PendingImage(byte[] Content, string FileName, string ContentType)
+    {
+        public string SizeLabel => $"{Content.Length / 1024d / 1024d:0.0} MB";
     }
 
     private void OpenCreate()
@@ -261,10 +300,29 @@ else
         _editingId = null;
         _panelError = null;
         _imageError = null;
+        _pendingImage = null; // never uploaded, so nothing to clean up
     }
 
     private async Task Save()
     {
+        // Upload only now, so a cancelled panel never leaves a blob behind. If this fails the form
+        // stays open with the file still selected — nothing is saved and nothing is orphaned.
+        if (_pendingImage is not null)
+        {
+            try
+            {
+                using var buffer = new MemoryStream(_pendingImage.Content);
+                _form.ImageUrl = await ImageStorage.UploadFacilityImageAsync(
+                    buffer, _pendingImage.FileName, _pendingImage.ContentType);
+                _pendingImage = null;
+            }
+            catch (Exception)
+            {
+                _imageError = "Bilden kunde inte laddas upp. Försök igen.";
+                return;
+            }
+        }
+
         if (_isCreating)
         {
             await FacilityService.CreateAsync(_form);

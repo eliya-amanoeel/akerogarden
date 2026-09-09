@@ -91,4 +91,18 @@ public class BlobImageStorage(IOptions<BlobOptions> options) : IImageStorage
             return null;
         }
     }
+
+    public async Task<bool> DeleteFacilityImageAsync(
+        string blobName,
+        CancellationToken cancellationToken = default)
+    {
+        if (!FacilityImagePath.IsValidBlobName(blobName))
+            return false;
+
+        var response = await Container()
+            .GetBlobClient(blobName)
+            .DeleteIfExistsAsync(cancellationToken: cancellationToken);
+
+        return response.Value;
+    }
 }

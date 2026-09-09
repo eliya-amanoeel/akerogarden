@@ -64,6 +64,29 @@ NFR-05 is satisfied in the letter — no personal data appears in the URL. But t
 
 **What is not established:** the root cause. `ApplicationDbContext` is registered scoped (`AkeroServiceCollectionExtensions.cs:38`) and the admin host runs Interactive Server, where a DI scope lives as long as the circuit — that is what makes an overlapping or repeated save on one context *possible*, and three occurrences inside two seconds is consistent with a rapid repeat or double-click on a single admin action. **This is a hypothesis, not a conclusion.** Reproduce before changing anything.
 
+
+**✅ RESOLVED 2026-09-09 — the hypothesis was right, and the trigger was findable.**
+
+Telemetry named the page: `/konton`, two `BeginInvokeDotNetFromJS` events three seconds apart, then the crash and a torn-down circuit. `AdminInviteService.InviteAsync` and `ResendInviteAsync` both ran in this order:
+
+```
+await SendInviteEmailAsync(user);   // SMTP — slow, and had NO timeout before #12
+await RecordAccountAuditAsync(...); // adds an AuditLog to the context, unsaved
+await db.SaveChangesAsync();
+```
+
+The slowest call in the service sat inside the window where an audit row was pending. The admin host shares **one `DbContext` for the whole Blazor circuit**, and the accounts page had no double-submit guard, so a second action during that email added its own audit row to the same change tracker. Both operations then called `SaveChangesAsync` over a tracker holding **both** rows, both tried to insert both, and the loser got the duplicate-key violation. That accounts for every observed detail: the page, the three-second gap, why it was the audit table specifically, and why it is rare — it needs the overlap.
+
+**Fixed by removing the window and the overlap.** All three invite paths now commit *before* sending, which also fixes an ordering bug in its own right: the invite email used to go out before the commit, so a failed save left a real invite sent with no record of it. The accounts page now serialises actions through a single in-flight guard and disables its controls while one is running — protection it never had.
+
+Guarded by an integration test that asserts the *ordering*, not the behaviour: the email service checks, from inside the send, that the audit row is already readable on a separate connection. Verified by mutation — reinstating the old order makes it fail.
+
+> **⚠️ DEFERRED — the structural fix, for whoever needs it later.**
+>
+> The correct fix is `AddDbContextFactory` with a context created per operation, which is Microsoft's documented guidance for Blazor Server precisely because a DI scope there lives as long as the *circuit*, not the operation. It makes this class of collision **impossible** rather than merely unlikely, and it would also close the pre-existing `ObjectDisposedException`s ("Cannot access a disposed context instance") that appear a few times a week and share the same cause.
+>
+> It was skipped deliberately: every service takes `ApplicationDbContext` by constructor injection, so the change touches the whole service layer and every test that composes one — a large, risky refactor for a panel one person uses. What shipped removes the trigger and the window; it does not remove the possibility. If the admin panel ever gains concurrent users, background work writing through the same context, or a second instance, **do this properly first** rather than adding more guards.
+
 ### 3. The published privacy policy's cookie table is incomplete — MEDIUM
 
 **Live-verified against the document.** `docs/legal/Integritetspolicy.md` §7 states the site uses **"endast strikt nödvändiga kakor"** and then gives an exhaustive two-row table: the antiforgery cookie and the admin auth cookie. Production sets **`ARRAffinity` and `ARRAffinitySameSite` on every response of both hosts**, including the public site. Neither appears in the table; one carries `SameSite=None`.
@@ -99,6 +122,16 @@ Consequences worth knowing: the database now stores a blob **name** rather than 
 **4. Three production secrets sit as plaintext App Service settings while others correctly use Key Vault.** *Live-verified.* `ConnectionStrings__Postgres` (both sites), `DataProtection__KeysBlobConnectionString` (both sites), `Blob__ConnectionString` (admin) and `Seed__AdminPassword` (admin) are literal values. `Smtp__Username`, `Smtp__Password` and `Redis__ConnectionString` are `@Microsoft.KeyVault(...)` references. The pattern is half-applied. Anyone holding Contributor — which includes the deploy service principal — reads them with one CLI call. Phase 7's "no secrets in source (verified)" was and remains true; it simply never asked where secrets live at rest in configuration.
 
 **5. The application connects to PostgreSQL as the server administrator.** *Live-verified, definitive.* Both sites' live connection strings use `Username=akerogarden_admin`; the server's `administratorLogin` is `akerogarden_admin`. The application runtime therefore holds rights to drop the database and manage roles. This compounds #4: the credential exposed in plaintext is the most privileged one available.
+
+> **✅ RESOLVED 2026-09-09 — for the public host, deliberately not for admin.**
+>
+> A least-privilege role `akerogarden_public` now serves the internet-facing site: `CONNECT`, `USAGE` on the schema, and `SELECT/INSERT/UPDATE/DELETE` plus sequence access on the data. Verified on both environments that it **cannot** create tables, create roles, or act as superuser. `ALTER DEFAULT PRIVILEGES FOR ROLE akerogarden_admin` covers tables future migrations create — without that the role works until the next migration and then fails on a page nobody tested.
+>
+> **The admin host still connects as the owner, and that is the honest limit of this fix.** It runs `MigrateAsync` at startup, which needs DDL. Moving migrations into the deploy pipeline was considered and is **not available**: PostgreSQL is VNet-only and the hosted build agent cannot reach it, so migrations must run from inside the VNet — which means from the app container. The alternative, a second owner-credential used only for the migration call, was judged not worth the extra moving parts on a live database for a panel one person uses.
+>
+> What this buys: the process handling anonymous internet traffic can no longer alter or destroy the schema. What it does not buy: the admin process still can. If migrations ever move out of app startup, finish the job.
+>
+> Staging first, then production, each verified by the same three privilege queries before the credential was switched — and staging additionally by a real booking submission, which is the only check that exercises `INSERT` and the identity sequence together.
 
 **6. SCM and FTP basic publishing credentials are enabled and internet-reachable on both production sites.** *Live-verified.* `basicPublishingCredentialsPolicies/ftp` and `/scm` both return `allow: true`, and both `jmk-ag-prod-{public,admin}.scm.azurewebsites.net` answer **401** (reachable, auth required) rather than 403. Deploys authenticate via the Azure DevOps service principal, so this is a credential-based path into the container that nothing uses. Kudu grants file-system and console access to a container whose environment holds the database administrator password. Neither policy is declared in Bicep.
 
@@ -193,9 +226,9 @@ Four questions per finding: is it a live defect or hardening; who owns it; does 
 | # | Finding | Defect / Hardening | Owner | Decision first? | Cost | Verdict |
 |---|---|---|---|---|---|---|
 | 1 | Completion tokens in App Insights | Defect (live exposure) | Dev | No | ~1h | **✅ DONE, VERIFIED IN PRODUCTION 2026-09-09** — a probe request to `/slutfor/<token>` was recorded as `…/slutfor/redacted`. Historic rows: purge still `pending` (below) |
-| 2 | `PK_AuditLogs` crash | Defect (live) | Dev | No | Unknown | **INVESTIGATE** → fix |
+| 2 | `PK_AuditLogs` crash | Defect (live) | Dev | No | ~2h | **✅ ROOT CAUSE FOUND & FIXED (code) 2026-09-09** — slow SMTP inside the window where an audit row was pending, on a circuit-shared `DbContext`. Invite paths now commit before sending; the accounts page serialises actions. Structural fix logged below as deferred |
 | 3 | Plaintext secrets in app settings | Hardening | Dev + owner | ✅ Decided | ~2h | **✅ DONE 2026-09-09** — Postgres → Key Vault ref; blob key removed via #9; `Seed__AdminPassword` deleted. Verified: **no plaintext secret in any of the four apps** |
-| 4 | App runs as Postgres server admin | Hardening | Owner | ✅ Decided | ½ day + window | **FIX** — least-privilege app role, rotate off `akerogarden_admin` |
+| 4 | App runs as Postgres server admin | Hardening | Owner | ✅ Decided | ½ day + window | **✅ DONE 2026-09-09, both environments** — the PUBLIC host now connects as `akerogarden_public`: DML only, verified `can_create_tables = f`, `can_make_roles = f`, `is_superuser = f`. Admin keeps the owner credential because migrations must run from inside the VNet. Scope was a deliberate choice, see below |
 | 5 | SCM/FTP basic auth enabled | Hardening | Owner (`az`) | No | 5 min | **◑ staging DONE 2026-09-08** (all four policies `allow=false`) · prod pending |
 | 6 | Key Vault purge protection / soft-delete / network | Hardening | Owner (`az`) | ✅ Decided | 15 min | **✅ DONE 2026-09-08** — purge protection on, audit logging on. **90-day retention REFUSED by Azure** — `softDeleteRetentionInDays` is immutable once set, so 7 days is permanent for this vault |
 | 7 | No diagnostic settings anywhere | Hardening | Dev (Bicep) | ✅ Decided | ~1h | **◑ Key Vault `AuditEvent` DONE 2026-09-08** · Postgres logs pending, gated on #13's ingestion drop |
@@ -207,20 +240,20 @@ Four questions per finding: is it a live defect or hardening; who owns it; does 
 | 13 | Telemetry at 55–60 % of daily cap | Hardening | Owner | ✅ Decided | 15 min | **◑ PARKED 2026-09-09 — good enough, not worth more cycles.** `AppPerformanceCounters` is off and verified at zero rows. The OTel-instrument view is restored after being removed on a bad measurement (see below) and ships with the next deploy, no cycle of its own. Nothing is broken and the cap has never been hit; close it opportunistically |
 | 14 | No `EnableRetryOnFailure` | Resilience | Dev | No | 15 min | **✅ merged PR !66 and OBSERVED WORKING** — retried a real transient Postgres timeout on `/boka`, 2026-09-09 08:47 |
 | 15 | autoGrow off, no storage alert, 7-day backups | Risk position | Owner | ✅ Decided | ~30 min | **✅ DONE 2026-09-08/09** — `autoGrow: Enabled`, `backupRetentionDays: 35`, 80 % storage alert in `alerts.bicep` |
-| 16 | Every 404 throws router exception | Defect | Dev | No | Unknown | **INVESTIGATE** |
-| 17 | `/Error` 500s on cold start | Defect? | Dev | ✅ Decided | ~1h | **INVESTIGATE** — does it 500 outside a restart window? |
+| 16 | Every 404 throws router exception | Defect | Dev | No | Unknown | **◑ PARKED 2026-09-09 — log noise, no user impact.** 404s return 404 correctly. Not 1:1 with 404s (8 exceptions against 6 x 404 in the same hour), declining 25→15→8 over three days, and **none since the 10:15 deploy** across subsequent 404s and a deliberate probe. Cause never found; both `NotFoundPage` and `UseStatusCodePagesWithReExecute` are wired, which is redundant and the likeliest conflict. Re-open if it rises or reaches a user |
+| 17 | `/Error` 500s on cold start | Not a defect | Dev | ✅ Decided | ~1h | **✅ CLOSED 2026-09-09 — investigated, not a defect.** Every `/Error` 500 in 30-day retention falls inside a restart window. The single outlier (2026-09-09 08:45, 183 s out) is the transient Postgres timeout EF retried — a database fault surfacing through the error page, not the error page failing |
 | 18 | No alert if nightly jobs stop | Hardening | Dev (Bicep) | No | ~30 min | **◑ rule written in `alerts.bicep`** — not applied to Azure |
 | 19 | `Server: Kestrel` disclosed | Hardening | Dev | No | 5 min | **✅ DONE, verified live 2026-09-09** — no `Server` header on either host |
 | 20 | No `healthCheckPath`, HTTP/2 off, HEAD→405 | Hardening | Dev + owner | No | ~30 min | **◑ `/health` LIVE on both hosts (returns `Healthy`, and absent from sitemap.xml — verified 2026-09-09)**. `healthCheckPath` + HTTP/2 are Bicep-only and **not applied**, so App Service still does not probe. HEAD→405 deliberately not pursued |
 | 21 | `ReturnUrl` never honoured | UX defect | Dev | No | ~30 min | **✅ deployed 2026-09-09** — needs an authenticated session to observe; covered by `LocalUrl` unit tests |
 | 22 | Two Owners, SP Contributor on both envs | Risk position | Owner | ✅ Decided | 15 min | **✅ DONE 2026-09-08** — SP now `Website Contributor` on both RGs; Owner roles unchanged |
-| 23 | No smart-detection rule | Hardening | Dev | ✅ Decided | ~1h | **INVESTIGATE** — is anomaly detection worth adding over threshold alerts? |
+| 23 | No smart-detection rule | Hardening | Dev | ✅ Decided | ~1h | **✅ CLOSED 2026-09-09 — investigated, ACCEPTED.** 5xx runs 12–25/day, essentially all clustered in cold starts, against 1,700–3,800 requests. Anomaly detection over that would mostly relearn "deploys cause 5xx". The existing threshold alerts (10 × Http5xx / 5 min, per site) already cover a real spike. First accepted item in this review |
 | 24 | `clientAffinityEnabled` undeclared | Hardening | — | — | — | Folded into #10 |
 | 25 | CSP blocks every facility image | Defect (latent in prod) | Dev | ✅ Decided | ~3h | **✅ FIXED (code) 2026-09-09** — app-hosted `/bilder/{name}` endpoint, container made private. Awaiting deploy |
 
 **Unknowns:** DataProtection durability → one answer closes it · Redis HA drift → **INVESTIGATE**, ~10 min · `SslMode=Require` → **INVESTIGATE**, ~5 min
 
-**Tally:** 19 to fix · 4 to investigate · **0 accepted** · #24 folded into #10. **Every row is ratified; nothing is left undecided and nothing is being left open.**
+**Tally:** 19 to fix · 4 to investigate · **1 accepted (#23)** · #24 folded into #10. **Every row is ratified; nothing is left undecided and nothing is being left open.**
 
 **Progress at 2026-09-09, after both deployments.** **Verified against the running system:** #1 (a probe request came back as `/slutfor/redacted`), #10 (zero cookies on the public sites, `Serverkoppling` row published), #19 (no `Server` header), #20's `/health` endpoint, plus #3, #6, #9, #15, #22 on the Azure side. **Deployed but not externally observable** — covered by tests rather than by a live probe: #8, #11, #12, #21. **Half done:** #5 and #7 on staging only; #20's Bicep half unapplied, so App Service still does not probe `/health`.
 
@@ -230,7 +263,13 @@ Both mechanisms are needed and they cover different sources: the view stops the 
 
 Two things worth carrying forward. The measurement error is the same one the corrections register already records — a conclusion drawn from data that could not support it — but this time it destroyed working code rather than just producing a wrong claim. And the item never justified the attention: #13 is spare headroom on a cap that has never been hit, and it consumed three deploy cycles. Severity should govern how much effort a finding gets, and here it did not. Of the three unknowns, **DataProtection durability is closed**; Redis HA drift and `SslMode=Require` remain open exactly as recorded.
 
-Still outstanding: **#4** (least-privilege Postgres role — the only item needing a maintenance window), **#5 prod**, **#7 Postgres logs**, **#13 (rewritten, awaiting deploy)**, **#20's Bicep apply**, **#18's alert rule apply**, and the four investigations (#2, #16, #17, #23).
+Still outstanding: **#20's Bicep apply** and **#18's alert rule apply** (both declared in code, neither applied to Azure), and **#16** (parked as log noise). **#4 is complete.** Every other finding is fixed, closed, or consciously parked. #5, #7 and #13 are complete; #2, #17 and #23 are investigated and closed.
+
+**A 26th item was raised by the maintainer on 2026-09-09, not by this review — ✅ FIXED the same day.** The admin UI had no way to *remove* a facility image, only replace one, and no code path deleted a blob at all, so every replacement orphaned the previous file permanently. FR-27 specifies uploading and never mentions removal, so this was an unspecified gap rather than a violated requirement.
+
+A "Ta bort bild" control now clears the image, and `FacilityService` deletes the superseded blob on replace, on clear, and on hard-delete of the facility. Cleanup runs **after** the commit and never throws: the database is the record of what a facility has, and a storage hiccup must not discard a completed edit — an orphan is a tidiness problem, a failed save is a real one. Four integration tests cover replace, clear, an unrelated edit that must delete nothing, and a storage failure that must not fail the edit; verified by mutation.
+
+**Also fixed, after the maintainer rejected leaving it:** uploading happened the moment a file was chosen, so picking one and then closing the panel orphaned a blob created by an action that had been explicitly cancelled. It was left out of the first pass as "rarer than the replace path", which missed the stronger objection — removal already waits for *Spara*, so the same gesture had two different contracts depending on direction. Selection now holds the file in memory and only `Save` uploads; closing the panel discards it. Guarded by a source scan asserting the upload call lives in `Save` and appears exactly once, following the existing `NoInlineStyleAttributeTests` pattern, because the rule lives in component flow that neither the unit nor the out-of-process E2E tier can reach behaviourally.
 
 **The historic-token purge has not completed.** The seven purge operations issued on 2026-09-08 all still report `pending` ~20 hours later, and six unredacted `/slutfor` rows remain in `AppRequests`. New requests are redacted, so the exposure is not growing; the backlog is simply still there. Purge is asynchronous and Azure gives no completion estimate, so this needs re-checking rather than assuming, and the rows age out of the 30-day retention regardless.
 

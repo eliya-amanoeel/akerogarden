@@ -58,7 +58,7 @@ else
                             {
                                 <select aria-label="@($"Roll för {user.Email}")"
                                         value="@RoleOf(user)"
-                                        @onchange="e => ChangeRole(user, e.Value?.ToString())">
+                                        @onchange="e => RunGuarded(() => ChangeRole(user, e.Value?.ToString()))">
                                     @foreach (var role in AdminRoles.All)
                                     {
                                         <option value="@role" selected="@(RoleOf(user) == role)">@role</option>
@@ -83,18 +83,18 @@ else
                         <td class="rowactions">
                             @if (user.SetupCompletedAt is null)
                             {
-                                <button class="btn-ghost" @onclick="() => ResendInvite(user)">Skicka ny inbjudan</button>
-                                <button class="btn-ghost" @onclick="() => RequestRemoveInvite(user)">Ta bort</button>
+                                <button class="btn-ghost" @onclick="() => RunGuarded(() => ResendInvite(user))" disabled="@_busy">Skicka ny inbjudan</button>
+                                <button class="btn-ghost" @onclick="() => RequestRemoveInvite(user)" disabled="@_busy">Ta bort</button>
                             }
                             else if (user.Id != _currentUserId)
                             {
                                 @if (user.IsActive)
                                 {
-                                    <button class="btn-ghost" @onclick="() => Deactivate(user)">Inaktivera</button>
+                                    <button class="btn-ghost" @onclick="() => RunGuarded(() => Deactivate(user))" disabled="@_busy">Inaktivera</button>
                                 }
                                 else
                                 {
-                                    <button class="btn-ghost" @onclick="() => Activate(user)">Aktivera</button>
+                                    <button class="btn-ghost" @onclick="() => RunGuarded(() => Activate(user))" disabled="@_busy">Aktivera</button>
                                 }
                             }
                             else
@@ -146,7 +146,7 @@ else
                             {
                                 <select aria-label="@($"Roll för {user.Email}")"
                                         value="@RoleOf(user)"
-                                        @onchange="e => ChangeRole(user, e.Value?.ToString())">
+                                        @onchange="e => RunGuarded(() => ChangeRole(user, e.Value?.ToString()))">
                                     @foreach (var role in AdminRoles.All)
                                     {
                                         <option value="@role" selected="@(RoleOf(user) == role)">@role</option>
@@ -159,18 +159,18 @@ else
                 <Actions>
                     @if (user.SetupCompletedAt is null)
                     {
-                        <button class="btn-ghost btn-sm" @onclick="() => ResendInvite(user)">Skicka ny inbjudan</button>
-                        <button class="btn-ghost btn-sm" @onclick="() => RequestRemoveInvite(user)">Ta bort</button>
+                        <button class="btn-ghost btn-sm" @onclick="() => RunGuarded(() => ResendInvite(user))" disabled="@_busy">Skicka ny inbjudan</button>
+                        <button class="btn-ghost btn-sm" @onclick="() => RequestRemoveInvite(user)" disabled="@_busy">Ta bort</button>
                     }
                     else if (user.Id != _currentUserId)
                     {
                         @if (user.IsActive)
                         {
-                            <button class="btn-ghost btn-sm" @onclick="() => Deactivate(user)">Inaktivera</button>
+                            <button class="btn-ghost btn-sm" @onclick="() => RunGuarded(() => Deactivate(user))" disabled="@_busy">Inaktivera</button>
                         }
                         else
                         {
-                            <button class="btn-ghost btn-sm" @onclick="() => Activate(user)">Aktivera</button>
+                            <button class="btn-ghost btn-sm" @onclick="() => RunGuarded(() => Activate(user))" disabled="@_busy">Aktivera</button>
                         }
                     }
                     else
@@ -182,7 +182,7 @@ else
         }
     </div>
 
-    <EditForm Model="_invite" OnValidSubmit="SendInvite">
+    <EditForm Model="_invite" OnValidSubmit="@(() => RunGuarded(SendInvite))">
         <DataAnnotationsValidator />
         <AdminPanel Visible="_invitePanelOpen" Title="Bjud in användare" OnClose="CloseInvitePanel">
             <ChildContent>
@@ -204,7 +204,7 @@ else
                 </div>
             </ChildContent>
             <Footer>
-                <button type="submit" class="btn">Skicka inbjudan</button>
+                <button type="submit" class="btn" disabled="@_busy">Skicka inbjudan</button>
             </Footer>
         </AdminPanel>
     </EditForm>
@@ -213,7 +213,7 @@ else
 <ConfirmDialog Visible="_pendingRemove is not null"
                Title="Ta bort inbjudan"
                Message="@($"Vill du ta bort inbjudan för {_pendingRemove?.Email}? Detta går inte att ångra.")"
-               OnConfirm="ConfirmRemoveInvite"
+               OnConfirm="@(() => RunGuarded(ConfirmRemoveInvite))"
                OnCancel="CancelRemoveInvite" />
 
 @code {
@@ -244,6 +244,34 @@ else
 
         _roles[user.Id] = role;
         _message = ToastMessage.Ok($"{user.Email} har nu rollen {role}.");
+    }
+
+    // One action at a time (post-launch security review, finding #2).
+    //
+    // The admin host shares ONE DbContext for the whole Blazor circuit. Two handlers overlapping
+    // therefore call SaveChangesAsync over the SAME change tracker, both flush every pending row, and
+    // the loser gets a duplicate-key violation that kills the circuit. That happened on production on
+    // 2026-09-08: two clicks three seconds apart while an invite email was still sending.
+    //
+    // AdminInviteService now commits before it sends, which removes the long window. This removes the
+    // overlap itself, and doubles as ordinary double-submit protection the page never had.
+    //
+    // Not a lock: Blazor circuit events are already serialised onto one thread, so this only needs to
+    // reject a second click that arrives while the first is awaiting.
+    private bool _busy;
+
+    private async Task RunGuarded(Func<Task> action)
+    {
+        if (_busy) return;
+        _busy = true;
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private async Task LoadUsersAsync()

@@ -59,19 +59,34 @@ Both sites in an environment have VNet integration into `app-subnet`, in the sam
    ```
 
 3. **Read the DB connection string from the environment.**
-   App settings are exposed as env vars with `__` for nesting:
+   App settings are exposed as env vars with `__` for nesting. Key Vault references are resolved by
+   App Service before the process sees them, so this prints the real value even though the app
+   setting is a `@Microsoft.KeyVault(...)` reference:
    ```bash
-   echo $ConnectionStrings__Postgres
+   echo $ConnectionStrings__Postgres | sed -E 's/Password=[^;]*/Password=<hidden>/'
    ```
    Prints an Npgsql-format string: `Host=...;Database=...;Username=...;Password=...;SslMode=Require`.
 
-   > On production this prints a **live credential** to the terminal. Don't screenshot it, and close the session when done.
+   > On production the un-masked form prints a **live credential** to the terminal. Don't screenshot
+   > it, and close the session when done.
 
-4. **Convert to `psql` (libpq) format and connect.**
-   `psql` wants lowercase, space-separated `key=value` pairs, not semicolons:
+   > ⚠️ **The two sites now use DIFFERENT database accounts** (post-launch security review #4,
+   > 2026-09-09). The **admin** site connects as `akerogarden_admin`, the owner — it runs the EF
+   > migrations, so it needs DDL. The **public** site connects as `akerogarden_public`, which can read
+   > and write rows but **cannot create or alter tables**. SSH into the **admin** site for anything
+   > schema-related; from the public container you will get `permission denied` on any DDL and it will
+   > look like a broken database rather than a deliberate restriction.
+
+4. **Connect.** Pass the password via `PGPASSWORD` rather than putting it on the command line — real
+   passwords here contain `!` and `$`, which bash will try to interpret inside double quotes and which
+   otherwise land in your shell history:
    ```bash
-   psql "host=<Host> dbname=<Database> user=<Username> password=<Password> sslmode=require"
+   PGPASSWORD=$(printf '%s' "$ConnectionStrings__Postgres" | sed -n 's/.*Password=\([^;]*\).*/\1/p') \
+   psql "host=<Host> dbname=<Database> user=<Username> sslmode=require"
    ```
+   That takes the credential straight from the app's own environment — no copy-paste, no quoting
+   problems. If you must paste a password by hand, use `set +H` first (turns off history expansion)
+   and `read -rs` to take it without echoing.
 
 5. **Run your query**, e.g.:
    ```sql

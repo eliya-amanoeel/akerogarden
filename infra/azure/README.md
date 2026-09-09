@@ -60,9 +60,13 @@ will not arrive.
 - `geoRedundantBackup` is left **disabled** (the template does not set it, so it defaults off). Backup
   protection is local PITR, which is what actually defends against the realistic failure — a bad
   migration or an accidental delete. Note this is believed to be settable **only at server creation**.
-- **Storage autogrow is disabled** and storage is 32 GiB. If the database ever fills that, PostgreSQL
-  goes read-only and the booking system stops accepting writes. Autogrow *can* be enabled after
-  creation, so this is a monitoring concern rather than a provisioning decision.
+- **Storage autogrow is ENABLED** (changed 2026-09-09, post-launch security review #15) and storage
+  starts at 32 GiB. Before that it was off, so filling the disk would have put PostgreSQL into
+  read-only and stopped the booking system accepting writes — with no warning. A `storage_percent`
+  alert at 80 % now fires ahead of the ~90 % autogrow trigger, so growth is visible before the
+  platform acts and bills for a larger disk.
+- **Backup retention is 35 days**, raised from the 7-day minimum at the same time. Geo-redundant
+  backup remains unavailable on Burstable and unset; see the note below.
 
 **App Service — B1 (Basic):**
 

@@ -707,11 +707,21 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
    Phone-only docked CTA
    Desktop keeps the header CTA in view, so this is mobile-only. Measured at 375px the hero
    CTA lands ~60px below the fold once browser chrome is counted, and the header CTA is inside
-   the collapsed hamburger — leaving a first screen with no route to the funnel.
+   the collapsed hamburger — leaving a first screen with nothing visible that routes to the
+   funnel. The CTA is still reachable there, one tap into the hamburger; what the bar buys is
+   that the route is on screen rather than behind a menu.
+
+   The breakpoint is `40em`, not `640px` — the same 640px at a default root, so nothing moves
+   for a default visitor. It was pinned to px on the reasoning that "is this a phone" is not a
+   "does this fit" question. That framing was wrong: what the bar answers is whether the CTA is
+   on the first screen, and that moves with the reader's text setting. The header's inline-nav
+   switch is `64em`, so a larger setting keeps the CTA behind the hamburger at widths where a
+   px bar had already been dropped — the bar became less available exactly as it became more
+   useful. It is deliberately *not* tied to the `64em` switch; see design.md for why.
    ============================================================ */
 .mobile-cta { display: none; }
 
-@media (max-width: 640px) {
+@media (max-width: 40em) {
     .mobile-cta {
         display: block;
         position: fixed;

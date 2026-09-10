@@ -74,9 +74,10 @@ public class PrintStylesheetTests(E2EFixture fixture) : PublicE2ETestBase(fixtur
     [Fact]
     public async Task The_docked_mobile_cta_does_not_print()
     {
-        // The docked CTA only exists below 640px, so this is the one rule that cannot be checked at
-        // the desktop viewport the other tests use — it would read as "hidden" there for the wrong
-        // reason, and the test would prove nothing.
+        // The docked CTA only exists below 40em — 640px at the default root this browser runs at —
+        // so this is the one rule that cannot be checked at the desktop viewport the other tests
+        // use: it would read as "hidden" there for the wrong reason, and the test would prove
+        // nothing.
         await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
         await Page.GotoAsync("/");
 

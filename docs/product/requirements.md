@@ -734,7 +734,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | ID | Requirement |
 |---|---|
 | NFR-11 | 99% uptime target, consistent with Azure App Service Basic tier SLA |
-| NFR-12 | Automated daily database backups with 7-day point-in-time restore |
+| NFR-12 | Automated daily database backups with point-in-time restore of **at least 7 days** (35 in production since 2026-09-09) |
 | NFR-13 | Failed email sends are logged and retried; email failure does not fail the booking operation |
 | NFR-29 | A restore drill shall be performed quarterly to confirm backups are actually restorable, with results documented. Not satisfied merely by the existence of automated backups |
 | NFR-31 | End-to-end email delivery (admin notification and all guest-facing emails) shall be verified against the production SMTP configuration before go-live, not assumed to work from a successful build |
@@ -1107,7 +1107,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 | Service | Azure tier | Est. monthly (USD) | Purpose |
 |---|---|---|---|
 | Azure App Service | Basic B1 (Linux) | ~$13 | Hosts both the public and admin Blazor apps as two sites on one B1 plan (the plan, not the site, is the billing unit — the second site is $0) |
-| Azure Database for PostgreSQL Flexible Server | Burstable B1ms | ~$17 | Primary database — compute ~$13 + 32 GB storage ~$4; daily backups within the free allotment |
+| Azure Database for PostgreSQL Flexible Server | Burstable B1ms | ~$17 | Primary database — compute ~$13 + 32 GB storage ~$4; daily backups, see the backup-retention note below |
 | Azure Blob Storage | Hot tier, LRS | ~$1–2 | List downloads; facility images; uploaded media |
 | Azure Managed Redis | Balanced B0 | ~$13 | Distributed rate-limit counters (NFR-04); successor to the retired Azure Cache for Redis |
 | Azure-managed SSL | Included | $0 | HTTPS certificate management (per-site cert on each of the two sites) |
@@ -1116,7 +1116,9 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 | Key Vault | Standard | ~$0 | Secret storage; per-operation pricing, negligible at this volume |
 | **Total** | | **~$45/month** | |
 
-> Prices are USD pay-as-you-go list prices verified against the Azure Retail Prices API for North Europe, July 2026. Traffic-driven costs (bandwidth egress, blob transactions, Redis ops) are negligible at this site's volume — the first 100 GB/month of egress is free. Re-verify at [azure.microsoft.com/pricing/calculator](https://azure.microsoft.com/pricing/calculator) before client sign-off.
+> Prices are USD pay-as-you-go list prices verified against the Azure Retail Prices API for North Europe, July 2026. Traffic-driven costs (bandwidth egress, blob transactions, Redis ops) are negligible at this site's volume — the first 100 GB/month of egress is free. The client has owned the subscription and been billed directly since go-live (2026-09-07), so this table is a **documented cost baseline, not a quote awaiting approval** — where it and a real invoice disagree, the invoice is authoritative. That is why there is no longer a re-verify-before-sign-off step here; the figures are kept honest by the note below rather than by a gate that has already passed.
+>
+> **Backup retention changed after this estimate, so the backup line is no longer confirmed free.** Retention was 7 days when these figures were taken, and daily backups sat inside the free allotment — which equals the provisioned storage, 32 GB. It was raised to **35 days on 2026-09-09** (post-launch security review, finding #15). `backup_storage_used` measured **7.0 GiB on 2026-09-10**, but that is steady state for the *old* 7-day window and does not predict the 35-day one: roughly five weekly full backups plus differentials and WAL could plausibly approach the 32 GB allotment. **Re-measure once a full 35-day cycle has elapsed (from ~2026-10-14)** before treating this line as free; charged backup storage is a small per-GB/month amount, so the exposure is dollars, not tens of dollars. The SKUs themselves were re-verified live on 2026-09-10 and match this table.
 
 ### 11.1 Environments
 

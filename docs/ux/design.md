@@ -330,13 +330,24 @@ Two findings worth keeping, because both cost a re-measure to discover:
   32px root until those pins became `30em` too.
 - **`max-width` breakpoints follow the same rule.** Converted: the admin sidebar collapse
   (`860px` → `53.75em`), the table→cards swap (`640px` → `40em`), the Byggnader toolbar columns
-  (`640px` → `40em`), `.prow__age` (`560px` → `35em`) and the calendar selection bar docking to
-  the bottom (`640px` → `40em`). Two were deliberately **left in `px`**, because they are not
-  "does this fit" questions: `.mobile-cta` appearing at `640px` (a *is this a phone* judgement —
-  though note the docked CTA becomes more valuable at a large text size, since the header
-  collapses to a hamburger, so this is worth revisiting as a product decision), and the
-  `530px` find-here-map type sizes, which are art-direction values measured against the drawing's
-  scale factor and should not be disturbed casually.
+  (`640px` → `40em`), `.prow__age` (`560px` → `35em`), the calendar selection bar docking to
+  the bottom (`640px` → `40em`), and — **decided 2026-09-10, having been left open** —
+  `.mobile-cta` (`640px` → `40em`). One value is deliberately **left in `px`**, because it is not
+  a "does this fit" question: the `530px` find-here-map type sizes, which are art-direction
+  values measured against the drawing's scale factor and should not be disturbed casually.
+- **Why `.mobile-cta` moved, having first been kept in `px`.** It was pinned as an *is this a
+  phone* judgement, which is not a "does this fit" question. The framing was wrong. What the bar
+  answers is whether the booking CTA is **on the first screen**, and that moves with the reader's
+  text setting: the header's inline-nav switch is `64em`, so a larger setting keeps the CTA
+  inside the hamburger at widths where a `px` bar had already been dropped — the bar became less
+  available exactly as it became more useful. `40em` is 640px at a default root, so nothing moves
+  for a default visitor. **It is deliberately not tied to the `64em` hamburger switch**, which
+  would close the gap completely: that would dock a bar on every 768px tablet and would change
+  what a default visitor sees, which this whole pass exists to avoid. A band therefore remains
+  between `40em` and `64em` where the hamburger shows and the bar does not. That residue is a
+  judgement, not a measurement — the only fold measurement on record is the original one at
+  375px — and what makes it tolerable is that the CTA stays reachable one tap inside the menu.
+  If the funnel ever needs the zero-tap route at tablet widths, measure the fold there first.
 - **The admin sidebar width was a fixed `236px`.** It is sized to hold its own labels, so it is
   text-derived and is now `14.75rem` — the identical width at a default root. Its content track is
   `minmax(0, 1fr)` so a wide table cannot push the grid past the viewport.

@@ -54,7 +54,8 @@
 
     @* Phone-only docked call to action. On a phone the header CTA is hidden inside the
        hamburger panel and the hero CTA sits below the fold, so a visitor could see a screen
-       with no way to book at all. Last in the DOM so it never disturbs reading order. *@
+       with no visible way to book — it is still one tap inside the menu, which is the gap this
+       closes. Last in the DOM so it never disturbs reading order. *@
     @if (ShowMobileCta)
     {
         <div class="mobile-cta">

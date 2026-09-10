@@ -19,7 +19,7 @@ one.com is the **registrar + DNS host + email provider** for `akerogarden.se`. T
 
 The app sends every guest/admin email through One.com SMTP (`send.one.com`) authenticating as a mailbox on this domain — breaking those records silently kills all mail, and DMARC/SPF changes can also land future mail in spam (see the Phase 8 spam-placement note in the implementation plan).
 
-**What *does* change:** the apex `A` record, the `admin` subdomain's `CNAME`, `asuid`/`asuid.admin` `TXT` records (Azure domain-ownership verification), and the `www` handling. That's it.
+**What *does* change:** the apex `A` record, the `admin` subdomain's `CNAME`, the `asuid` `TXT` record (Azure domain-ownership verification), a temporary `asuid.admin` `TXT` (removed again after binding — see Part C), and the `www` handling. That's it.
 
 ---
 
@@ -81,11 +81,28 @@ An apex domain cannot use `CNAME` (DNS spec restriction), so apex and subdomain 
 | Host | Type | Value | Purpose |
 |---|---|---|---|
 | `@` (apex, `akerogarden.se`) | `A` | *(inbound IP from Part B)* | Points the bare domain at the **public** site |
-| `asuid` | `TXT` | *(verification ID from Part B)* | Proves apex domain ownership to Azure |
+| `asuid` | `TXT` | *(verification ID from Part B)* | **Permanent.** The only ownership proof the apex has — see the box below |
 | `admin` | `CNAME` | `jmk-ag-prod-admin.azurewebsites.net` | Points `admin.akerogarden.se` at the **admin** site |
-| `asuid.admin` | `TXT` | *(same verification ID)* | Proves `admin` subdomain ownership to Azure |
+| `asuid.admin` | `TXT` | *(same verification ID)* | **Temporary.** Speeds up binding; delete after Part D — see the box below |
 
 Leave existing `MX`/`SPF`/`DKIM`/`DMARC`/mailbox records untouched.
+
+> ### `asuid` — the apex record is permanent, the subdomain ones are temporary
+>
+> Identical value, completely different lifetimes:
+>
+> - **`asuid.akerogarden.se` is mandatory and permanent.** An apex cannot be a `CNAME`, so the apex is an `A` record and Azure has no mapping to validate against — this TXT is the only ownership proof it has. It is re-checked at **App Service Managed Certificate renewal**, not only at binding, so deleting it fails silently: the apex certificate quietly stops renewing and the site breaks on expiry, months later and with nothing linking the two events.
+> - **`asuid.<subdomain>` is optional.** A CNAME-mapped hostname is validated against its own `CNAME`, so the TXT is a redundant second proof. Its only value is *timing* — pre-staged, it satisfies the ownership check before the `CNAME` flips, so binding and certificate issuance start immediately rather than waiting on TXT propagation inside the cutover window.
+>
+> **So: add the subdomain `asuid` records for a cutover, delete them once the hostnames are bound and the certs issued.** They earn nothing in steady state.
+>
+> The one thing that would make a subdomain `asuid` load-bearing is the hostname not being a real `CNAME` — a provider that flattens `CNAME`s to `A` records leaves CNAME validation with nothing to read. one.com does not flatten (verified 2026-09-10). Confirm before deleting; the answer must be a hostname, not an address:
+>
+> ```bash
+> dig +short @ns01.one.com admin.akerogarden.se CNAME   # → jmk-ag-prod-admin.azurewebsites.net.
+> ```
+>
+> **State as of 2026-09-10:** `asuid.admin`, `asuid.staging` and `asuid.admin.staging` were **deleted** after binding. All four managed certs (issuer `GeoTrust TLS RSA CA G1`, expiring 2027-03-07) renew off the `CNAME` mapping; only `asuid.akerogarden.se` remains. If you are reading this wondering where they went — nothing is missing.
 
 > ### ⚠️ The apex `A`, `AAAA`, `www` and `MX` records are NOT in one.com's DNS list — and there is nothing to edit or delete
 >
@@ -109,7 +126,7 @@ Leave existing `MX`/`SPF`/`DKIM`/`DMARC`/mailbox records untouched.
 
 **Do not delete the old WordPress `A`/`www` records yet** — see Part F (soak period). *(At the 2026-09-07 cutover there were none to delete: the apex was displaced automatically, and `www` was replaced by the Part E web forward.)*
 
-> **The two `asuid` `TXT` records should already be in place** — they are staged early, back in **Phase 10c**, because they only prove domain ownership and carry no traffic, so adding them cannot affect the still-live WordPress site. Pre-staging them means Azure's ownership check is already satisfied when the `A`/`CNAME` flip here, and certificate issuance in Part D starts immediately instead of waiting on TXT propagation inside the cutover window. If they are missing, add them now and allow for propagation before Part D. **The `A` and `CNAME` records are the only genuinely destructive edits in this runbook** — they are what moves live traffic.
+> **The `asuid` `TXT` records should already be in place** — they were staged early, back in **Phase 10c**, because they only prove domain ownership and carry no traffic, so adding them cannot affect the still-live WordPress site. Pre-staging them means Azure's ownership check is already satisfied when the `A`/`CNAME` flip here, and certificate issuance in Part D starts immediately instead of waiting on TXT propagation inside the cutover window. If they are missing, add them now and allow for propagation before Part D. **Expect `asuid.admin` to be missing** — it is deleted in steady state by design (see the box in Part C), so a rebuild starts by re-adding it; the apex `asuid`, by contrast, should never have been absent. **The `A` and `CNAME` records are the only genuinely destructive edits in this runbook** — they are what moves live traffic.
 
 ---
 
@@ -222,6 +239,7 @@ relies on a `www` link:
 2. Confirm `https://akerogarden.se` and `https://admin.akerogarden.se` both load, SSL padlock valid, no mixed-content warnings.
 3. Once confirmed, decommission the WordPress **web hosting only** in one.com — leave the DNS zone, registration, and all email records exactly as they are.
 4. Now safe to remove the old WordPress `A`/`www` records from one.com, if they weren't already overwritten in Part C.
+5. **Delete the subdomain `asuid` `TXT` records** (`asuid.admin`, and on staging `asuid.staging` / `asuid.admin.staging`) now that every hostname is bound and every certificate issued. Keep `asuid.akerogarden.se` — it is permanent (Part C box). Re-verify afterwards: `curl -sI https://admin.akerogarden.se` must still return 200 with a valid cert.
 
 Content parity is a non-issue here — implementation plan notes the live site today is a trivial info page (images + phone/email), so there's nothing to migrate.
 
@@ -337,9 +355,9 @@ ADMIN_HOST      = admin.staging.akerogarden.se  # → admin site
    | Host | Type | Value | Purpose |
    |---|---|---|---|
    | `staging` | `CNAME` | `jmk-ag-staging-public.azurewebsites.net` | Points `staging.akerogarden.se` at the **public** site |
-   | `asuid.staging` | `TXT` | *(verification ID)* | Proves `staging` subdomain ownership to Azure |
+   | `asuid.staging` | `TXT` | *(verification ID)* | **Temporary** — delete after binding (Part C box) |
    | `admin.staging` | `CNAME` | `jmk-ag-staging-admin.azurewebsites.net` | Points `admin.staging.akerogarden.se` at the **admin** site |
-   | `asuid.admin.staging` | `TXT` | *(same verification ID)* | Proves `admin.staging` subdomain ownership to Azure |
+   | `asuid.admin.staging` | `TXT` | *(same verification ID)* | **Temporary** — same |
 
 3. Bind each hostname to its own site (`az webapp config hostname add`, secret-free) and run `ssl.bicep` with `staging.ssl-parameters.json`, same pattern as Part D. (When re-pointing from a prior site — as the 10b cutover did — first remove the hostname from the old site and delete its stale managed cert; see Part D's gotcha.)
 4. No soak/decommission step needed — there's no prior WordPress hosting on these subdomains to retire.

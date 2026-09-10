@@ -123,6 +123,13 @@ public sealed class E2EFixture : IAsyncLifetime
 
     /// <summary>Credentials for the admin user AdminSeeder creates on boot (Seed:AdminEmail/Password
     /// passed via env below). The admin E2E tests log in with these before hitting the dashboard.</summary>
+    /// <summary>The Pending stay request's contact address. Deliberately long and deliberately a
+    /// single unbreakable token — it is the subject of
+    /// <c>Booking_detail_does_not_overflow_horizontally_on_mobile</c>, not incidental seed data.
+    /// A constant rather than a literal in two places so shortening the seed cannot quietly
+    /// disarm that test while leaving it green.</summary>
+    public const string LongContactEmail = "forestandare.familjen-pendlar@samfallighetsforeningen.example.se";
+
     public const string AdminEmail = "e2e-admin@akerogarden.test";
     public const string AdminPassword = "E2e-Admin-Pass1!";
 
@@ -315,7 +322,7 @@ public sealed class E2EFixture : IAsyncLifetime
             // thing that grid ever holds. A short seed address made `.kv` look fine at any text
             // size while a real one did not fit — the same class of false green that
             // `Tillgänglighetsanpassad` produced on /faciliteter (see the facilities seed above).
-            ContactEmail = "forestandare.familjen-pendlar@samfallighetsforeningen.example.se",
+            ContactEmail = LongContactEmail,
             CheckIn = checkIn.AddDays(5),
             CheckOut = checkIn.AddDays(7),
             OvernightGuestCount = 12,

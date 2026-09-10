@@ -1458,7 +1458,13 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
     text-transform: uppercase; letter-spacing: 0.05em; color: var(--color-muted);
     margin: 0;
 }
-.detail-acc__meta { font-size: 0.82rem; color: var(--color-text); text-align: right; }
+/* Holds the guest's contact email, which is one unbreakable token and the widest thing this
+   summary row ever carries. As a flex item its `min-width: auto` floors it at min-content, so
+   without BOTH declarations the row pushes `.detail-acc` wider than the viewport and the whole
+   admin page scrolls sideways on a phone. `min-width: 0` is the half that does the work —
+   `overflow-wrap` alone does not reduce min-content (see the note at .booking-grid). Same
+   pairing as `.data-card__fields`, which needed it for the same content on the mobile list. */
+.detail-acc__meta { font-size: 0.82rem; color: var(--color-text); text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .detail-acc__chev { color: var(--color-muted); font-size: 0.7rem; flex: none; transition: transform var(--transition); }
 .detail-acc[open] > .detail-acc__head { border-bottom: 1px solid var(--color-line); }
 .detail-acc[open] > .detail-acc__head .detail-acc__chev { transform: rotate(180deg); }
@@ -1470,7 +1476,13 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
    Pinned in px, a raised text size fits one address per line and then breaks it mid-token. */
 .kv { display: grid; grid-template-columns: auto 1fr; gap: 0.35rem 1rem; font-size: 0.9rem; max-width: 30rem; }
 .kv dt { color: var(--color-muted); }
-.kv dd { color: var(--color-heading); margin: 0; }
+/* `min-width: 0` released deliberately on the dd only. The `1fr` track is floored by its item's
+   automatic minimum size, which for the contact email is a 60-character unbreakable token — that
+   floor, not the `max-width` above, is what overflowed the page at 360px. The dt track is left
+   alone on purpose: it holds short Swedish labels, and `anywhere` there would break a word like
+   "Organisationsnummer" mid-token for no benefit, since a shrinkable dd already relieves the
+   pressure on it. */
+.kv dd { color: var(--color-heading); margin: 0; min-width: 0; overflow-wrap: anywhere; }
 /* Inline qualifier trailing a value in a dd — "2026-08-15 kl. 15:00", "1200 kr exkl. moms".
    `.sub` was already the markup on BookingDetail's four of these, but the only rule carrying
    that name is `.admin-table .sub`, so inside a .kv it matched nothing and the qualifier

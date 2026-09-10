@@ -184,6 +184,36 @@ The implementation plan requires apex-canonical with `www` 301-redirecting to it
 >
 > Verify with `curl -sIL https://www.akerogarden.se` and check `url_effective` ends at the apex. If a future change makes it a frame or a 302, bind `www.akerogarden.se` in Azure as a third hostname (with its own managed cert) and redirect at the app instead.
 
+There is a second measured behaviour of that forward, found later and worth knowing before anyone
+relies on a `www` link:
+
+> ### ⚠️ The web forward **discards the path** — every `www` URL lands on the homepage
+>
+> Measured 2026-09-09, while verifying the WordPress decommission. one.com's forward sends a
+> bare `Location: https://akerogarden.se` no matter what was requested:
+>
+> ```
+> www/boka             → Location: https://akerogarden.se → 200 (homepage, NOT /boka)
+> www/nonexistent-xyz  → Location: https://akerogarden.se → 200 (homepage, NOT a 404)
+> ```
+>
+> Direct on the apex the same paths behave correctly (`/boka` 200, `/nonexistent-xyz` 404), so
+> this is the forward's behaviour, not the app's.
+>
+> **Why this is easy to miss:** the flattened request returns **200**, so a broken deep link never
+> reports an error anywhere — not to the visitor, not in logs, not to a link checker. It was found
+> only because `www/wp-admin/` returned 200 during the post-decommission sweep and briefly looked
+> like a surviving WordPress install.
+>
+> **Impact is low and was accepted:** the apex is canonical, `www` was never the live host for the
+> Azure site, so there is little indexed under `www` to break. The cost is that any printed or
+> legacy `www.akerogarden.se/<path>` link — including one into the booking funnel — silently
+> delivers the homepage instead.
+>
+> **The fix, if it ever becomes worth a deploy,** is the one named above: bind `www.akerogarden.se`
+> in Azure as a third hostname with its own managed cert and redirect in the app, which preserves
+> the path. Do not "fix" this inside one.com's forward — it offers no path option.
+
 ---
 
 ## Part F — Soak period, then decommission WordPress
@@ -194,6 +224,36 @@ The implementation plan requires apex-canonical with `www` 301-redirecting to it
 4. Now safe to remove the old WordPress `A`/`www` records from one.com, if they weren't already overwritten in Part C.
 
 Content parity is a non-issue here — implementation plan notes the live site today is a trivial info page (images + phone/email), so there's nothing to migrate.
+
+### ✅ WordPress decommissioned — 2026-09-09
+
+Two-day soak served its purpose; nothing resolved to the old hosting and nothing depended on it.
+
+**What was done:** the uploaded files were downloaded off one.com first, then WordPress was
+uninstalled from the one.com control panel and the web root confirmed empty in the file manager.
+
+**Deliberately not taken: a database export.** Judged unnecessary — the old site was a trivial info
+page, the images were already saved, and nothing was being migrated. one.com's uninstall drops the
+WordPress database with the files, so the old page text and settings are gone. This was a decision,
+not an oversight; do not record it as a gap.
+
+**What was left alone, and must stay that way:** the one.com **subscription itself**, the DNS zone,
+the domain registration, every mailbox, `MX`/`SPF`/`DMARC`, and the `www` **Web forward** record.
+
+> ⚠️ **Never execute this step as "cancel the one.com hosting plan".** On one.com the web space, the
+> mailboxes, the DNS zone, the domain registration and the `Web forward` are facets of **one
+> subscription**. Cancelling it takes mail down with the web space — the silent-email-death this
+> runbook warns about, arriving through a door the warning at the top does not name. The job is
+> *empty the web space*, nothing more.
+
+**Verified after (2026-09-09):** apex `A` `51.12.73.224`, apex `AAAA` still empty, `admin` CNAME
+intact, all 6 public routes 200, admin 302 to login, both managed certs valid to 2027-03-07, all
+4 `MX` records present, SPF and DMARC unchanged, `ns01/ns02.one.com` still authoritative,
+`send.one.com` resolving, and zero `wp-content`/`wp-includes`/`wordpress` markers in the served HTML.
+
+> **`www/wp-admin/` returning 200 after the uninstall is not a surviving install** — it is the web
+> forward flattening the path to the apex homepage (see Part E). Check `/wp-admin/` **on the apex**,
+> where it correctly 404s. Anyone re-running this sweep will hit the same false positive.
 
 ---
 
@@ -240,7 +300,7 @@ Log: date/time of cutover, DNS propagation confirmation method used, SSL binding
 | Base URLs | flipped to the real domains on both apps |
 | Magic link | re-verified end to end — inquiry → approval → email → `https://akerogarden.se/slutfor/…` → completion form submitted |
 | Test data | `DELETE FROM "Bookings"` run; reference data retained |
-| WordPress | **still powered, unlinked — soak in progress. Not yet decommissioned.** |
+| WordPress | powered but unlinked at cutover; **decommissioned 2026-09-09** after a two-day soak — see Part F |
 
 **Order actually used:** bind hostnames → DNS records → `ssl.bicep` → `www` forward → base-URL flip → magic-link test → data cleanup. Binding the hostnames *before* touching DNS worked exactly as Part D describes: the pre-staged `asuid` TXT records satisfy ownership, so both bindings succeeded while the apex still pointed at WordPress.
 
@@ -248,8 +308,8 @@ Log: date/time of cutover, DNS propagation confirmation method used, SSL binding
 
 **Still open after cutover:**
 
-- **WordPress hosting not yet decommissioned** (Part F step 3) — deliberate, soak first. When doing it, retire the *web hosting only*; the DNS zone, registration and every mail record stay.
-- The `www` forward is a 308, not the 301 the implementation plan names. Equivalent for canonicalisation; the plan's wording is what's imprecise, not the configuration.
+- ~~WordPress hosting not yet decommissioned~~ — **done 2026-09-09**, web hosting only; zone, registration, mail and the `www` forward all intact. Part F carries the record.
+- The `www` forward is a 308, not the 301 the implementation plan names. Equivalent for canonicalisation; the plan's wording is what's imprecise, not the configuration. **It also drops the path** — see the second Part E note; low severity, accepted.
 - Unrelated to DNS but pending at go-live: the eight client questions in `docs/legal/`, and the email/terms cancellation divergence recorded in `docs/legal/known-conflicts-at-launch.md`.
 
 ---

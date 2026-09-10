@@ -1200,13 +1200,47 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         var pendlarCard = cards.Filter(new() { HasText = "Familjen Pendlar" }).First;
         await Assertions.Expect(pendlarCard.Locator(".badge")).ToBeVisibleAsync();
 
-        // The card itself is the tap target — same navigation the desktop row link offers.
-        await pendlarCard.ClickAsync();
-        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/bokningar/[0-9a-fA-F-]+$"));
-
+        // Measured BEFORE navigating away — this test is about the list, and until 2026-09-10 this
+        // assertion ran after the click and was silently measuring the booking *detail* page while
+        // reporting "Bookings list overflows". The detail page has its own test below.
         var docScrollWidth = await Page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
         Assert.True(docScrollWidth <= Mobile.Width + 1,
             $"Bookings list overflows horizontally at {Mobile.Width}px: scrollWidth={docScrollWidth}.");
+
+        // The card itself is the tap target — same navigation the desktop row link offers.
+        await pendlarCard.ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/bokningar/[0-9a-fA-F-]+$"));
+    }
+
+    /// <summary>The booking detail page must not scroll sideways on a phone. Its subject is the
+    /// contact email — one long unbreakable token rendered twice (the accordion summary and the
+    /// .kv grid), and the widest thing either box holds. Both are min-content-floored by default,
+    /// so without `min-width: 0` the page overflows for any guest with a long address.</summary>
+    [Fact]
+    public async Task Booking_detail_does_not_overflow_horizontally_on_mobile()
+    {
+        await LoginAsync();
+        await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
+        await Page.GotoAsync("/bokningar");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        await Page.Locator(".data-cards .data-card").Filter(new() { HasText = "Familjen Pendlar" }).First.ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/bokningar/[0-9a-fA-F-]+$"));
+
+        // The URL is NOT enough to measure against. This is the Interactive Server host: navigation
+        // updates the address, then the circuit patches the DOM, and the page renders "Laddar…"
+        // until the booking loads. Measuring off the URL alone samples that placeholder — a narrow
+        // page — and passes regardless of the real layout. That is exactly how this defect stayed
+        // green: the same overflow flipped red only when the measurement happened to land late
+        // (CI, 2026-09-09). Anchor on the loaded content instead, and on the email specifically,
+        // since the email is what this test is about.
+        await Assertions.Expect(Page.Locator(".admin-detail-head h1")).ToHaveTextAsync("Familjen Pendlar");
+        var email = Page.Locator(".kv dd").Filter(new() { HasText = "@" }).First;
+        await Assertions.Expect(email).ToContainTextAsync(E2EFixture.LongContactEmail);
+
+        var docScrollWidth = await Page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
+        Assert.True(docScrollWidth <= Mobile.Width + 1,
+            $"Booking detail overflows horizontally at {Mobile.Width}px: scrollWidth={docScrollWidth}. A long contact email is escaping .detail-acc__meta or .kv dd.");
     }
 
     /// <summary>Admin panel polish: a completed booking's participants no longer load as N fully

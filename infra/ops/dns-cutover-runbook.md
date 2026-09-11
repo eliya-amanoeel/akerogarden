@@ -222,10 +222,16 @@ relies on a `www` link:
 > only because `www/wp-admin/` returned 200 during the post-decommission sweep and briefly looked
 > like a surviving WordPress install.
 >
-> **Impact is low and was accepted:** the apex is canonical, `www` was never the live host for the
-> Azure site, so there is little indexed under `www` to break. The cost is that any printed or
-> legacy `www.akerogarden.se/<path>` link — including one into the booking funnel — silently
-> delivers the homepage instead.
+> **Impact is low and was accepted, though not for the reason first given here.** This box used
+> to say little was indexed under `www`. That was wrong: `www` was WordPress's host, and on
+> 2026-09-11 Google's main result for "åkerögården" was still the `www` WordPress copy, last
+> crawled 2026-09-05, with sitelinks to WordPress pages ("Läger", "Konferensanläggning"). Keeping
+> the path would not help those links, because none of those pages exists on the new site. Sent
+> through a path-preserving redirect they would 404, and landing on the homepage is the better
+> outcome. Google follows the redirect on its next crawl and moves the result to the apex; a
+> recrawl of `www/` was requested in Search Console on 2026-09-11. The cost that remains is a
+> printed or legacy link to a page that *does* exist on the new site, such as
+> `www.akerogarden.se/boka`. It silently delivers the homepage instead.
 >
 > **The fix, if it ever becomes worth a deploy,** is the one named above: bind `www.akerogarden.se`
 > in Azure as a third hostname with its own managed cert and redirect in the app, which preserves

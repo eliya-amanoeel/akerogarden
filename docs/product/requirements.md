@@ -250,7 +250,7 @@ Admin receives a warning email 30 days before any record is deleted.
 | Tjockö | 4 | 10 | Not accessible | Common room · 1 shower/cleaning room · 2 toilets |
 | Vätö 1 | 5 | 8 | Not accessible | Common room · 2 showers/cleaning rooms · 2 toilets |
 | Vätö 2 | 5 | 8 | Not accessible | Common room · 2 showers/cleaning rooms · 2 toilets |
-| Smedjan | 1 | 2 | Not accessible | Standalone cabin · 1 double bed · private facilities |
+| Smedjan | 1 | 4 | Not accessible | Standalone cabin · private facilities |
 | Tallstugan | 1 | 4 | Not accessible | Standalone cabin · private shower and toilet |
 | **Total overnight** | | **79** | | |
 
@@ -295,7 +295,7 @@ Admin receives a warning email 30 days before any record is deleted.
 | Vätö 2 | Room 8 | 1 | 1 single bed |
 | Vätö 2 | Room 9 | 2 | 2 single beds |
 | Vätö 2 | Room 10 | 2 | 2 single beds |
-| Smedjan | Room 1 | 2 | 1 double bed |
+| Smedjan | Room 1 | 4 | — |
 | Tallstugan | Room 1 | 4 | 1 bunk bed + 2 singles |
 
 ### 3.3 Blocking (Room, Building, or Whole Property)

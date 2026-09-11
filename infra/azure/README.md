@@ -8,7 +8,7 @@ Bicep templates for Åkerögården. Both production and staging deploy from the 
 > **Phase 10a ✅ done (2026-07-16)** — staging was recreated fresh in the client's tenant from these same Bicep templates (a redeploy, not a migration; Azure's resource-move feature doesn't work across tenants) and the old MSDN-hosted copy deleted.
 > **Phase 10b ✅ done (2026-07-17)** — the single web app was split into two App Service sites on the one shared plan (see "Two-app topology" below); staging is cut over and verified.
 > **Phase 10c ✅ done (2026-07-21)** — production provisioned in the client's tenant on the same two-app topology, deployed and verified on its Azure default `*.azurewebsites.net` hostnames.
-> **Phase 10d ✅ done (2026-09-07) — 🚀 `akerogarden.se` IS LIVE.** Custom hostnames bound, managed SSL issued via `ssl.bicep`, `www` 308-redirecting to the apex, base URLs flipped. WordPress is powered but unlinked, pending decommission. Full record in `infra/ops/dns-cutover-runbook.md`.
+> **Phase 10d ✅ done (2026-09-07) — 🚀 `akerogarden.se` IS LIVE.** Custom hostnames bound, managed SSL issued via `ssl.bicep`, `www` 308-redirecting to the apex, base URLs flipped. WordPress web hosting decommissioned 2026-09-09 (web space only — DNS zone, registration and mail untouched). Full record in `infra/ops/dns-cutover-runbook.md`.
 
 ## Re-applying `main.bicep` to production — done 2026-09-09, and what it taught
 
@@ -156,8 +156,7 @@ see the gotchas below.
   the parameter files carry `REPLACE_VIA_CI_SECRET` placeholders and the real values
   are passed on the CLI at deploy time):
   - `postgresAdminPassword`
-  - `smtpUsername`, `smtpPassword` (One.com SMTP; staging currently uses a temporary
-    `temp@amaeli.se` mailbox on port 465)
+  - `smtpUsername`, `smtpPassword` (One.com SMTP, port 465)
   - `seedAdminEmail`, `seedAdminPassword` (bootstraps the first admin on app startup)
 
 ## 1. Provision staging
@@ -194,7 +193,7 @@ per-environment credential to regenerate on every re-provision:
 # One-time: service principal scoped to the resource group, then wired as a
 # service connection named "akerogarden-azure-connection" in the Azure DevOps project.
 az ad sp create-for-rbac --name "akerogarden-devops-deploy" \
-  --role Contributor \
+  --role "Website Contributor" \
   --scopes "/subscriptions/<sub-id>/resourceGroups/akerogarden-staging"
 
 az devops service-endpoint azurerm create \
@@ -210,10 +209,19 @@ When re-provisioning (a new resource group, e.g. a future tenant move), add a ro
 assignment for the *same* service principal scoped to the new resource group — the
 service connection itself doesn't need to change.
 
-The `Deploy - Staging` pipeline (`infra/pipelines/azure-pipelines-deploy-staging.yml`) is manual-only
-(`trigger: none`) — run it from Pipelines → Deploy - Staging → Run pipeline. The first
-run against a fresh service connection prompts "This pipeline needs permission to
-access resources" — click Authorize once.
+**`Website Contributor`, not `Contributor`** (post-launch security review #22). The pipelines only
+run `AzureWebApp@1`, which needs nothing beyond the web sites. As RG `Contributor` the principal could
+call `listKeys()` on the storage account and modify or delete PostgreSQL, Redis, Key Vault and the
+VNet; none of that is reachable now. This line said `Contributor` until 2026-09-11 — following it
+would have silently undone #22.
+
+The `Deploy - Staging` pipeline (`infra/pipelines/azure-pipelines-deploy-staging.yml`) **deploys
+automatically**: its `ci` pipeline-resource trigger queues it the moment a CI run on `main` goes green,
+and it runs through to both sites with no approval step. (`trigger: none` in that file only disables
+*push* triggers; the resource trigger is what fires. Azure DevOps labels these runs `manual` in the run
+list, which is misleading — every one is queued seconds after a CI run, by the system account.) It can
+also be run by hand from Pipelines → Deploy - Staging → Run pipeline. The first run against a fresh
+service connection prompts "This pipeline needs permission to access resources" — click Authorize once.
 
 ## PR validation on `main` (branch policy — *not* the pipeline YAML)
 

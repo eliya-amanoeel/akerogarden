@@ -11,7 +11,11 @@
 //   - Http5xx on both sites (real errors, not just slowness)
 //   - Postgres cpu_credits_remaining — the one canary tied to a real decision already on record
 //     (2026-07-21: accept Burstable B1ms and watch rather than load-test)
-// Everything else (response-time thresholds, Postgres cpu%/storage%/connection counts, Key Vault
+//   - Postgres storage_percent at 80% — added by the post-launch security review (#15), paired with
+//     storage autogrow so this is a warning rather than the only thing before a full disk
+//   - nightly-job liveness, a log alert — added by the same review (#18); the job runner performs
+//     statutory GDPR erasure, and its failure mode is silence
+// Everything else (response-time thresholds, Postgres cpu%/connection counts, Key Vault
 // availability) was considered and deliberately left out — add only if something real motivates it.
 
 @description('Environment name — must match the value used for main.bicep, so resource names line up')
@@ -191,8 +195,12 @@ resource postgresCpuCreditsAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = 
 }
 
 // ── Public-site availability ping (Application Insights Standard test) ────────────────────────
-// Pings the public site's default *.azurewebsites.net hostname — deliberately not the custom
-// domain, so this keeps working across the Phase 10d DNS cutover with no change.
+// Pings `publicSiteUrl` — the real domain, https://akerogarden.se/, in production. Falls back to
+// the default *.azurewebsites.net hostname only when the parameter is empty. That fallback WAS the
+// original design ("keeps working across the DNS cutover"), and surviving the cutover unchanged was
+// the flaw: after 2026-09-07 it tested a URL no guest uses, so a DNS, CNAME or binding fault would have
+// taken the site down with the alert green — and SSLCheck watched Microsoft's wildcard cert instead
+// of our managed one, the one that can fail a renewal quietly. Corrected 2026-09-09.
 resource availabilityTest 'Microsoft.Insights/webtests@2022-06-15' = {
   name: '${prefix}-public-availability'
   location: location

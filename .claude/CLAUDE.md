@@ -99,7 +99,7 @@ A test must honestly verify the real behaviour it claims to. Never shape a test 
 
 **🚀 THE SITE IS LIVE.** `akerogarden.se` cut over to Azure on **2026-09-07**. **Every phase is now closed** — Phase 11 (post-production hardening & handover) closed 2026-09-09 and passed its completion gate.
 
-**There is no open phase, and no new phase is planned.** What remains is operational and client-side — sending the handover, decommissioning the WordPress hosting, and the legal follow-up — none of which is engineering work, and none of which should be turned back into a phase. Treat further work as ordinary changes against the SRS.
+**There is no open phase, and no new phase is planned.** What remains is operational and client-side — sending the handover and the legal follow-up (the WordPress hosting was decommissioned 2026-09-09) — none of which is engineering work, and none of which should be turned back into a phase. Treat further work as ordinary changes against the SRS.
 
 > **The jurist review is not happening and never will be.** Any statement anywhere that 10d is "gated on the jurist review of the Swedish legal text" is **dead** — that was true for weeks and stopped being true on 2026-09-07. The client replaced the terms document instead of answering our questions, no review was commissioned, and the decision to launch without one was taken with the consequences stated and accepted. **`docs/legal/known-conflicts-at-launch.md` is the authority** on what was knowingly carried across the line — read it before touching anything legal, and do not re-raise the accepted risks.
 

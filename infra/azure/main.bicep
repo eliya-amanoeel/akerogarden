@@ -660,10 +660,14 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
     accessTier: 'Hot'
     supportsHttpsTrafficOnly: true
     minimumTlsVersion: 'TLS1_2'
-    // Facility images are non-personal public assets served on the public site (FR-81);
-    // they are read anonymously, so blob-level public access must be allowed. Azure
-    // defaults this to false, which would break the app's public-read upload (FR-27).
-    allowBlobPublicAccess: true
+    // OFF: nothing in this account is read anonymously. Facility images are served through
+    // each app's own /bilder/{name} endpoint with its managed identity (post-launch security
+    // review #25) and every container is private, so this account-wide switch had no job left —
+    // it only kept open the possibility of a public container. Both places the app creates a
+    // container pass PublicAccessType.None, which is why switching it off breaks nothing; a
+    // future change that asks for PublicAccessType.Blob will now fail loudly instead of
+    // quietly publishing a container, which is the point.
+    allowBlobPublicAccess: false
   }
 }
 
@@ -682,7 +686,7 @@ resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices
     // /bilder/{name} endpoint using managed identity, so nothing fetches them anonymously — and the
     // browser could not anyway, since img-src 'self' (NFR-39) blocks the storage origin outright.
     // That contradiction between FR-81 and the CSP is what the image proxy resolves. Making the
-    // container private also clears the way to turn off account-wide allowBlobPublicAccess.
+    // container private is what allowed account-wide allowBlobPublicAccess to be turned off (above).
     publicAccess: 'None'
   }
 }

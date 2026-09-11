@@ -17,7 +17,9 @@ public class HomePageTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     {
         await Page.GotoAsync("/");
 
-        Assert.Contains("Åkerögården", await Page.TitleAsync());
+        // Exact, not Contains: this is the site's search-result headline, and "Åkerögården — Välkommen"
+        // satisfied a Contains check while saying nothing about the place.
+        Assert.Equal("Åkerögården — läger- och retreatgård i Norrtälje", await Page.TitleAsync());
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Landa tillsammans, på landet" }))
             .ToBeVisibleAsync();
     }

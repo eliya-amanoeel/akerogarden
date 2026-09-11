@@ -73,7 +73,8 @@ only what is sent at creation: **no guest acknowledgement and no admin notificat
 acknowledgement says *"we have received your booking request"*, which is untrue for a booking already
 agreed on the phone, and undeliverable to a guest with no email address at all. The approval mail is
 then the single, accurate first message the guest receives — which is also why the terms reach them
-there rather than earlier (FR-111's open residue).
+there rather than earlier. That gap was closed by decision on 2026-09-09 with a process control:
+`/bokningar/ny` tells the admin to send a guest who has an email to the web form instead (FR-111).
 
 Where the guest has no email, the admin's own address stands in as the booking's contact email so the
 approval mail and completion link reach whoever will fill the form in, and the booking records which
@@ -227,7 +228,7 @@ flowchart LR
     R3 --> W
     R4 --> W
     R5 --> W
-    W --> D["Hard delete — booking,<br/>participants, meals,<br/>cleaning and facility rows"]
+    W --> D["Hard delete — booking,<br/>participants, meals, buildings,<br/>cleaning and facility rows,<br/>and its audit entries (FR-98)"]
 ```
 
 Live in-progress states (`Approved`, `DetailsComplete`, `Active`) carry **no** deletion date; the

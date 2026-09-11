@@ -2,6 +2,14 @@
 
 **Status: accepted, not resolved. Decision taken 2026-09-07 — launch proceeds regardless.**
 
+> **Status note, 2026-09-11 — three statements below have since changed; the decisions have not.**
+> (1) The privacy-policy stub described under *"The one thing that is not optional"* was removed the
+> same day: PR 52 (`67ca581`) put the full policy live on 2026-09-07. (2) `implementation-plan.md`
+> and `CLAUDE.md` were corrected on 2026-09-07 and no longer describe a jurist gate (§1). (3) The
+> eight questions were **sent** to the client (confirmed 2026-09-10); the answers are still
+> outstanding, so everything in §2–§6 stands, and §3 still waits on question 6. The body is left as
+> written — this is a point-in-time record of what was knowingly carried across the launch line.
+
 This file exists so that nobody later finds these conflicts and assumes they were missed.
 They were found, written down, and knowingly carried. It is a record, not a to-do list.
 

@@ -40,14 +40,14 @@ flowchart TB
         end
         subgraph AdminSite["Admin site — admin.akerogarden.se"]
             AdminApp["Admin panel\nBlazor Interactive Server\nIdentity login · roles:\nAdministratör / Samordnare"]
-            BgJob["In-process BackgroundService\n(Always On)\nreminders · GDPR retention · pre-deletion warnings"]
+            BgJob["In-process BackgroundService\n(Always On)\nlink issuance · reminders · GDPR retention ·\npre-deletion warnings"]
         end
     end
 
     subgraph Data["Data & storage (VNet-only, EU region)"]
         Postgres[("Azure Database for PostgreSQL\nFlexible Server (Burstable B1ms)\napp entities + AspNetUsers")]
         Redis[("Azure Managed Redis (Balanced B0)\ndistributed rate-limit counters")]
-        Blob[("Azure Blob Storage (Hot LRS)\nfacility images · list downloads\nPRIVATE — reached only by the apps,\nvia managed identity")]
+        Blob[("Azure Blob Storage (Hot LRS)\nfacility images · Data Protection key rings\nPRIVATE — no anonymous access,\nreached only by the apps via managed identity")]
     end
 
     SMTP["One.com SMTP\n(via MailKit)"]
@@ -85,13 +85,13 @@ flowchart TB
 
 ## Notes
 
-1. **Two App Service sites on one B1 plan** (Phase 10b, FR-70). `akerogarden.se` (public) and `admin.akerogarden.se` (admin) are **two independent App Service sites** sharing the one Basic B1 App Service **Plan** — not one app serving both hostnames, and not slots (B1 doesn't support slots). Separation is a property of the **assembly graph and the deployment**: the code is three projects (`AkeroGarden.Web.Core` shared RCL + `.Public` + `.Admin`), and the internet-facing public process loads no Identity, SignalR, or admin code at all — so an admin route such as `/bokningar` on the public host is a genuine 404, not an `[Authorize]` redirect. The Plan is the billing unit, so the second site (and its second managed SSL cert) add **zero cost**; the only trade-off is two .NET processes sharing the one B1 instance's 1.75 GB RAM (§6.4).
+1. **Two App Service sites on one B1 plan** (Phase 10b, FR-70). `akerogarden.se` (public) and `admin.akerogarden.se` (admin) are **two independent App Service sites** sharing the one Basic B1 App Service **Plan** — not one app serving both hostnames, and not slots (B1 doesn't support slots). Separation is a property of the **assembly graph and the deployment**: the code is three projects (`AkeroGarden.Web.Core` shared RCL + `.Public` + `.Admin`), and the internet-facing public process loads no Identity, SignalR, or admin code at all — so an admin route such as `/bokningar` on the public host is a genuine 404, not an `[Authorize]` redirect. The Plan is the billing unit, so the second site (and its second managed SSL cert) add **zero cost**; the only trade-off is two .NET processes sharing the one B1 instance's 1.75 GB RAM (see `infra/azure/README.md`, SKU limitations).
 
    > **Do not try to collapse this back into one app with host gating — it was tried and it does not work.** Two `MapRazorComponents<T>()` roots in a single app, each with `RequireHost(...)`, throw `AmbiguousMatchException`: both roots try to serve `/_framework/*` (dotnet/aspnetcore#52216, #52631; still no first-class API as of .NET 10). The single-app alternatives carry their own unverified sharp edges — `MapWhen` sub-pipelines hit `MapStaticAssets`-per-branch (#62249), and a host-scoped `Router` puts a render-mode endpoint inside a branch. The two-app topology sidesteps all of it, because each app has exactly one root component and its own `/_framework`. Verified during Phase 10b, which is also where the earlier single-app attempt was reversed.
 
 2. **Rendering modes differ by surface.** Public pages are Blazor **Static SSR** — no persistent circuit, cheapest to serve, matches the read-mostly/inquiry-form nature of the public site. The admin panel is Blazor **Interactive Server** — a live SignalR circuit per session, justified by the admin panel's CRUD-heavy, stateful interactions (§1.5).
 
-3. **Guests never authenticate.** There is no guest account system. The only guest-facing "auth" is the magic-link token issued at booking approval: single-use, ≥128-bit entropy, expiring at the earliest of 30 days after issue or 14 days before check-in (floor 48h) — §2.6, FR-51–54, NFR-03. Admin auth is the only real login surface, via ASP.NET Core Identity (§6.4, FR-70–74), carrying two roles — `Administratör` with full access and `Samordnare` restricted to the two per-booking list downloads (FR-104). Authorisation is enforced **per page**: `Samordnare` has its own booking list and download view and no access to the booking detail page at all, rather than sharing a page with parts conditionally hidden. Hiding fragments would mean every future addition to that page needed a role check, and a single omission would leak guest contact data.
+3. **Guests never authenticate.** There is no guest account system. The only guest-facing "auth" is the magic-link token — issued at approval when check-in is within 40 days, otherwise by the nightly job once it is (FR-108): single-use, ≥128-bit entropy, expiring at the earliest of 30 days after issue or 14 days before check-in; a link issued 14 days or fewer out runs instead to 3 days before check-in, never less than 48 hours — §2.6, FR-51–54, NFR-03. Admin auth is the only real login surface, via ASP.NET Core Identity (§6.4, FR-70–74), carrying two roles — `Administratör` with full access and `Samordnare` restricted to the two per-booking list downloads (FR-104). Authorisation is enforced **per page**: `Samordnare` has its own booking list and download view and no access to the booking detail page at all, rather than sharing a page with parts conditionally hidden. Hiding fragments would mean every future addition to that page needed a role check, and a single omission would leak guest contact data.
 
 4. **The background job is in-process, not a separate service.** Scheduled work (pre-arrival reminders, completion nudges, deferred completion-link issuance (FR-108), GDPR retention deletes, 30-day pre-deletion warnings) runs as an in-process hosted `BackgroundService` inside the **admin** site's process (Phase 10b — it lives only on the admin host, so it runs in exactly one process; the public site is purely request-serving), kept alive by **Always On** (B1 supports it). An external scheduler (Azure Functions timer trigger or Logic App) was evaluated and deferred — §10, FR-69/91/98. It authors `AuditLog` rows with `ActorType = System`.
 

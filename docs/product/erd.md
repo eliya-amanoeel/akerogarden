@@ -132,7 +132,7 @@ erDiagram
         guid Id PK
         guid PhysicalBuildingId FK "nullable; Konferensrum → Konferensbyggnad"
         string Name
-        string ImageUrl
+        string ImageUrl "blob name, served via /bilder/{name} (§8.8)"
         decimal AmountExVat
         decimal VatRate
         bool IsActive
@@ -243,7 +243,7 @@ erDiagram
 
 4. **Facility & cleaning selections are symmetric.** Both `BookingFacilitySelection` and `BookingCleaningSelection` are child entities with a live FK plus name/amount snapshots, so an agreed facility or cleaning price survives later edits to the reference record (NFR-33/34, resolved consistently with C6). This was previously an asymmetry (facilities were a bare ID array) — aligned in v0.32.
 
-5. **PhysicalBuilding is the cleaning/blocking level.** Cleaning is priced per physical building, so `CleaningZone` links to `PhysicalBuilding` by **FK** (not a `uuid[]` of building/facility IDs) — sleeping-cleaning resolves by the structural join assigned `Building.PhysicalBuildingId` → `CleaningZone.PhysicalBuildingId` with referential integrity, and `Facility.PhysicalBuildingId` drives conference cleaning. The lodging `Building` (Blidö, …) is a *unit inside* a physical building; the level was promoted to a first-class entity (rather than a `CleaningZone`↔`Building` join table) because a concrete future use exists — blocking a whole physical building (e.g. all of Stora bostadslängan) in one action, a `BlockedPeriod.PhysicalBuilding` scope planned as a later slice.
+5. **PhysicalBuilding is the cleaning/blocking level.** Cleaning is priced per physical building, so `CleaningZone` links to `PhysicalBuilding` by **FK** (not a `uuid[]` of building/facility IDs) — sleeping-cleaning resolves by the structural join assigned `Building.PhysicalBuildingId` → `CleaningZone.PhysicalBuildingId` with referential integrity, and `Facility.PhysicalBuildingId` drives conference cleaning. The lodging `Building` (Blidö, …) is a *unit inside* a physical building; the level was promoted to a first-class entity (rather than a `CleaningZone`↔`Building` join table) because a concrete future use exists — blocking a whole physical building (e.g. all of Stora bostadslängan) in one action, a `BlockedPeriod.PhysicalBuilding` scope, deferred until the client confirms it is a recurring need (requirements.md §10).
 
 6. **`Room` is capacity data, not an assignment target.** Participants used to carry a `RoomId`; that link was removed in 2026-08 along with per-participant room assignment (FR-56). Bookings now attach to whole lodging **buildings** (`BookingBuildingAssignment`, §8.16) and the group divides itself among the rooms. `Room` remains because bed counts are what the availability calendar computes capacity from (FR-10), and because `BlockedPeriod` can still be scoped to a single room — it simply no longer appears in any booking's data. One consequence worth stating: with no participant pointing at a room, the old hard-delete guard for rooms would count zero for ever and silently pass, so FR-20 was repointed at `BlockedPeriod` references, which are logical rather than foreign keys and therefore the real orphan risk.
 

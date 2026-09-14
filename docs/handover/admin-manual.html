@@ -8,13 +8,26 @@
   on it). The E2E project's Playwright/Chromium can also render it headlessly if a repeatable step is
   wanted.
 
-  Status 2026-09-09: NOTHING HAS BEEN SENT TO THE CLIENT. Both files exist in the repo only.
+  Status 2026-09-14: SENT TO THE CLIENT (confirmed by the maintainer), as the 2026-09-13 version below.
+  Any later change must be re-exported and re-sent - the client's copy does not update itself.
+
+  Status 2026-09-09 (history): NOTHING HAS BEEN SENT TO THE CLIENT. Both files exist in the repo only.
   The PDF is STALE and must be re-exported before it goes anywhere - it predates two sections
   added on 2026-09-09: "Bilder pa faciliteter", and the on-behalf-of half of "Lagga in en bokning
   som kommit per telefon eller mejl" (FR-112, guests with no e-mail address). The second matters
   most: the client said he intends to start by entering bookings already agreed by telephone, and
   that a meaningful share of his guests are elderly groups with no e-mail at all, so that is the
   section he will reach for first.
+
+  2026-09-13: widened from "the daily loop" to everything an administrator does, checked against the
+  admin pages rather than memory - building assignment and approval warnings, what each status allows,
+  editing a booking, step-by-step manual booking and blocks, add/edit/deactivate/delete for all
+  reference data, and every email the system sends (all 15 in SRS section 9, not 5). Still STALE as PDF.
+
+  2026-09-13: Del C widened to "Konton och e-post". Handover model: the client owns every account;
+  the maintainer keeps a named, removable account in Azure/DevOps. NO PASSWORDS in this file or its
+  PDF - they are handed over in person. The info@ warning assumes the app's SMTP login is the info@
+  mailbox (smtpFromAddress is info@; smtpUsername is a CI secret) - confirm before sending.
 -->
 <html lang="sv">
 <head>
@@ -69,7 +82,7 @@
 <hr class="rule">
 
 <div class="intro">
-  <p><b>Vad det här är.</b> En handbok för er som arbetar i Åkerögårdens bokningssystem — inte en teknisk beskrivning. Den täcker det ni gör i vardagen: ta emot en förfrågan, godkänna den, hämta listorna till köket och lägga in en bokning som kommit per telefon.</p>
+  <p><b>Vad det här är.</b> En handbok för er som arbetar i Åkerögårdens bokningssystem — inte en teknisk beskrivning. Den täcker det ni gör i vardagen: ta emot en förfrågan, godkänna den, hämta listorna till köket, lägga in en bokning som kommit per telefon, hålla byggnader, mat och priser aktuella — och vad varje status och varje mejl från systemet betyder.</p>
   <p><b>Två adresser.</b> Gästerna besöker <b>akerogarden.se</b>. Ni loggar in på <b>admin.akerogarden.se</b>. Det är samma system men två skilda webbplatser — gästerna kommer aldrig åt er sida.</p>
   <p><b>Två sorters konton.</b> <b>Administratör</b> ser och gör allt. <b>Samordnare</b> (kök och praktiskt ansvariga) ser bara deltagarlistor och matlistor — inga kontaktuppgifter, inga andra sidor. Har ni ett samordnarkonto räcker <b>Del B</b> i den här handboken.</p>
 </div>
@@ -88,39 +101,92 @@
 <p>En gäst som fyller i formuläret på webbplatsen hamnar direkt i <b>Bokningar</b> med status <b>Väntar</b>. Ni får samtidigt ett mejl till <code>info@akerogarden.se</code>. Gästen får en automatisk bekräftelse på att förfrågan är mottagen — det är inte en bokning, bara en kvittens.</p>
 <p>Det finns två sorters förfrågningar: <b>bokningsförfrågan</b> (någon vill boka en vistelse) och <b>allmän fråga</b> (någon undrar något). En allmän fråga går inte att godkänna — ni svarar gästen på vanligt sätt och klickar sedan <b>Markera som besvarad</b>.</p>
 
-<h3>Godkänna eller avslå</h3>
+<h3>Godkänna en förfrågan</h3>
 <div class="step">
   <ol>
-    <li>Öppna förfrågan under <b>Bokningar</b>.</li>
-    <li>Läs igenom och kontrollera att datumen är lediga — <b>Kalender</b> visar allt som redan är bokat.</li>
-    <li>Klicka <b>Godkänn</b> eller <b>Avslå</b>.</li>
+    <li>Öppna förfrågan under <b>Bokningar</b> och läs igenom den.</li>
+    <li>Kontrollera att datumen är lediga — <b>Kalender</b> visar allt som redan är bokat.</li>
+    <li>Under <b>Byggnadstilldelning</b>: kryssa i den eller de byggnader gruppen ska bo i. Bredvid varje byggnad står hur många bäddar den har. Valet sparas direkt.</li>
+    <li>Läs eventuella varningar under <b>Kontrollera innan du godkänner</b> (se nedan).</li>
+    <li>Klicka <b>Godkänn</b>. En ruta visar vilken e-postadress mejlet går till — <b>kontrollera att den är rätt</b> — och klicka <b>Godkänn</b> igen.</li>
   </ol>
 </div>
-<p><b>Godkänn</b> skickar ett bekräftelsemejl till gästen med en personlig länk där de fyller i deltagarlista, måltider och ankomsttid. Ligger vistelsen långt fram i tiden skickas länken först när det närmar sig — cirka sex veckor före ankomst — så att uppgifterna hinner bli aktuella. Bokningsbekräftelsen talar om det.</p>
-<p><b>Avslå</b> skickar ett artigt nej till gästen. Bokningen ligger kvar i systemet men är avslutad.</p>
+<p>Gästen får ett bekräftelsemejl med vilka byggnader de ska bo i och reglerna för deposition och avbokning. Gruppen fördelar sig själv mellan rummen i byggnaderna — ni tilldelar aldrig enskilda rum.</p>
+<p><b>Länken där gästen fyller i deltagare och måltider</b> kommer med bekräftelsen om det är högst sex veckor (40 dagar) kvar till ankomst. Ligger vistelsen längre fram skickar systemet länken av sig självt när det är 40 dagar kvar, så att uppgifterna hinner bli aktuella — bekräftelsen talar om det. Länken går att använda fram till tre dagar före ankomst.</p>
 
-<h3>Vad statusarna betyder</h3>
+<h4>Varningarna före godkännande</h4>
+<p>Systemet varnar, men stoppar er inte. Ni kan godkänna ändå om ni vet vad ni gör.</p>
 <table>
-  <tr><th>Status</th><th>Betyder</th></tr>
-  <tr><td><b>Väntar</b></td><td>Förfrågan har kommit in och väntar på ert svar.</td></tr>
-  <tr><td><b>Godkänd</b></td><td>Ni har sagt ja. Gästen ska fylla i sina uppgifter.</td></tr>
-  <tr><td><b>Uppgifter klara</b></td><td>Gästen har skickat in deltagarlista och måltidsval. Nu finns listorna att hämta.</td></tr>
-  <tr><td><b>På plats</b></td><td>Gruppen är här nu.</td></tr>
-  <tr><td><b>Avslutad</b></td><td>Vistelsen är genomförd.</td></tr>
-  <tr><td><b>Avslagen</b></td><td>Ni sa nej till förfrågan.</td></tr>
-  <tr><td><b>Avbokad</b></td><td>Bokningen är avbokad, av er eller av gästen.</td></tr>
-  <tr><td><b>Besvarad</b></td><td>En allmän fråga som ni har svarat på.</td></tr>
+  <tr><th>Varning</th><th>Vad ni gör</th></tr>
+  <tr><td><b>Ingen byggnad är tilldelad ännu</b></td><td>Kryssa i minst en byggnad under Byggnadstilldelning. Annars står det inget om boende i gästens mejl.</td></tr>
+  <tr><td><b>Datumen överlappar en blockering</b></td><td>Den blockerade byggnaden är gråmarkerad och går inte att välja. Välj en annan byggnad, eller ta bort blockeringen om den inte längre gäller.</td></tr>
+  <tr><td><b>Fler gäster än tillgängliga bäddar</b></td><td>Tilldela fler byggnader, eller prata med gästen innan ni godkänner.</td></tr>
+  <tr><td><b>En tid avviker</b> (tidig ankomst eller sen avresa)</td><td>Gästen kommer att tro att tiden ingår. Kom överens om ett eventuellt tillägg med gästen <b>innan</b> ni godkänner.</td></tr>
+  <tr><td><b>Kort varsel</b> — färre än 14 dagar kvar</td><td>Gästen hinner knappt fylla i formuläret. Ring hellre gästen direkt.</td></tr>
 </table>
 
+<h3>Avslå en förfrågan</h3>
+<div class="step">
+  <ol>
+    <li>Skriv en kort motivering i rutan <b>Avslagsmotivering</b>.</li>
+    <li>Klicka <b>Avslå</b> och bekräfta.</li>
+  </ol>
+</div>
+<div class="note">
+  <p><b>Motiveringen skickas till gästen precis som ni skrivit den.</b> Skriv den som ett svar till gästen, till exempel ”Tyvärr är gården redan bokad den helgen.” — inte som en intern anteckning. Mejlet avslutas alltid med att gästen är välkommen att höra av sig om andra datum.</p>
+</div>
+
+<h3>Vad statusarna betyder</h3>
+<p>En bokning går alltid framåt, steg för steg. <b>En status kan aldrig ändras tillbaka</b> — har ni avbokat eller markerat avslutad av misstag går det inte att ångra.</p>
+<table>
+  <tr><th>Status</th><th>Betyder</th><th>Det här kan ni göra</th></tr>
+  <tr><td><b>Väntar</b></td><td>Förfrågan har kommit in och väntar på ert svar.</td><td><b>Godkänn</b> eller <b>Avslå</b>. Är det en allmän fråga: svara gästen och klicka <b>Markera som besvarad</b>.</td></tr>
+  <tr><td><b>Godkänd</b></td><td>Ni har sagt ja. Gästen ska fylla i deltagare och måltider.</td><td>Ändra byggnader och tider. Skicka länken till gästen igen. Avboka. Statusen blir <b>Uppgifter klara</b> av sig själv när gästen skickat in.</td></tr>
+  <tr><td><b>Uppgifter klara</b></td><td>Gästen har skickat in deltagarlista och måltidsval.</td><td>Hämta listorna. Rätta deltagare och måltider. <b>Markera anländ</b> när gruppen kommer. Avboka.</td></tr>
+  <tr><td><b>På plats</b></td><td>Gruppen är här nu.</td><td><b>Markera avslutad</b> när de rest hem. Avboka.</td></tr>
+  <tr><td><b>Avslutad</b></td><td>Vistelsen är genomförd. Gästen har fått ett tackmejl.</td><td>Inget — bokningen är klar. Raderas automatiskt efter två år.</td></tr>
+  <tr><td><b>Avslagen</b></td><td>Ni sa nej till förfrågan.</td><td>Inget. Raderas automatiskt efter tolv månader.</td></tr>
+  <tr><td><b>Avbokad</b></td><td>Ni har avbokat — på gästens begäran eller på eget initiativ. <b>Gästen kan inte avboka själv</b> i systemet; de hör av sig till er.</td><td>Inget. Raderas automatiskt efter tolv månader.</td></tr>
+  <tr><td><b>Besvarad</b></td><td>En allmän fråga som ni har svarat på.</td><td>Inget.</td></tr>
+</table>
+
+<h3>Ändra en bokning</h3>
+<p>Allt på bokningens sida sparas direkt när ni ändrar det — det finns ingen Spara-knapp.</p>
+<ul>
+  <li><b>Byggnader</b> — kryssa i eller ur under <b>Byggnadstilldelning</b>. Går att ändra så länge bokningen pågår.</li>
+  <li><b>Ankomst- och avresetid</b> — klicka <b>✎ Ändra tider</b> under Vistelse, välj ny tid och klicka <b>Klar</b>. Tiden är gästens önskemål, inget löfte — ett eventuellt tillägg kommer ni överens om utanför systemet.</li>
+  <li><b>Deltagare</b> — när gästen skickat in sina uppgifter visas alla under <b>Deltagare</b>. Klicka <b>✎ Redigera</b> vid en person för att rätta namn, ålderskategori eller allergier, och <b>Klar</b> när ni är färdiga.</li>
+  <li><b>Måltider</b> — gruppens måltidsval visas och ändras under <b>Måltider</b> (bara för bokningar med helpension).</li>
+</ul>
+
+<h3>Skicka länken till gästen igen</h3>
+<p>Har gästen tappat bort mejlet, eller vill de börja fylla i tidigare än systemet skickar länken? På en <b>Godkänd</b> bokning finns knappen:</p>
+<ul>
+  <li><b>Skicka slutförandelänk nu</b> — om ingen länk har skickats än. Gästen får den direkt i stället för att vänta.</li>
+  <li><b>Återutfärda och skicka länk på nytt</b> — om en länk redan skickats. Gästen får en ny länk, och <b>den gamla slutar fungera</b>.</li>
+</ul>
+<p>Hur länge länken gäller står på bokningens sida under <b>Slutförandelänk giltig till</b>.</p>
+
 <h3>Under och efter vistelsen</h3>
-<p>När gruppen anländer klickar ni <b>Markera anländ</b>. När de rest hem klickar ni <b>Markera avslutad</b>. Det är inget som händer automatiskt — systemet vet inte när någon kommit.</p>
-<p>Behöver ni avboka en bokning ni redan godkänt finns <b>Avboka</b> på bokningens sida. Gästen får ett mejl om avbokningen.</p>
+<p>När gruppen anländer klickar ni <b>Markera anländ</b>. När de rest hem klickar ni <b>Markera avslutad</b> — då skickas ett tackmejl till gästen. Det är inget som händer automatiskt — systemet vet inte när någon kommit.</p>
+
+<h3>Avboka</h3>
+<div class="step">
+  <ol>
+    <li>Välj under <b>Vem avbokar?</b>: <b>Gästen</b> eller <b>Anläggningen</b>.</li>
+    <li>Skriv gärna en orsak i <b>Orsak (intern, valfritt)</b> — gästen ser den inte.</li>
+    <li>Klicka <b>Avboka</b> och bekräfta.</li>
+  </ol>
+</div>
+<div class="note">
+  <p><b>Välj ”Vem avbokar?” med omsorg.</b> Valet styr vad gästens avbokningsmejl säger om depositionen: avbokar gästen själv beror det på hur långt det är kvar till ankomst, avbokar anläggningen får gästen alltid tillbaka det de betalat. Avbokningen går inte att ångra. (Se även <i>En punkt som behöver rättas</i> i Del D.)</p>
+</div>
 
 <h3>Anteckningar</h3>
 <p>På varje bokning finns ett fält för interna anteckningar — <b>Spara anteckningar</b>. Gästen ser dem aldrig. Använd det för sådant som "vill ha rummen i Villan" eller "ringer själv om nyckel".</p>
 
 <h3>Lägga in en bokning som kommit per telefon eller mejl</h3>
-<p>Under <b>Bokningar → Ny bokning</b> lägger ni in en bokning ni tagit emot på annat sätt än via webbformuläret.</p>
+<p>Under <b>Bokningar → + Skapa bokning</b> lägger ni in en bokning ni tagit emot på annat sätt än via webbformuläret.</p>
 
 <div class="step">
   <p><b>Fråga alltid det här först — svaret avgör hur ni går vidare:</b></p>
@@ -135,6 +201,19 @@
 <div class="note">
   <p><b>Viktigt:</b> när ni lägger in en bokning på det här sättet skickar systemet <b>inget mejl</b> till gästen förrän ni godkänner den. Gästen har alltså inte sett bokningsvillkoren eller integritetspolicyn. <b>Berätta därför alltid för dem var villkoren finns</b> — <b>akerogarden.se/bokningsvillkor</b> — och gå igenom dem i korthet i telefon.</p>
 </div>
+<h4>Så fyller ni i formuläret</h4>
+<div class="step">
+  <ol>
+    <li><b>Typ</b> — <b>Bokningsförfrågan</b> om de vill bo här, <b>Allmän förfrågan</b> om de bara undrar något.</li>
+    <li><b>Gästen</b> — namn, e-post och telefon. Saknar gästen e-post: kryssa i rutan (se nedan).</li>
+    <li><b>Vistelsen</b> — in- och utcheckningsdatum, ankomst- och avresetid.</li>
+    <li><b>Gäster och mat</b> — antal övernattande gäster, måltidsplan (<b>Helpension för alla</b> eller <b>Självhushåll för alla</b>) och antal dagsgäster.</li>
+    <li><b>Övrigt</b> — faciliteter de vill boka, organisationens namn, organisationsnummer och fakturaadress, och ett meddelande om det behövs.</li>
+    <li>Klicka <b>Skapa bokning</b> (eller <b>Skapa förfrågan</b> för en allmän förfrågan).</li>
+  </ol>
+</div>
+<p>Därefter godkänner ni bokningen precis som en förfrågan från webbplatsen: tilldela byggnader och klicka <b>Godkänn</b> (se <i>Godkänna en förfrågan</i>).</p>
+
 <p><b>Bokningen väntar fortfarande på ert godkännande.</b> Att ni lagt in den betyder inte att den är klar — den hamnar som <b>Väntar</b> precis som en förfrågan från webbplatsen, och det är först när ni godkänner den som gästen får sitt mejl med länken för att fylla i deltagare.</p>
 
 <h4>När gästen inte har någon e-postadress</h4>
@@ -149,7 +228,16 @@
 <p>Bokningar som lagts in så här är markerade <b>· via admin</b> i bokningslistan, och på bokningens sida står det <b>Administratörens adress — gästen har ingen e-post. Kontakta gästen på telefon.</b> Den markeringen finns för att ingen ska tro att en personaladress i gästens kontaktfält är ett misstag och ”rätta” den.</p>
 
 <h3>Blockera datum</h3>
-<p>Under <b>Blockeringar</b> stänger ni datum som inte ska gå att boka — eget underhåll, en helg ni håller stängt, eller en byggnad som renoveras. Blockerade datum syns som upptagna i gästernas kalender på webbplatsen.</p>
+<p>Under <b>Blockeringar</b> stänger ni datum som inte ska gå att boka — eget underhåll, en helg ni håller stängt, eller en byggnad som renoveras.</p>
+<div class="step">
+  <ol>
+    <li>Klicka <b>+ Lägg till blockering</b>.</li>
+    <li>Välj <b>Omfattning</b>: <b>Hela anläggningen</b>, en <b>Byggnad</b> eller ett <b>Rum</b> — och vilken byggnad eller vilket rum.</li>
+    <li>Fyll i <b>Från</b> och <b>Till</b>, och gärna en <b>Orsak (intern)</b> som bara ni ser.</li>
+    <li>Klicka <b>Spara</b>.</li>
+  </ol>
+</div>
+<p>Blockerade datum syns som upptagna i gästernas kalender på webbplatsen, och en blockerad byggnad går inte att tilldela en grupp under de datumen. För att ändra eller ta bort en blockering: klicka på raden eller <b>Redigera</b>, ändra och <b>Spara</b> — eller <b>Ta bort</b>.</p>
 
 <h3>Listor till köket</h3>
 <p>Under <b>Listor</b> hämtar ni de två listorna för en bokning, som PDF eller Excel:</p>
@@ -170,8 +258,46 @@
   </ol>
 </div>
 
-<h3>Priser, byggnader, mat och städning</h3>
-<p>Under <b>Byggnader</b>, <b>Faciliteter</b>, <b>Matalternativ</b>, <b>Priser</b> och <b>Städzoner</b> ligger uppgifterna som visas på webbplatsen och som ni väljer bland i en bokning. Ändrar ni ett pris här ändras det på webbplatsen direkt.</p>
+<h3>Byggnader, faciliteter, mat, priser och städning</h3>
+<p>Under <b>Byggnader</b>, <b>Faciliteter</b>, <b>Matalternativ</b>, <b>Priser</b> och <b>Städzoner</b> ligger uppgifterna som visas på webbplatsen och som gäster och ni väljer bland i en bokning. Ändrar ni något här syns det på webbplatsen direkt. Alla fem sidorna fungerar på samma sätt:</p>
+<div class="step">
+  <ol>
+    <li><b>Lägga till</b> — klicka <b>+ Lägg till …</b>, fyll i uppgifterna och klicka <b>Spara</b>.</li>
+    <li><b>Ändra</b> — klicka på raden eller <b>Redigera</b>, ändra och klicka <b>Spara</b>.</li>
+    <li><b>Sluta erbjuda något</b> — klicka <b>Inaktivera</b>. Det försvinner för gästerna men finns kvar i gamla bokningar. <b>Aktivera</b> tar tillbaka det.</li>
+    <li><b>Ta bort</b> — går bara om ingen bokning använder det, och kan inte ångras. Används det redan säger systemet till — inaktivera då i stället.</li>
+  </ol>
+</div>
+<p><b>Visningsordning</b> finns på flera sidor och styr i vilken ordning sakerna visas för gästerna. Belopp anges alltid <b>exklusive moms</b>, och <b>momssats</b> som en andel — till exempel <b>0,25</b> för 25 %.</p>
+
+<table>
+  <tr><th>Sida</th><th>Vad ni fyller i</th><th>Bra att veta</th></tr>
+  <tr>
+    <td><b>Byggnader</b></td>
+    <td>Tre nivåer: <b>fysisk byggnad</b> (själva huset, t.ex. Lilla bostadslängan) → <b>byggnad</b> (det ni tilldelar en grupp) → <b>rum</b> med antal bäddar. Lägg till med <b>+ Lägg till fysisk byggnad</b>, <b>+ Lägg till byggnad i …</b> och <b>+ Lägg till rum i …</b>.</td>
+    <td>Antalet bäddar i rummen är det systemet räknar med när det varnar för för många gäster — håll det aktuellt. Klicka på pilen vid en rad för att se vad den innehåller. En byggnad med rum går inte att ta bort; inaktivera den.</td>
+  </tr>
+  <tr>
+    <td><b>Faciliteter</b></td>
+    <td>Namn, beskrivning, pris, momssats, visningsordning och eventuellt en bild.</td>
+    <td><b>Fysisk byggnad (valfritt)</b> väljer ni bara om bokningen av faciliteten gör att ett hus behöver städas — t.ex. konferensrummet och konferensbyggnaden.</td>
+  </tr>
+  <tr>
+    <td><b>Matalternativ</b></td>
+    <td>Namn, beskrivning, vilken måltid det gäller, om det är vegetariskt, och visningsordning.</td>
+    <td>Det här är alternativen gästen väljer bland när de fyller i sina uppgifter.</td>
+  </tr>
+  <tr>
+    <td><b>Priser</b></td>
+    <td>Etikett, belopp, momssats, <b>enhet</b> (t.ex. ”per person och natt”), säsong och anteckningar.</td>
+    <td>Lämnar ni <b>Säsong från</b> och <b>Säsong till</b> tomma gäller priset <b>hela året</b>.</td>
+  </tr>
+  <tr>
+    <td><b>Städzoner</b></td>
+    <td>Namn, beskrivning, belopp, momssats, <b>kategori</b> (Huvudbyggnad, Sovbyggnad, Konferens eller Hela lägret) och vilken fysisk byggnad zonen gäller.</td>
+    <td>Kategorin styr när zonen erbjuds gästen. En zon som samlar flera andra (t.ex. Hela lägret) skapar ni genom att kryssa i de ingående zonerna under <b>Bunt</b>.</td>
+  </tr>
+</table>
 <h4>Bilder på faciliteter</h4>
 <p>Under <b>Faciliteter</b> kan ni lägga till en bild som visas på webbplatsen. Välj <b>Bild</b>, peka ut filen (JPEG, PNG eller WebP, högst 5 MB) och klicka <b>Spara</b>. Vill ni ta bort bilden helt klickar ni <b>Ta bort bild</b> och därefter <b>Spara</b>.</p>
 <div class="note">
@@ -201,7 +327,44 @@
 
 <!-- ══════════════ DEL C ══════════════ -->
 <div class="sect">
-<h2>Del C · E-postadresser</h2>
+<h2>Del C · Konton och e-post</h2>
+<p><b>Allt ägs av Åkerögården.</b> Er tekniska förvaltare har ett eget, namngivet konto i de tekniska tjänsterna, och det kan ni ta bort när ni vill. Lösenord står aldrig i den här handboken — de lämnas över personligen, och ni byter dem direkt.</p>
+
+<h3>Kontona</h3>
+<table>
+  <tr><th>Konto</th><th>Vad det är till för</th><th>Om ni tappar bort det</th></tr>
+  <tr>
+    <td><b>Inloggningar till admin.akerogarden.se</b></td>
+    <td>Bokningssystemet. Var och en har ett <b>eget</b> konto — dela aldrig en inloggning (se <i>Konton</i> i Del A).</td>
+    <td>Använd <b>Glömt lösenord</b>. Fungerar inte det kan en annan administratör bjuda in personen igen.</td>
+  </tr>
+  <tr>
+    <td><b>one.com-kontot</b></td>
+    <td>Domänen <b>akerogarden.se</b>, adressinställningarna och <b>all e-post</b>.</td>
+    <td>Sägs det upp eller betalas inte slutar <b>både webbplatsen och all e-post</b> att fungera. Säg aldrig upp det — även om ni inte längre har någon hemsida hos one.com.</td>
+  </tr>
+  <tr>
+    <td><b>admin@akerogarden.se</b><br>(Microsoft-konto)</td>
+    <td>Äger <b>Azure</b>, där bokningssystemet körs, och tar emot fakturan för det.</td>
+    <td>Ingen kan betala eller ändra något i Azure. Håll återställningsuppgifterna aktuella (se nedan).</td>
+  </tr>
+  <tr>
+    <td><b>Google Search Console</b></td>
+    <td>Visar hur webbplatsen syns i Googles sökresultat.</td>
+    <td>Webbplatsen fungerar som vanligt, men ingen kan se eller åtgärda problem i sökresultaten.</td>
+  </tr>
+  <tr>
+    <td><b>Tekniska tjänster</b><br>(kod, databas, drift)</td>
+    <td>Sköts av er förvaltare. Ni behöver inte logga in där.</td>
+    <td>Ägs via <b>admin@akerogarden.se</b> — så länge ni har kvar det kontot har ni kvar kontrollen.</td>
+  </tr>
+</table>
+
+<div class="note">
+  <p><b>Byt också återställningsuppgifterna, inte bara lösenordet.</b> På one.com-kontot och på admin@akerogarden.se finns ett telefonnummer och en reserv-e-post som avgör vem som kommer in om lösenordet glöms. Se till att de är <b>era egna</b> — det är det som gör att kontot verkligen är ert.</p>
+</div>
+
+<h3>E-postadresserna</h3>
 <table>
   <tr><th>Adress</th><th>Används till</th><th>Vem sköter den</th></tr>
   <tr>
@@ -218,21 +381,40 @@
 <div class="note">
   <p><b>Någon måste läsa dataskydd-adressen regelbundet.</b> Enligt GDPR har ni <b>en månad</b> på er att svara på en begäran om registerutdrag eller radering, räknat från när den kom in — oavsett om någon har öppnat inkorgen eller inte. Adressen står publikt i integritetspolicyn, så bestäm vem som ansvarar för den.</p>
 </div>
+<div class="note">
+  <p><b>Byt inte lösenordet till info@akerogarden.se på egen hand.</b> Bokningssystemet loggar in med det för att skicka alla sina mejl. Ändras lösenordet utan att systemet får veta det slutar <b>alla</b> mejl till gäster och till er att gå ut — utan något felmeddelande. Hör av er till förvaltaren först, så byter ni det tillsammans. Det tar några minuter.</p>
+</div>
 </div>
 
 <!-- ══════════════ DEL D ══════════════ -->
 <div class="sect">
 <h2>Del D · Bra att veta</h2>
 
-<h3>Mejlen systemet skickar av sig självt</h3>
-<ul>
-  <li><b>Kvittens</b> när en gäst skickat en förfrågan via webbplatsen.</li>
-  <li><b>Bokningsbekräftelse</b> när ni godkänner, med länken där gästen fyller i sina uppgifter.</li>
-  <li><b>Påminnelse</b> om gästen inte fyllt i sina uppgifter när det börjar närma sig.</li>
-  <li><b>Avbokningsbekräftelse</b> när en bokning avbokas.</li>
-  <li><b>Besked</b> när ni avslår en förfrågan.</li>
-</ul>
-<p>Ni behöver inte skicka något av detta för hand.</p>
+<h3>Mejlen systemet skickar</h3>
+<p>Ni behöver inte skicka något av detta för hand. Alla mejl innehåller bokningens referensnummer, så att både ni och gästen kan hänvisa till det i telefon.</p>
+
+<h4>Till gästen</h4>
+<table>
+  <tr><th>Mejl</th><th>När</th><th>Innehåll</th></tr>
+  <tr><td><b>Kvittens</b></td><td>Direkt när gästen skickat formuläret på webbplatsen.</td><td>Att förfrågan har kommit fram. Det är ännu inte en bokning. Skickas inte för bokningar ni lagt in själva.</td></tr>
+  <tr><td><b>Bokningsbekräftelse</b></td><td>När ni klickar <b>Godkänn</b>.</td><td>Tilldelade byggnader och reglerna för deposition och avbokning. Högst 40 dagar kvar: länken till formuläret och sista dag den gäller. Längre fram: besked om att länken kommer senare.</td></tr>
+  <tr><td><b>Länk till formuläret</b></td><td>Automatiskt när det är 40 dagar kvar till ankomst — eller när ni klickar <b>Skicka slutförandelänk nu</b> / <b>Återutfärda</b>.</td><td>Länken där gästen fyller i deltagare, måltider och tider.</td></tr>
+  <tr><td><b>Kvitto på uppgifterna</b></td><td>När gästen skickat in formuläret.</td><td>Det gästen fyllt i: deltagare, allergier, måltider, tider och byggnader — så att de kan se att allt blev rätt.</td></tr>
+  <tr><td><b>Påminnelse att fylla i</b></td><td>14 dagar före ankomst, om gästen fortfarande inte skickat in.</td><td>En uppmaning att fylla i formuläret.</td></tr>
+  <tr><td><b>Inför ankomst</b></td><td>14 dagar före ankomst, om uppgifterna är inskickade.</td><td>En sammanfattning: antal gäster, måltider och byggnader.</td></tr>
+  <tr><td><b>Avslag</b></td><td>När ni klickar <b>Avslå</b>.</td><td>Er motivering, ordagrant.</td></tr>
+  <tr><td><b>Avbokning</b></td><td>När ni klickar <b>Avboka</b>.</td><td>Att bokningen är avbokad, och vad som gäller för depositionen — beroende på vem som avbokade och när.</td></tr>
+  <tr><td><b>Tackmejl</b></td><td>När ni klickar <b>Markera avslutad</b>.</td><td>Ett kort tack och välkommen tillbaka. Samma text för alla.</td></tr>
+</table>
+
+<h4>Till er (info@akerogarden.se)</h4>
+<table>
+  <tr><th>Mejl</th><th>När</th><th>Vad ni gör</th></tr>
+  <tr><td><b>Ny förfrågan</b></td><td>När en gäst skickat formuläret på webbplatsen.</td><td>Öppna bokningen via länken i mejlet och godkänn, avslå eller svara.</td></tr>
+  <tr><td><b>Uppgifter klara</b></td><td>När gästen skickat in deltagare och måltider.</td><td>Listorna går nu att hämta — skicka dem vidare till köket.</td></tr>
+  <tr><td><b>Gästen har inte fyllt i</b></td><td>14 dagar före ankomst, om bokningen fortfarande är <b>Godkänd</b>.</td><td><b>Ring gästen.</b> Mejlet anger hur länge deras länk gäller.</td></tr>
+  <tr><td><b>Uppgifter raderas snart</b></td><td>30 dagar innan en gammal boknings personuppgifter raderas automatiskt.</td><td>Ingenting — mejlet är bara en förvarning (se nedan).</td></tr>
+</table>
 
 <h3>Uppgifter raderas automatiskt</h3>
 <p>Systemet rensar gamla personuppgifter av sig självt, som integritetspolicyn lovar: <b>två år</b> efter en genomförd vistelse, och <b>tolv månader</b> för förfrågningar som avslagits, avbokats eller aldrig besvarats. Ni behöver inte göra något — men det betyder också att gamla deltagarlistor inte finns kvar för alltid.</p>

@@ -129,6 +129,13 @@ param publicHostnames array = []
 @description('Custom hostnames bound to the ADMIN site (e.g. ["admin.akerogarden.se"] / ["admin.staging.akerogarden.se"])')
 param adminHostnames array = []
 
+@description('''Deny every request to BOTH sites that no access-restriction rule allows. true for staging
+only: staging is for the maintainer, not the public, so it is locked by default and opened per visit by
+adding a temporary IP rule by hand (infra/ops/staging-access-runbook.md). Those rules are deliberately NOT
+declared here — re-applying this template wipes them, which fails closed: the worst case is re-adding
+your IP, never an accidentally open staging. Production must stay false.''')
+param denyUnmatchedSiteAccess bool = false
+
 @description('Bootstrap admin email — seeds the first admin account on startup if none exists')
 param seedAdminEmail string
 
@@ -356,6 +363,15 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
       // round-trips for the several static assets each page pulls, at no cost or compatibility risk —
       // clients that do not negotiate it simply stay on HTTP/1.1.
       http20Enabled: true
+      // Access restrictions (staging-only lock, see the denyUnmatchedSiteAccess parameter). Declared for
+      // production too — as Allow — so its openness is a decision in code rather than an unset default.
+      // The scm (Kudu) endpoint is kept open on purpose: AzureWebApp@1 deploys through it from
+      // Microsoft-hosted agents with unpredictable IPs, so locking it would break every pipeline deploy.
+      // It still requires the service connection's credentials. Free managed certificates are unaffected:
+      // IP restrictions only block them on a root domain, and staging's hostnames are subdomains.
+      ipSecurityRestrictionsDefaultAction: denyUnmatchedSiteAccess ? 'Deny' : 'Allow'
+      scmIpSecurityRestrictionsDefaultAction: 'Allow'
+      scmIpSecurityRestrictionsUseMain: false
       appSettings: concat([
         {
           name: 'ASPNETCORE_ENVIRONMENT'

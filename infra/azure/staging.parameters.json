@@ -6,6 +6,9 @@
     "environmentName": {
       "value": "staging"
     },
+    "denyUnmatchedSiteAccess": {
+      "value": true
+    },
     "location": {
       "value": "swedencentral"
     },

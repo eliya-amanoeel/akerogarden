@@ -52,7 +52,8 @@ az webapp config appsettings set -g akerogarden-staging -n jmk-ag-staging-admin 
   --settings DemoSeed__Reset=true
 
 # 2. Wait ~1 min, then VERIFY AGAINST THE DATA (not just health — see gotcha below):
-#    the public facilities page should list a seeded facility.
+#    the public facilities page should list a seeded facility. Staging is locked by default, so
+#    allow your IP on the public site first (infra/ops/staging-access-runbook.md) or this gets a 403.
 curl -s https://staging.akerogarden.se/faciliteter | grep -o "Kapellet"
 
 # 3. Remove the flag so no future restart re-wipes.

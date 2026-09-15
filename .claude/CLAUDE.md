@@ -74,7 +74,7 @@ ASP.NET Core Identity tables (`AspNetUsers`, etc.) are infrastructure — exclud
 |---|---|---|
 | Local dev | Mac + Docker | PostgreSQL, Redis, Azurite (Blob emulator), Mailpit (SMTP catcher); `dotnet user-secrets` for config |
 | Automated test | Ephemeral Azure Pipelines containers | Ephemeral DBs; CI fails on any test failure |
-| Staging | Separate Azure resource group | `staging.akerogarden.se`; synthetic data only; test SMTP inbox; power down when idle |
+| Staging | Separate Azure resource group | `staging.akerogarden.se`; synthetic data only; test SMTP inbox; power down when idle; **locked to everyone by default** — open it per visit with a temporary IP rule (`infra/ops/staging-access-runbook.md`) |
 | Production | Azure (North Europe or Sweden Central) | See requirements.md §11 |
 
 ## Testing

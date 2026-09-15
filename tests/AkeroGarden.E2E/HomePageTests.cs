@@ -46,6 +46,47 @@ public class HomePageTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Hero_photo_is_cropped_to_its_frame_at_every_size()
+    {
+        foreach (var vp in new[] { Mobile, Tablet, Desktop })
+        {
+            await Page.SetViewportSizeAsync(vp.Width, vp.Height);
+            await Page.GotoAsync("/");
+
+            var frame = Page.Locator(".hero__photo");
+            var img = frame.GetByRole(AriaRole.Img, new() { Name = "Huvudbyggnaden på Åkerögården, med trappan upp till altanen" });
+            var what = $"hero photo at {vp.Width}px";
+
+            await PagePhotoAssertions.LoadsAndFillsFrameAsync(img, frame, what);
+
+            // Below 64em the frame is its min-height — 11rem on a phone, which is what keeps the primary
+            // CTA above the fold (design.md, Mobile fold discipline), so a photo stretching it would
+            // push the funnel down. From 64em it deliberately stretches to the text column beside it.
+            if (vp.Width < 1024)
+                await PagePhotoAssertions.FrameHeightIsItsMinHeightAsync(frame, what);
+
+            await Assertions.Expect(frame.Locator(".photo-tag")).ToHaveCountAsync(0);
+        }
+    }
+
+    [Fact]
+    public async Task Link_preview_image_is_served_as_a_jpeg()
+    {
+        // The og:image URL is absolute on the production host, so only its path can be fetched here —
+        // but the path is the part that breaks (a renamed or unpublished file). A tag pointing at a 404
+        // gives every shared link a blank card, and nothing on the page itself would show it.
+        await Page.GotoAsync("/");
+        var content = await Page.Locator("meta[property='og:image']").GetAttributeAsync("content");
+        Assert.NotNull(content);
+        var path = new Uri(content).AbsolutePath;
+
+        var response = await Page.APIRequest.GetAsync(path);
+        Assert.Equal(200, response.Status);
+        Assert.Equal("image/jpeg", response.Headers["content-type"]);
+        Assert.True((await response.BodyAsync()).Length > 10_000, "og:image is suspiciously small");
+    }
+
+    [Fact]
     public async Task Usecards_are_image_cards_not_flat_text_blocks()
     {
         await Page.GotoAsync("/");
@@ -56,6 +97,48 @@ public class HomePageTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         await Assertions.Expect(cards).ToHaveCountAsync(3);
         await Assertions.Expect(cards.Locator(".usecard__img").First).ToBeVisibleAsync();
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Läger & retreat" })).ToBeVisibleAsync();
+    }
+
+    [Theory]
+    [InlineData("Läger & retreat", "Altanen med bord och stolar en solig sommardag")]
+    [InlineData("Konferens & möte", "Samlingssal med röda stolar framför en öppen spis")]
+    [InlineData("Kurs & workshop", "Kursrum med röda stolar, stora fönster och en färgglad bonad på väggen")]
+    public async Task Usecard_photo_is_cropped_to_its_frame_at_every_size(string heading, string alt)
+    {
+        foreach (var vp in new[] { Mobile, Tablet, Desktop })
+        {
+            await Page.SetViewportSizeAsync(vp.Width, vp.Height);
+            await Page.GotoAsync("/");
+
+            var card = Page.Locator(".usecard").Filter(new() { Has = Page.GetByRole(AriaRole.Heading, new() { Name = heading }) });
+            var frame = card.Locator(".usecard__img");
+            var img = card.GetByRole(AriaRole.Img, new() { Name = alt });
+            var what = $"'{heading}' photo at {vp.Width}px";
+
+            await PagePhotoAssertions.LoadsAndFillsFrameAsync(img, frame, what);
+            await PagePhotoAssertions.FrameAspectIsAsync(frame, 4.0 / 3.0, what);
+            await Assertions.Expect(card.Locator(".photo-tag")).ToHaveCountAsync(0);
+        }
+    }
+
+    [Fact]
+    public async Task Facilities_teaser_photo_is_cropped_to_its_frame_at_every_size()
+    {
+        // Tablet matters most here: the frame is a ~3:1 band at 768px.
+        foreach (var vp in new[] { Mobile, Tablet, Desktop })
+        {
+            await Page.SetViewportSizeAsync(vp.Width, vp.Height);
+            await Page.GotoAsync("/");
+
+            var teaser = Page.Locator(".teaser").Filter(new() { Has = Page.GetByRole(AriaRole.Heading, new() { Name = "Åtta hus, en gård" }) });
+            var frame = teaser.Locator(".teaser__photo");
+            var img = teaser.GetByRole(AriaRole.Img, new() { Name = "Flygbild över gården med husen utspridda längs gångvägar och gräsytor" });
+            var what = $"facilities teaser photo at {vp.Width}px";
+
+            await PagePhotoAssertions.LoadsAndFillsFrameAsync(img, frame, what);
+            await PagePhotoAssertions.FrameHeightIsItsMinHeightAsync(frame, what);
+            await Assertions.Expect(teaser.Locator(".photo-tag")).ToHaveCountAsync(0);
+        }
     }
 
     [Fact]

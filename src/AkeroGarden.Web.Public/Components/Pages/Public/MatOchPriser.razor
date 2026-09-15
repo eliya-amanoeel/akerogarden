@@ -24,8 +24,16 @@
 <section class="section">
     <div class="container">
         <div class="teaser">
+            @* The dining hall, not a dish: the client's photo set has no food photography. A plated-meal
+               photo would say "hemlagat" better — swap it in here if one arrives. `sizes` is the drawn
+               width, as on the home page's teaser: 24rem tall from 64em, covered at 576px. *@
             <div class="teaser__photo">
-                <span class="photo-tag">Platshållare — foto vid lansering</span>
+                <img src="@Assets["images/mat-och-priser-menyn-1400.webp"]"
+                     srcset="@Assets["images/mat-och-priser-menyn-800.webp"] 800w, @Assets["images/mat-och-priser-menyn-1400.webp"] 1400w, @Assets["images/mat-och-priser-menyn-2000.webp"] 2000w"
+                     sizes="(min-width: 64em) 576px, 100vw"
+                     width="1400" height="935"
+                     loading="lazy"
+                     alt="Matsalen med dukade bord och en brasa i den öppna spisen" />
             </div>
             <div>
                 <span class="eyebrow">Menyn</span>

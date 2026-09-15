@@ -17,7 +17,7 @@ This is a system/component view — how the public site, admin panel, background
 | Auth | ASP.NET Core Identity (email + password, admin panel only) — two roles: `Administratör` (full) and `Samordnare` (list-download only, FR-104) |
 | App hosting | Azure App Service, Basic B1 (Linux) |
 | Rate limiting | Azure Managed Redis (Balanced B0) |
-| File/image storage | Azure Blob Storage (Hot tier, LRS) |
+| File/image storage | Azure Blob Storage (Hot tier, LRS) — facility images only; the public pages' fixed photos are static files in the public app |
 | Email | MailKit over One.com SMTP |
 | CI/CD | Azure DevOps Pipelines (migrated from GitHub Actions, Phase 10a) |
 | Infra-as-code | Bicep (prod + staging from the same templates, different parameter files) |
@@ -106,7 +106,9 @@ flowchart TB
    production had none uploaded. Routing through the app satisfies both and means a visitor's IP never
    reaches the storage domain, which is what NFR-35 is really about. The container is private and both
    apps reach it with their own managed identity; no storage account key exists in configuration
-   (post-launch security review #9, #25).
+   (post-launch security review #9, #25). The fixed photographs on the public pages never touch
+   storage at all: they are static files in the public app (`wwwroot/images/`), served from the same
+   origin and changed by deployment, not through admin (`docs/ux/design.md`, Imagery).
 
 8. **The two apps use different database accounts.** The public site connects as a least-privilege
    role that can read and write rows but cannot create or alter tables; the admin site connects as the

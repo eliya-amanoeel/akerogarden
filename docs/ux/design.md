@@ -32,7 +32,20 @@ Warm, plain Swedish addressing the reader as **du**. Confident but never salesy 
 
 ### Imagery strategy
 
-Real photography is the biggest trust lever, so the design is **built for real photos** but ships with **tasteful placeholders** (soft landscape gradients, labelled *"Platshållare — foto vid lansering"*), swapped for real Åkerögården photography at go-live — the client's responsibility, not tracked as an engineering task. Never stock-photo gloss.
+Real photography is the biggest trust lever, so the design is **built for real photos**. Launch shipped with **placeholders** (soft landscape gradients, labelled *"Platshållare — foto vid lansering"*); all nine were replaced with the client's photography on 2026-09-15. Never stock-photo gloss. **The set has no food photography**, so `/mat-och-priser` shows the dining hall — a plated-meal photo is the one upgrade worth asking the client for.
+
+**Page photos are code-managed, not admin-managed — decided 2026-09-15.** The fixed photo slots on the public pages (hero, use cards, teasers, `/om-oss`, `/kontakt`, `/mat-och-priser`) are static files in `AkeroGarden.Web.Public/wwwroot/images/`, changed by a PR. Only facility images are uploaded through admin (FR-27/81). A handful of slots that change perhaps once a year does not justify a new entity, migration and admin screen; do not build "photo slots" in the admin panel.
+
+**How a photo goes in** — every slot follows the same recipe, so a replacement is a file swap, not a redesign:
+
+- **Source:** the client's full-resolution original — never a copy re-compressed by a messaging app, and never a smaller duplicate when a larger one exists (the 2026-09 set held 1600, 2560 and 3000px copies of the same shots). Landscape and buildings only: no identifiable people (that would need their consent), and no confessional imagery (see the logo note above). Look at a full-size close-up before choosing — one candidate had what looked like a Wi-Fi password on a whiteboard, invisible on a contact sheet.
+- **Files:** **all metadata stripped** (camera EXIF can carry GPS and device data, and it would be published), WebP at **800, 1400 and 2000px** wide, named `{page}-{section}-{width}.webp` — `hem-hero`, `hem-lager`, `om-oss-marken`, `kontakt-intro`, `mat-och-priser-menyn`.
+- **Markup:** `src` is the 1400px file and `width`/`height` are that file's real pixel size; `srcset` lists all three through `@Assets[...]`; `alt` is Swedish and describes the photo, not the section heading beside it. The hero takes `fetchpriority="high"`; everything else `loading="lazy"`.
+- **`sizes` is the width the photo is *drawn* at, not the frame's width.** A 3:2 photo covering a squarer frame is scaled by the frame's *height* and cropped at the sides, so on desktop it can render nearly twice the column width (`/kontakt`'s 4:5 frame: 1.875×). A `sizes` written from the column alone makes the browser pick a file that is too small, and the photo looks soft on a retina screen. Each slot's comment in the `.razor` shows its arithmetic.
+- **CSS:** the frame keeps the shape and the photo fills it — `position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover`, identical on `.hero__photo`, `.teaser__photo`, `.about-photo` and `.contact-photo` (`.usecard__img` has a real `aspect-ratio`, so it can stay in flow). **Absolute is not optional where a frame is shaped only by `min-height`**: a percentage height cannot resolve against a min-height, so an in-flow photo falls back to its own aspect and sets the frame's height itself — exactly the "crop nobody chose" below. That defect was live in the teaser until 2026-09-15, including under admin-uploaded facility photos on `/faciliteter`.
+- **Tests:** `PagePhotoAssertions` checks at 360/768/1280 that the photo decoded, covers its frame, and that the frame kept its declared shape (min-height or aspect-ratio). Covering alone proves nothing — a photo that stretches its frame covers it too.
+
+**The link-preview image is cut from the hero.** `og-image.jpg` (1200×630, JPEG because not every link-preview scraper decodes WebP) is the hero photo re-cropped, so **replacing the hero means regenerating it too**, or shared links keep showing the old photo.
 
 **The shapes the client's photos have to fit** — because a layout that decides this implicitly decides it badly. `/kontakt`'s photo is **4:5 portrait** on desktop (`aspect-ratio`, top-aligned) and a wide band below 1024px, so its subject wants to sit centred and survive both crops. **The client approved this crop on 2026-08-19**, so it is an agreed constraint on the launch photography rather than something the layout is imposing on them. It previously took its height from whatever stood in the neighbouring column, which meant the find-here map landing there in 2026-08 quietly turned the requirement into a ~1:2.2 portrait — a shape almost no photograph of a rural property has. **If a photo frame's height comes from a sibling rather than from a ratio, that is a bug: it hands the client a crop nobody chose.**
 
@@ -203,6 +216,14 @@ Two things to know before extending it:
   goes white on every page, but the **page-count saving is modest** — `/` 6 → 5, `/om-oss` 3 → 2,
   `/integritetspolicy` 7 → 6, and `/kontakt`, `/bokningsvillkor` and `/mat-och-priser` unchanged.
   Anyone expecting a dramatic reduction should measure rather than assume.
+- **The page photos print, and cost no pages.** Measured 2026-09-15, before and after the real
+  photos replaced the placeholders, both from local builds printed to A4 PDF in Chromium: `/` 3,
+  `/om-oss` 3, `/kontakt` 2, `/mat-och-priser` 2 on both sides, with every photo embedded in the
+  "after" PDFs. Each photo fills a frame that already had its size, so nothing reflows — which is
+  why they were left in rather than hidden (on `/kontakt` the photo sits beside the directions
+  people print the page for). Those absolute counts differ from the 2026-09-08 figures above; the
+  pages have changed since and the settings of that run are not recorded, so compare like with
+  like — same run, before and after — and don't read one set against the other.
 - **Media emulation is asynchronous.** Switching the emulated media triggers a style recalc that is
   *not* complete when the emulation call returns, so a single immediate `getComputedStyle` read
   observes the previous media's values. Use a polling assertion (`ToHaveCSSAsync`), never a one-shot

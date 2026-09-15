@@ -80,7 +80,7 @@ It serves as the single source of truth for all design, development, and testing
 | Admin authentication | ASP.NET Core Identity | Single-library solution for credential storage, password hashing, cookie auth, and password reset — no external auth dependency |
 | Database | PostgreSQL on Azure | Managed backups; familiar query model |
 | Hosting | Azure App Service (Linux, B1) | Managed SSL; CI/CD from Azure DevOps Pipelines |
-| File storage | Azure Blob Storage | Facility images, and each site's Data Protection key ring. Participant and food lists are generated on request and streamed straight to the browser — they are never stored |
+| File storage | Azure Blob Storage | Facility images, and each site's Data Protection key ring. Participant and food lists are generated on request and streamed straight to the browser — they are never stored. The fixed photographs on the public pages are **not** in Blob: they ship with the public app as static files and change by deployment, because a handful of photos replaced perhaps once a year does not justify an admin screen (`docs/ux/design.md`, Imagery) |
 | Rate limiting store | Azure Managed Redis | Distributed rate-limit counters; correct under multi-instance scale-out (NFR-04). Successor to the retired Azure Cache for Redis |
 | Email | MailKit (SMTP via One.com) | Robust .NET email library |
 | ORM | Entity Framework Core | Standard .NET data access layer |

@@ -65,6 +65,25 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Mat_och_priser_photo_is_cropped_to_its_frame_at_every_size()
+    {
+        foreach (var vp in new[] { Mobile, Tablet, Desktop })
+        {
+            await Page.SetViewportSizeAsync(vp.Width, vp.Height);
+            await Page.GotoAsync("/mat-och-priser");
+
+            var teaser = Page.Locator(".teaser").Filter(new() { Has = Page.GetByRole(AriaRole.Heading, new() { Name = "Hemlagat, med plats för önskemål" }) });
+            var frame = teaser.Locator(".teaser__photo");
+            var img = teaser.GetByRole(AriaRole.Img, new() { Name = "Matsalen med dukade bord och en brasa i den öppna spisen" });
+            var what = $"menu teaser photo at {vp.Width}px";
+
+            await PagePhotoAssertions.LoadsAndFillsFrameAsync(img, frame, what);
+            await PagePhotoAssertions.FrameHeightIsItsMinHeightAsync(frame, what);
+            await Assertions.Expect(teaser.Locator(".photo-tag")).ToHaveCountAsync(0);
+        }
+    }
+
+    [Fact]
     public async Task About_page_has_a_second_photo_moment_and_a_real_closing_cta()
     {
         await Page.GotoAsync("/om-oss");
@@ -77,6 +96,35 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 
         await Page.Locator(".cta-card a.btn").ClickAsync();
         await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/boka$"));
+    }
+
+    [Fact]
+    public async Task About_photos_are_cropped_to_their_frames_at_every_size()
+    {
+        // Tablet matters most: the frame is a ~3:1 band at 768px.
+        foreach (var vp in new[] { Mobile, Tablet, Desktop })
+        {
+            await Page.SetViewportSizeAsync(vp.Width, vp.Height);
+            await Page.GotoAsync("/om-oss");
+
+            var frame = Page.Locator(".about-photo");
+            var img = frame.GetByRole(AriaRole.Img, new() { Name = "Flygbild över gården och skogen, med skärgårdens vatten i bakgrunden" });
+
+            var what = $"about intro photo at {vp.Width}px";
+
+            await PagePhotoAssertions.LoadsAndFillsFrameAsync(img, frame, what);
+            await PagePhotoAssertions.FrameHeightIsItsMinHeightAsync(frame, what);
+            await Assertions.Expect(frame.Locator(".photo-tag")).ToHaveCountAsync(0);
+
+            var teaser = Page.Locator(".teaser").Filter(new() { Has = Page.GetByRole(AriaRole.Heading, new() { Name = "Drygt fem hektar att utforska" }) });
+            var teaserFrame = teaser.Locator(".teaser__photo");
+            var teaserImg = teaser.GetByRole(AriaRole.Img, new() { Name = "Den stora öppna gräsytan mitt på gården, omgiven av skog" });
+            var teaserWhat = $"about grounds teaser photo at {vp.Width}px";
+
+            await PagePhotoAssertions.LoadsAndFillsFrameAsync(teaserImg, teaserFrame, teaserWhat);
+            await PagePhotoAssertions.FrameHeightIsItsMinHeightAsync(teaserFrame, teaserWhat);
+            await Assertions.Expect(teaser.Locator(".photo-tag")).ToHaveCountAsync(0);
+        }
     }
 
     [Fact]
@@ -193,6 +241,31 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Kontakta oss", Level = 2 })).ToBeVisibleAsync();
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Hitta hit", Level = 2 })).ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".contact-photo")).ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Contact_photo_is_cropped_to_its_frame_at_every_size()
+    {
+        foreach (var vp in new[] { Mobile, Tablet, Desktop })
+        {
+            await Page.SetViewportSizeAsync(vp.Width, vp.Height);
+            await Page.GotoAsync("/kontakt");
+
+            var frame = Page.Locator(".contact-photo");
+            var img = frame.GetByRole(AriaRole.Img, new() { Name = "Grusvägen upp till huvudbyggnaden, med grässlänt och trappa" });
+            var what = $"contact intro photo at {vp.Width}px";
+
+            await PagePhotoAssertions.LoadsAndFillsFrameAsync(img, frame, what);
+
+            // From 64em: the 4:5 portrait the client approved on 2026-08-19 (design.md, Imagery) — not a
+            // shape borrowed from the map column beside it, and not the photo's own 3:2.
+            if (vp.Width >= 1024)
+                await PagePhotoAssertions.FrameAspectIsAsync(frame, 4.0 / 5.0, what);
+            else
+                await PagePhotoAssertions.FrameHeightIsItsMinHeightAsync(frame, what);
+
+            await Assertions.Expect(frame.Locator(".photo-tag")).ToHaveCountAsync(0);
+        }
     }
 
     [Fact]

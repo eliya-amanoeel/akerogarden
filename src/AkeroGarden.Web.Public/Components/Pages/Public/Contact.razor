@@ -43,8 +43,18 @@
                     </dl>
                 </div>
 
+                @* 4:5 portrait on desktop (the client-approved crop), a wide band below it. The desktop
+                   `sizes` is the width the photo is *drawn* at, not the frame's: a 3:2 photo covering a
+                   4:5 frame is scaled by height, so it renders 1.875× the column width and would look soft
+                   if the browser picked a file for the column alone (493px column at the 1200px container
+                   → 924px drawn). *@
                 <div class="contact-photo">
-                    <span class="photo-tag">Platshållare — foto vid lansering</span>
+                    <img src="@Assets["images/kontakt-intro-1400.webp"]"
+                         srcset="@Assets["images/kontakt-intro-800.webp"] 800w, @Assets["images/kontakt-intro-1400.webp"] 1400w, @Assets["images/kontakt-intro-2000.webp"] 2000w"
+                         sizes="(min-width: 75em) 924px, (min-width: 64em) 76vw, 100vw"
+                         width="1400" height="933"
+                         loading="lazy"
+                         alt="Grusvägen upp till huvudbyggnaden, med grässlänt och trappa" />
                 </div>
             </div>
 

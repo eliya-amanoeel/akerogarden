@@ -25,8 +25,17 @@
                 </div>
             </div>
         </div>
+        @* The page's largest paint, so it is fetched first rather than lazily. `sizes` is the width the
+           photo is *drawn* at: full width until the 64em split; after it the frame is half the viewport
+           but at least 34rem tall, and a 3:2 photo covering that is scaled by height — so at least
+           544px × 1.5 = 816px wide, more than half of a 1024–1600px viewport. *@
         <div class="hero__photo">
-            <span class="photo-tag">Platshållare — foto vid lansering</span>
+            <img src="@Assets["images/hem-hero-1400.webp"]"
+                 srcset="@Assets["images/hem-hero-800.webp"] 800w, @Assets["images/hem-hero-1400.webp"] 1400w, @Assets["images/hem-hero-2000.webp"] 2000w"
+                 sizes="(min-width: 64em) max(50vw, 816px), 100vw"
+                 width="1400" height="933"
+                 fetchpriority="high"
+                 alt="Huvudbyggnaden på Åkerögården, med trappan upp till altanen" />
         </div>
     </div>
 </section>
@@ -63,8 +72,16 @@
         </div>
         <div class="usecards">
             <article class="usecard">
+                @* Below the fold, so lazy. `sizes` is the drawn width: a 3:2 photo covering the 4:3 frame is
+                   scaled by height, 1.125× the card. One column until 48em, then three-up, capped by the
+                   1200px container at 75em (365px card → 411px drawn). *@
                 <div class="usecard__img">
-                    <span class="photo-tag">Platshållare — foto vid lansering</span>
+                    <img src="@Assets["images/hem-lager-1400.webp"]"
+                         srcset="@Assets["images/hem-lager-800.webp"] 800w, @Assets["images/hem-lager-1400.webp"] 1400w, @Assets["images/hem-lager-2000.webp"] 2000w"
+                         sizes="(min-width: 75em) 411px, (min-width: 48em) 34vw, 100vw"
+                         width="1400" height="934"
+                         loading="lazy"
+                         alt="Altanen med bord och stolar en solig sommardag" />
                 </div>
                 <div class="usecard__body">
                     <h3>Läger &amp; retreat</h3>
@@ -73,7 +90,12 @@
             </article>
             <article class="usecard">
                 <div class="usecard__img">
-                    <span class="photo-tag">Platshållare — foto vid lansering</span>
+                    <img src="@Assets["images/hem-konferens-1400.webp"]"
+                         srcset="@Assets["images/hem-konferens-800.webp"] 800w, @Assets["images/hem-konferens-1400.webp"] 1400w, @Assets["images/hem-konferens-2000.webp"] 2000w"
+                         sizes="(min-width: 75em) 411px, (min-width: 48em) 34vw, 100vw"
+                         width="1400" height="935"
+                         loading="lazy"
+                         alt="Samlingssal med röda stolar framför en öppen spis" />
                 </div>
                 <div class="usecard__body">
                     <h3>Konferens &amp; möte</h3>
@@ -82,7 +104,12 @@
             </article>
             <article class="usecard">
                 <div class="usecard__img">
-                    <span class="photo-tag">Platshållare — foto vid lansering</span>
+                    <img src="@Assets["images/hem-kurs-1400.webp"]"
+                         srcset="@Assets["images/hem-kurs-800.webp"] 800w, @Assets["images/hem-kurs-1400.webp"] 1400w, @Assets["images/hem-kurs-2000.webp"] 2000w"
+                         sizes="(min-width: 75em) 411px, (min-width: 48em) 34vw, 100vw"
+                         width="1400" height="935"
+                         loading="lazy"
+                         alt="Kursrum med röda stolar, stora fönster och en färgglad bonad på väggen" />
                 </div>
                 <div class="usecard__body">
                     <h3>Kurs &amp; workshop</h3>
@@ -96,8 +123,16 @@
 <section class="section section--warm">
     <div class="container">
         <div class="teaser">
+            @* Frame runs from ~1.3:1 on desktop to a 3:1 band on tablet, hence an aerial with the
+               buildings spread across the middle. `sizes` is the drawn width: from 64em the frame is
+               24rem tall in the 0.9fr column, which a 3:2 photo covers at 384px × 1.5 = 576px. *@
             <div class="teaser__photo">
-                <span class="photo-tag">Platshållare — foto vid lansering</span>
+                <img src="@Assets["images/hem-faciliteter-1400.webp"]"
+                     srcset="@Assets["images/hem-faciliteter-800.webp"] 800w, @Assets["images/hem-faciliteter-1400.webp"] 1400w, @Assets["images/hem-faciliteter-2000.webp"] 2000w"
+                     sizes="(min-width: 64em) 576px, 100vw"
+                     width="1400" height="933"
+                     loading="lazy"
+                     alt="Flygbild över gården med husen utspridda längs gångvägar och gräsytor" />
             </div>
             <div>
                 <span class="eyebrow">Faciliteter</span>

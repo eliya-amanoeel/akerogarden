@@ -160,6 +160,11 @@ public sealed class SeoIntegrationTests : IClassFixture<DbFixture>, IDisposable
             Assert.Contains("property=\"og:url\"", html);
             Assert.Contains("content=\"sv_SE\"", html);
 
+            // Absolute, on the public base URL: scrapers do not resolve a relative og:image. That the
+            // file behind it really serves is asserted end to end in HomePageTests.
+            Assert.Contains($"<meta property=\"og:image\" content=\"{BaseUrl}/images/og-image.jpg\"", html);
+            Assert.Contains("<meta name=\"twitter:card\" content=\"summary_large_image\"", html);
+
             descriptions[path] = description;
         }
 

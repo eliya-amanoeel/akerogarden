@@ -42,8 +42,16 @@
                     <div><div class="facts__num">Helpension</div><div class="facts__label">eller självhushåll</div></div>
                 </div>
             </div>
+            @* The water is what makes "nära skärgården" in the copy true on sight; it sits in the top
+               third, so it survives the ~3:1 tablet band as well as the near-square desktop frame.
+               `sizes` is the drawn width: from 64em the frame is 21rem tall, covered at 336px × 1.5 = 504px. *@
             <div class="about-photo">
-                <span class="photo-tag">Platshållare — foto vid lansering</span>
+                <img src="@Assets["images/om-oss-intro-1400.webp"]"
+                     srcset="@Assets["images/om-oss-intro-800.webp"] 800w, @Assets["images/om-oss-intro-1400.webp"] 1400w, @Assets["images/om-oss-intro-2000.webp"] 2000w"
+                     sizes="(min-width: 64em) 504px, 100vw"
+                     width="1400" height="933"
+                     loading="lazy"
+                     alt="Flygbild över gården och skogen, med skärgårdens vatten i bakgrunden" />
             </div>
         </div>
     </div>
@@ -52,8 +60,16 @@
 <section class="section section--warm">
     <div class="container">
         <div class="teaser teaser--reverse">
+            @* Open lawn across the whole frame, so any crop still reads as "en stor öppen gräsyta".
+               `sizes` is the drawn width: reversed, the photo takes the 1.1fr column, which at the
+               1200px container is 603px — wider than the 576px its 24rem height needs. *@
             <div class="teaser__photo">
-                <span class="photo-tag">Platshållare — foto vid lansering</span>
+                <img src="@Assets["images/om-oss-marken-1400.webp"]"
+                     srcset="@Assets["images/om-oss-marken-800.webp"] 800w, @Assets["images/om-oss-marken-1400.webp"] 1400w, @Assets["images/om-oss-marken-2000.webp"] 2000w"
+                     sizes="(min-width: 64em) 603px, 100vw"
+                     width="1400" height="933"
+                     loading="lazy"
+                     alt="Den stora öppna gräsytan mitt på gården, omgiven av skog" />
             </div>
             <div>
                 <span class="eyebrow">Marken</span>

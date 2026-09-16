@@ -376,6 +376,12 @@ public sealed class E2EFixture : IAsyncLifetime
             // reachable only via the emailed link) can be driven by the browser. Never set in prod.
             psi.Environment["E2ETestHooks"] = "true";
 
+            // How fast a deactivated admin loses an already-open session (FR-74). One second, not the
+            // production minute: the browser test asserts that a live tab is thrown out, and waiting a
+            // real minute for it would make the suite's slowest test its least informative. The
+            // interval is the only thing shortened — the mechanism under test is unchanged.
+            psi.Environment["AdminSession__RevalidationSeconds"] = "1";
+
             // Force the demo seeder OFF, never merely "leave it unset". `dotnet run` loads the
             // developer's own user-secrets for this project, so a `DemoSeed:Reset=true` left behind
             // after a local reseed (infra/ops/seeding.md tells you to remove it, which is easy to

@@ -286,6 +286,97 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await AssertNoSeriousAxeViolationsAsync("booking detail");
     }
 
+    /// <summary>
+    /// Deactivating an admin must END the session they already hold, not merely refuse their next
+    /// sign-in (FR-74). Two real browsers, because that is the only way to see the defect this
+    /// guards: the login page always refused an inactive account, so every earlier test passed while
+    /// an already-open tab kept full access — its auth cookie was good for up to 30 days and the
+    /// Blazor circuit never re-checked who it was serving.
+    ///
+    /// <para>The victim is driven through a second browser context: a second page in the same context
+    /// would share the first admin's cookie jar, and this test is precisely about one person's session
+    /// while another person acts. The E2E fixture shortens the revalidation interval to 1 second
+    /// (production: 60) — the interval is the only thing changed; what is under test is that the
+    /// circuit notices at all, and that the tab is then sent to /login rather than left sitting on a
+    /// page it may no longer see.</para>
+    /// </summary>
+    [Fact]
+    public async Task Deactivating_an_admin_ends_the_session_that_is_already_open()
+    {
+        var email = $"{Guid.NewGuid():N}@akerogarden.se";
+        const string password = "E2e-Revalidate-Pass1!";
+        IBrowserContext? victimContext = null;
+
+        try
+        {
+            // 1. Invite and activate a second Administratör, through the real pages.
+            await LoginAsync();
+            await Page.GotoAsync("/konton");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "+ Bjud in användare" }).ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
+            await Page.FillAsync("#invite-email", email);
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Skicka inbjudan" }).ClickAsync();
+            await Assertions.Expect(Page.Locator("tr", new() { HasText = email })).ToBeVisibleAsync();
+
+            var resp = await Page.APIRequest.GetAsync($"/e2e/setup-link?email={Uri.EscapeDataString(email)}");
+            Assert.True(resp.Ok, $"setup-link seam returned {resp.Status}");
+            await Page.GotoAsync(new Uri(await resp.TextAsync()).PathAndQuery);
+            await Page.FillAsync("#firstName", "Bo");
+            await Page.FillAsync("#lastName", "Borttagen");
+            await Page.FillAsync("#phone", "070-555 44 33");
+            await Page.FillAsync("#password", password);
+            await Page.FillAsync("#confirm", password);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Aktivera konto" }).ClickAsync();
+            await Assertions.Expect(Page.GetByText("Ditt konto är aktiverat.")).ToBeVisibleAsync();
+
+            // 2. That admin signs in in their own browser and sits on an interactive page.
+            victimContext = await Fixture.Browser.NewContextAsync(new BrowserNewContextOptions
+            {
+                BaseURL = Fixture.AdminBaseUrl,
+                ViewportSize = Desktop,
+                ReducedMotion = ReducedMotion.Reduce,
+            });
+            var victim = await victimContext.NewPageAsync();
+            await victim.GotoAsync("/login");
+            await victim.FillAsync("#email", email);
+            await victim.FillAsync("#password", password);
+            await victim.GetByRole(AriaRole.Button, new() { Name = "Logga in" }).ClickAsync();
+            await victim.GotoAsync("/bokningar");
+            // Their circuit is live and serving them the page before anything is taken away — without
+            // this the assertion below could pass on a tab that never worked in the first place.
+            await Assertions.Expect(victim.GetByRole(AriaRole.Heading, new() { Name = "Bokningar" })).ToBeVisibleAsync();
+
+            // 3. The first admin deactivates them while that tab stays open and untouched.
+            await Page.GotoAsync("/konton");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            var row = Page.Locator("tr", new() { HasText = email });
+            await row.GetByRole(AriaRole.Button, new() { Name = "Inaktivera" }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("har inaktiverats");
+
+            // 4. The victim's open tab throws itself out — no reload, no click, no navigation by the
+            //    test. 15s: the app re-checks every second here, and the assertion should fail because
+            //    the session survived, never because the poll was slower than the default 5s timeout.
+            await Assertions.Expect(victim).ToHaveURLAsync(
+                new System.Text.RegularExpressions.Regex(@"/login"), new() { Timeout = 15_000 });
+
+            // 5. And the account cannot get back in.
+            await victim.FillAsync("#email", email);
+            await victim.FillAsync("#password", password);
+            await victim.GetByRole(AriaRole.Button, new() { Name = "Logga in" }).ClickAsync();
+            await Assertions.Expect(victim.Locator(".form-error")).ToBeVisibleAsync();
+            await Assertions.Expect(victim).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/login"));
+        }
+        finally
+        {
+            if (victimContext is not null)
+                await victimContext.DisposeAsync();
+            await using var db = Fixture.NewDbContext();
+            await db.Users.Where(u => u.Email == email).ExecuteDeleteAsync();
+        }
+    }
+
     /// <summary>Admin invite lifecycle (Phase 9, FR-74): a fresh invite shows the pending badge
     /// with resend/remove actions; resend keeps it pending; remove deletes the row. No SMTP
     /// server in E2E (see E2EFixture), so this only asserts the UI state, not email delivery.

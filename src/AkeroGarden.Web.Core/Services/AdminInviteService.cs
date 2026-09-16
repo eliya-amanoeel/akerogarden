@@ -102,6 +102,10 @@ public class AdminInviteService(
             return false;
 
         await ApplyRoleAsync(user, role);
+        // Cut the old role out of every session the account already holds. Role membership is baked
+        // into the auth cookie and into an open circuit's principal, so without this a demoted
+        // Administratör keeps full access in the tab they already have open.
+        await userManager.UpdateSecurityStampAsync(user);
         await RecordAccountAuditAsync(user, AuditAction.AdminRoleChanged,
             $"Rollen ändrades för {user.Email}: {current ?? "ingen roll"} → {role}.");
         await db.SaveChangesAsync();
@@ -187,6 +191,15 @@ public class AdminInviteService(
     public async Task SetAccountActiveAsync(ApplicationUser user, bool isActive)
     {
         user.IsActive = isActive;
+        // Deactivating must END access, not just prevent the next sign-in. The login page already
+        // refuses an inactive account, but a session that signed in BEFORE the deactivation kept
+        // working — its cookie is valid for up to 30 days and nothing re-checked IsActive. Rotating
+        // the security stamp is Identity's "every session issued before now is void" signal; it is
+        // what SecurityStampValidator and the admin host's revalidating auth-state provider compare
+        // against, so the account is out within the revalidation interval (1 minute) on both new
+        // requests and already-open tabs. Rotated on ACTIVATION too, deliberately: same one-line
+        // rule either way, and it costs an account that was just re-enabled nothing.
+        await userManager.UpdateSecurityStampAsync(user);
         await RecordAccountAuditAsync(user,
             isActive ? AuditAction.AdminAccountActivated : AuditAction.AdminAccountDeactivated,
             $"Administratörskonto {(isActive ? "aktiverades" : "inaktiverades")}: {user.Email}.");

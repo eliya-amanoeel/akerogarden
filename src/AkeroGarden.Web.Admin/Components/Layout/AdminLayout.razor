@@ -81,6 +81,9 @@
         <div class="admin-body">
             @Body
         </div>
+        @* Invisible. Ends this tab's session the moment the account behind it is deactivated,
+           demoted or deleted (FR-74) — see the component. *@
+        <SessionWatch />
     </div>
 </div>
 

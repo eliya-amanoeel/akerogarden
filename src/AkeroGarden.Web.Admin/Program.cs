@@ -1,9 +1,11 @@
 using AkeroGarden.Web.Admin.Components;
+using AkeroGarden.Web.Admin.Services;
 using AkeroGarden.Web.Core.Data;
 using AkeroGarden.Web.Core.Security;
 using AkeroGarden.Web.Core.Services;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
@@ -82,6 +84,18 @@ builder.Services.AddIdentity<ApplicationUser, IdentityRole>(options =>
     .AddEntityFrameworkStores<ApplicationDbContext>()
     .AddDefaultTokenProviders();
 
+// ── How fast a deactivated or demoted admin loses access (FR-74/FR-104) ───────
+// Identity re-checks a signed-in cookie against the account's security stamp on a timer, and the
+// framework default is 30 MINUTES — so an admin deactivated at 09:00 could still be working at 09:29
+// on the cookie they already had. AdminInviteService rotates the stamp on deactivate and on role
+// change; this is how long that rotation takes to bite. The same interval drives
+// AdminRevalidatingAuthenticationStateProvider, which closes the matching hole in an open Blazor
+// circuit (which otherwise never re-checks at all).
+builder.Services.Configure<AdminSessionOptions>(builder.Configuration.GetSection("AdminSession"));
+var adminSession = builder.Configuration.GetSection("AdminSession").Get<AdminSessionOptions>() ?? new AdminSessionOptions();
+builder.Services.Configure<SecurityStampValidatorOptions>(options =>
+    options.ValidationInterval = TimeSpan.FromSeconds(Math.Max(1, adminSession.RevalidationSeconds)));
+
 // Password reset links expire in 1 hour (FR-73 — UI text says "1 timme")
 builder.Services.Configure<DataProtectionTokenProviderOptions>(opts =>
     opts.TokenLifespan = TimeSpan.FromHours(1));
@@ -144,6 +158,11 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddCascadingAuthenticationState();
+
+// Re-checks an OPEN circuit against the database on the interval above. Registered after the
+// interactive-server components so it replaces their default provider, which resolves the user once
+// per circuit and never again (see the type for what that allowed).
+builder.Services.AddScoped<AuthenticationStateProvider, AdminRevalidatingAuthenticationStateProvider>();
 
 // ── Health probe (Phase 11 — post-launch security review, finding #20) ────────
 // Liveness ONLY, for the same reason as the public host: App Service pulls a failing instance out of

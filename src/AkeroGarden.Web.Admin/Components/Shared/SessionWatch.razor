@@ -1,0 +1,42 @@
+@rendermode InteractiveServer
+@implements IDisposable
+@inject AuthenticationStateProvider AuthProvider
+@inject NavigationManager Nav
+
+@* Renders nothing. Its job is to hold a live circuit on every admin page and act the moment
+   AdminRevalidatingAuthenticationStateProvider decides the signed-in account is no longer valid —
+   deactivated, demoted (FR-104) or deleted — by navigating the browser out to /login.
+
+   Why a component in the LAYOUT rather than <AuthorizeRouteView> in the router: this app renders the
+   router and the layout as static SSR and marks individual pages @rendermode InteractiveServer. The
+   router's NotAuthorized content is documented as inoperative under static SSR, so the redirect
+   cannot live there — tried, and the E2E test sat happily on /bokningar after the account was
+   deactivated. An interactive island inside the static layout is present on every admin page and
+   shares that page's circuit, which is where the revalidation runs.
+
+   The framework's own response to a failed revalidation is only to swap the circuit's principal for
+   an anonymous one (RevalidatingServerAuthenticationStateProvider.ForceSignOut). Nothing navigates,
+   and with a static router the [Authorize] attributes are not re-evaluated in an open tab — so
+   without this component the tab keeps working until someone reloads it.
+
+   forceLoad: a full navigation, so the request re-runs cookie authentication (whose own check is on
+   the same interval) and the dead circuit is abandoned rather than reused. *@
+
+@code {
+    protected override void OnInitialized() =>
+        AuthProvider.AuthenticationStateChanged += OnAuthenticationStateChanged;
+
+    private void OnAuthenticationStateChanged(Task<AuthenticationState> task) => _ = HandleAsync(task);
+
+    private async Task HandleAsync(Task<AuthenticationState> task)
+    {
+        var state = await task;
+        if (state.User.Identity?.IsAuthenticated == true)
+            return;
+
+        // InvokeAsync: the notification arrives on the revalidation loop's thread, not the circuit's.
+        await InvokeAsync(() => Nav.NavigateTo("/login", forceLoad: true));
+    }
+
+    public void Dispose() => AuthProvider.AuthenticationStateChanged -= OnAuthenticationStateChanged;
+}

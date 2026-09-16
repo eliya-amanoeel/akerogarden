@@ -278,6 +278,59 @@ public class AdminInviteIntegrationTests : IClassFixture<DbFixture>
             .ToListAsync());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SetAccountActiveAsync_RotatesTheSecurityStamp_SoExistingSessionsEnd(bool activate)
+    {
+        // The stamp is what ends a session that is ALREADY signed in: the login page refusing an
+        // inactive account does nothing about the cookie — good for up to 30 days — or the open tab
+        // someone deactivated at 09:00 is still working in. Both compare this value (FR-74).
+        var (invites, users, _, _) = await NewProviderAsync();
+        var address = $"{Guid.NewGuid()}@akerogarden.se";
+        await invites.InviteAsync(address, AdminRoles.Administrator);
+        var user = (await users.FindByEmailAsync(address))!;
+        var before = await users.GetSecurityStampAsync(user);
+
+        await invites.SetAccountActiveAsync(user, activate);
+
+        var after = await users.GetSecurityStampAsync((await users.FindByEmailAsync(address))!);
+        Assert.NotEqual(before, after);
+    }
+
+    [Fact]
+    public async Task SetRoleAsync_RotatesTheSecurityStamp_SoADemotedAdminLosesTheOldRole()
+    {
+        // Role membership rides in the auth cookie and in an open circuit's principal, so a demotion
+        // that leaves the stamp alone leaves the old role working wherever the person already is.
+        var (invites, users, _, _) = await NewProviderAsync();
+        var address = $"{Guid.NewGuid()}@akerogarden.se";
+        await invites.InviteAsync(address, AdminRoles.Administrator);
+        var user = (await users.FindByEmailAsync(address))!;
+        var before = await users.GetSecurityStampAsync(user);
+
+        Assert.True(await invites.SetRoleAsync(user, AdminRoles.Coordinator));
+
+        var after = await users.GetSecurityStampAsync((await users.FindByEmailAsync(address))!);
+        Assert.NotEqual(before, after);
+    }
+
+    [Fact]
+    public async Task SetRoleAsync_LeavesTheSecurityStampAlone_WhenTheRoleIsUnchanged()
+    {
+        // The no-op path must stay a no-op: rotating here would sign every admin out of their own
+        // session for re-picking the role they already had.
+        var (invites, users, _, _) = await NewProviderAsync();
+        var address = $"{Guid.NewGuid()}@akerogarden.se";
+        await invites.InviteAsync(address, AdminRoles.Administrator);
+        var user = (await users.FindByEmailAsync(address))!;
+        var before = await users.GetSecurityStampAsync(user);
+
+        Assert.False(await invites.SetRoleAsync(user, AdminRoles.Administrator));
+
+        Assert.Equal(before, await users.GetSecurityStampAsync((await users.FindByEmailAsync(address))!));
+    }
+
     [Fact]
     public async Task SetRoleAsync_RejectsAnUnknownRole_AndLeavesTheCurrentOneIntact()
     {

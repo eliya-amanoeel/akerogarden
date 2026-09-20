@@ -56,11 +56,16 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
     private static DateTime NowIn(IServiceProvider provider) =>
         provider.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime;
 
+    private static int _window;
+
     private static async Task<(Guid Id, string Token)> ApprovedBookingAsync(IServiceProvider provider)
     {
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
-        var checkIn = DbFixture.TodayIn(provider).AddDays(30);
+        // Own window per seeded stay — approval refuses to double-book (FR-10). Base 4, step 6
+        // keeps every window inside the 40-day link-issue window (FR-108), which these tests need:
+        // a stay further out than that is approved with no token at all.
+        var checkIn = DbFixture.StayWindow(provider, Interlocked.Increment(ref _window), firstDaysOut: 4, stepDays: 6);
         var booking = await service.CreateStayRequestAsync(new StayRequestInput
         {
             ContactName = "Gäst",

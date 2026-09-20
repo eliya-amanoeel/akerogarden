@@ -37,7 +37,10 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
             });
         });
 
-    private sealed record Setup(Guid BookingId, Guid RoomId, Guid LunchId, Guid DinnerId);
+    private static int _window;
+
+    private sealed record Setup(
+        Guid BookingId, Guid RoomId, Guid LunchId, Guid DinnerId, DateOnly CheckIn, DateOnly CheckOut);
 
     /// <summary>Seeds a building + 1-bed room + options, and a DetailsComplete booking with 2 full-board overnight participants.</summary>
     private static async Task<Setup> SetupAsync(IServiceProvider provider)
@@ -63,12 +66,17 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
         db.MealOptions.AddRange(lunch, dinner, dinner2);
         await db.SaveChangesAsync();
 
+        // Own window per seeded stay — approval refuses to double-book (FR-10), and every test in
+        // this class approves. Walks backwards from today: a stay in the past is still inside the
+        // 40-day link-issue window (FR-108) and can never collide with a forward-dated one.
+        var checkIn = DbFixture.StayWindow(provider, Interlocked.Increment(ref _window), firstDaysOut: -40, stepDays: -6);
+
         var booking = await bookings.CreateStayRequestAsync(new StayRequestInput
         {
             ContactName = "Grupp",
             ContactEmail = $"g-{Guid.NewGuid():N}@test.se",
-            CheckIn = new DateOnly(2026, 8, 10),
-            CheckOut = new DateOnly(2026, 8, 12),
+            CheckIn = checkIn,
+            CheckOut = checkIn.AddDays(2),
             OvernightGuestCount = 2,
             MealPlan = MealPlan.FullBoardAll,
             AcceptTerms = true
@@ -95,7 +103,7 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
             });
         await bookings.SubmitCompletionAsync(token, form, DateTime.UtcNow);
 
-        return new Setup(booking.Id, room.Id, lunch.Id, dinner2.Id);
+        return new Setup(booking.Id, room.Id, lunch.Id, dinner2.Id, checkIn, checkIn.AddDays(2));
     }
 
     // REMOVED 2026-08-06 (demo-feedback slice 2): SetGuestChoosesRooms_TogglesFlag and
@@ -214,7 +222,7 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
                 .SingleAsync(b => b.Id == setup.BookingId);
 
             Assert.False(booking.ArrivalDinner);
-            Assert.DoesNotContain(booking.MealSelections, m => m.Date == new DateOnly(2026, 8, 10));
+            Assert.DoesNotContain(booking.MealSelections, m => m.Date == setup.CheckIn);
             // The middle-day sittings are untouched.
             Assert.Equal(2, booking.MealSelections.Count);
         }
@@ -246,7 +254,7 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
 
             Assert.True(booking.DepartureLunch);
             // The new meal exists with no dish — nothing is invented on the group's behalf.
-            Assert.DoesNotContain(booking.MealSelections, m => m.Date == new DateOnly(2026, 8, 12));
+            Assert.DoesNotContain(booking.MealSelections, m => m.Date == setup.CheckOut);
             Assert.Equal(3, booking.MealSelections.Count);
         }
 
@@ -258,7 +266,7 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
             var booking = await service.GetWithParticipantsAsync(setup.BookingId);
 
             var edit = ToMealEdit(booking!);
-            var newLunch = Assert.Single(edit.Meals, m => m.Date == new DateOnly(2026, 8, 12) && m.MealType == MealType.Lunch);
+            var newLunch = Assert.Single(edit.Meals, m => m.Date == setup.CheckOut && m.MealType == MealType.Lunch);
             Assert.Null(newLunch.MealOptionId); // rendered as an empty dropdown, not omitted
             newLunch.MealOptionId = setup.LunchId;
 
@@ -272,7 +280,7 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
                 .Include(b => b.MealSelections)
                 .SingleAsync(b => b.Id == setup.BookingId);
 
-            var lunch = Assert.Single(booking.MealSelections, m => m.Date == new DateOnly(2026, 8, 12));
+            var lunch = Assert.Single(booking.MealSelections, m => m.Date == setup.CheckOut);
             Assert.Equal(setup.LunchId, lunch.MealOptionId);
             Assert.False(string.IsNullOrEmpty(lunch.MealOptionSnapshot)); // snapshot captured (NFR-15)
             Assert.Equal(4, booking.MealSelections.Count);

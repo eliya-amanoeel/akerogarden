@@ -2,8 +2,10 @@
 @layout MainLayout
 @using AkeroGarden.Web.Core.Data.Entities
 @using AkeroGarden.Web.Core.Models
+@using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject FacilityService FacilityService
+@inject AvailabilityService Availability
 @inject IInquiryRateLimiter RateLimiter
 @inject ILogger<BookInquiry> Logger
 
@@ -105,15 +107,26 @@ else
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="s-checkin">Incheckning@(_checkInPrefilled ? (MarkupString)"<span class=\"prefill\">Från kalender</span>" : default)</label>
-                                <InputDate id="s-checkin" @bind-Value="StayModel!.CheckIn" />
+                                @* min: the native picker's only lever over which dates it offers — it
+                                   cannot grey out individual days, so occupied dates are caught by the
+                                   server on post instead (HandleStayRequest) and echoed below. *@
+                                <InputDate id="s-checkin" min="@_earliestSelectable" @bind-Value="StayModel!.CheckIn" />
                                 <ValidationMessage For="() => StayModel!.CheckIn" />
                             </div>
                             <div class="form-group">
                                 <label for="s-checkout">Utcheckning@(_checkOutPrefilled ? (MarkupString)"<span class=\"prefill\">Från kalender</span>" : default)</label>
-                                <InputDate id="s-checkout" @bind-Value="StayModel!.CheckOut" />
+                                <InputDate id="s-checkout" min="@_earliestSelectable" @bind-Value="StayModel!.CheckOut" />
                                 <ValidationMessage For="() => StayModel!.CheckOut" />
                             </div>
                         </div>
+
+                        @if (_dateError is not null)
+                        {
+                            <p class="form-error" role="alert">
+                                @_dateError
+                                <a href="/kalender">Se lediga datum i kalendern</a>
+                            </p>
+                        }
 
                         @* Stated arrival/departure times (FR-100, §2.8). A fixed dropdown, not a free
                            text or a native time field: the point of collecting these was to stop
@@ -338,6 +351,15 @@ else
     private bool _submitted;
     private string? _confirmation;
     private bool _rateLimited;
+    private string? _dateError;
+
+    // Floor for the native date pickers. `min` is the only control the browser gives us over which
+    // dates a native picker offers — individual days cannot be disabled — so it keeps the obvious
+    // mistake (a date in the past) out of the picker, while the server re-checks both the past date
+    // and occupancy on post: `min` is a convenience, never the rule (FR-113).
+    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+    private string _earliestSelectable => _today.ToString("yyyy-MM-dd");
 
     // Which track to show. Derived from which form actually posted: on a general-inquiry post the
     // general model is bound (non-null) and the stay model is not, so the general tab stays open
@@ -379,6 +401,29 @@ else
     private async Task HandleStayRequest()
     {
         if (!await AllowedByRateLimitAsync()) return;
+
+        // Availability is re-checked server-side on every post, never trusted from the calendar the
+        // guest came from: the page may be hours old, the dates may have been typed straight into
+        // the fields, and a post can arrive without ever having rendered the calendar at all
+        // (FR-113). The calendar is a display; this is the gate.
+        if (StayModel!.CheckIn is { } checkIn && StayModel.CheckOut is { } checkOut)
+        {
+            // A date in the past is refused before occupancy is consulted: nothing holds it, so the
+            // availability check would call it free and wave it through.
+            if (AvailabilityService.DescribePastDate(checkIn, _today) is { } pastDate)
+            {
+                _dateError = pastDate;
+                return;
+            }
+
+            var availability = await Availability.EvaluateStayAsync(checkIn, checkOut);
+            if (!availability.IsAvailable)
+            {
+                _dateError = AvailabilityService.Describe(availability);
+                return;
+            }
+        }
+
         await BookingService.CreateStayRequestAsync(StayModel!);
         _submitted = true;
         _confirmation = "Vi har tagit emot din bokningsförfrågan och skickat en bekräftelse till din e-post. "

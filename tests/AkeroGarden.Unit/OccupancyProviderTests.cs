@@ -4,183 +4,166 @@ using AkeroGarden.Web.Core.Services;
 namespace AkeroGarden.Unit;
 
 /// <summary>
-/// Unit coverage for the pure per-date occupancy aggregation (NFR-26, FR-10): summing occupying
-/// guests, removing beds for building/room blocks (without double-counting), whole-property
-/// blocks, and nightly (check-out-exclusive) semantics. The Free/Partial/Full thresholds
-/// themselves are covered by AvailabilityCalculatorTests.
+/// Unit coverage for the pure per-date occupancy aggregation (NFR-26, FR-10): which reasons hold a
+/// date, nightly (check-out-exclusive) semantics, the turnover window, whole-property blocks, and
+/// the deliberate silence of building/room blocks. Collapsing reasons to a state is
+/// AvailabilityCalculatorTests; whether a whole requested stay fits is AvailabilityServiceTests.
 /// </summary>
 public class OccupancyProviderTests
 {
     private static readonly Guid BuildingId = Guid.NewGuid();
-
-    private static List<Room> Rooms(params int[] beds) =>
-        beds.Select(b => new Room { Id = Guid.NewGuid(), BuildingId = BuildingId, BedCount = b, IsActive = true }).ToList();
+    private static readonly Guid RoomId = Guid.NewGuid();
 
     private static Booking Occupying(DateOnly checkIn, DateOnly checkOut, int guests, BookingStatus status = BookingStatus.Approved) =>
         new() { Status = status, CheckIn = checkIn, CheckOut = checkOut, OvernightGuestCount = guests };
 
+    private static BlockedPeriod Block(BlockScope scope, DateOnly start, DateOnly end) =>
+        new()
+        {
+            Scope = scope,
+            StartDate = start,
+            EndDate = end,
+            BuildingId = scope == BlockScope.Building ? BuildingId : null,
+            RoomId = scope == BlockScope.Room ? RoomId : null
+        };
+
     private static AvailabilityState StateOn(
         DateOnly date,
-        IReadOnlyCollection<Room> rooms,
         IReadOnlyCollection<Booking> bookings,
         IReadOnlyCollection<BlockedPeriod> blocks) =>
-        OccupancyProvider.ComputeStates(date, date, rooms, bookings, blocks)[date];
+        OccupancyProvider.ComputeStates(date, date, bookings, blocks)[date];
+
+    private static UnavailableReason ReasonOn(
+        DateOnly date,
+        IReadOnlyCollection<Booking> bookings,
+        IReadOnlyCollection<BlockedPeriod> blocks) =>
+        OccupancyProvider.ComputeReasons(date, date, bookings, blocks)[date];
 
     [Fact]
     public void NoBookingsNoBlocks_IsFree()
     {
         var date = new DateOnly(2026, 6, 10);
-        Assert.Equal(AvailabilityState.Free, StateOn(date, Rooms(10), [], []));
+        Assert.Equal(AvailabilityState.Free, StateOn(date, [], []));
     }
 
-    [Fact]
-    public void PartialOccupancy_IsPartiallyBooked()
+    /// <summary>
+    /// The client's rule, asserted against real guest counts: the property is let to one group at a
+    /// time, so a three-person group holds the date exactly as a full house does. This is the test
+    /// that fails if anyone reintroduces a capacity comparison.
+    /// </summary>
+    [Theory]
+    [InlineData(3)]
+    [InlineData(40)]
+    [InlineData(79)]
+    public void AnyOccupyingBooking_HoldsTheDate_WhateverTheGroupSize(int guests)
     {
         var date = new DateOnly(2026, 6, 10);
-        var bookings = new[] { Occupying(new(2026, 6, 9), new(2026, 6, 12), 4) };
-        Assert.Equal(AvailabilityState.PartiallyBooked, StateOn(date, Rooms(10), bookings, []));
+        var bookings = new[] { Occupying(new(2026, 6, 9), new(2026, 6, 12), guests) };
+
+        Assert.Equal(AvailabilityState.Unavailable, StateOn(date, bookings, []));
+        Assert.Equal(UnavailableReason.Occupied, ReasonOn(date, bookings, []));
     }
 
     [Fact]
-    public void OccupancyReachingCapacity_IsFullyBooked()
+    public void CheckOutDay_HoldsNoGuests_ButIsHeldForTurnover()
     {
-        var date = new DateOnly(2026, 6, 10);
-        var bookings = new[] { Occupying(new(2026, 6, 9), new(2026, 6, 12), 10) };
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(date, Rooms(10), bookings, []));
-    }
-
-    [Fact]
-    public void CheckOutDay_HoldsNoGuests_ButIsUnavailableForTurnover()
-    {
-        // Nightly semantics are unchanged — the check-out day counts no guests — but the day is no
-        // longer bookable: it opens the turnover window (FR-106). A small group on a large property
-        // separates the two causes: if the 10th were judged on headcount it would read Partially
-        // booked, since two guests do not fill ten beds.
+        // Nightly semantics: the check-out day counts no guests, so Occupied is absent — and the
+        // day is still unavailable, because it opens the turnover window (FR-106).
         var bookings = new[] { Occupying(new(2026, 6, 8), new(2026, 6, 10), 2) };
-        var rooms = Rooms(10);
 
-        // Nights of the 8th and 9th: occupied by two of ten beds → partially booked.
-        Assert.Equal(AvailabilityState.PartiallyBooked, StateOn(new(2026, 6, 8), rooms, bookings, []));
-        Assert.Equal(AvailabilityState.PartiallyBooked, StateOn(new(2026, 6, 9), rooms, bookings, []));
-
-        // Check-out day and the day after: fully unavailable on the turnover reason alone.
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 6, 10), rooms, bookings, []));
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 6, 11), rooms, bookings, []));
-
-        // The next group may arrive on the 12th.
-        Assert.Equal(AvailabilityState.Free, StateOn(new(2026, 6, 12), rooms, bookings, []));
+        Assert.Equal(UnavailableReason.Occupied, ReasonOn(new(2026, 6, 9), bookings, []));
+        Assert.Equal(UnavailableReason.Turnover, ReasonOn(new(2026, 6, 10), bookings, []));
     }
 
     [Fact]
-    public void FullProperty_TurnoverExtendsBeyondTheStay()
+    public void TurnoverExtendsOneDayBeyondCheckOut_ThenTheDateIsFreeAgain()
     {
-        // The same window applies when the group did fill the property — the buffer is not a
-        // consequence of leftover capacity.
-        var bookings = new[] { Occupying(new(2026, 7, 1), new(2026, 7, 5), 10) };
-        var rooms = Rooms(10);
+        var bookings = new[] { Occupying(new(2026, 6, 8), new(2026, 6, 10), 6) };
 
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 7, 4), rooms, bookings, []));
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 7, 5), rooms, bookings, []));
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 7, 6), rooms, bookings, []));
-        Assert.Equal(AvailabilityState.Free, StateOn(new(2026, 7, 7), rooms, bookings, []));
+        Assert.Equal(AvailabilityState.Unavailable, StateOn(new(2026, 6, 11), bookings, []));
+        Assert.Equal(AvailabilityState.Free, StateOn(new(2026, 6, 12), bookings, []));
     }
 
     [Fact]
     public void StayEndingBeforeTheRange_StillHoldsTheRangesFirstDay()
     {
-        // The window's first day belongs to a stay that ended the day before it opened. Callers
-        // must hand ComputeStates that booking (see TurnoverWindow.EarliestCheckOutAffecting) —
-        // this pins the behaviour once it is passed in; the integration test pins the query.
-        var from = new DateOnly(2026, 8, 10);
-        var bookings = new[] { Occupying(new(2026, 8, 5), from.AddDays(-1), 2) };
+        // The stay ends the day before the window opens; its turnover still reaches inside.
+        var bookings = new[] { Occupying(new(2026, 6, 5), new(2026, 6, 9), 6) };
+        var states = OccupancyProvider.ComputeStates(new(2026, 6, 10), new(2026, 6, 11), bookings, []);
 
-        var states = OccupancyProvider.ComputeStates(from, from.AddDays(2), Rooms(10), bookings, []);
-
-        Assert.Equal(AvailabilityState.FullyBooked, states[from]);          // day after check-out
-        Assert.Equal(AvailabilityState.Free, states[from.AddDays(1)]);      // window closed
+        Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 10)]);
+        Assert.Equal(AvailabilityState.Free, states[new(2026, 6, 11)]);
     }
 
     [Fact]
     public void TurnoverWindowsOfAdjacentBookings_DoNotFreeEachOther()
     {
-        // Two stays whose windows overlap: the second group arrives the day the first group's
-        // window closes. Every date from the first check-out onward must stay unavailable.
-        var first = Occupying(new(2026, 9, 1), new(2026, 9, 4), 2);
-        var second = Occupying(new(2026, 9, 6), new(2026, 9, 9), 2);
-        var rooms = Rooms(10);
-        var bookings = new[] { first, second };
+        var bookings = new[]
+        {
+            Occupying(new(2026, 6, 1), new(2026, 6, 5), 10),
+            Occupying(new(2026, 6, 7), new(2026, 6, 10), 10)
+        };
+        var states = OccupancyProvider.ComputeStates(new(2026, 6, 5), new(2026, 6, 7), bookings, []);
 
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 9, 4), rooms, bookings, []));   // turnover 1
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 9, 5), rooms, bookings, []));   // turnover 1
-        Assert.Equal(AvailabilityState.PartiallyBooked, StateOn(new(2026, 9, 6), rooms, bookings, [])); // stay 2 begins
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 9, 9), rooms, bookings, []));   // turnover 2
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(new(2026, 9, 10), rooms, bookings, []));  // turnover 2
-        Assert.Equal(AvailabilityState.Free, StateOn(new(2026, 9, 11), rooms, bookings, []));
+        Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 5)]); // first booking's turnover
+        Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 6)]); // its second turnover day
+        Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 7)]); // second booking's first night
     }
 
+    /// <summary>
+    /// The status filter lives in <c>GetReasonsAsync</c>, not in the pure function — so the honest
+    /// unit-level claim is only that these statuses are absent from the occupying set. That the
+    /// filter is actually applied (a Pending booking creating no turnover window, in particular) is
+    /// pinned end to end by OccupancyProviderIntegrationTests against a real database.
+    /// </summary>
     [Theory]
     [InlineData(BookingStatus.Pending)]
     [InlineData(BookingStatus.Denied)]
     [InlineData(BookingStatus.Cancelled)]
     [InlineData(BookingStatus.Completed)]
     [InlineData(BookingStatus.Closed)]
-    public void NonOccupyingStatuses_DoNotCount_InPureCompute(BookingStatus status)
+    public void NonOccupyingStatuses_AreNotInTheOccupyingSet(BookingStatus status)
     {
-        // ComputeStates trusts the caller to pass only occupying bookings; GetStatesAsync filters
-        // by status. This guards the contract: a booking is counted purely by its dates here, so
-        // the integration test proves the status filter — but we document intent by not relying on it.
-        var date = new DateOnly(2026, 6, 10);
-        var bookings = new[] { Occupying(new(2026, 6, 9), new(2026, 6, 12), 10, status) };
-        // The pure method counts by dates regardless of status; capacity reached -> full.
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(date, Rooms(10), bookings, []));
+        Assert.DoesNotContain(status, OccupancyProvider.OccupyingStatuses);
     }
 
     [Fact]
-    public void WholePropertyBlock_IsFullyBooked()
+    public void WholePropertyBlock_HoldsTheDate_WithNoBookings()
     {
         var date = new DateOnly(2026, 6, 10);
-        var blocks = new[] { new BlockedPeriod { Scope = BlockScope.WholeProperty, StartDate = new(2026, 6, 9), EndDate = new(2026, 6, 11) } };
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(date, Rooms(10), [], blocks));
+        var blocks = new[] { Block(BlockScope.WholeProperty, new(2026, 6, 9), new(2026, 6, 11)) };
+
+        Assert.Equal(UnavailableReason.WholePropertyBlock, ReasonOn(date, [], blocks));
+    }
+
+    /// <summary>
+    /// A building or room out of service does not close the property. With no partial state left to
+    /// express it in, the public calendar says nothing — the block's real effect is the assignment
+    /// veto (FR-102), which <c>BuildingExclusionCalculator</c> owns and this deliberately does not
+    /// duplicate.
+    /// </summary>
+    [Theory]
+    [InlineData(BlockScope.Building)]
+    [InlineData(BlockScope.Room)]
+    public void PartialBlocks_DoNotReachThePublicCalendar(BlockScope scope)
+    {
+        var date = new DateOnly(2026, 6, 10);
+        var blocks = new[] { Block(scope, new(2026, 6, 9), new(2026, 6, 11)) };
+
+        Assert.Equal(UnavailableReason.None, ReasonOn(date, [], blocks));
+        Assert.Equal(AvailabilityState.Free, StateOn(date, [], blocks));
     }
 
     [Fact]
-    public void RoomBlock_ReducesEffectiveCapacity()
+    public void OccupiedAndBlocked_CarryBothReasons()
     {
-        // Two rooms of 5 beds; block one room (5 beds) and book 5 guests → effective capacity 5,
-        // reached → fully booked.
-        var rooms = Rooms(5, 5);
-        var blockedRoom = rooms[0];
         var date = new DateOnly(2026, 6, 10);
-        var blocks = new[] { new BlockedPeriod { Scope = BlockScope.Room, BuildingId = BuildingId, RoomId = blockedRoom.Id, StartDate = new(2026, 6, 10), EndDate = new(2026, 6, 10) } };
         var bookings = new[] { Occupying(new(2026, 6, 9), new(2026, 6, 12), 5) };
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(date, rooms, bookings, blocks));
-    }
+        var blocks = new[] { Block(BlockScope.WholeProperty, new(2026, 6, 10), new(2026, 6, 10)) };
 
-    [Fact]
-    public void OverlappingBuildingAndRoomBlocks_DoNotDoubleCountBeds()
-    {
-        // Building block removes both rooms (10 beds); an overlapping room block on one of them
-        // must not remove that room's 5 beds twice. Effective capacity 0 → fully booked with no bookings.
-        var rooms = Rooms(5, 5);
-        var date = new DateOnly(2026, 6, 10);
-        var blocks = new[]
-        {
-            new BlockedPeriod { Scope = BlockScope.Building, BuildingId = BuildingId, StartDate = date, EndDate = date },
-            new BlockedPeriod { Scope = BlockScope.Room, BuildingId = BuildingId, RoomId = rooms[0].Id, StartDate = date, EndDate = date }
-        };
-        // If double-counted, beds removed would be 15 vs capacity 10 (still floored to 0) — so to
-        // prove no double-count, book nothing and confirm full only because all 10 beds are blocked.
-        Assert.Equal(AvailabilityState.FullyBooked, StateOn(date, rooms, [], blocks));
-    }
-
-    [Fact]
-    public void PartialBlockWithRoomLeft_IsPartiallyBooked()
-    {
-        var rooms = Rooms(5, 5);
-        var date = new DateOnly(2026, 6, 10);
-        var blocks = new[] { new BlockedPeriod { Scope = BlockScope.Room, BuildingId = BuildingId, RoomId = rooms[0].Id, StartDate = date, EndDate = date } };
-        // One room blocked (5 of 10 beds gone), no bookings → partially booked (not free, not full).
-        Assert.Equal(AvailabilityState.PartiallyBooked, StateOn(date, rooms, [], blocks));
+        Assert.Equal(
+            UnavailableReason.Occupied | UnavailableReason.WholePropertyBlock,
+            ReasonOn(date, bookings, blocks));
     }
 
     [Fact]
@@ -188,8 +171,10 @@ public class OccupancyProviderTests
     {
         var from = new DateOnly(2026, 6, 1);
         var to = new DateOnly(2026, 6, 30);
-        var states = OccupancyProvider.ComputeStates(from, to, Rooms(10), [], []);
+        var states = OccupancyProvider.ComputeStates(from, to, [], []);
+
         Assert.Equal(30, states.Count);
-        Assert.All(states.Values, s => Assert.Equal(AvailabilityState.Free, s));
+        for (var d = from; d <= to; d = d.AddDays(1))
+            Assert.True(states.ContainsKey(d));
     }
 }

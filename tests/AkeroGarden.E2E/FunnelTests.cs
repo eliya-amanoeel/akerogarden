@@ -57,8 +57,12 @@ public class FunnelTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         await page.FillAsync("#s-name", "Anna Andersson");
         await page.FillAsync("#s-email", "anna@example.se");
         await page.FillAsync("#s-email-confirm", "anna@example.se");
-        await page.FillAsync("#s-checkin", "2026-08-01");
-        await page.FillAsync("#s-checkout", "2026-08-03");
+        // Relative to today, never a literal: the date inputs carry min="today" (FR-113), so a
+        // hardcoded past date would be rejected by the browser and never post — and the tests built
+        // on this helper assert *server-side* messages, which only appear if the post happens.
+        var checkIn = DateTime.UtcNow.Date.AddDays(60);
+        await page.FillAsync("#s-checkin", checkIn.ToString("yyyy-MM-dd"));
+        await page.FillAsync("#s-checkout", checkIn.AddDays(2).ToString("yyyy-MM-dd"));
         await page.FillAsync("#s-guests", "12");
         await page.SelectOptionAsync("#mealplan", "FullBoardAll");
         await page.Locator(".track--stay label:has-text('integritetspolicyn') input[type=checkbox]").CheckAsync();
@@ -217,8 +221,9 @@ public class FunnelTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         await Page.FillAsync("#s-name", "Tidig Ankomst");
         await Page.FillAsync("#s-email", email);
         await Page.FillAsync("#s-email-confirm", email);
-        await Page.FillAsync("#s-checkin", "2027-06-01");
-        await Page.FillAsync("#s-checkout", "2027-06-03");
+        var statedCheckIn = DateTime.UtcNow.Date.AddDays(120);
+        await Page.FillAsync("#s-checkin", statedCheckIn.ToString("yyyy-MM-dd"));
+        await Page.FillAsync("#s-checkout", statedCheckIn.AddDays(2).ToString("yyyy-MM-dd"));
         await Page.FillAsync("#s-guests", "8");
         await Page.SelectOptionAsync("#mealplan", "FullBoardAll");
         await Page.SelectOptionAsync("#s-checkin-time", "08:30");

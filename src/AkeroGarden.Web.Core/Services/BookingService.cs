@@ -20,7 +20,8 @@ namespace AkeroGarden.Web.Core.Services;
 /// </summary>
 public class BookingService(
     ApplicationDbContext db, BookingEmailService emails, CleaningZoneService cleaning,
-    IAuditWriter audit, ILogger<BookingService> logger, TimeProvider clock)
+    IAuditWriter audit, ILogger<BookingService> logger, TimeProvider clock,
+    AvailabilityService availability)
 {
     /// <summary>
     /// "Now", from the injected clock rather than the wall clock — so a test can pin it and get the
@@ -591,6 +592,20 @@ public class BookingService(
             return new ApproveResult(false, "Bokningen kan inte godkännas i sitt nuvarande läge.", null, false);
         if (booking.CheckIn is null)
             return new ApproveResult(false, "Bokningen saknar incheckningsdatum.", null, false);
+
+        // One group at a time — the property is never let to two groups over the same nights, which
+        // is why the public calendar shows an occupied date as unavailable whatever the group's size
+        // (FR-10). Approval is where that becomes true rather than merely displayed: the calendar is
+        // a display, and a Pending inquiry can sit in the inbox while another booking is approved
+        // over the same dates. Blocking, not warning — an overlap approved by mistake is discovered
+        // by two groups arriving at the same gate, and the deposit and cancellation terms have by
+        // then been sent to both.
+        if (booking.CheckOut is { } checkOut)
+        {
+            var stay = await availability.EvaluateStayAsync(booking.CheckIn.Value, checkOut, booking.Id);
+            if (!stay.IsAvailable)
+                return new ApproveResult(false, AvailabilityService.DescribeForAdmin(stay), null, false);
+        }
 
         // Building assignment is a precondition of approval (FR-38/FR-103/D1) — the approval email
         // names the buildings, so approving without them would send the guest an incomplete answer.

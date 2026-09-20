@@ -15,8 +15,9 @@
         <h1>När är gården ledig?</h1>
         <div class="page-head__rule"></div>
         <p class="page-head__intro">
-            Kalendern visar de kommande 12 månaderna. Delvis bokade datum är preliminära — en
-            förfrågan garanterar inte tillgänglighet, utan bekräftas av oss.
+            Kalendern visar de kommande 12 månaderna. Gården hyrs ut till en grupp i taget, så ett
+            upptaget datum är upptaget oavsett sällskapets storlek. Dagen efter en avresa är alltid
+            avsatt för städning. En förfrågan bekräftas av oss.
         </p>
     </div>
 </section>
@@ -25,8 +26,7 @@
     <div class="container">
         <div class="cal-legend">
             <span><span class="cal-swatch cal-free"></span> Ledigt</span>
-            <span><span class="cal-swatch cal-partial"></span> Delvis bokat</span>
-            <span><span class="cal-swatch cal-full"></span> Fullbokat</span>
+            <span><span class="cal-swatch cal-full"></span> Upptaget</span>
         </div>
 
         <p id="cal-selection" class="cal-selection" hidden>
@@ -123,21 +123,16 @@
         }
 
         var state = _states.TryGetValue(date, out var s) ? s : AvailabilityState.Free;
-        var stateClass = state switch
-        {
-            AvailabilityState.Free => "cal-free",
-            AvailabilityState.PartiallyBooked => "cal-partial",
-            _ => "cal-full"
-        };
+        var stateClass = state == AvailabilityState.Free ? "cal-free" : "cal-full";
         var iso = date.ToString("yyyy-MM-dd");
 
         builder.OpenElement(0, "td");
         builder.AddAttribute(1, "class", $"cal-day {stateClass}");
 
-        if (state == AvailabilityState.FullyBooked)
+        if (state == AvailabilityState.Unavailable)
         {
             // Unavailable — not selectable, exposes only the aggregate state (NFR-07).
-            builder.AddAttribute(2, "aria-label", "Fullbokat");
+            builder.AddAttribute(2, "aria-label", "Upptaget");
             builder.AddContent(3, date.Day);
         }
         else

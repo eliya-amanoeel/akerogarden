@@ -8,9 +8,9 @@ namespace AkeroGarden.Integration;
 
 /// <summary>
 /// Integration coverage for the public calendar's occupancy provider against real PostgreSQL
-/// (FR-10, NFR-07): only occupying-status bookings count, blocks reduce capacity, and the result
-/// is the aggregate state — no personal data. Each test uses its own building so the shared
-/// database doesn't cross-contaminate capacity.
+/// (FR-10, NFR-07): only occupying-status bookings hold a date, only whole-property blocks reach
+/// the calendar, the turnover window is honoured, and the result is the aggregate state — no
+/// personal data. Each test uses its own building so the shared database doesn't cross-contaminate.
 /// </summary>
 public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
 {
@@ -83,11 +83,11 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
         // Approved must count → 999 guests exceeds any capacity → Fully booked.
         await AddBookingAsync(db, Booking(BookingStatus.Approved, date, date.AddDays(2), 999));
         states = await provider.GetStatesAsync(date, date);
-        Assert.Equal(AvailabilityState.FullyBooked, states[date]);
+        Assert.Equal(AvailabilityState.Unavailable, states[date]);
     }
 
     [Fact]
-    public async Task WholePropertyBlock_MakesDateFullyBooked()
+    public async Task WholePropertyBlock_MakesDateUnavailable()
     {
         var provider = NewProvider(out var scope, out var db);
         using var _s = scope;
@@ -104,27 +104,28 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
         await db.SaveChangesAsync();
 
         var states = await provider.GetStatesAsync(date, date);
-        Assert.Equal(AvailabilityState.FullyBooked, states[date]);
+        Assert.Equal(AvailabilityState.Unavailable, states[date]);
     }
 
     [Fact]
-    public async Task TurnoverWindow_MakesCheckOutDayAndTheDayAfter_FullyBooked()
+    public async Task TurnoverWindow_MakesCheckOutDayAndTheDayAfter_Unavailable()
     {
         var provider = NewProvider(out var scope, out var db);
         using var _s = scope;
         await SeedBuildingWithBedsAsync(db, 5, 5);
 
-        // Two guests against a property with beds to spare: judged on headcount these days would
-        // read Partially booked. They must read Fully booked on the turnover reason (FR-106, §7.2).
+        // Two guests against a property with beds to spare. Group size does not enter the
+        // calculation — the nights are held because a group is here, and the two days after
+        // check-out are held for turnover (FR-106).
         var checkIn = new DateOnly(2027, 7, 5);
         var checkOut = new DateOnly(2027, 7, 8);
         await AddBookingAsync(db, Booking(BookingStatus.Approved, checkIn, checkOut, 2));
 
         var states = await provider.GetStatesAsync(checkIn, checkOut.AddDays(2));
 
-        Assert.Equal(AvailabilityState.PartiallyBooked, states[checkIn]);
-        Assert.Equal(AvailabilityState.FullyBooked, states[checkOut]);
-        Assert.Equal(AvailabilityState.FullyBooked, states[checkOut.AddDays(1)]);
+        Assert.Equal(AvailabilityState.Unavailable, states[checkIn]);
+        Assert.Equal(AvailabilityState.Unavailable, states[checkOut]);
+        Assert.Equal(AvailabilityState.Unavailable, states[checkOut.AddDays(1)]);
         Assert.Equal(AvailabilityState.Free, states[checkOut.AddDays(2)]);
     }
 
@@ -145,7 +146,7 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
         var from = checkOut.AddDays(1);
         var states = await provider.GetStatesAsync(from, from.AddDays(1));
 
-        Assert.Equal(AvailabilityState.FullyBooked, states[from]);
+        Assert.Equal(AvailabilityState.Unavailable, states[from]);
         Assert.Equal(AvailabilityState.Free, states[from.AddDays(1)]);
     }
 
@@ -178,5 +179,41 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
         var states = await provider.GetStatesAsync(from, to);
 
         Assert.Equal(31, states.Count);
+    }
+
+    /// <summary>
+    /// The query filters blocks to whole-property scope, so a building or room out of service never
+    /// reaches the public calendar (FR-102 owns its real effect). Covered here and not only in the
+    /// pure function because the filter lives in the EF query — a unit test cannot see it.
+    /// </summary>
+    [Theory]
+    [InlineData(BlockScope.Building)]
+    [InlineData(BlockScope.Room)]
+    public async Task PartialBlock_DoesNotReachTheCalendar(BlockScope scope)
+    {
+        var provider = NewProvider(out var svcScope, out var db);
+        using var _s = svcScope;
+        var buildingId = await SeedBuildingWithBedsAsync(db, 5, 5);
+        var roomId = db.Rooms.First(r => r.BuildingId == buildingId).Id;
+
+        var from = new DateOnly(2027, 9, 6);
+        var to = new DateOnly(2027, 9, 8);
+        db.BlockedPeriods.Add(new BlockedPeriod
+        {
+            Id = Guid.NewGuid(),
+            Scope = scope,
+            StartDate = from,
+            EndDate = to,
+            BuildingId = scope == BlockScope.Building ? buildingId : null,
+            RoomId = scope == BlockScope.Room ? roomId : null,
+            Reason = "Renovering",
+            CreatedAt = DateTime.UtcNow
+        });
+        await db.SaveChangesAsync();
+
+        var states = await provider.GetStatesAsync(from, to);
+
+        for (var d = from; d <= to; d = d.AddDays(1))
+            Assert.Equal(AvailabilityState.Free, states[d]);
     }
 }

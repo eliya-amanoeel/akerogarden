@@ -79,6 +79,13 @@ public sealed class DbFixture : IAsyncLifetime
         services.AddLogging(b => b.AddConsole().SetMinimumLevel(LogLevel.Warning));
         services.AddScoped<AdminSeeder>();
 
+        // Availability (FR-10): registered in the base because BookingService now refuses to approve
+        // a booking over dates another group holds, and every container that resolves BookingService
+        // therefore needs these two. Re-registering OccupancyProvider in a test's own `configure` is
+        // harmless — the last registration of a type wins.
+        services.AddScoped<OccupancyProvider>();
+        services.AddScoped<AvailabilityService>();
+
         // Audit trail (§6.9): registered in the base so any service that now depends on IAuditWriter
         // (BookingService, ReminderJob) resolves. Defaults to a System actor; audit tests override
         // the accessor via `configure` to assert admin attribution. TimeProvider backs the audit
@@ -93,6 +100,24 @@ public sealed class DbFixture : IAsyncLifetime
         services.AddScoped<IAuditActorAccessor, TestAuditActorAccessor>();
         services.AddScoped<IAuditWriter, AuditWriter>();
     }
+
+    /// <summary>
+    /// A check-in date for a seeded stay, spaced so no two stays in a class overlap.
+    ///
+    /// <para><b>Why this is needed.</b> Approval refuses to put two groups on the same dates
+    /// (FR-10) — the property is let to one group at a time. Tests in a class share one database,
+    /// so several bookings seeded at one fixed date used to be independent and now collide: every
+    /// approval after the first legitimately fails.</para>
+    ///
+    /// <para><paramref name="sequence"/> is the caller's <b>own</b> counter, not a shared one, so a
+    /// class can reason about how far out its last stay lands. That matters wherever the distance
+    /// itself carries meaning — a completion link is only issued within 40 days of check-in
+    /// (FR-108), so a class relying on one must keep every window inside that. <paramref
+    /// name="stepDays"/> must clear a stay and its two turnover days (FR-106); it may be negative to
+    /// walk backwards for stays in the past.</para>
+    /// </summary>
+    public static DateOnly StayWindow(IServiceProvider provider, int sequence, int firstDaysOut, int stepDays = 7) =>
+        TodayIn(provider).AddDays(firstDaysOut + (sequence * stepDays));
 
     /// <summary>
     /// Services pointed at a brand-new, freshly migrated database inside the same container.

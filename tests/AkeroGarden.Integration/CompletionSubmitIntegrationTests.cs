@@ -48,8 +48,10 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         });
     }
 
+    private static int _window;
+
     private sealed record Seed(Guid BookingId, string Token, Guid LunchId, Guid DinnerId,
-        ResolvedMealOccasions Occasions);
+        ResolvedMealOccasions Occasions, DateOnly CheckIn, DateOnly CheckOut);
 
     /// <summary>Seeds active lunch/dinner options + an approved 2-night booking; returns its token and ids.</summary>
     private static async Task<Seed> SeedAsync(
@@ -64,12 +66,19 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         db.MealOptions.AddRange(lunch, dinner);
         await db.SaveChangesAsync();
 
+        // Own window per seeded stay — approval refuses to double-book (FR-10), and every test in
+        // this class approves. Walks backwards from today: a stay in the past is still inside the
+        // 40-day link-issue window (FR-108), which these tests need, and can never collide with a
+        // forward-dated one.
+        var checkIn = DbFixture.StayWindow(provider, Interlocked.Increment(ref _window), firstDaysOut: -40, stepDays: -6);
+        var checkOut = checkIn.AddDays(2);
+
         var booking = await service.CreateStayRequestAsync(new StayRequestInput
         {
             ContactName = "Anna",
             ContactEmail = $"anna-{Guid.NewGuid():N}@test.se",
-            CheckIn = new DateOnly(2026, 8, 10),
-            CheckOut = new DateOnly(2026, 8, 12), // 2 nights
+            CheckIn = checkIn,
+            CheckOut = checkOut, // 2 nights
             OvernightGuestCount = overnightCount,
             MealPlan = mealPlan,
             AcceptTerms = true
@@ -82,7 +91,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         // Resolved off the stored booking — which carries the standard-schedule edge defaults
         // applied at creation (arrival dinner, departure breakfast).
         return new Seed(booking.Id, stored.CompletionToken!, lunch.Id, dinner.Id,
-            MealOccasionResolver.Resolve(stored));
+            MealOccasionResolver.Resolve(stored), checkIn, checkOut);
     }
 
     /// <summary>A form on the standard schedule: a dish chosen for every sitting in the posted grid
@@ -233,9 +242,9 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
             Assert.Equal(3, booking.MealSelections.Count);
             Assert.All(booking.MealSelections, m => Assert.False(string.IsNullOrEmpty(m.MealOptionSnapshot)));
             Assert.Contains(booking.MealSelections,
-                m => m.Date == new DateOnly(2026, 8, 10) && m.MealType == MealType.Dinner);
+                m => m.Date == seed.CheckIn && m.MealType == MealType.Dinner);
             // The departure day is breakfast-only, so no dish is stored for it.
-            Assert.DoesNotContain(booking.MealSelections, m => m.Date == new DateOnly(2026, 8, 12));
+            Assert.DoesNotContain(booking.MealSelections, m => m.Date == seed.CheckOut);
 
             // The edge-day occasions the selections were built against are persisted with them.
             Assert.True(booking.ArrivalDinner);
@@ -366,7 +375,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         }
     }
 
-    private static DayGuestEntry DayGuest(string date = "2026-08-11") => new()
+    private static DayGuestEntry DayGuest(string date) => new()
     {
         FullName = "Dagsgäst D",
         AgeCategory = AgeCategory.Child,
@@ -380,7 +389,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         var seed = await SeedAsync(provider); // FullBoardAll
 
         var form = FullBoardForm(seed);
-        form.DayGuests.Add(DayGuest());
+        form.DayGuests.Add(DayGuest(seed.CheckIn.AddDays(1).ToString("yyyy-MM-dd")));
         form.DayGuestLunch = true;
         form.DayGuestDinner = true;
 
@@ -399,7 +408,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
                 .SingleAsync(b => b.Id == seed.BookingId);
 
             var dayGuest = Assert.Single(booking.Participants, p => p.ParticipantType == ParticipantType.DayGuest);
-            Assert.Equal(new DateOnly(2026, 8, 11), dayGuest.AttendanceDate);
+            Assert.Equal(seed.CheckIn.AddDays(1), dayGuest.AttendanceDate);
 
             // Which meals day guests attend is one setting on the booking, not per person (§4.2).
             Assert.False(booking.DayGuestBreakfast);
@@ -440,12 +449,12 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
             // 5 sittings now: arrival lunch + dinner, middle lunch + dinner, departure lunch.
             Assert.Equal(5, booking.MealSelections.Count);
             Assert.Contains(booking.MealSelections,
-                m => m.Date == new DateOnly(2026, 8, 10) && m.MealType == MealType.Lunch);
+                m => m.Date == seed.CheckIn && m.MealType == MealType.Lunch);
             Assert.Contains(booking.MealSelections,
-                m => m.Date == new DateOnly(2026, 8, 12) && m.MealType == MealType.Lunch);
+                m => m.Date == seed.CheckOut && m.MealType == MealType.Lunch);
             // Departure dinner was never chosen, so it must not have been stored.
             Assert.DoesNotContain(booking.MealSelections,
-                m => m.Date == new DateOnly(2026, 8, 12) && m.MealType == MealType.Dinner);
+                m => m.Date == seed.CheckOut && m.MealType == MealType.Dinner);
         }
     }
 
@@ -468,7 +477,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
             FullName = "Självhushåll",
             AgeCategory = AgeCategory.Adult,
         });
-        form.DayGuests.Add(DayGuest());
+        form.DayGuests.Add(DayGuest(seed.CheckIn.AddDays(1).ToString("yyyy-MM-dd")));
 
         using (var scope = provider.CreateScope())
         {

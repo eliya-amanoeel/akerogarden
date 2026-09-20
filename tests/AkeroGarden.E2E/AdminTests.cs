@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using AkeroGarden.E2E.Infrastructure;
 using AkeroGarden.Web.Core.Data.Entities;
+using AkeroGarden.Web.Core.Services;
 using Deque.AxeCore.Playwright;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
@@ -945,6 +946,12 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         var id = Guid.NewGuid();
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
 
+        // A window nothing else holds. Approval refuses an overlap before it checks the assignment
+        // (FR-10/FR-113), so a hardcoded offset would have this test assert the wrong refusal the
+        // moment the seeded demo data happens to cover it — which is exactly what it did. Asked of
+        // the same rule the system uses, so the two cannot disagree.
+        var checkIn = await FreeCheckInWithinIssueWindowAsync(today);
+
         await using (var db = Fixture.NewDbContext())
         {
             db.Bookings.Add(new Booking
@@ -958,8 +965,9 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 // Inside the 40-day issue window on purpose: a successful approval here *would* have
                 // issued a link (FR-51/108), so the null-token assertion below still proves the guard
                 // blocked it. Seeded further out, that assertion would pass either way.
-                CheckIn = today.AddDays(30),
-                CheckOut = today.AddDays(32),
+
+                CheckIn = checkIn,
+                CheckOut = checkIn.AddDays(2),
                 OvernightGuestCount = 4,
                 MealPlan = MealPlan.FullBoardAll,
                 ArrivalDinner = true,
@@ -1439,5 +1447,34 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await db.Participants.Where(p => p.BookingId == bookingId).ExecuteDeleteAsync();
             await db.Bookings.Where(b => b.Id == bookingId).ExecuteDeleteAsync();
         }
+    }
+
+    /// <summary>
+    /// The first two-night window inside the 40-day completion-link window (FR-108) that no
+    /// occupying booking or its turnover days hold. Derived through <see cref="OccupancyProvider"/>
+    /// rather than re-implemented, so a test can never believe a date is free that the application
+    /// considers taken.
+    /// </summary>
+    private async Task<DateOnly> FreeCheckInWithinIssueWindowAsync(DateOnly today)
+    {
+        await using var db = Fixture.NewDbContext();
+        var occupying = await db.Bookings
+            .Where(b => b.CheckIn != null && b.CheckOut != null
+                && OccupancyProvider.OccupyingStatuses.Contains(b.Status))
+            .ToListAsync();
+        var blocks = await db.BlockedPeriods.ToListAsync();
+
+        var reasons = OccupancyProvider.ComputeReasons(today, today.AddDays(50), occupying, blocks);
+
+        // A two-night stay needs four clear days: both nights, the check-out day, and the day after.
+        for (var offset = 5; offset <= 34; offset++)
+        {
+            var candidate = today.AddDays(offset);
+            if (Enumerable.Range(0, 4).All(i => reasons[candidate.AddDays(i)] == UnavailableReason.None))
+                return candidate;
+        }
+
+        throw new InvalidOperationException(
+            "No free two-night window inside the 40-day issue window — the seeded data has filled it.");
     }
 }

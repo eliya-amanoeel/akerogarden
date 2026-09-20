@@ -51,13 +51,19 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     /// filters. Far enough out that no completion link is issued at approval (FR-108), and measured
     /// from the container's own clock so it means the same thing whether that clock is pinned or
     /// real.</summary>
+    private static int _window;
+
     private const int FarOutDays = 90;
 
     private static async Task<Guid> CreatePendingStayAsync(IServiceProvider provider, DateOnly? checkIn = null)
     {
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
-        var effectiveCheckIn = checkIn ?? DbFixture.TodayIn(scope.ServiceProvider).AddDays(FarOutDays);
+        // Each defaulted stay gets its own window: approval refuses to double-book (FR-10), and
+        // these tests share one database, so a fixed "90 days out" would make every approval after
+        // the first fail for a reason the test is not about.
+        var effectiveCheckIn = checkIn ?? DbFixture.StayWindow(
+            scope.ServiceProvider, Interlocked.Increment(ref _window), FarOutDays);
         var b = await service.CreateStayRequestAsync(new StayRequestInput
         {
             ContactName = "Gäst",
@@ -272,6 +278,57 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         Assert.False((await svc.ApproveAsync(id)).Succeeded); // Approved -> Approved not allowed
     }
 
+    /// <summary>
+    /// The one-group-at-a-time invariant, enforced where it becomes true rather than where it is
+    /// displayed (FR-10). Two Pending inquiries can sit in the inbox over the same week — the
+    /// calendar cannot prevent that, because a Pending booking occupies nothing. Approving the
+    /// second must fail.
+    /// </summary>
+    [Fact]
+    public async Task Approve_OverDatesAnotherGroupHolds_IsBlocked()
+    {
+        var provider = NewProvider(out _);
+        var checkIn = DbFixture.TodayIn(provider).AddDays(300);
+        var first = await CreatePendingStayAsync(provider, checkIn: checkIn);
+        var second = await CreatePendingStayAsync(provider, checkIn: checkIn);
+
+        using var scope = provider.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+
+        Assert.True((await svc.ApproveAsync(first)).Succeeded);
+
+        var result = await svc.ApproveAsync(second);
+        Assert.False(result.Succeeded);
+        Assert.Contains("en grupp i taget", result.Error);
+
+        // Blocked, not silently swallowed: the second booking is still Pending and can be denied.
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.Equal(BookingStatus.Pending, (await db.Bookings.SingleAsync(b => b.Id == second)).Status);
+    }
+
+    /// <summary>
+    /// A stay whose departure lands on the next group's arrival is refused too: the two turnover
+    /// days after check-out are part of what a stay needs (FR-106). Judged on nights alone this
+    /// pair does not overlap at all.
+    /// </summary>
+    [Fact]
+    public async Task Approve_WhenDepartureCollidesWithTheNextArrival_IsBlocked()
+    {
+        var provider = NewProvider(out _);
+        var firstCheckIn = DbFixture.TodayIn(provider).AddDays(400);
+        var first = await CreatePendingStayAsync(provider, checkIn: firstCheckIn);
+
+        // CreatePendingStayAsync books three nights, so the first stay checks out on +3 — the day
+        // cleaning starts. A group arriving that day leaves no turnover window.
+        var second = await CreatePendingStayAsync(provider, checkIn: firstCheckIn.AddDays(3));
+
+        using var scope = provider.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+
+        Assert.True((await svc.ApproveAsync(first)).Succeeded);
+        Assert.False((await svc.ApproveAsync(second)).Succeeded);
+    }
+
     /// <summary>Forces a booking to a given status directly (bypassing the guest completion form)
     /// so the admin lifecycle-end transitions can be exercised in isolation.</summary>
     private static async Task SetStatusAsync(IServiceProvider provider, Guid id, BookingStatus status)
@@ -345,7 +402,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     {
         var provider = NewProvider(out _, pinnedNow: DbFixture.FixedNow);
         // Inside the issue window, so approval really does produce a first token to replace.
-        var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(30));
+        var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(36));
 
         using var scope = provider.CreateScope();
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
@@ -370,7 +427,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         // the automatic issue at 40 days. It must send the "you can fill in your details" email, not
         // a second copy of the approval the guest read months ago.
         var provider = NewProvider(out var email, pinnedNow: DbFixture.FixedNow);
-        var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(180));
+        var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(190));
 
         using var scope = provider.CreateScope();
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();

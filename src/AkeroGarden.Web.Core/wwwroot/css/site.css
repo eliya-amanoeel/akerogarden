@@ -2248,7 +2248,6 @@ fieldset.participant legend {
 .cal-legend > span { display: inline-flex; align-items: center; gap: 0.5rem; }
 .cal-swatch { display: inline-block; width: 1rem; height: 1rem; border-radius: 3px; border: 1px solid rgba(0, 0, 0, 0.08); }
 .cal-free { background: #dcecc4; }
-.cal-partial { background: #f6e2a8; }
 .cal-full { background: #eccdc7; }
 
 .cal-selection {
@@ -2326,7 +2325,6 @@ fieldset.participant legend {
     font-size: 0.9rem;
 }
 .cal-day { color: var(--color-heading); }
-.cal-day.cal-partial { color: #6b5310; }
 .cal-day.cal-full { color: #6b3229; } /* darker than the pink bg for AA contrast */
 .cal-past { background: var(--color-bg-warm); color: #6b665c; } /* darkened from #bdb7ac (1.7:1) to ~4.8:1 for AA */
 

@@ -48,6 +48,8 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
     }
 
     /// <summary>
+    private static int _window;
+
     /// Creates a Pending stay with a lodging assignment, ready to approve. <paramref name="checkIn"/>
     /// defaults to well beyond the 40-day issue window, so approving it issues no completion link
     /// (FR-51/108) — pass a nearer date to exercise the link-issued audit row.
@@ -58,7 +60,10 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
         var guestEmail = $"guest-{Guid.NewGuid():N}@test.se";
-        var arrival = checkIn ?? DateOnly.FromDateTime(DateTime.UtcNow).AddDays(180);
+        // Own window per defaulted stay — approval refuses to double-book (FR-10) and this class
+        // approves six times against one shared database. Also takes its "today" from the
+        // container's clock rather than the wall clock.
+        var arrival = checkIn ?? DbFixture.StayWindow(provider, Interlocked.Increment(ref _window), 180);
         var booking = await service.CreateStayRequestAsync(new StayRequestInput
         {
             ContactName = "Gäst Gästsson",

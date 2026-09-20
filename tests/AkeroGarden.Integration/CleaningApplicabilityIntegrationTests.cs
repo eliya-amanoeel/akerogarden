@@ -42,6 +42,8 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
             });
         });
 
+    private static int _window;
+
     private sealed record Ref(
         PhysicalBuilding Huvud, PhysicalBuilding Lilla, PhysicalBuilding Stora, PhysicalBuilding Konferens,
         CleaningZone HuvudZone, CleaningZone LillaZone, CleaningZone StoraZone, CleaningZone KonferensZone,
@@ -143,12 +145,17 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
         IServiceProvider provider, ApplicationDbContext db, BookingService bookings,
         Building[] assign, Ref? withFacility = null, int overnightCount = 2)
     {
+        // Own window per seeded stay — approval refuses to double-book (FR-10), and every test in
+        // this class approves. Walks backwards from today: a stay in the past is still inside the
+        // 40-day link-issue window (FR-108) and can never collide with a forward-dated one.
+        var checkIn = DbFixture.StayWindow(provider, Interlocked.Increment(ref _window), firstDaysOut: -40, stepDays: -6);
+
         var input = new StayRequestInput
         {
             ContactName = "Grupp",
             ContactEmail = $"grupp-{Guid.NewGuid():N}@test.se",
-            CheckIn = new DateOnly(2026, 8, 10),
-            CheckOut = new DateOnly(2026, 8, 12),
+            CheckIn = checkIn,
+            CheckOut = checkIn.AddDays(2),
             OvernightGuestCount = overnightCount,
             MealPlan = MealPlan.SelfCateringAll,
             SelectedFacilityIds = withFacility is null ? null : [withFacility.Konferensrum.Id],

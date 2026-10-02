@@ -50,6 +50,12 @@ public class AuditLog
     /// entries. Not PII.</summary>
     public string? BookingReferenceSnapshot { get; set; }
 
+    /// <summary>FK → <see cref="Entities.JobRun"/> (ON DELETE SET NULL) for entries written by a
+    /// nightly job: what that run did (FR-114). Null for everything else. When the run is deleted
+    /// after six months the entry stays — the audit trail keeps its own retention (FR-98).</summary>
+    public Guid? JobRunId { get; set; }
+    public JobRun? JobRun { get; set; }
+
     /// <summary>Human-readable Swedish description of the action. For reference-data entries (FR-96)
     /// may include a before/after of changed fields; for booking entries records the action only —
     /// never guest field values (NFR-37).</summary>

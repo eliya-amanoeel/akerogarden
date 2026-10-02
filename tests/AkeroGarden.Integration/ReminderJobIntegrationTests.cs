@@ -260,4 +260,58 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         Assert.Equal(0, summary.Nudges);
         Assert.Empty(email.Sent);
     }
+
+    // ── Job history (FR-114): what the run did is in the audit trail ────────────────
+
+    private async Task<List<AuditLog>> AuditFor(IServiceProvider provider, Guid bookingId)
+    {
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        return await db.AuditLogs.Where(a => a.BookingId == bookingId).ToListAsync();
+    }
+
+    [Fact]
+    public async Task A_sent_pre_arrival_reminder_is_recorded_for_the_job_history()
+    {
+        var provider = NewProvider(out _);
+        var today = new DateOnly(2026, 7, 5);
+        var id = await SeedAsync(provider, BookingStatus.DetailsComplete, checkIn: today.AddDays(13), withParticipant: true);
+
+        await RunAsync(provider, today);
+
+        var entry = Assert.Single(await AuditFor(provider, id));
+        Assert.Equal(AuditAction.PreArrivalReminderSent, entry.Action);
+        Assert.Equal(AuditActorType.System, entry.ActorType);
+    }
+
+    [Fact]
+    public async Task A_reminder_that_could_not_be_sent_is_recorded_as_a_failed_send()
+    {
+        // Sending never throws (NFR-13). Without this entry the failure left no trace in the data.
+        var provider = NewProvider(out var email);
+        email.Delivers = false;
+        var today = new DateOnly(2026, 7, 5);
+        var id = await SeedAsync(provider, BookingStatus.DetailsComplete, checkIn: today.AddDays(12), withParticipant: true);
+
+        await RunAsync(provider, today);
+
+        var entry = Assert.Single(await AuditFor(provider, id));
+        Assert.Equal(AuditAction.EmailSendFailed, entry.Action);
+    }
+
+    [Fact]
+    public async Task A_nudge_whose_emails_fail_records_one_failed_send_per_email()
+    {
+        var provider = NewProvider(out var email);
+        email.Delivers = false;
+        var today = new DateOnly(2026, 7, 5);
+        var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: today.AddDays(9),
+            withToken: true, linkSentAt: NowIn(provider).AddDays(-10));
+
+        await RunAsync(provider, today);
+
+        var entries = await AuditFor(provider, id);
+        Assert.Single(entries, e => e.Action == AuditAction.CompletionLinkIssued);
+        Assert.Equal(2, entries.Count(e => e.Action == AuditAction.EmailSendFailed)); // guest + admin
+    }
 }

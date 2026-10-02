@@ -141,6 +141,9 @@ namespace AkeroGarden.Web.Core.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<Guid?>("JobRunId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Summary")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -152,6 +155,8 @@ namespace AkeroGarden.Web.Core.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("BookingId");
+
+                    b.HasIndex("JobRunId");
 
                     b.HasIndex("Timestamp");
 
@@ -661,6 +666,38 @@ namespace AkeroGarden.Web.Core.Migrations
                     b.ToTable("Facilities");
                 });
 
+            modelBuilder.Entity("AkeroGarden.Web.Core.Data.Entities.JobRun", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FailureReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("FinishedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("JobName")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Outcome")
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("StartedAt");
+
+                    b.ToTable("JobRuns");
+                });
+
             modelBuilder.Entity("AkeroGarden.Web.Core.Data.Entities.MealOption", b =>
                 {
                     b.Property<Guid>("Id")
@@ -978,7 +1015,14 @@ namespace AkeroGarden.Web.Core.Migrations
                         .HasForeignKey("BookingId")
                         .OnDelete(DeleteBehavior.Cascade);
 
+                    b.HasOne("AkeroGarden.Web.Core.Data.Entities.JobRun", "JobRun")
+                        .WithMany()
+                        .HasForeignKey("JobRunId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.Navigation("Booking");
+
+                    b.Navigation("JobRun");
                 });
 
             modelBuilder.Entity("AkeroGarden.Web.Core.Data.Entities.BookingBuildingAssignment", b =>

@@ -1,4 +1,5 @@
 using AkeroGarden.Web.Core.Data;
+using AkeroGarden.Web.Core.Data.Entities;
 using Microsoft.EntityFrameworkCore;
 
 namespace AkeroGarden.Web.Core.Services;
@@ -9,14 +10,18 @@ namespace AkeroGarden.Web.Core.Services;
 /// participants, meal preferences, and facility/cleaning selections (configured in
 /// <see cref="ApplicationDbContext"/>) — and (2) sends the admin a 30-day pre-deletion warning for
 /// records entering the warning window, de-duplicated via <c>DeletionWarningEmailSentAt</c> so each
-/// warning fires exactly once, and (3) age-purges non-booking audit entries older than
-/// <see cref="RetentionSchedule.AuditRetentionYears"/> (FR-98). "Today" is evaluated in
+/// warning fires exactly once, (3) age-purges non-booking audit entries older than
+/// <see cref="RetentionSchedule.AuditRetentionYears"/> (FR-98), and (4) deletes job runs older than
+/// <see cref="RetentionSchedule.JobRunRetentionMonths"/> (FR-114). "Today" is evaluated in
 /// Europe/Stockholm. The <c>DeleteAfter</c> values are set on the retention-relevant transitions
 /// (Pending/Denied/Cancelled/Closed/Completed) via <see cref="RetentionCalculator"/>; live
 /// in-progress states have a null date and are never touched (FR-91).
 /// </summary>
-public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, TimeProvider clock)
-    : IScheduledJob
+public class RetentionJob(
+    ApplicationDbContext db,
+    BookingEmailService emails,
+    IAuditWriter audit,
+    TimeProvider clock) : IScheduledJob
 {
     public string Name => "GDPR-gallring";
 
@@ -35,6 +40,15 @@ public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, T
         var due = await db.Bookings
             .Where(b => b.DeleteAfter != null && b.DeleteAfter <= today)
             .ToListAsync(cancellationToken);
+        foreach (var booking in due)
+        {
+            // Deliberately not booking-scoped (no BookingId): a booking-scoped entry would be
+            // cascade-deleted with the booking in this very SaveChanges (FR-98). By reference only, it
+            // stays in the job history (FR-114) under the two-year non-booking retention.
+            await audit.RecordAsync(AuditAction.BookingDeletedByRetention, nameof(Booking), booking.Id,
+                "Bokningen raderades automatiskt enligt gallringsreglerna.",
+                bookingId: null, bookingReference: booking.BookingReference, actor: AuditActor.System);
+        }
         db.Bookings.RemoveRange(due);
         await db.SaveChangesAsync(cancellationToken);
 
@@ -59,8 +73,17 @@ public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, T
             // nightly run retries, which is the right behaviour for a warning that exists to give the
             // admin a chance to intervene before data is destroyed.
             if (!await emails.SendPreDeletionWarningAsync(booking))
+            {
+                // Retried next night (marker left null); recorded so this run shows as failed (FR-114).
+                await audit.RecordAsync(AuditAction.EmailSendFailed, nameof(Booking), booking.Id,
+                    "Varningen om kommande radering kunde inte skickas till administratören.",
+                    booking.Id, booking.BookingReference, AuditActor.System);
                 continue;
+            }
 
+            await audit.RecordAsync(AuditAction.DeletionWarningSent, nameof(Booking), booking.Id,
+                "Varning om radering om 30 dagar skickad till administratören.",
+                booking.Id, booking.BookingReference, AuditActor.System);
             booking.DeletionWarningEmailSentAt = now; // dedupe marker — warning fires once
             warned++;
         }
@@ -74,9 +97,16 @@ public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, T
             .Where(a => a.BookingId == null && a.Timestamp < auditCutoff)
             .ExecuteDeleteAsync(cancellationToken);
 
+        // 4. Job-history retention (FR-114): runs older than six months. Their audit entries are
+        //    not deleted — the FK is ON DELETE SET NULL, and the trail keeps its own retention (FR-98).
+        var jobRunCutoff = RetentionSchedule.JobRunPurgeCutoffUtc(today);
+        var jobRunsPurged = await db.JobRuns
+            .Where(r => r.StartedAt < jobRunCutoff)
+            .ExecuteDeleteAsync(cancellationToken);
+
         // `warned` counts confirmed sends, not candidates — a run where the mail server was down now
         // reports 0 warned rather than overstating what the guests' admin was actually told.
-        return new RetentionRunSummary(due.Count, warned, auditPurged);
+        return new RetentionRunSummary(due.Count, warned, auditPurged, jobRunsPurged);
     }
 
     /// <summary>The current date in Europe/Stockholm — retention dates are civil dates, not UTC.</summary>
@@ -87,6 +117,6 @@ public class RetentionJob(ApplicationDbContext db, BookingEmailService emails, T
     }
 }
 
-/// <summary>Outcome of one <see cref="RetentionJob"/> run — deleted-record, warning, and
-/// age-purged non-booking audit-entry counts (FR-98).</summary>
-public record RetentionRunSummary(int Deleted, int Warned, int AuditPurged = 0);
+/// <summary>Outcome of one <see cref="RetentionJob"/> run — deleted-record, warning, age-purged
+/// non-booking audit-entry (FR-98) and job-run (FR-114) counts.</summary>
+public record RetentionRunSummary(int Deleted, int Warned, int AuditPurged = 0, int JobRunsPurged = 0);

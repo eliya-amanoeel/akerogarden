@@ -1,0 +1,181 @@
+@* Job history (FR-114): one row per nightly job run, newest first, and — in the side panel — what
+   that run did, which is the audit entries it wrote (AuditLog.JobRunId). Built from the parts the
+   other admin lists use: .admin-filters and .admin-table as on /bokningar, AdminDataCard on narrow
+   screens, the booking status badges for the outcome, and AdminPanel for a row's detail as on
+   /blockeringar. *@
+@page "/jobbhistorik"
+@layout AdminLayout
+@rendermode InteractiveServer
+@using AkeroGarden.Web.Core.Data.Entities
+@using AkeroGarden.Web.Core.Services
+@inject JobHistoryService JobHistoryService
+@inject Microsoft.Extensions.Options.IOptions<JobOptions> RunOptions
+@attribute [Authorize(Roles = AdminRoles.Administrator)]
+
+<PageTitle>Jobbhistorik — Åkerögården Admin</PageTitle>
+
+<AdminHeader Title="Jobbhistorik" />
+
+@* The hour is the runner's own setting (Jobs:DailyRunHourLocal, Swedish time), so the page cannot
+   state a time the jobs no longer run at. *@
+<p class="form-hint">De schemalagda jobben körs varje natt kl. @($"{RunOptions.Value.DailyRunHourLocal:00}:00"). Här ser du varje körning de senaste sex månaderna och vad den gjorde. Sök på referensnummer för att se om en viss bokning har fått sitt mejl.</p>
+
+<div class="admin-filters">
+    <div class="form-group">
+        <label for="f-job">Jobb</label>
+        <select id="f-job" @bind="_jobName" @bind:after="Load">
+            <option value="">Alla</option>
+            @foreach (var name in _jobNames)
+            {
+                <option value="@name">@name</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="f-ref">Referensnummer</label>
+        <input id="f-ref" type="search" placeholder="t.ex. AG-2026-0042" @bind="_reference" @bind:after="Load" />
+    </div>
+</div>
+
+@if (_runs is null)
+{
+    <p class="admin-empty">Laddar…</p>
+}
+else if (_runs.Count == 0)
+{
+    <p class="admin-empty">Inga körningar matchar filtret.</p>
+}
+else
+{
+    <div class="admin-table-wrap">
+        <table class="admin-table">
+            <thead>
+                <tr>
+                    <th>Startad</th>
+                    <th>Jobb</th>
+                    <th>Resultat</th>
+                    <th>Gjorde</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var item in _runs)
+                {
+                    <tr @onclick="() => OpenRun(item)">
+                        <td class="mono">@Started(item.Run)</td>
+                        <td>@item.Run.JobName</td>
+                        <td><span class="@BookingDisplay.JobRunOutcomeBadgeClass(item.Run.Outcome)">@BookingDisplay.JobRunOutcomeLabel(item.Run.Outcome)</span></td>
+                        <td>@Did(item)</td>
+                        <td class="rowactions">
+                            <button class="btn-ghost" @onclick="() => OpenRun(item)" @onclick:stopPropagation="true">Visa</button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="data-cards">
+        @foreach (var item in _runs)
+        {
+            <AdminDataCard Title="@item.Run.JobName" OnClick="() => OpenRun(item)">
+                <Badge><span class="@BookingDisplay.JobRunOutcomeBadgeClass(item.Run.Outcome)">@BookingDisplay.JobRunOutcomeLabel(item.Run.Outcome)</span></Badge>
+                <Sub>@Started(item.Run)</Sub>
+                <Fields>
+                    <div><dt>Gjorde</dt><dd>@Did(item)</dd></div>
+                </Fields>
+            </AdminDataCard>
+        }
+    </div>
+}
+
+<AdminPanel Visible="_selected is not null" Title="@(_selected?.Run.JobName)" OnClose="CloseRun">
+    <Kicker>@(_selected is { } s ? Started(s.Run) : null)</Kicker>
+    <ChildContent>
+        @if (_selected is { } run)
+        {
+            <dl class="kv">
+                <dt>Resultat</dt>
+                <dd><span class="@BookingDisplay.JobRunOutcomeBadgeClass(run.Run.Outcome)">@BookingDisplay.JobRunOutcomeLabel(run.Run.Outcome)</span></dd>
+                @if (run.Run.FailureReason is { } reason)
+                {
+                    <dt>Orsak</dt><dd>@reason</dd>
+                }
+            </dl>
+
+            @if (_entries is null)
+            {
+                <p class="admin-empty">Laddar…</p>
+            }
+            else if (_entries.Count == 0)
+            {
+                <p class="admin-empty">@(run.Run.Outcome == JobRunOutcome.Succeeded ? "Inget att göra den här natten." : "Inga händelser registrerades.")</p>
+            }
+            else
+            {
+                <ul>
+                    @foreach (var entry in _entries)
+                    {
+                        <li>
+                            @* A deleted booking keeps its reference but has no page to link to —
+                               its entry is written without BookingId for exactly that reason. *@
+                            @if (entry.BookingId is { } bookingId)
+                            {
+                                <a href="/bokningar/@bookingId">@entry.BookingReferenceSnapshot</a>
+                            }
+                            else
+                            {
+                                <span class="mono">@entry.BookingReferenceSnapshot</span>
+                            }
+                            — @entry.Summary
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    </ChildContent>
+</AdminPanel>
+
+@code {
+    private List<JobRunListItem>? _runs;
+    private List<string> _jobNames = [];
+    private string _jobName = "";
+    private string _reference = "";
+    private JobRunListItem? _selected;
+    private List<AuditLog>? _entries;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _jobNames = await JobHistoryService.GetJobNamesAsync();
+        await Load();
+    }
+
+    private async Task Load() =>
+        _runs = await JobHistoryService.GetRunsAsync(_jobName, _reference);
+
+    private async Task OpenRun(JobRunListItem item)
+    {
+        _selected = item;
+        _entries = null;
+        _entries = await JobHistoryService.GetEntriesAsync(item.Run.Id);
+    }
+
+    private void CloseRun()
+    {
+        _selected = null;
+        _entries = null;
+    }
+
+    private static string Started(JobRun run) =>
+        DailyRunSchedule.ToStockholmTime(run.StartedAt).ToString("yyyy-MM-dd HH:mm");
+
+    // "Inget att göra" only for a run that finished cleanly — a run that stopped before doing
+    // anything did not have nothing to do.
+    private static string Did(JobRunListItem item) => item.EntryCount switch
+    {
+        0 when item.Run.Outcome == JobRunOutcome.Succeeded => "Inget att göra",
+        0 => "—",
+        1 => "1 händelse",
+        var n => $"{n} händelser",
+    };
+}

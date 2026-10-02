@@ -10,6 +10,7 @@ namespace AkeroGarden.Web.Core.Services;
 /// Service B1 the app is unloaded after idle unless <c>alwaysOn</c> is enabled, so Always On is
 /// required (set in <c>main.bicep</c>) for the daily tick to fire reliably. B1 is single-instance,
 /// so no leader election is needed; idempotent jobs also make an accidental double-run harmless.
+/// Each run is recorded for the admin's job history (FR-114) via <see cref="IJobRunRecorder"/>.
 /// </summary>
 public class DailyJobRunner(
     IServiceScopeFactory scopeFactory,
@@ -60,8 +61,16 @@ public class DailyJobRunner(
     private async Task RunAllJobsAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
+        // Run records (FR-114) go through a scope of their own: see JobRunRecorder.
+        using var recordScope = scopeFactory.CreateScope();
+        var recorder = recordScope.ServiceProvider.GetRequiredService<IJobRunRecorder>();
+        var runContext = scope.ServiceProvider.GetRequiredService<JobRunContext>();
+
         foreach (var job in scope.ServiceProvider.GetServices<IScheduledJob>())
         {
+            var runId = await TryStartRunAsync(recorder, job.Name, cancellationToken);
+            runContext.CurrentRunId = runId;
+            Exception? failure = null;
             try
             {
                 logger.LogInformation("Kör schemalagt jobb: {Job}.", job.Name);
@@ -71,7 +80,46 @@ public class DailyJobRunner(
             {
                 // One failing job must never stop the others or the loop (NFR-13 style).
                 logger.LogError(ex, "Schemalagt jobb misslyckades: {Job}.", job.Name);
+                failure = ex;
             }
+            finally
+            {
+                runContext.CurrentRunId = null;
+            }
+
+            if (runId is { } id)
+                await TryFinishRunAsync(recorder, id, failure, job.Name, cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// The history is a record of the jobs, never a condition for them: if writing it fails, the job
+    /// still runs and the failure is logged. Without this, a database hiccup on the history table
+    /// would escape the loop and stop every nightly job — GDPR deletion included.
+    /// </summary>
+    private async Task<Guid?> TryStartRunAsync(IJobRunRecorder recorder, string jobName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await recorder.StartAsync(jobName, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Jobbhistoriken kunde inte skrivas för {Job}.", jobName);
+            return null;
+        }
+    }
+
+    private async Task TryFinishRunAsync(
+        IJobRunRecorder recorder, Guid runId, Exception? failure, string jobName, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await recorder.FinishAsync(runId, failure, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Jobbhistoriken kunde inte skrivas för {Job}.", jobName);
         }
     }
 

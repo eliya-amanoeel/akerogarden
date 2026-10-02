@@ -92,6 +92,8 @@ public static class AkeroServiceCollectionExtensions
     public static IServiceCollection AddAkeroAudit(this IServiceCollection services)
     {
         services.AddScoped<IAuditWriter, AuditWriter>();
+        // Always unset outside a nightly job run, so both hosts can share the writer (FR-114).
+        services.AddScoped<JobRunContext>();
         return services;
     }
 
@@ -148,6 +150,8 @@ public static class AkeroServiceCollectionExtensions
         // have not filled in your details".
         services.AddScoped<IScheduledJob, CompletionLinkIssuanceJob>();
         services.AddScoped<IScheduledJob, ReminderJob>();
+        services.AddScoped<IJobRunRecorder, JobRunRecorder>();
+        services.AddScoped<JobHistoryService>();
         services.AddHostedService<DailyJobRunner>();
         return services;
     }

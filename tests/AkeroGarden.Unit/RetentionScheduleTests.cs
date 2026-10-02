@@ -66,4 +66,13 @@ public class RetentionScheduleTests
         Assert.Equal(new DateTime(2024, 7, 5, 0, 0, 0, DateTimeKind.Utc), cutoff); // FR-98: 2 years
         Assert.Equal(DateTimeKind.Utc, cutoff.Kind);
     }
+
+    [Fact]
+    public void JobRunPurgeCutoff_IsSixMonthsBeforeToday_AtUtcMidnight()
+    {
+        var cutoff = RetentionSchedule.JobRunPurgeCutoffUtc(Today);
+
+        Assert.Equal(new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc), cutoff); // FR-114: 6 months
+        Assert.Equal(DateTimeKind.Utc, cutoff.Kind);
+    }
 }

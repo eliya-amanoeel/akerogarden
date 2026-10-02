@@ -38,12 +38,59 @@ public class DailyJobRunnerTests
         }
     }
 
+    /// <summary>Stands in for the database-backed <see cref="JobRunRecorder"/> (FR-114): remembers
+    /// what the runner told it, and can be made to fail.</summary>
+    private sealed class RecordingRecorder(bool throws = false) : IJobRunRecorder
+    {
+        public List<(Guid Id, string JobName)> Started { get; } = [];
+        public List<(Guid Id, Exception? Failure)> Finished { get; } = [];
+
+        public Task<Guid> StartAsync(string jobName, CancellationToken cancellationToken)
+        {
+            if (throws)
+                throw new InvalidOperationException("Databasen svarar inte.");
+            var id = Guid.NewGuid();
+            lock (Started)
+                Started.Add((id, jobName));
+            return Task.FromResult(id);
+        }
+
+        public Task FinishAsync(Guid runId, Exception? failure, CancellationToken cancellationToken)
+        {
+            lock (Finished)
+                Finished.Add((runId, failure));
+            return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>Notes the run id the runner had set while it ran — what the AuditWriter would tag.</summary>
+    private sealed class ContextProbeJob(JobRunContext context) : IScheduledJob
+    {
+        public Guid? Seen { get; private set; }
+        public string Name => "Sond";
+
+        public Task RunAsync(CancellationToken cancellationToken)
+        {
+            Seen = context.CurrentRunId;
+            return Task.CompletedTask;
+        }
+    }
+
     private static DailyJobRunner CreateRunner(
-        FakeTimeProvider clock, JobOptions options, params IScheduledJob[] jobs)
+        FakeTimeProvider clock, JobOptions options, params IScheduledJob[] jobs) =>
+        CreateRunner(clock, options, new RecordingRecorder(), services =>
+        {
+            foreach (var job in jobs)
+                services.AddScoped(_ => job);
+        });
+
+    private static DailyJobRunner CreateRunner(
+        FakeTimeProvider clock, JobOptions options, IJobRunRecorder recorder, Action<IServiceCollection> registerJobs)
     {
         var services = new ServiceCollection();
-        foreach (var job in jobs)
-            services.AddScoped(_ => job);
+        registerJobs(services);
+        services.AddScoped<JobRunContext>();
+        services.AddSingleton(recorder);
 
         var scopeFactory = services.BuildServiceProvider().GetRequiredService<IServiceScopeFactory>();
         return new DailyJobRunner(
@@ -196,5 +243,82 @@ public class DailyJobRunnerTests
             "Loopen dog efter att ett jobb kastat — den körde inte igen.");
 
         await runner.StopAsync(CancellationToken.None);
+    }
+
+    // ── Job history (FR-114) ──────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task A_succeeding_run_is_recorded_without_a_failure()
+    {
+        var clock = WinterClock();
+        var job = new RecordingJob("Gallring");
+        var recorder = new RecordingRecorder();
+        var runner = CreateRunner(clock, new JobOptions { DailyRunHourLocal = 3 }, recorder,
+            s => s.AddScoped<IScheduledJob>(_ => job));
+
+        await runner.StartAsync(CancellationToken.None);
+        Assert.True(await AdvanceUntilRunAsync(clock, job, 1), "Jobbet kördes aldrig.");
+        await runner.StopAsync(CancellationToken.None);
+
+        var started = recorder.Started[0];
+        Assert.Equal("Gallring", started.JobName);
+        Assert.Null(recorder.Finished.First(f => f.Id == started.Id).Failure);
+    }
+
+    [Fact]
+    public async Task A_throwing_run_is_recorded_with_its_exception()
+    {
+        var clock = WinterClock();
+        var job = new RecordingJob("Påminnelser", throws: true);
+        var recorder = new RecordingRecorder();
+        var runner = CreateRunner(clock, new JobOptions { DailyRunHourLocal = 3 }, recorder,
+            s => s.AddScoped<IScheduledJob>(_ => job));
+
+        await runner.StartAsync(CancellationToken.None);
+        Assert.True(await AdvanceUntilRunAsync(clock, job, 1), "Jobbet kördes aldrig.");
+        await runner.StopAsync(CancellationToken.None);
+
+        var finished = recorder.Finished.First(f => f.Id == recorder.Started[0].Id);
+        Assert.IsType<InvalidOperationException>(finished.Failure);
+    }
+
+    [Fact]
+    public async Task A_history_that_cannot_be_written_never_stops_the_jobs()
+    {
+        // The history records the jobs; it must never become a condition for them — GDPR deletion
+        // included (§2.7, FR-69). Two runs, so the loop also survived the first.
+        var clock = WinterClock();
+        var job = new RecordingJob("Gallring");
+        var runner = CreateRunner(clock, new JobOptions { DailyRunHourLocal = 3 }, new RecordingRecorder(throws: true),
+            s => s.AddScoped<IScheduledJob>(_ => job));
+
+        await runner.StartAsync(CancellationToken.None);
+        Assert.True(await AdvanceUntilRunAsync(clock, job, 2), "Ett fel i jobbhistoriken stoppade jobben.");
+        await runner.StopAsync(CancellationToken.None);
+    }
+
+    [Fact]
+    public async Task While_a_job_runs_its_run_id_is_set_for_the_audit_writer_and_cleared_after()
+    {
+        var clock = WinterClock();
+        var recorder = new RecordingRecorder();
+        JobRunContext? context = null;
+        ContextProbeJob? probe = null;
+        var runner = CreateRunner(clock, new JobOptions { RunOnStartup = true, DailyRunHourLocal = 3 }, recorder, s =>
+            s.AddScoped<IScheduledJob>(sp =>
+            {
+                context = sp.GetRequiredService<JobRunContext>();
+                probe = new ContextProbeJob(context);
+                return probe;
+            }));
+
+        await runner.StartAsync(CancellationToken.None);
+        var sw = Stopwatch.StartNew();
+        while (recorder.Finished.Count == 0 && sw.Elapsed < Timeout)
+            await Task.Delay(20);
+        await runner.StopAsync(CancellationToken.None);
+
+        Assert.Equal(recorder.Started[0].Id, probe!.Seen);
+        Assert.Null(context!.CurrentRunId);
     }
 }

@@ -71,7 +71,14 @@ public class CompletionLinkIssuanceJob(
             await audit.RecordAsync(AuditAction.CompletionLinkIssued, nameof(Booking), booking.Id,
                 "Slutförandelänk utfärdades automatiskt när incheckningen kom inom 40 dagar.",
                 booking.Id, booking.BookingReference, AuditActor.System);
-            await emails.SendCompletionLinkAvailableAsync(booking);
+            if (!await emails.SendCompletionLinkAvailableAsync(booking))
+            {
+                // Sending never throws (NFR-13); recorded so the job history shows the run as failed
+                // instead of reporting a link the guest never received (FR-114).
+                await audit.RecordAsync(AuditAction.EmailSendFailed, nameof(Booking), booking.Id,
+                    "Mejlet med slutförandelänken kunde inte skickas.",
+                    booking.Id, booking.BookingReference, AuditActor.System);
+            }
             issued++;
         }
 

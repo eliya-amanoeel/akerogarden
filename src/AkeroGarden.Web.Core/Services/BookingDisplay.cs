@@ -2,7 +2,7 @@ using AkeroGarden.Web.Core.Data.Entities;
 
 namespace AkeroGarden.Web.Core.Services;
 
-/// <summary>Swedish display labels for booking enums (NFR-32), shared across the admin pages.</summary>
+/// <summary>Swedish display labels for booking and job-run enums (NFR-32), shared across the admin pages.</summary>
 public static class BookingDisplay
 {
     public static string StatusLabel(BookingStatus status) => status switch
@@ -31,6 +31,25 @@ public static class BookingDisplay
         BookingStatus.Denied => "badge badge--denied",
         BookingStatus.Cancelled => "badge badge--cancelled",
         _ => "badge badge--neutral"
+    };
+
+    /// <summary>Outcome label for a nightly job run (FR-114). Null = not finished: still running,
+    /// or the process stopped mid-run.</summary>
+    public static string JobRunOutcomeLabel(JobRunOutcome? outcome) => outcome switch
+    {
+        JobRunOutcome.Succeeded => "Lyckades",
+        JobRunOutcome.Failed => "Misslyckades",
+        _ => "Ej avslutad",
+    };
+
+    /// <summary>The status badge for a job run — green / red reuse the booking status badges
+    /// (<see cref="StatusBadgeClass"/>) rather than adding colours, so the label always travels with
+    /// the colour and the contrast work done for them applies here too.</summary>
+    public static string JobRunOutcomeBadgeClass(JobRunOutcome? outcome) => outcome switch
+    {
+        JobRunOutcome.Succeeded => "badge badge--approved",
+        JobRunOutcome.Failed => "badge badge--denied",
+        _ => "badge badge--neutral",
     };
 
     public static string TypeLabel(BookingType type) => type switch

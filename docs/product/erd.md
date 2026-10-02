@@ -33,6 +33,7 @@ erDiagram
     FACILITY     ||--o{ BOOKINGFACILITYSELECTION : "selected as"
 
     BOOKING  |o--o{ AUDITLOG : "audited by (nullable)"
+    JOBRUN   |o--o{ AUDITLOG : "did (nullable)"
 
     BOOKING {
         guid Id PK
@@ -202,6 +203,16 @@ erDiagram
         guid EntityId "affected record"
         string BookingReferenceSnapshot "nullable; the booking's reference (FR-92), not PII"
         string Summary "no guest PII (NFR-37)"
+        guid JobRunId FK "nullable; set null on delete; what a nightly run did (FR-114)"
+    }
+
+    JOBRUN {
+        guid Id PK
+        string JobName "the job's Swedish name"
+        datetime StartedAt
+        datetime FinishedAt "nullable"
+        enum Outcome "nullable; Succeeded | Failed"
+        string FailureReason "nullable; fixed Swedish text (NFR-32/37)"
     }
 ```
 
@@ -230,6 +241,7 @@ erDiagram
 | Room | BlockedPeriod | 0..1 → many | `BlockedPeriod.RoomId` | Set only for `Room` scope |
 | CleaningZone | CleaningZone | many ↔ many (self) | `CleaningZone.IncludesZoneIds[]` | A bundle (Hela lägret) covers other zones |
 | Booking | AuditLog | 0..1 → many | `AuditLog.BookingId` | Nullable, cascade-delete — set for booking-scoped audit entries; null for reference-data/admin-account entries (which are keyed only by `EntityType`/`EntityId`) |
+| JobRun | AuditLog | 0..1 → many | `AuditLog.JobRunId` | Nullable, **set null** on delete — what a nightly job run did (FR-114). Runs are deleted after six months; their entries stay under FR-98 |
 
 ---
 
@@ -250,3 +262,5 @@ erDiagram
 7. **`Participant` is a roster.** It carries who is present, their age category, and their allergies — nothing else. Meal choice, catering plan, room, and breakfast attendance were all removed: each was a booking-level decision that had been stored per person, and each could disagree with the booking it was copied from. Dietary *preferences* became counts on `Booking` for the same reason, which also stores strictly less personal data.
 
 8. **AuditLog is accountability, not preservation.** The snapshot pattern (note 1) answers *"what was agreed?"*; `AuditLog` (§8.15) answers *"who changed this, and when?"* — a distinct concern, so it is a separate append-only entity, not more snapshot columns. It is **semi-polymorphic**: `EntityType`/`EntityId` identify the affected record of any kind, while an optional hard FK `BookingId` (ON DELETE CASCADE) is set for booking-scoped entries so they are purged with the booking (FR-98) and listable per booking. It stores **no guest personal data** (NFR-37) — booking-change entries carry the action + `BookingReferenceSnapshot` only, never guest field values or art. 9 dietary data. Actor is `Admin` / `Guest` (magic-link completion) / `System` (background jobs), so every change is attributable. Admin identity is stored as a live `ActorUserId` plus an `ActorEmailSnapshot` (not FK-constrained — Identity tables are infrastructure, §6.4 — and admins can be removed, FR-74).
+
+9. **JobRun holds only what the audit trail cannot.** A nightly job run's *when* and *outcome* are its own (§8.17); *what it did* is the `AuditLog` entries written during it, tagged with `JobRunId` (FR-114) — the jobs already wrote to the trail as the `System` actor, so a per-booking history table would have duplicated it. The FK is **SET NULL**, not cascade: runs are deleted after six months, the trail keeps its own retention (FR-98). A booking deleted by the retention job is recorded *without* `BookingId` (`BookingDeletedByRetention`), because a booking-scoped entry would be cascade-deleted with the very booking it records.

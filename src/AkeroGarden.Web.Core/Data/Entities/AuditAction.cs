@@ -43,4 +43,17 @@ public enum AuditAction
     AdminAccountDeactivated,
     AdminAccountSetupCompleted,
     AdminRoleChanged,
+
+    // ── Nightly jobs (FR-114) — always the System actor, tagged with the run ─────
+    // What the jobs did that the booking-lifecycle actions above do not already cover. Link issuance
+    // stays CompletionLinkIssued (one verb, see above).
+    PreArrivalReminderSent,
+    DeletionWarningSent,
+    // Written without BookingId on purpose: a booking-scoped entry is cascade-deleted with the very
+    // booking it describes (FR-98), so the record that it was deleted would vanish with it. Kept by
+    // reference only, it falls under the non-booking two-year retention instead.
+    BookingDeletedByRetention,
+    // Sending never throws (NFR-13), so without this a failed email left no trace in the data at all.
+    // Its presence in a run marks the run Misslyckades.
+    EmailSendFailed,
 }

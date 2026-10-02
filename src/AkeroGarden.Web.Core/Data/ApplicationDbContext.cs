@@ -45,6 +45,9 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     // Phase 11: audit trail — AuditLog (§8.15, §6.9).
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+    // Job history — one row per nightly job run (§8.17, FR-114).
+    public DbSet<JobRun> JobRuns => Set<JobRun>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -304,6 +307,24 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             // retention job scans non-booking rows by age.
             a.HasIndex(x => x.BookingId);
             a.HasIndex(x => x.Timestamp);
+
+            // What a nightly run did (FR-114). SET NULL, not cascade: deleting a run after six
+            // months must not take audit entries with it — the trail keeps its own retention (FR-98).
+            a.HasOne(x => x.JobRun)
+                .WithMany()
+                .HasForeignKey(x => x.JobRunId)
+                .OnDelete(DeleteBehavior.SetNull);
+            a.HasIndex(x => x.JobRunId);
+        });
+
+        // ── Job history (§8.17, FR-114) ─────────────────────────────────────────
+        builder.Entity<JobRun>(r =>
+        {
+            r.Property(x => x.JobName).HasMaxLength(100);
+            r.Property(x => x.Outcome).HasConversion<string>().HasMaxLength(20);
+            r.Property(x => x.FailureReason).HasMaxLength(500);
+            // Listed newest first, and purged by age by the retention job.
+            r.HasIndex(x => x.StartedAt);
         });
     }
 }

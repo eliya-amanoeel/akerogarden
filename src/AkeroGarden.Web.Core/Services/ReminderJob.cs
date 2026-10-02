@@ -61,7 +61,13 @@ public class ReminderJob(
             if (ReminderSchedule.IsPreArrivalReminderDue(
                     booking.Status, booking.CheckIn, booking.ReminderEmailSentAt, today))
             {
-                await emails.SendTwoWeekReminderAsync(booking);
+                var sent = await emails.SendTwoWeekReminderAsync(booking);
+                // Recorded either way for the job history (FR-114); a failure marks the run failed.
+                await audit.RecordAsync(
+                    sent ? AuditAction.PreArrivalReminderSent : AuditAction.EmailSendFailed,
+                    nameof(Booking), booking.Id,
+                    sent ? "Påminnelse inför ankomst skickad." : "Påminnelsen inför ankomst kunde inte skickas.",
+                    booking.Id, booking.BookingReference, AuditActor.System);
                 booking.ReminderEmailSentAt = now;
                 standard++;
             }
@@ -78,8 +84,19 @@ public class ReminderJob(
                 await audit.RecordAsync(AuditAction.CompletionLinkIssued, nameof(Booking), booking.Id,
                     "Slutförandelänk utfärdades automatiskt av 14-dagarspåminnelsen.",
                     booking.Id, booking.BookingReference, AuditActor.System);
-                await emails.SendCompletionNudgeAsync(booking);
-                await emails.SendAdminGuestNotCompletedAsync(booking);
+                // The nudge itself is the CompletionLinkIssued entry above; only failures add a line.
+                if (!await emails.SendCompletionNudgeAsync(booking))
+                {
+                    await audit.RecordAsync(AuditAction.EmailSendFailed, nameof(Booking), booking.Id,
+                        "Påminnelsen om att fylla i uppgifterna kunde inte skickas till gästen.",
+                        booking.Id, booking.BookingReference, AuditActor.System);
+                }
+                if (!await emails.SendAdminGuestNotCompletedAsync(booking))
+                {
+                    await audit.RecordAsync(AuditAction.EmailSendFailed, nameof(Booking), booking.Id,
+                        "Meddelandet till administratören om att gästen inte fyllt i kunde inte skickas.",
+                        booking.Id, booking.BookingReference, AuditActor.System);
+                }
                 booking.CompletionNudgeSentAt = now;
                 nudged++;
             }

@@ -6,12 +6,14 @@ namespace AkeroGarden.Web.Core.Services;
 /// <summary>
 /// Default <see cref="IAuditWriter"/>: builds the <see cref="AuditLog"/> row and adds it to the
 /// shared <see cref="ApplicationDbContext"/> without saving (see the interface remarks). Uses the
-/// registered <see cref="TimeProvider"/> for the timestamp so tests can control it.
+/// registered <see cref="TimeProvider"/> for the timestamp so tests can control it. Inside a nightly
+/// job run the entry is tagged with that run (<see cref="JobRunContext"/>, FR-114).
 /// </summary>
 public sealed class AuditWriter(
     ApplicationDbContext db,
     IAuditActorAccessor actorAccessor,
-    TimeProvider clock) : IAuditWriter
+    TimeProvider clock,
+    JobRunContext jobRun) : IAuditWriter
 {
     public async Task RecordAsync(
         AuditAction action,
@@ -38,6 +40,7 @@ public sealed class AuditWriter(
             BookingId = bookingId,
             BookingReferenceSnapshot = bookingReference,
             Summary = summary,
+            JobRunId = jobRun.CurrentRunId,
         });
     }
 }

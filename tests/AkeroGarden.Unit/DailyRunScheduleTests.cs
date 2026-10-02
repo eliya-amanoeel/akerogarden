@@ -109,4 +109,16 @@ public class DailyRunScheduleTests
         Assert.Equal(hour, local.Hour);
         Assert.Equal(new DateTime(2026, 1, 15), local.Date);
     }
+
+    [Theory]
+    [InlineData(2026, 1, 15, 2)] // winter: UTC+1 — the 03:00 run is stored as 02:00 UTC
+    [InlineData(2026, 7, 15, 1)] // summer: UTC+2 — the 03:00 run is stored as 01:00 UTC
+    public void ToStockholmTime_ShowsTheNightlyRunAtThreeOClock_InBothSeasons(int y, int m, int d, int utcHour)
+    {
+        // FR-114: the job history must read 03:00, the hour the admin is told the jobs run — not the
+        // server's own zone, and not one hour off for half the year.
+        var stockholm = DailyRunSchedule.ToStockholmTime(new DateTime(y, m, d, utcHour, 0, 0, DateTimeKind.Utc));
+
+        Assert.Equal(new DateTime(y, m, d, 3, 0, 0), stockholm);
+    }
 }

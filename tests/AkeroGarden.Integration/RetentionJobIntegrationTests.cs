@@ -300,4 +300,88 @@ public class RetentionJobIntegrationTests : IClassFixture<DbFixture>
         Assert.Equal(0, summary.Warned);
         Assert.Empty(email.Sent);
     }
+
+    // ── Job history (FR-114) ─────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task A_deleted_booking_leaves_a_deletion_entry_that_survives_its_own_cascade()
+    {
+        // Written without BookingId on purpose: booking-scoped entries are cascade-deleted with the
+        // booking (FR-98), which would erase the very record that it was deleted.
+        var provider = NewProvider(out _);
+        var today = new DateOnly(2026, 7, 5);
+        var id = await SeedAsync(provider, BookingStatus.Denied, deleteAfter: today.AddDays(-1));
+
+        await RunAsync(provider, today);
+
+        Assert.False(await ExistsAsync(provider, id));
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var entry = await db.AuditLogs.SingleAsync(a => a.EntityId == id && a.Action == AuditAction.BookingDeletedByRetention);
+        Assert.Null(entry.BookingId);
+        Assert.False(string.IsNullOrEmpty(entry.BookingReferenceSnapshot));
+        Assert.Equal(AuditActorType.System, entry.ActorType);
+    }
+
+    [Fact]
+    public async Task A_sent_deletion_warning_is_recorded_and_a_failed_one_is_recorded_as_failed()
+    {
+        var provider = NewProvider(out var email);
+        var today = new DateOnly(2026, 7, 5);
+        var warned = await SeedAsync(provider, BookingStatus.Denied, deleteAfter: today.AddDays(10));
+
+        await RunAsync(provider, today);
+
+        email.Delivers = false;
+        var notWarned = await SeedAsync(provider, BookingStatus.Denied, deleteAfter: today.AddDays(11));
+        await RunAsync(provider, today);
+
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.Single(db.AuditLogs.Where(a => a.BookingId == warned), a => a.Action == AuditAction.DeletionWarningSent);
+        Assert.Single(db.AuditLogs.Where(a => a.BookingId == notWarned), a => a.Action == AuditAction.EmailSendFailed);
+    }
+
+    [Fact]
+    public async Task Job_runs_older_than_six_months_are_deleted_but_their_audit_entries_stay()
+    {
+        var provider = NewProvider(out _);
+        var today = new DateOnly(2026, 7, 5);
+        var cutoff = RetentionSchedule.JobRunPurgeCutoffUtc(today);
+        var oldRun = Guid.NewGuid();
+        var recentRun = Guid.NewGuid();
+        var entryOfOldRun = Guid.NewGuid();
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.JobRuns.AddRange(
+                new JobRun { Id = oldRun, JobName = "GDPR-gallring", StartedAt = cutoff.AddDays(-1), Outcome = JobRunOutcome.Succeeded },
+                new JobRun { Id = recentRun, JobName = "GDPR-gallring", StartedAt = cutoff.AddDays(1), Outcome = JobRunOutcome.Succeeded });
+            db.AuditLogs.Add(new AuditLog
+            {
+                Id = entryOfOldRun,
+                Timestamp = DateTime.UtcNow,
+                ActorType = AuditActorType.System,
+                Action = AuditAction.BookingDeletedByRetention,
+                EntityType = "Booking",
+                EntityId = Guid.NewGuid(),
+                BookingReferenceSnapshot = "AG-2026-0001",
+                Summary = "Bokningen raderades automatiskt enligt gallringsreglerna.",
+                JobRunId = oldRun,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var summary = await RunAsync(provider, today);
+
+        using var check = provider.CreateScope();
+        var checkDb = check.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        Assert.False(await checkDb.JobRuns.AnyAsync(r => r.Id == oldRun));
+        Assert.True(await checkDb.JobRuns.AnyAsync(r => r.Id == recentRun));
+        Assert.True(summary.JobRunsPurged >= 1);
+        // ON DELETE SET NULL: the trail keeps the entry, under its own retention (FR-98).
+        var entry = await checkDb.AuditLogs.SingleAsync(a => a.Id == entryOfOldRun);
+        Assert.Null(entry.JobRunId);
+    }
 }

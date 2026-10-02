@@ -98,7 +98,8 @@ public sealed class DbFixture : IAsyncLifetime
         services.AddSingleton<FakeImageStorage>();
         services.AddSingleton<IImageStorage>(sp => sp.GetRequiredService<FakeImageStorage>());
         services.AddScoped<IAuditActorAccessor, TestAuditActorAccessor>();
-        services.AddScoped<IAuditWriter, AuditWriter>();
+        // The hosts' own registration (writer + JobRunContext), so the fixture cannot drift from it.
+        services.AddAkeroAudit();
     }
 
     /// <summary>

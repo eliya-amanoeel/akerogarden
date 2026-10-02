@@ -22,6 +22,16 @@ public static class RetentionSchedule
     public static DateTime AuditPurgeCutoffUtc(DateOnly today) =>
         today.AddYears(-AuditRetentionYears).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
 
+    /// <summary>Months a nightly job run is kept in the job history before it is deleted (FR-114).
+    /// Long enough to look back over a season; the audit entries it points to outlive it (FR-98).</summary>
+    public const int JobRunRetentionMonths = 6;
+
+    /// <summary>The instant before which job runs are deleted (FR-114):
+    /// <see cref="JobRunRetentionMonths"/> before <paramref name="today"/>, as UTC midnight — same
+    /// civil-date shape as <see cref="AuditPurgeCutoffUtc"/>.</summary>
+    public static DateTime JobRunPurgeCutoffUtc(DateOnly today) =>
+        today.AddMonths(-JobRunRetentionMonths).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+
     /// <summary>True if the record is at or past its deletion date and must be deleted (FR-69/91).</summary>
     public static bool IsDeletionDue(DateOnly? deleteAfter, DateOnly today) =>
         deleteAfter is { } d && d <= today;

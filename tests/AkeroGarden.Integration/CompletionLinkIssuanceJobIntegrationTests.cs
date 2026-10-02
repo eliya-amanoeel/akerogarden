@@ -264,4 +264,23 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         Assert.Null((await ReloadAsync(provider, id)).CompletionToken);
         Assert.Empty(email.Sent);
     }
+
+    [Fact]
+    public async Task A_link_email_that_could_not_be_sent_is_recorded_as_a_failed_send()
+    {
+        // FR-114: the issuance is recorded either way; a failed email adds its own entry, which is
+        // what marks the night's run Misslyckades instead of reporting a link nobody received.
+        var provider = NewProvider(out var email);
+        email.Delivers = false;
+        var today = DbFixture.TodayIn(provider);
+        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(29));
+
+        await RunAsync(provider, today);
+
+        using var scope = provider.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+        var actions = await db.AuditLogs.Where(a => a.BookingId == id).Select(a => a.Action).ToListAsync();
+        Assert.Contains(AuditAction.CompletionLinkIssued, actions);
+        Assert.Contains(AuditAction.EmailSendFailed, actions);
+    }
 }

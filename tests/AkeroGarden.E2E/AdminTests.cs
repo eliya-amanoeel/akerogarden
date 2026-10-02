@@ -273,6 +273,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     [InlineData("/stadszoner")]
     [InlineData("/faciliteter")]
     [InlineData("/konton")]
+    [InlineData("/jobbhistorik")]
     public async Task Admin_pages_have_no_serious_accessibility_violations(string path)
     {
         await LoginAsync();
@@ -593,9 +594,10 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Bokningar" })).ToHaveCountAsync(0);
             await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Administratörskonton" })).ToHaveCountAsync(0);
             await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Översikt" })).ToHaveCountAsync(0);
+            await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Jobbhistorik" })).ToHaveCountAsync(0);
 
             // 5. Typing the URL is the real test of the boundary — the pages are gated, not the links.
-            foreach (var forbidden in new[] { "/", "/konton", "/bokningar", $"/bokningar/{bookingId}" })
+            foreach (var forbidden in new[] { "/", "/konton", "/jobbhistorik", "/bokningar", $"/bokningar/{bookingId}" })
             {
                 await Page.GotoAsync(forbidden);
                 await Assertions.Expect(Page).ToHaveURLAsync(
@@ -1241,6 +1243,107 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await db.Buildings.Where(b => b.Id == buildingId).ExecuteDeleteAsync();
         await db.PhysicalBuildings.Where(p => p.Id == pbId).ExecuteDeleteAsync();
     }
+
+    [Fact]
+    public async Task Job_history_shows_each_run_with_its_outcome_and_what_it_did()
+    {
+        // FR-114 through the real page: a failed and a succeeded run, filtered to the booking one of
+        // them touched; the run opens to its lines, and a live booking's reference links to it.
+        var failedRun = Guid.NewGuid();
+        var cleanRun = Guid.NewGuid();
+        var bookingId = Guid.NewGuid();
+        var reference = $"AG-E2E-{Guid.NewGuid():N}"[..20];
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Bookings.Add(new Booking
+            {
+                Id = bookingId,
+                BookingReference = reference,
+                BookingType = BookingType.StayRequest,
+                Status = BookingStatus.DetailsComplete,
+                ContactName = "Jobb Historik",
+                ContactEmail = "jobbhistorik@example.se",
+                CheckIn = today.AddDays(300),
+                CheckOut = today.AddDays(302),
+                OvernightGuestCount = 2,
+                MealPlan = MealPlan.SelfCateringAll,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+            });
+            db.JobRuns.AddRange(
+                new JobRun
+                {
+                    Id = failedRun,
+                    JobName = "14-dagarspåminnelse",
+                    StartedAt = DateTime.UtcNow.AddHours(-2),
+                    FinishedAt = DateTime.UtcNow.AddHours(-2),
+                    Outcome = JobRunOutcome.Failed,
+                    FailureReason = "1 mejl kunde inte skickas.",
+                },
+                new JobRun
+                {
+                    Id = cleanRun,
+                    JobName = "14-dagarspåminnelse",
+                    StartedAt = DateTime.UtcNow.AddHours(-1),
+                    FinishedAt = DateTime.UtcNow.AddHours(-1),
+                    Outcome = JobRunOutcome.Succeeded,
+                });
+            db.AuditLogs.AddRange(
+                JobEntry(failedRun, AuditAction.EmailSendFailed, bookingId, reference, "Påminnelsen inför ankomst kunde inte skickas."),
+                JobEntry(cleanRun, AuditAction.PreArrivalReminderSent, bookingId, reference, "Påminnelse inför ankomst skickad."));
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/jobbhistorik");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            // The same readiness the other admin lists need: wait for the loaded table, not NetworkIdle.
+            await Assertions.Expect(Page.Locator(".admin-empty", new() { HasText = "Laddar…" }))
+                .ToHaveCountAsync(0, new() { Timeout = 15000 });
+            await Page.FillAsync("#f-ref", reference);
+            await Page.PressAsync("#f-ref", "Enter");
+
+            var rows = Page.Locator("table.admin-table tbody tr");
+            await Assertions.Expect(rows).ToHaveCountAsync(2);
+            // Newest first: the clean run above the failed one, each with its coloured outcome badge.
+            await Assertions.Expect(rows.Nth(0).Locator(".badge.badge--approved")).ToHaveTextAsync("Lyckades");
+            await Assertions.Expect(rows.Nth(1).Locator(".badge.badge--denied")).ToHaveTextAsync("Misslyckades");
+
+            await rows.Nth(1).GetByRole(AriaRole.Button, new() { Name = "Visa" }).ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new Regex("is-open"));
+            await Assertions.Expect(panel).ToContainTextAsync("1 mejl kunde inte skickas.");
+            await Assertions.Expect(panel).ToContainTextAsync("Påminnelsen inför ankomst kunde inte skickas.");
+            await Assertions.Expect(panel.GetByRole(AriaRole.Link, new() { Name = reference }))
+                .ToHaveAttributeAsync("href", $"/bokningar/{bookingId}");
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.AuditLogs.Where(a => a.JobRunId == failedRun || a.JobRunId == cleanRun).ExecuteDeleteAsync();
+            await db.JobRuns.Where(r => r.Id == failedRun || r.Id == cleanRun).ExecuteDeleteAsync();
+            await db.Bookings.Where(b => b.Id == bookingId).ExecuteDeleteAsync();
+        }
+    }
+
+    private static AuditLog JobEntry(Guid runId, AuditAction action, Guid bookingId, string reference, string summary) => new()
+    {
+        Id = Guid.NewGuid(),
+        Timestamp = DateTime.UtcNow,
+        ActorType = AuditActorType.System,
+        Action = action,
+        EntityType = nameof(Booking),
+        EntityId = bookingId,
+        BookingId = bookingId,
+        BookingReferenceSnapshot = reference,
+        Summary = summary,
+        JobRunId = runId,
+    };
 
     [Fact]
     public async Task Approve_gates_behind_confirmation_and_only_fires_on_confirm()

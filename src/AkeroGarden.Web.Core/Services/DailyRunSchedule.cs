@@ -23,6 +23,14 @@ public static class DailyRunSchedule
         return next <= nowUtc ? RunInstantOn(todayLocal.AddDays(1), runHourLocal) : next;
     }
 
+    /// <summary>
+    /// A stored UTC instant as Swedish wall-clock time, for the job history (FR-114). Not
+    /// <c>ToLocalTime()</c>: the server's own zone is not Stockholm, and a run scheduled for 03:00
+    /// must read 03:00 — the hour the admin was told it runs.
+    /// </summary>
+    public static DateTime ToStockholmTime(DateTime utc) =>
+        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Stockholm);
+
     /// <summary>Delay from <paramref name="nowUtc"/> until the next run. Never negative.</summary>
     public static TimeSpan TimeUntilNextRun(DateTimeOffset nowUtc, int runHourLocal) =>
         NextRunUtc(nowUtc, runHourLocal) - nowUtc;

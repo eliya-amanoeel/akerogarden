@@ -170,6 +170,99 @@ public class AvailabilityServiceTests
 
         Assert.Contains("en grupp i taget", message);
         Assert.DoesNotContain("Välj gärna", message);
+        Assert.DoesNotContain("blockerad", message);
+    }
+
+    [Fact]
+    public void DescribeForAdmin_SingleDate_UsesSingularSwedish()
+    {
+        var checkIn = new DateOnly(2026, 10, 10);
+        var checkOut = new DateOnly(2026, 10, 15);
+        var reasons = With(Free(checkIn, 10), UnavailableReason.Occupied, new DateOnly(2026, 10, 12));
+
+        var message = AvailabilityService.DescribeForAdmin(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
+
+        Assert.StartsWith("Datumet 12 oktober är redan upptaget.", message);
+    }
+
+    /// <summary>
+    /// A whole-property block is not another group. It used to be explained as one ("Gården hyrs ut
+    /// till en grupp i taget"), sending the admin looking for a booking that did not exist.
+    /// </summary>
+    [Fact]
+    public void DescribeForAdmin_WholePropertyBlock_NamesTheBlock_NotAGroup()
+    {
+        var checkIn = new DateOnly(2026, 10, 10);
+        var checkOut = new DateOnly(2026, 10, 15);
+        var reasons = With(Free(checkIn, 10), UnavailableReason.WholePropertyBlock,
+            new DateOnly(2026, 10, 11), new DateOnly(2026, 10, 12));
+
+        var message = AvailabilityService.DescribeForAdmin(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
+
+        Assert.Equal(
+            "Hela anläggningen är blockerad 11–12 oktober. "
+                + "Bokningen kan inte godkännas förrän blockeringen tas bort eller ändras.",
+            message);
+    }
+
+    [Fact]
+    public void DescribeForAdmin_BlockOnTheCleaningDays_SaysTheyMustBeFree()
+    {
+        var checkIn = new DateOnly(2026, 10, 10);
+        var checkOut = new DateOnly(2026, 10, 15);
+        // The nights are free; the block starts on check-out day, inside the stay's turnover window.
+        var reasons = With(Free(checkIn, 10), UnavailableReason.WholePropertyBlock,
+            new DateOnly(2026, 10, 15), new DateOnly(2026, 10, 16));
+
+        var message = AvailabilityService.DescribeForAdmin(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
+
+        Assert.Equal(
+            "Hela anläggningen är blockerad 15–16 oktober, och städdagarna efter avresan behöver vara fria. "
+                + "Bokningen kan inte godkännas förrän blockeringen tas bort eller ändras.",
+            message);
+    }
+
+    [Fact]
+    public void DescribeForAdmin_GroupAndBlockTogether_ReportsEachForItsOwnDates()
+    {
+        var checkIn = new DateOnly(2026, 10, 10);
+        var checkOut = new DateOnly(2026, 10, 15);
+        var reasons = With(Free(checkIn, 10), UnavailableReason.Occupied, new DateOnly(2026, 10, 10));
+        With(reasons, UnavailableReason.WholePropertyBlock, new DateOnly(2026, 10, 13));
+
+        var message = AvailabilityService.DescribeForAdmin(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
+
+        Assert.Contains("Datumet 10 oktober är redan upptaget.", message);
+        Assert.Contains("Hela anläggningen är blockerad 13 oktober.", message);
+        Assert.DoesNotContain("13 oktober är redan", message);
+    }
+
+    [Fact]
+    public void DescribeForAdmin_DateHeldByBothAGroupAndABlock_IsReportedUnderBoth()
+    {
+        var checkIn = new DateOnly(2026, 10, 10);
+        var checkOut = new DateOnly(2026, 10, 15);
+        var reasons = With(Free(checkIn, 10),
+            UnavailableReason.Occupied | UnavailableReason.WholePropertyBlock, new DateOnly(2026, 10, 12));
+
+        var message = AvailabilityService.DescribeForAdmin(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
+
+        Assert.Contains("Datumet 12 oktober är redan upptaget.", message);
+        Assert.Contains("Hela anläggningen är blockerad 12 oktober.", message);
+    }
+
+    /// <summary>The guest is never told about a block — "upptaget" is all they need (FR-09).</summary>
+    [Fact]
+    public void Describe_ForTheGuest_DoesNotMentionABlock()
+    {
+        var checkIn = new DateOnly(2026, 10, 10);
+        var checkOut = new DateOnly(2026, 10, 15);
+        var reasons = With(Free(checkIn, 10), UnavailableReason.WholePropertyBlock, new DateOnly(2026, 10, 12));
+
+        var message = AvailabilityService.Describe(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
+
+        Assert.Contains("12 oktober är tyvärr upptaget", message);
+        Assert.DoesNotContain("blocker", message);
     }
 
     [Fact]

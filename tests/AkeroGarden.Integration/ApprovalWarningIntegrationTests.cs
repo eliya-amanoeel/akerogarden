@@ -247,6 +247,9 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         Assert.True(warning.BlocksApproval);
         Assert.NotNull(warning.AvailabilityConflict);
+        // Named as the block it is, not as another group.
+        Assert.Contains("Hela anläggningen är blockerad", warning.AvailabilityConflict);
+        Assert.DoesNotContain("en grupp i taget", warning.AvailabilityConflict);
         Assert.False(warning.OverlapsBlock);
         Assert.False(warning.CapacityExceeded);
         Assert.False(warning.HasAdvisory);
@@ -280,6 +283,7 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         Assert.True(warning.BlocksApproval);
         Assert.Contains("en grupp i taget", warning.AvailabilityConflict);
+        Assert.DoesNotContain("blockerad", warning.AvailabilityConflict);
         Assert.False(warning.HasAdvisory);
 
         using var approveScope = provider.CreateScope();

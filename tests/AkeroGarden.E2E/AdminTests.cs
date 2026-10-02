@@ -197,7 +197,9 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
             var refusal = Page.Locator(".alert.alert--error");
             await Assertions.Expect(refusal).ToContainTextAsync("Kan inte godkännas än");
-            await Assertions.Expect(refusal).ToContainTextAsync("är redan upptagna");
+            // Named as the block it is — not as another group (it once said "en grupp i taget").
+            await Assertions.Expect(refusal).ToContainTextAsync("Hela anläggningen är blockerad");
+            await Assertions.Expect(refusal).Not.ToContainTextAsync("en grupp i taget");
             // Asserted after the positive one above, so an unrendered page cannot pass it.
             await Assertions.Expect(
                 Page.GetByText("Datumen överlappar en eller flera blockeringar")).ToHaveCountAsync(0);

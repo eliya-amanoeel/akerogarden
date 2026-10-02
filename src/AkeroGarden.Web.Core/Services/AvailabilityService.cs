@@ -17,13 +17,21 @@ namespace AkeroGarden.Web.Core.Services;
 /// explanations: one says another group is here, the other says another group arrives too soon
 /// after you leave for the property to be cleaned in between.
 /// </param>
+/// <param name="ConflictReasons">
+/// Why each conflicting date (from either list) is unavailable. The guest is never told — which
+/// booking or block caused it is not theirs to know (FR-09) — but the admin is, because "another
+/// group" and "a whole-property block" call for different actions, and naming the wrong one sent
+/// the admin looking for a booking that did not exist.
+/// </param>
 public readonly record struct StayAvailability(
     bool IsAvailable,
     IReadOnlyList<DateOnly> ConflictingStayDates,
-    IReadOnlyList<DateOnly> ConflictingTurnoverDates)
+    IReadOnlyList<DateOnly> ConflictingTurnoverDates,
+    IReadOnlyDictionary<DateOnly, UnavailableReason> ConflictReasons)
 {
     /// <summary>A stay with nothing in its way.</summary>
-    public static StayAvailability Available { get; } = new(true, [], []);
+    public static StayAvailability Available { get; } =
+        new(true, [], [], new Dictionary<DateOnly, UnavailableReason>());
 }
 
 /// <summary>
@@ -84,12 +92,14 @@ public class AvailabilityService(OccupancyProvider occupancy)
 
         var stayConflicts = new List<DateOnly>();
         var turnoverConflicts = new List<DateOnly>();
+        var conflictReasons = new Dictionary<DateOnly, UnavailableReason>();
 
         for (var date = checkIn; date <= TurnoverWindow.LastDay(checkOut); date = date.AddDays(1))
         {
             if (!reasons.TryGetValue(date, out var reason) || reason == UnavailableReason.None)
                 continue;
 
+            conflictReasons[date] = reason;
             if (date < checkOut)
                 stayConflicts.Add(date);
             else
@@ -98,7 +108,7 @@ public class AvailabilityService(OccupancyProvider occupancy)
 
         return stayConflicts.Count == 0 && turnoverConflicts.Count == 0
             ? StayAvailability.Available
-            : new StayAvailability(false, stayConflicts, turnoverConflicts);
+            : new StayAvailability(false, stayConflicts, turnoverConflicts, conflictReasons);
     }
 
     /// <summary>
@@ -157,31 +167,53 @@ public class AvailabilityService(OccupancyProvider occupancy)
     /// The Swedish explanation shown to the <b>admin</b> (NFR-32). Says the same thing as
     /// <see cref="Describe"/> in the register the admin needs — it names the rule being enforced
     /// rather than inviting the reader to pick other dates, which is not the admin's move to make.
+    ///
+    /// <para><b>It names the cause, which <see cref="Describe"/> deliberately does not.</b> Another
+    /// group and a whole-property block call for different actions — talk to the guest about other
+    /// dates, or change the block — so each is reported on its own. It once put every unavailable
+    /// date under "Gården hyrs ut till en grupp i taget", and a block was explained as a booking
+    /// that did not exist. A date held by both is reported under both.</para>
     /// </summary>
     public static string DescribeForAdmin(StayAvailability availability)
     {
         if (availability.IsAvailable)
             return string.Empty;
 
-        var message = new StringBuilder();
+        static bool HeldByAGroup(UnavailableReason r) =>
+            (r & (UnavailableReason.Occupied | UnavailableReason.Turnover)) != 0;
 
-        if (availability.ConflictingStayDates.Count > 0)
+        var reasons = availability.ConflictReasons;
+        var groupNights = availability.ConflictingStayDates.Where(d => HeldByAGroup(reasons[d])).ToList();
+        var groupTurnover = availability.ConflictingTurnoverDates.Where(d => HeldByAGroup(reasons[d])).ToList();
+        var blocked = availability.ConflictingStayDates.Concat(availability.ConflictingTurnoverDates)
+            .Where(d => reasons[d].HasFlag(UnavailableReason.WholePropertyBlock))
+            .Order()
+            .ToList();
+
+        var sentences = new List<string>();
+
+        if (groupNights.Count > 0)
         {
-            message.Append(availability.ConflictingStayDates.Count == 1 ? "Datumet " : "Datumen ");
-            message.Append(FormatRuns(availability.ConflictingStayDates));
-            message.Append(" är redan upptagna. Gården hyrs ut till en grupp i taget, så bokningen kan inte godkännas över de datumen.");
+            sentences.Add((groupNights.Count == 1 ? "Datumet " : "Datumen ")
+                + FormatRuns(groupNights)
+                + (groupNights.Count == 1 ? " är redan upptaget." : " är redan upptagna.")
+                + " Gården hyrs ut till en grupp i taget, så bokningen kan inte godkännas över de datumen.");
         }
 
-        if (availability.ConflictingTurnoverDates.Count > 0)
+        if (groupTurnover.Count > 0)
+            sentences.Add($"Städdagarna efter avresan ({FormatRuns(groupTurnover)}) är upptagna av en annan bokning.");
+
+        if (blocked.Count > 0)
         {
-            if (message.Length > 0)
-                message.Append(' ');
-            message.Append("Städdagarna efter avresan (");
-            message.Append(FormatRuns(availability.ConflictingTurnoverDates));
-            message.Append(") är upptagna av en annan bokning.");
+            // A block on the cleaning days after check-out stops the stay as surely as one on its
+            // nights (FR-106), and is the case that most needs saying — the stay's own dates look free.
+            var coversTurnover = blocked.Any(availability.ConflictingTurnoverDates.Contains);
+            sentences.Add($"Hela anläggningen är blockerad {FormatRuns(blocked)}"
+                + (coversTurnover ? ", och städdagarna efter avresan behöver vara fria." : ".")
+                + " Bokningen kan inte godkännas förrän blockeringen tas bort eller ändras.");
         }
 
-        return message.ToString();
+        return string.Join(" ", sentences);
     }
 
     /// <summary>

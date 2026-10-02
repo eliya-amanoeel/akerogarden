@@ -163,13 +163,14 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     }
 
     [Fact]
-    public async Task Approval_warning_surfaces_when_dates_overlap_a_block()
+    public async Task Whole_property_block_over_the_dates_shows_as_a_refusal_not_a_warning()
     {
-        // The seeded Pending "Familjen Pendlar" booking (12 guests, one 40-bed room, no block) shows
-        // no approval warning. Seed a whole-property block over its dates (directly, as test setup)
-        // and confirm the non-blocking warning renders on its detail page — the behaviour under test
-        // is the UI rendering, verified through the browser; the block is removed afterwards so the
-        // shared E2E app is left as we found it.
+        // The seeded Pending "Familjen Pendlar" booking (12 guests, one 40-bed room, no block). Seed a
+        // whole-property block over its dates (directly, as test setup): the dates are then unavailable
+        // (FR-10) and ApproveAsync refuses the stay (FR-113), so the detail page must show it in the
+        // red refusal box — not in the amber advisory list it used to sit in, under a "du kan ändå
+        // godkänna" line that was false for it. The block is removed afterwards so the shared E2E app
+        // is left as we found it.
         var blockId = Guid.NewGuid();
         var start = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(33);
         var end = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(39);
@@ -193,8 +194,13 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await LoginAsync();
             await Page.GotoAsync("/bokningar");
             await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+
+            var refusal = Page.Locator(".alert.alert--error");
+            await Assertions.Expect(refusal).ToContainTextAsync("Kan inte godkännas än");
+            await Assertions.Expect(refusal).ToContainTextAsync("är redan upptagna");
+            // Asserted after the positive one above, so an unrendered page cannot pass it.
             await Assertions.Expect(
-                Page.GetByText("Datumen överlappar en eller flera blockeringar")).ToBeVisibleAsync();
+                Page.GetByText("Datumen överlappar en eller flera blockeringar")).ToHaveCountAsync(0);
         }
         finally
         {
@@ -985,6 +991,12 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Page.GotoAsync($"/bokningar/{id}");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
+            // Before the click, the panel already says this is a refusal — in the red box, and with
+            // no "the warnings do not stop approval" line, since nothing on this booking is advice.
+            var refusal = Page.Locator(".alert.alert--error");
+            await Assertions.Expect(refusal).ToContainTextAsync("Ingen byggnad är tilldelad ännu");
+            await Assertions.Expect(Page.GetByText("Varningarna stoppar inte godkännandet")).ToHaveCountAsync(0);
+
             await Page.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true }).ClickAsync();
             var dialog = Page.GetByRole(AriaRole.Dialog);
             await Assertions.Expect(dialog).ToBeVisibleAsync();
@@ -1009,6 +1021,223 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await using var db = Fixture.NewDbContext();
             await db.Bookings.Where(b => b.Id == id).ExecuteDeleteAsync();
         }
+    }
+
+    [Fact]
+    public async Task Advisory_warnings_alone_say_approval_is_not_stopped_and_show_no_refusal()
+    {
+        // The other half of the split: a booking whose findings are all advice (a stated 08:00 arrival,
+        // FR-101, and a blocked room in its own building) shows the amber box with its "does not stop
+        // approval" line, and no red box. Without this, the line could vanish everywhere and the two
+        // refusal tests would still pass. The room block also pins the block line's wording to its
+        // scope: a room block takes beds out of the count, it does not stop the building being assigned.
+        var id = Guid.NewGuid();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var checkIn = await FreeCheckInWithinIssueWindowAsync(today);
+
+        // A building of the test's own with two rooms — not one from the seed data, which has no
+        // guarantee of two — assigned so "no building" does not fire. One room is closed over the
+        // stay; the other's beds still cover the group, so the bed warning stays silent too.
+        var (pbId, buildingId, buildingName) = await SeedOwnBuildingAsync("Råd", rooms: 2);
+        await SeedAssignedPendingBookingAsync(
+            id, $"AG-E2E-{Guid.NewGuid():N}"[..20], buildingId, buildingName, checkIn, checkInTime: new TimeOnly(8, 0));
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            var blockedRoom = await db.Rooms.Where(r => r.BuildingId == buildingId).OrderBy(r => r.Name).FirstAsync();
+            db.BlockedPeriods.Add(new BlockedPeriod
+            {
+                Id = Guid.NewGuid(),
+                Scope = BlockScope.Room,
+                BuildingId = buildingId,
+                RoomId = blockedRoom.Id,
+                StartDate = checkIn,
+                EndDate = checkIn.AddDays(1),
+                Reason = "E2E rum",
+                CreatedAt = DateTime.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync($"/bokningar/{id}");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var advice = Page.Locator(".alert.alert--warn").Filter(new() { HasText = "Kontrollera innan du godkänner" });
+            await Assertions.Expect(advice).ToContainTextAsync("Incheckning 08:00 avviker från standard 14:00.");
+            await Assertions.Expect(advice).ToContainTextAsync("Varningarna stoppar inte godkännandet");
+            await Assertions.Expect(advice).ToContainTextAsync("Blockerade rum räknas inte in i bäddarna.");
+            // Asserted after the positive ones above, so an unrendered page cannot pass them.
+            await Assertions.Expect(advice).Not.ToContainTextAsync("Berörda byggnader går inte att tilldela");
+            await Assertions.Expect(Page.Locator(".alert.alert--error")).ToHaveCountAsync(0);
+        }
+        finally
+        {
+            await CleanUpOwnBuildingAsync(pbId, buildingId, id);
+        }
+    }
+
+    [Fact]
+    public async Task Blocking_a_building_a_booking_has_assigned_is_refused_with_a_link_to_the_booking()
+    {
+        // FR-102 in reverse, through the real Blockeringar panel: the block is not saved, and the
+        // refusal names the booking with a link to it — the admin's next step is to open it.
+        var (pbId, buildingId, buildingName) = await SeedOwnBuildingAsync("Tilldelad");
+        var bookingId = Guid.NewGuid();
+        var reference = $"AG-E2E-{Guid.NewGuid():N}"[..20];
+        var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(200);
+
+        await SeedAssignedPendingBookingAsync(bookingId, reference, buildingId, buildingName, checkIn);
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/blockeringar");
+            // Interactive Server: wait for the circuit before driving the panel's @bind controls.
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            await Page.GetByRole(AriaRole.Button, new() { Name = "+ Lägg till blockering" }).ClickAsync();
+            // The panel is always in the DOM, closed and inert — so #scope exists before the circuit
+            // does, and a scope chosen in the dead prerendered panel never reaches the server (the
+            // #building select then never appears). "is-open" is set only by the server: proof the
+            // click arrived, the same readiness check the other panel tests use.
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new Regex("is-open"));
+            await Page.SelectOptionAsync("#scope", "Building");
+            await Page.SelectOptionAsync("#building", buildingId.ToString());
+            await Page.FillAsync("#start", checkIn.AddDays(1).ToString("yyyy-MM-dd"));
+            await Page.FillAsync("#end", checkIn.AddDays(1).ToString("yyyy-MM-dd"));
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Spara" }).ClickAsync();
+
+            var refusal = panel.Locator(".alert.alert--error");
+            await Assertions.Expect(refusal).ToContainTextAsync($"Byggnaden {buildingName} är tilldelad {reference}");
+            await Assertions.Expect(refusal.GetByRole(AriaRole.Link, new() { Name = reference }))
+                .ToHaveAttributeAsync("href", $"/bokningar/{bookingId}");
+
+            await using var check = Fixture.NewDbContext();
+            Assert.False(await check.BlockedPeriods.AnyAsync(p => p.BuildingId == buildingId));
+        }
+        finally
+        {
+            await CleanUpOwnBuildingAsync(pbId, buildingId, bookingId);
+        }
+    }
+
+    [Fact]
+    public async Task An_assigned_building_that_is_already_blocked_can_still_be_unticked()
+    {
+        // Data from before the reverse rule can hold an assigned building that is also blocked. The
+        // checkbox used to be disabled both ways, trapping the assignment; it must untick, and then
+        // stay unavailable for ticking (FR-102). The block is seeded directly — the service now
+        // refuses it, which is the point.
+        var (pbId, buildingId, buildingName) = await SeedOwnBuildingAsync("Fast");
+        var bookingId = Guid.NewGuid();
+        var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(220);
+
+        await SeedAssignedPendingBookingAsync(bookingId, $"AG-E2E-{Guid.NewGuid():N}"[..20], buildingId, buildingName, checkIn);
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.BlockedPeriods.Add(new BlockedPeriod
+            {
+                Id = Guid.NewGuid(),
+                Scope = BlockScope.Building,
+                BuildingId = buildingId,
+                StartDate = checkIn,
+                EndDate = checkIn.AddDays(1),
+                Reason = "E2E äldre data",
+                CreatedAt = DateTime.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync($"/bokningar/{bookingId}");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var checkbox = Page.Locator(".assign-item", new() { HasText = buildingName }).Locator("input[type=checkbox]");
+            await Assertions.Expect(checkbox).ToBeCheckedAsync();
+            await Assertions.Expect(checkbox).ToBeEnabledAsync();
+
+            await checkbox.ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("Byggnadstilldelningen är sparad");
+            await Assertions.Expect(checkbox).Not.ToBeCheckedAsync();
+            await Assertions.Expect(checkbox).ToBeDisabledAsync();
+
+            await using var check = Fixture.NewDbContext();
+            Assert.False(await check.BookingBuildingAssignments.AnyAsync(a => a.BookingId == bookingId));
+        }
+        finally
+        {
+            await CleanUpOwnBuildingAsync(pbId, buildingId, bookingId);
+        }
+    }
+
+    /// <summary>A physical building, a building and one room of its own, so a test's blocks and
+    /// assignments never touch the seeded demo buildings other tests read.</summary>
+    private async Task<(Guid PhysicalBuildingId, Guid BuildingId, string BuildingName)> SeedOwnBuildingAsync(
+        string label, int rooms = 1)
+    {
+        var pbId = Guid.NewGuid();
+        var buildingId = Guid.NewGuid();
+        var buildingName = $"E2E {label} {Guid.NewGuid():N}"[..20];
+
+        await using var db = Fixture.NewDbContext();
+        db.PhysicalBuildings.Add(new PhysicalBuilding { Id = pbId, Name = $"E2E fysisk {Guid.NewGuid():N}", IsActive = true });
+        db.Buildings.Add(new Building { Id = buildingId, Name = buildingName, PhysicalBuildingId = pbId, IsActive = true });
+        for (var i = 1; i <= rooms; i++)
+            db.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = buildingId, Name = $"Rum {i}", BedCount = 4, IsActive = true });
+        await db.SaveChangesAsync();
+        return (pbId, buildingId, buildingName);
+    }
+
+    private async Task SeedAssignedPendingBookingAsync(
+        Guid bookingId, string reference, Guid buildingId, string buildingName, DateOnly checkIn,
+        TimeOnly? checkInTime = null)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        await using var db = Fixture.NewDbContext();
+        db.Bookings.Add(new Booking
+        {
+            Id = bookingId,
+            BookingReference = reference,
+            BookingType = BookingType.StayRequest,
+            Status = BookingStatus.Pending,
+            ContactName = "Tilldelad Grupp",
+            ContactEmail = "tilldelad@example.se",
+            CheckIn = checkIn,
+            CheckOut = checkIn.AddDays(2),
+            CheckInTime = checkInTime,
+            OvernightGuestCount = 2,
+            MealPlan = MealPlan.SelfCateringAll,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            DeleteAfter = today.AddYears(1),
+        });
+        db.BookingBuildingAssignments.Add(new BookingBuildingAssignment
+        {
+            Id = Guid.NewGuid(),
+            BookingId = bookingId,
+            BuildingId = buildingId,
+            BuildingNameSnapshot = buildingName,
+            PhysicalBuildingNameSnapshot = "E2E fysisk",
+            AssignedAt = DateTime.UtcNow,
+        });
+        await db.SaveChangesAsync();
+    }
+
+    private async Task CleanUpOwnBuildingAsync(Guid pbId, Guid buildingId, Guid bookingId)
+    {
+        await using var db = Fixture.NewDbContext();
+        await db.BlockedPeriods.Where(p => p.BuildingId == buildingId).ExecuteDeleteAsync();
+        await db.BookingBuildingAssignments.Where(a => a.BookingId == bookingId).ExecuteDeleteAsync();
+        await db.Bookings.Where(b => b.Id == bookingId).ExecuteDeleteAsync();
+        await db.Rooms.Where(r => r.BuildingId == buildingId).ExecuteDeleteAsync();
+        await db.Buildings.Where(b => b.Id == buildingId).ExecuteDeleteAsync();
+        await db.PhysicalBuildings.Where(p => p.Id == pbId).ExecuteDeleteAsync();
     }
 
     [Fact]

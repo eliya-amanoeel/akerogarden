@@ -6,36 +6,9 @@
   document. Whenever this changes, re-export the PDF before sending anything: open in a browser,
   Print -> Save as PDF, A4, background graphics ON (the @page rule and the coloured note boxes depend
   on it). The E2E project's Playwright/Chromium can also render it headlessly if a repeatable step is
-  wanted.
+  wanted. The client's copy does not update itself - any change must be re-exported and re-sent.
 
-  Status 2026-10-01: CORRECTED AFTER A LINE-BY-LINE CHECK against the SRS and the code - NOT YET
-  RE-SENT. Fixed: cleaning days, link validity (first link ends 14 days before arrival, the reminder
-  carries a new one), "no building" blocks approval rather than warns, dashboard contents, menu names,
-  re-inviting an activated account is impossible, notes need Spara anteckningar, lists exist for three
-  statuses, the Organisation box, and several smaller wordings.
-
-  Status 2026-09-15: CHANGED AFTER SENDING - NOT YET RE-SENT. One note added under "Bilder pa
-  faciliteter": the page photos (start, Om oss, Kontakt, Mat och priser) are not changed in admin but
-  by the developer, now that they are real photos rather than placeholders (docs/ux/design.md,
-  Imagery). Re-export the PDF and re-send before treating the client's copy as current.
-
-  Status 2026-09-14: SENT TO THE CLIENT (confirmed by the maintainer), as the 2026-09-13 version below.
-  Any later change must be re-exported and re-sent - the client's copy does not update itself.
-
-  Status 2026-09-09 (history): NOTHING HAS BEEN SENT TO THE CLIENT. Both files exist in the repo only.
-  The PDF is STALE and must be re-exported before it goes anywhere - it predates two sections
-  added on 2026-09-09: "Bilder pa faciliteter", and the on-behalf-of half of "Lagga in en bokning
-  som kommit per telefon eller mejl" (FR-112, guests with no e-mail address). The second matters
-  most: the client said he intends to start by entering bookings already agreed by telephone, and
-  that a meaningful share of his guests are elderly groups with no e-mail at all, so that is the
-  section he will reach for first.
-
-  2026-09-13: widened from "the daily loop" to everything an administrator does, checked against the
-  admin pages rather than memory - building assignment and approval warnings, what each status allows,
-  editing a booking, step-by-step manual booking and blocks, add/edit/deactivate/delete for all
-  reference data, and every email the system sends (all 15 in SRS section 9, not 5). Still STALE as PDF.
-
-  2026-09-13: Del C widened to "Konton och e-post". Handover model: the client owns every account;
+  Del C "Konton och e-post": the client owns every account;
   the maintainer keeps a named, removable account in Azure/DevOps. NO PASSWORDS in this file or its
   PDF - they are handed over in person. The info@ warning assumes the app's SMTP login is the info@
   mailbox (smtpFromAddress is info@; smtpUsername is a CI secret) - confirm before sending.
@@ -116,9 +89,9 @@
 <div class="step">
   <ol>
     <li>Öppna förfrågan under <b>Bokningar</b> och läs igenom den.</li>
-    <li>Kontrollera att datumen är lediga — <b>Kalendervy</b> visar allt som redan är bokat. Systemet kontrollerar detta självt när du klickar <b>Godkänn</b>: en förfrågan som krockar med en annan grupp går inte att godkänna, och du får ett meddelande om vilka datum som är upptagna. Avresedagen och dagen efter är alltid avsatta för städning och räknas som upptagna — reser en grupp på söndag kan nästa grupp komma tidigast på tisdag.</li>
+    <li>Kontrollera att datumen är lediga — <b>Kalendervy</b> visar allt som redan är bokat. Systemet kontrollerar detta självt när du klickar <b>Godkänn</b>: en förfrågan som krockar med en annan grupp, eller med en blockering av hela gården, går inte att godkänna, och du får ett meddelande om vilka datum som är upptagna. Avresedagen och dagen efter är alltid avsatta för städning och räknas som upptagna — reser en grupp på söndag kan nästa grupp komma tidigast på tisdag.</li>
     <li>Under <b>Byggnadstilldelning</b>: kryssa i den eller de byggnader gruppen ska bo i. Bredvid varje byggnad står hur många bäddar den har. Valet sparas direkt. <b>Minst en byggnad måste vara vald</b> — annars går bokningen inte att godkänna.</li>
-    <li>Läs eventuella varningar i rutan till höger (se nedan).</li>
+    <li>Läs eventuella meddelanden i rutorna till höger (se nedan).</li>
     <li>Klicka <b>Godkänn</b>. En ruta visar vilken e-postadress mejlet går till — <b>kontrollera att den är rätt</b> — och klicka <b>Godkänn</b> igen.</li>
   </ol>
 </div>
@@ -133,15 +106,16 @@
 </ul>
 <p>Exakt när länken slutar gälla står alltid på bokningens sida.</p>
 
-<h4>Varningarna före godkännande</h4>
-<p>Två saker <b>stoppar</b> ett godkännande: att datumen krockar med en annan grupp (se steg 2), och att ingen byggnad är tilldelad. Allt annat är bara varningar — ni kan godkänna ändå om ni vet vad ni gör.</p>
+<h4>Meddelandena före godkännande</h4>
+<p>Tre saker <b>stoppar</b> ett godkännande: att datumen krockar med en annan grupp, att hela gården är blockerad under vistelsen, och att ingen byggnad är tilldelad. De visas i en <b>röd ruta</b>, <b>Kan inte godkännas än</b>. Allt annat visas i en <b>gul ruta</b> och är bara varningar — ni kan godkänna ändå om ni vet vad ni gör.</p>
 <table>
   <tr><th>Meddelande</th><th>Vad ni gör</th></tr>
-  <tr><td><b>Ingen byggnad är tilldelad ännu</b><br><i>Stoppar godkännandet.</i></td><td>Kryssa i minst en byggnad under Byggnadstilldelning. Klickar ni Godkänn ändå får ni beskedet <b>Tilldela minst en byggnad innan bokningen godkänns</b>, och inget händer.</td></tr>
-  <tr><td><b>Datumen överlappar en eller flera blockeringar</b></td><td>Den blockerade byggnaden är gråmarkerad och går inte att välja. Välj en annan byggnad, eller ta bort blockeringen om den inte längre gäller.</td></tr>
-  <tr><td><b>Antal övernattande gäster … överstiger tillgängliga bäddar</b></td><td>Tilldela fler byggnader, eller prata med gästen innan ni godkänner.</td></tr>
-  <tr><td><b>En tid som avviker från standard</b> (tidig ankomst eller sen avresa)</td><td>Gästen kommer att tro att tiden ingår. Kom överens om ett eventuellt tillägg med gästen <b>innan</b> ni godkänner.</td></tr>
-  <tr><td><b>Kort varsel</b> — 14 dagar eller färre kvar (visas i en egen ruta)</td><td>Gästen hinner knappt fylla i formuläret. Ring hellre gästen direkt.</td></tr>
+  <tr><td><b>Ingen byggnad är tilldelad ännu</b><br><i>Röd ruta — stoppar godkännandet.</i></td><td>Kryssa i minst en byggnad under Byggnadstilldelning. Klickar ni Godkänn ändå får ni beskedet <b>Tilldela minst en byggnad innan bokningen godkänns</b>, och inget händer.</td></tr>
+  <tr><td><b>Datumen … är redan upptagna</b><br><i>Röd ruta — stoppar godkännandet.</i></td><td>Datumen eller städdagarna efter är tagna av en annan grupp, eller så är hela gården blockerad. Prata med gästen om andra datum — eller ta bort blockeringen om den inte längre gäller.</td></tr>
+  <tr><td><b>Datumen överlappar en eller flera blockeringar</b><br><i>Gul ruta.</i></td><td>En byggnad eller ett rum är blockerat under vistelsen. En blockerad <b>byggnad</b> är gråmarkerad och går inte att välja — välj en annan byggnad, eller ta bort blockeringen om den inte längre gäller. Ett blockerat <b>rum</b> räknas inte in i bäddarna, men byggnaden går att välja som vanligt.</td></tr>
+  <tr><td><b>Antal övernattande gäster … överstiger tillgängliga bäddar</b><br><i>Gul ruta.</i></td><td>De byggnader ni kryssat i har färre bäddar än gruppen har gäster. Tilldela fler byggnader, eller prata med gästen innan ni godkänner.</td></tr>
+  <tr><td><b>En tid som avviker från standard</b> (tidig ankomst eller sen avresa)<br><i>Gul ruta.</i></td><td>Gästen kommer att tro att tiden ingår. Kom överens om ett eventuellt tillägg med gästen <b>innan</b> ni godkänner.</td></tr>
+  <tr><td><b>Kort varsel</b> — 14 dagar eller färre kvar<br><i>Egen gul ruta.</i></td><td>Gästen hinner knappt fylla i formuläret. Ring hellre gästen direkt.</td></tr>
 </table>
 
 <h3>Avslå en förfrågan</h3>
@@ -259,6 +233,9 @@
   </ol>
 </div>
 <p>En blockering av <b>hela gården</b> syns som upptagen i gästernas kalender på webbplatsen. En blockering av en enskild byggnad eller ett enskilt rum syns <b>inte</b> i gästkalendern — gården hyrs ut till en grupp i taget, och ett rum ur drift stänger inte gården. Den blockerade byggnaden går däremot inte att tilldela en grupp under de datumen. För att ändra eller ta bort en blockering: klicka på raden eller <b>Redigera</b>, ändra och <b>Spara</b> — eller <b>Ta bort</b>.</p>
+<div class="note">
+  <p><b>En byggnad som redan är tilldelad en bokning går inte att blockera.</b> Det gäller bokningar som <b>Väntar</b>, är <b>Godkända</b>, har <b>Uppgifter klara</b> eller är <b>På plats</b>. Försöker ni, sparas blockeringen inte, och rutan visar vilka bokningar det gäller — klicka på bokningsnumret för att öppna bokningen. Avmarkera byggnaden där (och välj en annan åt gruppen), eller välj andra datum för blockeringen. På samma sätt går <b>hela gården</b> inte att blockera medan någon sådan bokning har byggnader tilldelade under perioden. Ett <b>rum</b> går alltid att blockera — det minskar bara antalet bäddar.</p>
+</div>
 
 <h3>Listor till köket</h3>
 <p>Under <b>Deltagar- och matlistor</b> i menyn (eller på bokningens sida) hämtar ni de två listorna för en bokning, som PDF eller Excel:</p>

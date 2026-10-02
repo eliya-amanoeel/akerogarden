@@ -8,10 +8,12 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AkeroGarden.Integration;
 
 /// <summary>
-/// The non-blocking pre-approval guard: before "Godkänn", the admin is warned when the requested
-/// stay overlaps a block, the overnight count exceeds the beds available for the dates, or the guest
-/// stated an arrival/departure time that deviates from the standard (FR-101). Approval itself is
-/// never blocked — this only computes the warning shown on the booking detail.
+/// The pre-approval findings shown before "Godkänn", in their two kinds. Advisory: the stay overlaps
+/// a building- or room-scoped block, the overnight count exceeds the beds available for the dates,
+/// or the guest stated an arrival/departure time that deviates from the standard (FR-101) — approval
+/// still goes through. Blocking: no building is assigned (FR-103), or the property is not free for
+/// the stay (FR-10/FR-113) — approval is refused, and these tests assert the refusal itself, not
+/// only the flag, so the panel and the button cannot drift apart again.
 /// </summary>
 public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 {
@@ -110,7 +112,8 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         var warning = await WarningsAsync(provider, seeded.BookingId);
 
-        Assert.False(warning.Any);
+        Assert.False(warning.BlocksApproval);
+        Assert.False(warning.HasAdvisory);
     }
 
     [Fact]
@@ -166,13 +169,63 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
         Assert.False(warning.CapacityExceeded);
         Assert.Single(warning.BlockDescriptions);
         Assert.Contains("Rummet", warning.BlockDescriptions[0]);
+
+        // A room-scoped block is advice, not a refusal: the property is still free for the stay.
+        Assert.True(warning.HasAdvisory);
+        Assert.False(warning.BlocksApproval);
+        Assert.Null(warning.AvailabilityConflict);
+
+        // And it is a room, not a building: the panel must not claim the building cannot be assigned.
+        Assert.True(warning.OverlapsRoomBlock);
+        Assert.False(warning.OverlapsBuildingBlock);
     }
 
     [Fact]
-    public async Task Whole_property_block_warns_on_both_and_names_the_scope()
+    public async Task A_block_on_another_building_is_advice_and_reported_as_a_building_block()
     {
-        var checkIn = new DateOnly(2026, 11, 10);
-        var checkOut = new DateOnly(2026, 11, 12);
+        // The booking's own building is free; a different building is closed over the dates. That
+        // building cannot be assigned (FR-102) — the panel says so — but approval is not affected.
+        var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(5).AddDays(60);
+        var checkOut = checkIn.AddDays(2);
+        var provider = NewProvider();
+        var seeded = await SeedBookingAsync(provider, checkIn, checkOut, overnightGuests: 2, bedCounts: 4);
+        var other = await SeedBookingAsync(provider, checkIn.AddYears(1), checkIn.AddYears(1).AddDays(2), 2, 4);
+
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.BlockedPeriods.Add(new BlockedPeriod
+            {
+                Id = Guid.NewGuid(),
+                Scope = BlockScope.Building,
+                BuildingId = other.BuildingId,
+                StartDate = checkIn,
+                EndDate = checkOut,
+                CreatedAt = DateTime.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        var warning = await WarningsAsync(provider, seeded.BookingId);
+
+        Assert.True(warning.OverlapsBlock);
+        Assert.True(warning.OverlapsBuildingBlock);
+        Assert.False(warning.OverlapsRoomBlock);
+        Assert.Contains("Byggnaden", warning.BlockDescriptions[0]);
+        Assert.False(warning.CapacityExceeded);
+        Assert.True(warning.HasAdvisory);
+        Assert.False(warning.BlocksApproval);
+    }
+
+    [Fact]
+    public async Task Whole_property_block_refuses_approval_and_is_not_listed_as_advice()
+    {
+        // A whole-property block makes the dates unavailable (FR-10), so ApproveAsync refuses the stay
+        // (FR-113). It used to sit in the advisory list — under "du kan ändå godkänna" — together with
+        // a "2 guests exceed 0 beds" capacity line that was arithmetic, not information.
+        // Relative to today, years out: clear of every literal window the older tests here occupy.
+        var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(5);
+        var checkOut = checkIn.AddDays(2);
         var provider = NewProvider();
         var seeded = await SeedBookingAsync(provider, checkIn, checkOut, overnightGuests: 2, bedCounts: 4);
 
@@ -192,10 +245,47 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         var warning = await WarningsAsync(provider, seeded.BookingId);
 
-        Assert.True(warning.OverlapsBlock);
-        Assert.True(warning.CapacityExceeded); // the whole property is blocked → 0 beds available
-        Assert.Equal(0, warning.AvailableBeds);
-        Assert.Contains("Hela anläggningen", warning.BlockDescriptions[0]);
+        Assert.True(warning.BlocksApproval);
+        Assert.NotNull(warning.AvailabilityConflict);
+        Assert.False(warning.OverlapsBlock);
+        Assert.False(warning.CapacityExceeded);
+        Assert.False(warning.HasAdvisory);
+
+        // The panel names exactly the refusal the button gives.
+        using var approveScope = provider.CreateScope();
+        var result = await approveScope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(seeded.BookingId);
+        Assert.False(result.Succeeded);
+        Assert.Equal(warning.AvailabilityConflict, result.Error);
+    }
+
+    [Fact]
+    public async Task Another_group_over_the_same_dates_refuses_approval_and_says_so_beforehand()
+    {
+        // One group at a time (FR-10/FR-113): the second request is refused at approval. The panel
+        // must say so before the click, in the refusal's own words.
+        // Clear of the whole-property test's window (and its turnover days) by a month.
+        var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(5).AddDays(30);
+        var checkOut = checkIn.AddDays(2);
+        var provider = NewProvider();
+        var first = await SeedBookingAsync(provider, checkIn, checkOut, overnightGuests: 2, bedCounts: 4);
+        var second = await SeedBookingAsync(provider, checkIn, checkOut, overnightGuests: 2, bedCounts: 4);
+
+        using (var scope = provider.CreateScope())
+        {
+            var approved = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(first.BookingId);
+            Assert.True(approved.Succeeded, approved.Error);
+        }
+
+        var warning = await WarningsAsync(provider, second.BookingId);
+
+        Assert.True(warning.BlocksApproval);
+        Assert.Contains("en grupp i taget", warning.AvailabilityConflict);
+        Assert.False(warning.HasAdvisory);
+
+        using var approveScope = provider.CreateScope();
+        var result = await approveScope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(second.BookingId);
+        Assert.False(result.Succeeded);
+        Assert.Equal(warning.AvailabilityConflict, result.Error);
     }
 
     // ── FR-101: stated times that deviate from the standard ──────────────────────
@@ -211,7 +301,8 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         Assert.False(warning.HasTimeDeviation);
         Assert.Empty(warning.TimeDeviations);
-        Assert.False(warning.Any);
+        Assert.False(warning.HasAdvisory);
+        Assert.False(warning.BlocksApproval);
     }
 
     [Fact]
@@ -225,7 +316,8 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         Assert.True(warning.HasTimeDeviation);
         Assert.Equal("Incheckning 08:00 avviker från standard 14:00.", Assert.Single(warning.TimeDeviations));
-        Assert.True(warning.Any);
+        Assert.True(warning.HasAdvisory);
+        Assert.False(warning.BlocksApproval);
 
         // Non-blocking: approval still succeeds (same pattern as FR-75).
         using var scope = provider.CreateScope();
@@ -295,7 +387,9 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         Assert.True(warning.NoLodgingAssigned);
         Assert.False(warning.CapacityExceeded);
-        Assert.True(warning.Any);
+        // Not advice: approval is refused without a building (FR-103), so it is a blocking finding.
+        Assert.True(warning.BlocksApproval);
+        Assert.False(warning.HasAdvisory);
     }
 
     [Fact]
@@ -309,7 +403,8 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         Assert.False(warning.NoLodgingAssigned);
         Assert.False(warning.CapacityExceeded);
-        Assert.False(warning.Any);
+        Assert.False(warning.BlocksApproval);
+        Assert.False(warning.HasAdvisory);
     }
 
     /// <summary>A stay request with no building assignment at all — the state every booking is in

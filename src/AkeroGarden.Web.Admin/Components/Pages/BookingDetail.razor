@@ -172,12 +172,16 @@ else
                             Gruppen fördelar sig själv mellan rummen i de tilldelade byggnaderna.
                         </p>
                         <div class="assign-list">
+                            @* A blocked building cannot be ticked (FR-102), but one already ticked stays
+                               untickable: disabling it both ways trapped the assignment, leaving the
+                               admin no way out but deleting the block. Blocks can no longer land on an
+                               assigned building, so this guards data from before that rule. *@
                             @foreach (var b in _assignable)
                             {
                                 <label class="assign-item @(b.IsAvailable ? "" : "assign-item--blocked")">
                                     <input type="checkbox"
                                            checked="@_selectedBuildingIds.Contains(b.Building.Id)"
-                                           disabled="@(!b.IsAvailable)"
+                                           disabled="@(!b.IsAvailable && !_selectedBuildingIds.Contains(b.Building.Id))"
                                            @onchange="e => ToggleBuilding(b.Building.Id, e.Value is true)" />
                                     <span class="assign-item__name">@b.Building.Name</span>
                                     <span class="assign-item__meta">
@@ -437,9 +441,33 @@ else
 
                 @if (_booking.Status == BookingStatus.Pending && _booking.BookingType == BookingType.StayRequest)
                 {
-                    @* Both pre-approval notices share one advisory style (amber .alert--warn, "!" badge,
-                       bold lead + body) so the action rail reads as one coherent voice, not a jumble of
-                       colours/icons. ARIA roles still differ by urgency (status vs alert). *@
+                    @* Pre-approval notices share one shape (.alert, "!" badge, bold lead + body) so the
+                       action rail reads as one voice. The colour carries the one distinction that
+                       matters: red (.alert--error) is what the button will refuse, amber (.alert--warn)
+                       is advice the admin may override. They were all amber once, under a "du kan ändå
+                       godkänna" line that was false for the refusals. ARIA roles still differ by
+                       urgency (status vs alert). *@
+                    @if (_approvalWarning.BlocksApproval)
+                    {
+                        <div class="alert alert--error" role="alert">
+                            <span class="alert__ic" aria-hidden="true">!</span>
+                            <div>
+                                <b>Kan inte godkännas än</b>
+                                <ul class="alert__list">
+                                    @* Worded by the same AvailabilityService call ApproveAsync refuses
+                                       with — another group, or a whole-property block (FR-10/FR-113). *@
+                                    @if (_approvalWarning.AvailabilityConflict is { } conflict)
+                                    {
+                                        <li>@conflict</li>
+                                    }
+                                    @if (_approvalWarning.NoLodgingAssigned)
+                                    {
+                                        <li>Ingen byggnad är tilldelad ännu. Tilldela minst en byggnad innan bokningen godkänns.</li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+                    }
                     @if (IsCheckInWithin14Days)
                     {
                         <div class="alert alert--warn" role="status">
@@ -450,7 +478,7 @@ else
                             </div>
                         </div>
                     }
-                    @if (_approvalWarning.Any)
+                    @if (_approvalWarning.HasAdvisory)
                     {
                         <div class="alert alert--warn" role="alert">
                             <span class="alert__ic" aria-hidden="true">!</span>
@@ -461,13 +489,11 @@ else
                                     {
                                         @* The consequence is the assignment box below, not the guest's
                                            form: the completion form's room picker was retired with
-                                           FR-56, and a block now stops the building being assigned at
-                                           all (FR-102) — which is what the admin sees greyed out. *@
-                                        <li>Datumen överlappar en eller flera blockeringar: @string.Join("; ", _approvalWarning.BlockDescriptions). Berörda byggnader går inte att tilldela.</li>
-                                    }
-                                    @if (_approvalWarning.NoLodgingAssigned)
-                                    {
-                                        <li>Ingen byggnad är tilldelad ännu. Tilldela boende innan du godkänner.</li>
+                                           FR-56. Each consequence is stated only for the scope it
+                                           belongs to — a building block stops that building being
+                                           assigned (FR-102, greyed out below); a room block does not,
+                                           it only takes the room's beds out of the count. *@
+                                        <li>Datumen överlappar en eller flera blockeringar: @string.Join("; ", _approvalWarning.BlockDescriptions).@(_approvalWarning.OverlapsBuildingBlock ? " Berörda byggnader går inte att tilldela." : "")@(_approvalWarning.OverlapsRoomBlock ? " Blockerade rum räknas inte in i bäddarna." : "")</li>
                                     }
                                     @if (_approvalWarning.CapacityExceeded)
                                     {
@@ -480,7 +506,9 @@ else
                                         <li>@deviation Kom överens om eventuellt tillägg med gästen innan du godkänner.</li>
                                     }
                                 </ul>
-                                <p class="form-hint">Du kan ändå godkänna — detta är endast en varning.</p>
+                                @* True whether or not the red box above is also showing — it speaks
+                                   only of the items in this box. *@
+                                <p class="form-hint">Varningarna stoppar inte godkännandet.</p>
                             </div>
                         </div>
                     }
@@ -868,7 +896,7 @@ else
                 _selectedBuildingIds.Add(a.BuildingId);
         }
 
-        // Non-blocking pre-approval warnings (block overlap / capacity) shown before "Godkänn".
+        // Pre-approval findings shown before "Godkänn": refusals (red) and advisory warnings (amber).
         _approvalWarning = _booking is { Status: BookingStatus.Pending, BookingType: BookingType.StayRequest }
             ? await BookingService.GetApprovalWarningsAsync(Id)
             : ApprovalWarning.None;

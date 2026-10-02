@@ -662,11 +662,14 @@ public class BookingService(
     }
 
     /// <summary>
-    /// Non-blocking pre-approval checks (Phase 7): does the requested stay overlap a block, or does
-    /// the overnight guest count exceed the beds in the buildings actually assigned? The admin keeps
-    /// override authority — this only warns, it never blocks approval (FR-103/D2), matching the
-    /// existing project pattern (FR-75). Assignment itself <i>is</i> blocking; see
-    /// <see cref="ApproveAsync"/>.
+    /// What the admin sees before "Godkänn", in two kinds (see <see cref="ApprovalWarning"/>).
+    /// <b>Blocking</b>: no building assigned (FR-103), or the property is not free for the stay —
+    /// another group or a whole-property block (FR-10/FR-113). These mirror the refusals in
+    /// <see cref="ApproveAsync"/>, and the availability one is asked of the same
+    /// <see cref="AvailabilityService"/> call with the same wording, so the screen cannot promise an
+    /// approval the button will refuse. <b>Advisory</b>: a building- or room-scoped block, fewer beds
+    /// in the assigned buildings than overnight guests, or a deviating stated time — the admin keeps
+    /// override authority over these (FR-101/FR-103), matching FR-75.
     /// </summary>
     public async Task<ApprovalWarning> GetApprovalWarningsAsync(Guid id)
     {
@@ -682,6 +685,14 @@ public class BookingService(
             .Where(p => p.StartDate < checkOut && p.EndDate >= checkIn)
             .OrderBy(p => p.StartDate)
             .ToListAsync();
+
+        // A whole-property block is not advisory: it makes the dates unavailable, and ApproveAsync
+        // refuses the stay over it. It is reported through the availability check below, not in the
+        // advisory block list — listed there it was shown as "du kan ändå godkänna" on a booking the
+        // button would then refuse.
+        var wholePropertyBlocked = blocks.Any(p => p.Scope == BlockScope.WholeProperty);
+        var advisoryBlocks = blocks.Where(p => p.Scope != BlockScope.WholeProperty).ToList();
+        var stay = await availability.EvaluateStayAsync(checkIn, checkOut, booking.Id);
 
         // Beds the assigned buildings really offer over these dates — a room-scoped block nets its
         // beds out (FR-102), so the warning is measured against what is on offer rather than paper
@@ -712,15 +723,23 @@ public class BookingService(
         // single booking — "2 guests exceed 0 beds" is arithmetic, not information, and a warning
         // that is always present is one the admin learns to skip past. The strip carries the
         // deviation warnings too, so that habit is expensive. Say the true thing instead.
+        // The same reasoning covers a whole-property block: every building is closed, so the bed
+        // count is zero by construction and the stay is refused anyway.
         var nothingAssigned = assignedBuildingIds.Count == 0;
 
         return new ApprovalWarning(
-            CapacityExceeded: !nothingAssigned && guests > availableBeds,
+            CapacityExceeded: !nothingAssigned && !wholePropertyBlocked && guests > availableBeds,
             NoLodgingAssigned: nothingAssigned,
             RequestedGuests: guests,
             AvailableBeds: availableBeds,
-            BlockDescriptions: await DescribeBlocksAsync(blocks),
-            TimeDeviations: timeDeviations);
+            BlockDescriptions: await DescribeBlocksAsync(advisoryBlocks),
+            TimeDeviations: timeDeviations,
+            AvailabilityConflict: stay.IsAvailable ? null : AvailabilityService.DescribeForAdmin(stay),
+            // The two scopes have different consequences, and the panel states each one only when it
+            // applies: a building block stops that building being assigned (FR-102); a room block
+            // only takes its beds out of the count (BuildingExclusionCalculator).
+            OverlapsBuildingBlock: advisoryBlocks.Any(p => p.Scope == BlockScope.Building),
+            OverlapsRoomBlock: advisoryBlocks.Any(p => p.Scope == BlockScope.Room));
     }
 
     /// <summary>
@@ -1262,16 +1281,22 @@ public record BuildingAssignmentResult(bool Succeeded, string? Error)
     public static BuildingAssignmentResult Fail(string error) => new(false, error);
 }
 
-/// <summary>Non-blocking pre-approval warnings (Phase 7) shown on the admin booking detail: the stay
-/// overlaps one or more blocks, the overnight count exceeds the beds the assigned buildings offer
-/// over the dates, and/or the guest stated an arrival or departure time that deviates from the
-/// standard (FR-101). None of them block approval — each exists so a conversation is not missed.</summary>
+/// <summary>Pre-approval findings shown on the admin booking detail, in two kinds that must never be
+/// presented as one. <see cref="BlocksApproval"/>: no building is assigned (FR-103), or the property
+/// is not free for the stay (<see cref="AvailabilityConflict"/>, FR-10/FR-113) — approval is
+/// refused. <see cref="HasAdvisory"/>: a building- or room-scoped block overlaps the stay, the
+/// overnight count exceeds the beds the assigned buildings offer, and/or a stated time deviates
+/// from the standard (FR-101) — approval goes through; each exists so a conversation is not missed.
+/// They were once a single "Any", and the panel told the admin "du kan ändå godkänna" under items
+/// the button then refused.</summary>
 public record ApprovalWarning(
     bool CapacityExceeded, bool NoLodgingAssigned, int RequestedGuests, int AvailableBeds,
-    IReadOnlyList<string> BlockDescriptions, IReadOnlyList<string> TimeDeviations)
+    IReadOnlyList<string> BlockDescriptions, IReadOnlyList<string> TimeDeviations,
+    string? AvailabilityConflict, bool OverlapsBuildingBlock, bool OverlapsRoomBlock)
 {
-    public static readonly ApprovalWarning None = new(false, false, 0, 0, [], []);
+    public static readonly ApprovalWarning None = new(false, false, 0, 0, [], [], null, false, false);
     public bool OverlapsBlock => BlockDescriptions.Count > 0;
     public bool HasTimeDeviation => TimeDeviations.Count > 0;
-    public bool Any => CapacityExceeded || NoLodgingAssigned || OverlapsBlock || HasTimeDeviation;
+    public bool BlocksApproval => NoLodgingAssigned || AvailabilityConflict is not null;
+    public bool HasAdvisory => CapacityExceeded || OverlapsBlock || HasTimeDeviation;
 }

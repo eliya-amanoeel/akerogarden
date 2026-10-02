@@ -70,6 +70,21 @@ else
     <AdminPanel Visible="_panelOpen" Title="@(_isCreating ? "Ny blockering" : $"{_form.StartDate:yyyy-MM-dd} – {_form.EndDate:yyyy-MM-dd}")" OnClose="ClosePanel">
         <ChildContent>
             <Toast @bind-Message="_panelError" />
+            @* FR-102: a block may not close a building a live booking has assigned. Shown in the panel
+               rather than as a toast, because the admin's next step is to open those bookings — each
+               reference links to its booking. Same stacked error alert as the completion form. *@
+            @if (_conflicts.Count > 0)
+            {
+                <div class="alert alert--error alert--stacked" role="alert">
+                    <strong>@_conflictError</strong>
+                    <ul class="alert__list">
+                        @foreach (var c in _conflicts)
+                        {
+                            <li><a href="/bokningar/@c.BookingId">@c.BookingReference</a></li>
+                        }
+                    </ul>
+                </div>
+            }
             <div class="form-group">
                 <label for="scope">Omfattning</label>
                 <select id="scope" @bind="_form.Scope" @bind:after="OnScopeChanged">
@@ -152,6 +167,8 @@ else
     private readonly Dictionary<Guid, string> _roomNames = [];
     private ToastMessage? _message;
     private ToastMessage? _panelError;
+    private List<BlockAssignmentConflict> _conflicts = [];
+    private string? _conflictError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -184,6 +201,7 @@ else
         _isCreating = true;
         _editingId = null;
         _panelError = null;
+        _conflicts = [];
         _form = NewForm();
         _rooms = [];
     }
@@ -194,6 +212,7 @@ else
         _isCreating = false;
         _editingId = null;
         _panelError = null;
+        _conflicts = [];
     }
 
     private async Task OnScopeChanged()
@@ -220,6 +239,7 @@ else
         _isCreating = false;
         _editingId = p.Id;
         _panelError = null;
+        _conflicts = [];
         _form = new BlockedPeriod
         {
             Id = p.Id,
@@ -241,7 +261,21 @@ else
 
         if (!result.Succeeded)
         {
-            _panelError = ToastMessage.Error(result.Error);
+            // The service refused. When the reason is an assigned building (FR-102), list the bookings
+            // as links — but only then: a form that also failed an earlier check (dates, a missing
+            // room) gets that message, compared exactly against the service's own wording.
+            var conflicts = await BlockedPeriodService.GetAssignmentConflictsAsync(_form);
+            var buildingName = _form.BuildingId is { } id && _buildingNames.TryGetValue(id, out var n) ? n : null;
+            if (conflicts.Count > 0 && result.Error == BlockedPeriodService.DescribeConflicts(_form, buildingName, conflicts))
+            {
+                _conflicts = conflicts;
+                _conflictError = result.Error;
+            }
+            else
+            {
+                _conflicts = [];
+                _panelError = ToastMessage.Error(result.Error);
+            }
             return;
         }
 

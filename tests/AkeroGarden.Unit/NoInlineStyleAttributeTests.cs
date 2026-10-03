@@ -24,7 +24,7 @@ public class NoInlineStyleAttributeTests
     [Fact]
     public void No_razor_component_carries_an_inline_style_attribute()
     {
-        var repositoryRoot = FindRepositoryRoot();
+        var repositoryRoot = RepositoryRoot.Find();
         var components = Directory.EnumerateFiles(
                 Path.Combine(repositoryRoot, "src"), "*.razor", SearchOption.AllDirectories)
             .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}")
@@ -50,23 +50,5 @@ public class NoInlineStyleAttributeTests
             "inline style attributes are blocked by the Content-Security-Policy and will not render. "
             + "Add a modifier class in site.css beside the component instead:\n  "
             + string.Join("\n  ", offenders));
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src"))
-                && Directory.Exists(Path.Combine(directory.FullName, "tests")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException(
-            $"could not find the repository root above {AppContext.BaseDirectory}");
     }
 }

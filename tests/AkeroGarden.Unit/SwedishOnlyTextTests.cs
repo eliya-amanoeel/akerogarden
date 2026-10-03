@@ -86,7 +86,7 @@ public class SwedishOnlyTextTests
 
     private static List<(string File, string Value)> CollectUserVisibleStrings()
     {
-        var root = FindRepositoryRoot();
+        var root = RepositoryRoot.Find();
         var found = new List<(string, string)>();
 
         foreach (var path in Directory.EnumerateFiles(Path.Combine(root, "src"), "*.cs", SearchOption.AllDirectories))
@@ -105,22 +105,5 @@ public class SwedishOnlyTextTests
         }
 
         return found;
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src"))
-                && Directory.Exists(Path.Combine(directory.FullName, "tests")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException($"could not find the repository root above {AppContext.BaseDirectory}");
     }
 }

@@ -24,11 +24,19 @@
     --color-heading:        #1e1c1a;   /* headings, primary-button text */
     --color-bg:             #faf8f4;   /* page background (warm off-white) */
     --color-bg-warm:        #f0ebe1;   /* section tint */
+    --color-bg-sunk:        #f6f3ee;   /* nested rows a level below --color-bg (Byggnader tree) */
+    --color-input-border:   #cfc9bd;   /* text inputs, selects, textareas */
+    --color-focus-ring:     rgba(63, 106, 15, 0.18); /* input focus halo — --color-primary-ink at .18 */
+    --color-photo-light:    #d3d9cf;   /* photo placeholder gradient, light end (photo-less facilities) */
+    --color-photo-dark:     #8a9a72;   /* photo placeholder gradient, dark end */
     --color-footer-bg:      #1a1714;   /* dark footer */
+    --color-footer-fg:      #a8a49c;   /* footer body text */
+    --color-footer-muted:   #8f8a80;   /* footer column headings, bottom bar */
     --color-line:           rgba(30, 28, 26, 0.12); /* hairline borders */
 
     /* Semantic (alerts, validation, status) */
     --color-ok:    #3f6a0f;  --color-ok-bg:   rgba(113, 176, 2, 0.12);
+    --color-ok-tint: rgba(113, 176, 2, 0.16); /* stronger ok tint: round badges, active admin nav item */
     /* Warn text is darkened to #7a4c00 (was #8a5a00) because --color-warn-bg is translucent, so a
        warn element's real contrast depends on the surface under it. On white the old pair gave
        5.2:1, but on the warm section tint (--color-bg-warm) it fell to 4.49:1 — failing WCAG AA by
@@ -73,6 +81,8 @@
        know exists. Every token in this file is now in this one block. */
     --admin-nav-bg: #26221d;
     --admin-nav-fg: rgba(255, 255, 255, 0.72);
+    --admin-nav-hover: rgba(255, 255, 255, 0.08);
+    --admin-nav-line:  rgba(255, 255, 255, 0.09);
 
     --font-body:    'Roboto', sans-serif;
     --font-heading: 'Playfair Display', Georgia, serif;
@@ -82,6 +92,9 @@
     --radius-card:  3px;
     --radius-modal: 6px;
     --transition:   160ms ease;
+    --shadow-bar-up: 0 -4px 12px rgba(0, 0, 0, 0.08); /* bars fixed to the bottom of a phone screen */
+    --shadow-modal:  0 10px 40px rgba(26, 23, 20, 0.22); /* dialogs: confirm + connection-lost */
+    --color-overlay: rgba(26, 23, 20, 0.45);              /* the dimmed page behind a dialog */
 
     /* DELIBERATELY px, and it must stay px. This is the page FRAME, not a reading measure.
        Every measure on this site is already in `ch` and therefore already scales with the reader's
@@ -637,7 +650,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .usecard__img {
     aspect-ratio: 4 / 3;
     position: relative;
-    background: linear-gradient(160deg, #d3d9cf, #8a9a72);
+    background: linear-gradient(160deg, var(--color-photo-light), var(--color-photo-dark));
 }
 .usecard__img img { width: 100%; height: 100%; object-fit: cover; }
 .usecard__body { padding: 1.1rem 1.25rem; }
@@ -659,7 +672,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     min-height: 15rem;
     border-radius: var(--radius-card);
     overflow: hidden;
-    background: linear-gradient(160deg, #d3d9cf 0%, #b3bfa4 45%, #8a9a72 100%);
+    background: linear-gradient(160deg, var(--color-photo-light) 0%, #b3bfa4 45%, var(--color-photo-dark) 100%);
 }
 /* Absolute, not in flow. The frame only has a min-height, which a percentage height cannot
    resolve against, so an in-flow photo fell back to its own aspect and set the frame's height
@@ -730,7 +743,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
         padding: 0.7rem 1rem calc(0.7rem + env(safe-area-inset-bottom, 0px));
         background-color: var(--color-bg);
         border-top: 1px solid var(--color-line);
-        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+        box-shadow: var(--shadow-bar-up);
     }
     .mobile-cta .btn { width: 100%; }
 
@@ -744,7 +757,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
    ============================================================ */
 .site-footer {
     background-color: var(--color-footer-bg);
-    color: #a8a49c;
+    color: var(--color-footer-fg);
     padding: 4rem 0 2.5rem;
 }
 
@@ -775,14 +788,14 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 .site-footer__brand { font-family: var(--font-heading); font-size: 1.25rem; color: #fff; margin: 0 0 0.85rem; letter-spacing: 0.03em; }
-.site-footer p { margin: 0 0 0.4rem; font-size: 0.875rem; color: #a8a49c; }
+.site-footer p { margin: 0 0 0.4rem; font-size: 0.875rem; color: var(--color-footer-fg); }
 
 .site-footer h2 { /* column headings */
     font-family: var(--font-body);
     font-size: 0.75rem;
     letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #8f8a80;
+    color: var(--color-footer-muted);
     font-weight: 700;
     margin: 0 0 0.85rem;
 }
@@ -800,7 +813,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     flex-wrap: wrap;
     gap: 0.6rem;
     font-size: 0.8125rem;
-    color: #8f8a80;
+    color: var(--color-footer-muted);
 }
 
 /* ============================================================
@@ -821,7 +834,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .form-group textarea {
     width: 100%;
     padding: 0.7rem 0.8rem;
-    border: 1.5px solid #cfc9bd;
+    border: 1.5px solid var(--color-input-border);
     border-radius: var(--radius-sm);
     font-family: var(--font-body);
     font-size: 1rem;
@@ -834,7 +847,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 .form-group textarea:focus {
     outline: none;
     border-color: var(--color-primary-ink);
-    box-shadow: 0 0 0 3px rgba(63, 106, 15, 0.18);
+    box-shadow: 0 0 0 3px var(--color-focus-ring);
 }
 .form-group textarea { min-height: 5.5rem; resize: vertical; }
 
@@ -860,7 +873,7 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 .form-group--checkbox label { font-weight: 400; color: var(--color-text); font-size: 0.95rem; display: flex; gap: 0.6rem; align-items: flex-start; }
 
 /* Validation */
-.validation-message, .form-error { color: var(--color-err); font-size: 0.85rem; font-weight: 600; }
+.validation-message, .form-error { color: var(--color-err); font-size: 0.85rem; font-weight: 700; }
 .form-error { margin-bottom: 1rem; }
 
 /* Grouped form sections (inquiry) */
@@ -904,7 +917,7 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 
 /* Acknowledgement (Tack) */
 .tack { text-align: center; padding: 3.5rem 0; max-width: 40rem; margin: 0 auto; }
-.tack__badge { width: 4rem; height: 4rem; border-radius: 50%; background: rgba(113, 176, 2, 0.16); color: var(--color-primary-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 1.9rem; margin-bottom: 0.5rem; }
+.tack__badge { width: 4rem; height: 4rem; border-radius: 50%; background: var(--color-ok-tint); color: var(--color-primary-ink); display: inline-flex; align-items: center; justify-content: center; font-size: 1.9rem; margin-bottom: 0.5rem; }
 .tack h1 { font-weight: 400; font-size: clamp(1.8rem, 4vw, 2.2rem); margin: 0.75rem 0; }
 .tack p { color: var(--color-text); font-size: 1.0625rem; margin: 0 0 1.6rem; }
 
@@ -915,7 +928,7 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 .inp {
     width: 100%;
     padding: 0.6rem 0.7rem;
-    border: 1.5px solid #cfc9bd;
+    border: 1.5px solid var(--color-input-border);
     border-radius: var(--radius-sm);
     font-family: var(--font-body);
     font-size: 0.95rem;
@@ -923,7 +936,7 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
     background: #fff;
     transition: border-color var(--transition), box-shadow var(--transition);
 }
-.inp:focus { outline: none; border-color: var(--color-primary-ink); box-shadow: 0 0 0 3px rgba(63, 106, 15, 0.18); }
+.inp:focus { outline: none; border-color: var(--color-primary-ink); box-shadow: 0 0 0 3px var(--color-focus-ring); }
 select.inp {
     appearance: none;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' fill='none' stroke='%234a4845' stroke-width='1.6'/%3E%3C/svg%3E");
@@ -946,7 +959,7 @@ select.inp {
 .booking-summary > div { padding: 0.9rem 1.25rem; flex: 1; min-width: 9rem; }
 .booking-summary > div + div { border-left: 1px solid var(--color-line); }
 .booking-summary dt { font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); font-weight: 700; margin: 0; }
-.booking-summary dd { margin: 0.25rem 0 0; font-family: var(--font-heading); font-size: 1.15rem; color: var(--color-heading); }
+.booking-summary dd { margin: 0.25rem 0 0; font-size: 1.15rem; font-weight: 700; color: var(--color-heading); font-variant-numeric: tabular-nums; }
 
 /* Live progress (hidden until JS reveals it) */
 .completion-progress { display: flex; align-items: center; gap: 0.65rem; font-size: 0.85rem; color: var(--color-muted); margin: 1.5rem 0 0.5rem; }
@@ -999,8 +1012,8 @@ select.inp {
 
 /* Access-state badge (reuses .utility from the trust pages) */
 .utility__badge { width: 3.75rem; height: 3.75rem; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 1.75rem; margin-bottom: 0.4rem; }
-.utility__badge--ok { background: rgba(113, 176, 2, 0.16); color: var(--color-primary-ink); }
-.utility__badge--warn { background: rgba(214, 158, 46, 0.18); color: #6f4900; }
+.utility__badge--ok { background: var(--color-ok-tint); color: var(--color-primary-ink); }
+.utility__badge--warn { background: var(--color-warn-bg); color: var(--color-warn); }
 
 /* ---- Completion at scale: group defaults + collapsible participant rows ---- */
 
@@ -1061,7 +1074,7 @@ select.inp {
 .admin-nav__bar {
     display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
     padding: 0.25rem 0.5rem 1.1rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.09);
+    border-bottom: 1px solid var(--admin-nav-line);
     margin-bottom: 0.6rem;
 }
 .admin-nav__brand { display: flex; align-items: center; gap: 0.55rem; padding: 0; }
@@ -1077,7 +1090,7 @@ select.inp {
     border-radius: var(--radius-sm); padding: 0.45rem 0.7rem;
     font-size: 0.85rem; cursor: pointer;
 }
-.admin-nav__toggle:hover { background: rgba(255, 255, 255, 0.08); }
+.admin-nav__toggle:hover { background: var(--admin-nav-hover); }
 .admin-nav__checkbox:focus-visible ~ .admin-nav__bar .admin-nav__toggle { outline: 2px solid #fff; outline-offset: 2px; }
 .admin-nav__toggle-icon { position: relative; display: inline-block; width: 18px; height: 2px; background: currentColor; }
 .admin-nav__toggle-icon::before,
@@ -1104,9 +1117,9 @@ select.inp {
     text-decoration: none;
     transition: background-color var(--transition), color var(--transition);
 }
-.admin-nav a:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.admin-nav a:hover { background: var(--admin-nav-hover); color: #fff; }
 .admin-nav a.active {
-    background: rgba(113, 176, 2, 0.16);
+    background: var(--color-ok-tint);
     color: #fff;
     box-shadow: inset 2px 0 0 var(--color-primary);
 }
@@ -1116,7 +1129,7 @@ select.inp {
     font-size: 0.72rem; font-weight: 700;
     border-radius: 9px; padding: 0 0.42rem; line-height: 1.35;
 }
-.admin-nav__foot { margin-top: auto; padding-top: 0.8rem; border-top: 1px solid rgba(255, 255, 255, 0.09); }
+.admin-nav__foot { margin-top: auto; padding-top: 0.8rem; border-top: 1px solid var(--admin-nav-line); }
 .admin-nav__user { font-size: 0.78rem; color: rgba(255, 255, 255, 0.62); padding: 0.3rem 0.6rem 0.5rem; word-break: break-all; }
 .admin-nav__foot form { margin: 0; }
 .admin-nav__foot button {
@@ -1125,7 +1138,7 @@ select.inp {
     padding: 0.35rem 0.6rem; width: 100%; text-align: left;
     border-radius: var(--radius-sm); cursor: pointer;
 }
-.admin-nav__foot button:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.admin-nav__foot button:hover { background: var(--admin-nav-hover); color: #fff; }
 
 /* ── Main column: sticky topbar + body ───────────────────── */
 .admin-main { min-width: 0; min-height: 100vh; display: flex; flex-direction: column; }
@@ -1193,12 +1206,12 @@ select.inp {
        modal and must always render on top of whatever triggered it, panel or plain page alike. */
     position: fixed; inset: 0; z-index: 1002;
     display: flex; align-items: center; justify-content: center; padding: 1rem;
-    background: rgba(26, 23, 20, 0.45);
+    background: var(--color-overlay);
 }
 .modal {
     background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-modal);
     width: 100%; max-width: 26rem; padding: 1.4rem 1.5rem;
-    box-shadow: 0 10px 40px rgba(26, 23, 20, 0.22);
+    box-shadow: var(--shadow-modal);
 }
 .modal__title {
     font-family: var(--font-heading); font-size: 1.25rem;
@@ -1206,6 +1219,78 @@ select.inp {
 }
 .modal__body { margin: 0 0 1.2rem; color: var(--color-text); font-size: 0.925rem; line-height: 1.5; }
 .modal__actions { display: flex; justify-content: flex-end; gap: 0.6rem; }
+
+/* ── Connection-lost dialog (admin, ReconnectModal.razor) ─────────────────────────────────────────
+   Shown by Blazor when the live connection to the server drops. Dressed as the dialog above: same
+   surface, border, radius, padding, shadow and backdrop, and .btn on its buttons. It was the Blazor
+   template's own blue, in the project's only component stylesheet; both are gone (2026-10-03).
+   Which text and button show is driven by the state classes Blazor sets on the dialog. The hide
+   rules below must stay after .btn — they weigh the same as its `display`, so order decides. */
+.components-reconnect-first-attempt-visible,
+.components-reconnect-repeated-attempt-visible,
+.components-reconnect-failed-visible,
+.components-pause-visible,
+.components-resume-failed-visible,
+.components-rejoining-animation { display: none; }
+
+#components-reconnect-modal.components-reconnect-show .components-reconnect-first-attempt-visible,
+#components-reconnect-modal.components-reconnect-show .components-rejoining-animation,
+#components-reconnect-modal.components-reconnect-paused .components-pause-visible,
+#components-reconnect-modal.components-reconnect-resume-failed .components-resume-failed-visible,
+#components-reconnect-modal.components-reconnect-retrying,
+#components-reconnect-modal.components-reconnect-retrying .components-reconnect-repeated-attempt-visible,
+#components-reconnect-modal.components-reconnect-retrying .components-rejoining-animation,
+#components-reconnect-modal.components-reconnect-failed,
+#components-reconnect-modal.components-reconnect-failed .components-reconnect-failed-visible { display: block; }
+
+/* Blazor keeps the "show" state on while it retries — without this, the first-attempt text stayed up
+   beside the retry countdown (template bug). */
+#components-reconnect-modal.components-reconnect-retrying .components-reconnect-first-attempt-visible { display: none; }
+
+#components-reconnect-modal {
+    background-color: #fff; color: var(--color-text);
+    width: 100%; max-width: 26rem; margin: 20vh auto; padding: 1.4rem 1.5rem;
+    border: 1px solid var(--color-line); border-radius: var(--radius-modal); box-shadow: var(--shadow-modal);
+    opacity: 0;
+    transition: display 0.5s allow-discrete, overlay 0.5s allow-discrete;
+    animation: components-reconnect-modal-fadeOutOpacity 0.5s both;
+}
+#components-reconnect-modal[open] {
+    animation: components-reconnect-modal-slideUp 1.5s cubic-bezier(.05, .89, .25, 1.02) 0.3s,
+               components-reconnect-modal-fadeInOpacity 0.5s ease-in-out 0.3s;
+    animation-fill-mode: both;
+}
+/* showModal() focuses the dialog itself; the browser drew its default blue ring around the whole box.
+   The box is not interactive — the buttons inside keep the site's focus ring. */
+#components-reconnect-modal:focus-visible { outline: none; }
+#components-reconnect-modal::backdrop {
+    background-color: var(--color-overlay);
+    animation: components-reconnect-modal-fadeInOpacity 0.5s ease-in-out;
+    opacity: 1;
+}
+
+.components-reconnect-container { display: flex; flex-direction: column; align-items: center; gap: 1rem; }
+#components-reconnect-modal p { margin: 0; text-align: center; }
+
+.components-rejoining-animation { position: relative; width: 80px; height: 80px; }
+.components-rejoining-animation div {
+    position: absolute; border: 3px solid var(--color-primary-ink); opacity: 1; border-radius: 50%;
+    animation: components-rejoining-animation 1.5s cubic-bezier(0, 0.2, 0.8, 1) infinite;
+}
+.components-rejoining-animation div:nth-child(2) { animation-delay: -0.5s; }
+
+@keyframes components-reconnect-modal-slideUp {
+    0% { transform: translateY(30px) scale(0.95); }
+    100% { transform: translateY(0); }
+}
+@keyframes components-reconnect-modal-fadeInOpacity { 0% { opacity: 0; } 100% { opacity: 1; } }
+@keyframes components-reconnect-modal-fadeOutOpacity { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes components-rejoining-animation {
+    0% { top: 40px; left: 40px; width: 0; height: 0; opacity: 0; }
+    4.9% { top: 40px; left: 40px; width: 0; height: 0; opacity: 0; }
+    5% { top: 40px; left: 40px; width: 0; height: 0; opacity: 1; }
+    100% { top: 0; left: 0; width: 80px; height: 80px; opacity: 0; }
+}
 
 /* ── Cards / panels ──────────────────────────────────────── */
 .card { background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); padding: 1.1rem 1.2rem; }
@@ -1217,7 +1302,7 @@ select.inp {
     letter-spacing: 0.01em; color: var(--color-heading); margin: 0;
 }
 .card__head .n { background: var(--color-warn-bg); color: var(--color-warn); font-size: 0.75rem; font-weight: 700; border-radius: 999px; padding: 0 0.5rem; }
-.card__head .link { margin-left: auto; font-size: 0.8rem; font-weight: 600; }
+.card__head .link { margin-left: auto; font-size: 0.8rem; font-weight: 700; }
 
 /* Dashboard (Översikt) top row: one column on mobile, two side-by-side from 720px up. */
 /* minmax(0, …) so a card cannot force the track wider than the column — the dashboard cards
@@ -1242,7 +1327,7 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 /* End-aligned cell that is not a number (a status badge), so it takes no tabular figures. */
 .admin-table .cell-end { text-align: right; }
 .admin-table .mono { font-variant-numeric: tabular-nums; }
-.admin-table .rowlink { font-weight: 600; color: var(--color-heading); text-decoration: none; }
+.admin-table .rowlink { font-weight: 700; color: var(--color-heading); text-decoration: none; }
 /* Only a real <a> (Bookings/Dashboard/AdminCalendar, genuine navigation to booking detail) gets
    the link-hover-underline. The <span class="rowlink"> used on reference-data pages (Buildings,
    MealOptions, Facilities, PriceRules, CleaningZones) is plain label text — those rows already
@@ -1269,7 +1354,7 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .data-card__head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 0.6rem; }
 /* A card title is often an email address — one long token with no break opportunity in it, so
    `anywhere` rather than `break-word`. At a 32px root one ran 50px past a 360px screen. */
-.data-card__title { font-weight: 600; font-size: 0.9rem; color: var(--color-heading); line-height: 1.3; overflow-wrap: anywhere; }
+.data-card__title { font-weight: 700; font-size: 0.9rem; color: var(--color-heading); line-height: 1.3; overflow-wrap: anywhere; }
 /* Holds the guest's email — one long token with no break opportunity, same as __title above. */
 .data-card__sub { font-size: 0.78rem; color: var(--color-muted); margin-top: 0.15rem; overflow-wrap: anywhere; }
 .data-card__fields { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.8rem; margin: 0.55rem 0 0; }
@@ -1279,7 +1364,7 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
    ("Konferensbyggnad"). Without this the dd ran past the card at a 32px root. */
 .data-card__fields dt, .data-card__fields dd { min-width: 0; overflow-wrap: anywhere; }
 .data-card__fields dt { color: var(--color-muted); }
-.data-card__fields dd { margin: 0; color: var(--color-text); font-weight: 500; text-align: right; }
+.data-card__fields dd { margin: 0; color: var(--color-text); font-weight: 400; text-align: right; }
 .data-card__actions { display: flex; justify-content: flex-end; gap: 0.4rem; margin-top: 0.55rem; padding-top: 0.55rem; border-top: 1px solid var(--color-line); }
 
 /* Reference-CRUD add/edit panel (below the list) */
@@ -1305,8 +1390,8 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .bldg-row:hover { background: var(--color-bg-warm); }
 .bldg-row.is-selected { box-shadow: inset 3px 0 0 var(--color-primary); background: var(--color-ok-bg); }
 .bldg-row--l0 { background: #fff; font-weight: 700; }
-.bldg-row--l1 { background: #fbf9f6; }
-.bldg-row--l2 { background: #f6f3ee; font-size: 0.88rem; }
+.bldg-row--l1 { background: var(--color-bg); }
+.bldg-row--l2 { background: var(--color-bg-sunk); font-size: 0.88rem; }
 
 .bldg-row__main { grid-area: main; display: flex; align-items: center; gap: 0.55rem; min-width: 0; }
 .bldg-row--l1 .bldg-row__main { padding-left: 1.6rem; }
@@ -1324,7 +1409,6 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
     color: var(--color-heading); background: none; border: 0; padding: 0; text-align: left; font: inherit;
     cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.bldg-row--l0 .bldg-row__name { font-family: var(--font-heading); font-size: 1.02rem; font-weight: 400; }
 .bldg-row__meta { color: var(--color-muted); font-size: 0.78rem; font-weight: 400; white-space: nowrap; }
 .bldg-row__summary { display: none; color: var(--color-muted); font-size: 0.78rem; font-variant-numeric: tabular-nums; }
 
@@ -1338,14 +1422,14 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .bldg-addrow {
     display: flex; align-items: center; gap: 0.4rem;
     padding: 0.5rem 0.9rem 0.5rem 3.2rem; font-size: 0.82rem; color: var(--color-primary-ink);
-    background: #f6f3ee; border-bottom: 1px solid var(--color-line); cursor: pointer; font-weight: 700;
+    background: var(--color-bg-sunk); border-bottom: 1px solid var(--color-line); cursor: pointer; font-weight: 700;
 }
 .bldg-addrow:hover { text-decoration: underline; }
-.bldg-addrow--l1 { padding-left: 1.6rem; background: #fbf9f6; }
-.bldg-addrow--l2 { padding-left: 3.2rem; background: #f6f3ee; }
+.bldg-addrow--l1 { padding-left: 1.6rem; background: var(--color-bg); }
+.bldg-addrow--l2 { padding-left: 3.2rem; background: var(--color-bg-sunk); }
 .bldg-addrow--l0 { padding-left: 0.9rem; background: #fff; border-bottom: 0; border-top: 1px solid var(--color-line); }
 
-.bldg-emptychild { padding: 0.55rem 0.9rem 0.7rem 3.2rem; font-size: 0.82rem; color: var(--color-muted); font-style: italic; background: #fbf9f6; border-bottom: 1px solid var(--color-line); }
+.bldg-emptychild { padding: 0.55rem 0.9rem 0.7rem 3.2rem; font-size: 0.82rem; color: var(--color-muted); font-style: italic; background: var(--color-bg); border-bottom: 1px solid var(--color-line); }
 
 /* Shared slide-in edit panel (AdminPanel.razor) — used by every reference-data CRUD page
    (Buildings, MealOptions, Facilities, PriceRules, CleaningZones, Blocks) for its create/edit
@@ -1558,7 +1642,7 @@ fieldset.participant legend {
    person on request (the "Redigera" pencil), so visiting a many-guest booking to look something
    up doesn't load every field for every guest as live inputs. */
 .participant-view__row { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
-.participant-view__name { font-weight: 600; color: var(--color-heading); }
+.participant-view__name { font-weight: 700; color: var(--color-heading); }
 .participant-view__meta { font-size: 0.85rem; color: var(--color-muted); margin-top: 0.2rem; }
 .participant-view__diet { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-top: 0.5rem; }
 .edit-pencil {
@@ -1718,7 +1802,7 @@ fieldset.participant legend {
     border-radius: var(--radius-card);
     position: relative;
     overflow: hidden;
-    background: linear-gradient(160deg, #d3d9cf, #8a9a72);
+    background: linear-gradient(160deg, var(--color-photo-light), var(--color-photo-dark));
 }
 /* Absolute for the same reason as .teaser__photo img: the frame only has a min-height. */
 .about-photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
@@ -1757,7 +1841,7 @@ fieldset.participant legend {
 .fac-card__img {
     aspect-ratio: 4 / 3;
     position: relative;
-    background: linear-gradient(160deg, #d3d9cf, #8a9a72);
+    background: linear-gradient(160deg, var(--color-photo-light), var(--color-photo-dark));
 }
 .fac-card__img img { width: 100%; height: 100%; object-fit: cover; }
 .fac-card__body { padding: 1.1rem 1.25rem; }
@@ -1893,7 +1977,7 @@ fieldset.participant legend {
 .data-table th.num, .data-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 .data-table td { padding: 0.8rem 0.9rem; border-bottom: 1px solid var(--color-line); color: var(--color-text); vertical-align: top; }
 .data-table tr:last-child td { border-bottom: 0; }
-.data-table__label { color: var(--color-heading); font-weight: 600; }
+.data-table__label { color: var(--color-heading); font-weight: 700; }
 .data-table__sub { display: block; font-size: 0.8125rem; color: var(--color-muted); margin-top: 0.2rem; }
 .data-table__season { color: var(--color-secondary); font-size: 0.85rem; white-space: nowrap; }
 .price-note { font-size: 0.875rem; color: var(--color-muted); margin: 0 0 1.25rem; }
@@ -1930,7 +2014,7 @@ fieldset.participant legend {
     border-radius: var(--radius-card);
     position: relative;
     overflow: hidden;
-    background: linear-gradient(160deg, #d3d9cf, #8a9a72);
+    background: linear-gradient(160deg, var(--color-photo-light), var(--color-photo-dark));
     /* The frame is what survives forced-colors (Windows High Contrast): the gradient is
        suppressed there, so without a border the placeholder became an invisible hole with its
        caption floating loose in it. Kept now the photo is real: it still frames the image, and the
@@ -2176,7 +2260,7 @@ fieldset.participant legend {
     margin: 0;
     padding: 0.85rem 1.1rem;
     color: var(--color-heading);
-    font-weight: 600;
+    font-weight: 700;
     background: var(--color-bg-warm);
     border: 1px solid var(--color-line);
     border-left: 4px solid var(--color-primary);
@@ -2290,7 +2374,7 @@ fieldset.participant legend {
         border-bottom: none;
         gap: 0.6rem 1rem;
         padding: 0.75rem 1rem calc(0.75rem + env(safe-area-inset-bottom, 0px));
-        box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.08);
+        box-shadow: var(--shadow-bar-up);
     }
     /* Range text takes its own line; the actions sit together beneath it. */
     .cal-selection__label { flex: 1 0 100%; }

@@ -69,6 +69,8 @@ Both typefaces are **self-hosted** — no Google Fonts CDN, no external font req
 
 Files live in `wwwroot/fonts/`, declared with `@font-face` in `site.css`.
 
+> **One stylesheet.** All styling for both sites is in `site.css` (in `AkeroGarden.Web.Core`) — no component (`.razor.css`) stylesheets. The last one, the Blazor template's reconnect dialog, was folded in on 2026-10-03; `CssDesignRulesTests` fails if one appears.
+
 - **Roboto** — body & UI. Weights: **400, 700 only**.
 - **Playfair Display** — headings. Weights: **400, 700 only**.
 
@@ -95,11 +97,18 @@ Defined as CSS custom properties on `:root` in `site.css`. Style components thro
 --color-muted:          #646159   /* hints, captions, labels */
 --color-bg:             #faf8f4   /* page background (warm off-white) */
 --color-bg-warm:        #f0ebe1   /* section tint */
+--color-bg-sunk:        #f6f3ee   /* nested rows a level below --color-bg (Byggnader tree) */
+--color-input-border:   #cfc9bd   /* text inputs, selects, textareas */
+--color-focus-ring:     rgba(63,106,15,.18)  /* input focus halo */
+--color-photo-light:    #d3d9cf   /* photo placeholder gradient (photo-less facilities) */
+--color-photo-dark:     #8a9a72
 --color-footer-bg:      #1a1714   /* dark footer */
+--color-footer-fg:      #a8a49c   /* footer body text */
+--color-footer-muted:   #8f8a80   /* footer column headings, bottom bar */
 --color-line:           rgba(30,28,26,.12)  /* hairline borders */
 
 /* Semantic (alerts, validation, status pills) */
---color-ok:   #3f6a0f   --color-ok-bg:   rgba(113,176,2,.12)
+--color-ok:   #3f6a0f   --color-ok-bg:   rgba(113,176,2,.12)   --color-ok-tint: rgba(113,176,2,.16)  /* round badges, active admin nav */
 --color-warn: #7a4c00   --color-warn-bg: rgba(214,158,46,.16)
 --color-err:  #8f2915   --color-err-bg:  rgba(179,52,26,.09)
 --color-info: #6f4a1f   --color-info-bg: rgba(134,86,40,.10)
@@ -170,6 +179,8 @@ Two fixes, deliberately separate. `--color-muted` is deepened to `#646159` (5.20
 | Body | Roboto 400 | 16px, measure ≤ ~60ch |
 | Small / caption | Roboto 400 | ~13.5px, colour `--color-muted` |
 | Button | Roboto 700 | ~15px |
+
+> **The heading font is for headings — never for data.** Playfair sets page and panel titles, section heads and the decorative display numerals of the public site (trust strip, facts, steps, the 404 code). It does **not** set table or tree rows, form values or summaries, and a title it sets carries a *name*, not a date or a number: Playfair's default figures are old-style — they rise and drop like lowercase — so a date in it reads unevenly. Found 2026-10-03 in three places that had drifted (the Byggnader tree's top level, the Blockeringar panel title, the guest's booking summary); the allowed selectors are listed in `CssDesignRulesTests`, which fails on any new one, and the 400/700 weight rule above is guarded there too.
 
 ### Text scaling across engines — what is verified, and where
 
@@ -441,6 +452,9 @@ the mobile nav panel uses `top: 100%` against its positioned ancestor and needs 
 --radius-card:  3px
 --radius-modal: 6px
 --transition:   160ms ease
+--shadow-bar-up: 0 -4px 12px rgba(0,0,0,.08)  /* bars fixed to the bottom of a phone screen */
+--shadow-modal:  0 10px 40px rgba(26,23,20,.22)  /* dialogs — the confirm dialog and the connection-lost dialog */
+--color-overlay: rgba(26,23,20,.45)              /* the dimmed page behind a dialog */
 ```
 
 - **Spacing:** 4-based rhythm — 4 · 8 · 12 · 16 · 24 · 32 · 48 · 64 · 96.
@@ -541,7 +555,7 @@ The client's artwork is a single **square, stacked** composition. That cannot go
 
 The admin surface (redesigned in slice 6) **reuses these tokens** for coherence but is deliberately utilitarian: dense tables, tight forms, clear status pills, keyboard-friendly — **no hero treatment, no persuasion aesthetic**. "Shared skin, different discipline."
 
-- **Shell** (`AdminLayout`) — a fixed 236px **dark sidebar** (`--admin-nav-bg` #26221d) with the `OnDark` logo lockup, **grouped nav** (main · Referensdata · System) with per-page **active state** (green inset bar + tint, `aria-current="page"`), a live **count badge** on *Bokningar* (pending inquiries), and the signed-in email + logout pinned to the bottom. The main column has a **sticky topbar** (page title / breadcrumb + a right-aligned primary action) fed per-page via a Blazor `SectionOutlet`; pages inject it through the `<AdminHeader>` component. The breadcrumb link (`.crumb a`) is **underlined** — it sits inline in crumb text ("Bokningar / …"), so colour alone isn't a sufficient distinction (axe "link-in-text-block", caught in slice 7). **Under 860px the sidebar collapses behind a CSS-only hamburger** (`.admin-nav__checkbox` + `.admin-nav__toggle` label — the layout is static SSR, so a checkbox toggle is used, not Blazor `@onclick`; the `#admin-nav-links` container is `data-enhance-nav="false"` so tapping a link does a full navigation that resets the checkbox → the menu closes on navigate). The booking-detail collapses to one column. *(Phase 8, NFR-17: admin usable on a phone.)*
+- **Shell** (`AdminLayout`) — a fixed 236px **dark sidebar** (`--admin-nav-bg` #26221d; hover and divider tints `--admin-nav-hover` / `--admin-nav-line`) with the `OnDark` logo lockup, **grouped nav** (main · Referensdata · System) with per-page **active state** (green inset bar + tint, `aria-current="page"`), a live **count badge** on *Bokningar* (pending inquiries), and the signed-in email + logout pinned to the bottom. The main column has a **sticky topbar** (page title / breadcrumb + a right-aligned primary action) fed per-page via a Blazor `SectionOutlet`; pages inject it through the `<AdminHeader>` component. The breadcrumb link (`.crumb a`) is **underlined** — it sits inline in crumb text ("Bokningar / …"), so colour alone isn't a sufficient distinction (axe "link-in-text-block", caught in slice 7). **Under 860px the sidebar collapses behind a CSS-only hamburger** (`.admin-nav__checkbox` + `.admin-nav__toggle` label — the layout is static SSR, so a checkbox toggle is used, not Blazor `@onclick`; the `#admin-nav-links` container is `data-enhance-nav="false"` so tapping a link does a full navigation that resets the checkbox → the menu closes on navigate). The booking-detail collapses to one column. *(Phase 8, NFR-17: admin usable on a phone.)*
 - **Dashboard** (`/`) — an **operational** landing, not a welcome: three flat cards — *Väntar på svar* (pending queue) · *Väntar på slutförande* (approved-not-completed, with link-expiry urgency) · *Kommande ankomster* (nearest arrivals). Every row links straight into the booking. The two top cards sit in `.dash-grid` — **one column on mobile, two from 720px up** (Phase 8; the earlier hard-coded two-column inline grid squeezed them on a phone).
 - **Admin data table** (`.admin-table` in `.admin-table-wrap`) — denser than the public `.data-table`: uppercase hairline header, hover row tint, `.rowlink` name + `.sub` contact line, right-aligned tabular numbers, status **badge** column, right-aligned `.rowactions`.
 - **Booking detail** — two columns: main content (contact / stay / participants / message) + a **sticky action rail** (`.detail-rail`) of `.card`s holding status actions (`.action-panel` for deny/cancel reason inputs), building assignment, list downloads, and internal notes. `.kv` definition grid for read-only facts. *(The payment checkboxes and their `.paycheck` class were removed in the 2026-08 demo-feedback work — FR-42 retired; building assignment (FR-103) takes their place in the rail, since it must be set before the approve action directly above it.)*

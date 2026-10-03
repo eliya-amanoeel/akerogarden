@@ -88,8 +88,7 @@ public class TextDerivedWidthUnitTests
 
     private static string ReadStylesheet()
     {
-        var root = FindRepositoryRoot();
-        var path = Path.Combine(root, "src", "AkeroGarden.Web.Core", "wwwroot", "css", "site.css");
+        var path = RepositoryRoot.SiteCss();
         Assert.True(File.Exists(path), $"could not find site.css at {path}");
         return File.ReadAllText(path);
     }
@@ -113,23 +112,5 @@ public class TextDerivedWidthUnitTests
         var end = css.IndexOf('}', start);
         Assert.True(end > start, $"unterminated rule for '{anchor}'");
         return css[start..end];
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (Directory.Exists(Path.Combine(directory.FullName, "src"))
-                && Directory.Exists(Path.Combine(directory.FullName, "tests")))
-            {
-                return directory.FullName;
-            }
-
-            directory = directory.Parent;
-        }
-
-        throw new DirectoryNotFoundException(
-            $"could not find the repository root above {AppContext.BaseDirectory}");
     }
 }

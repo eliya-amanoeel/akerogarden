@@ -1346,6 +1346,57 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     };
 
     [Fact]
+    public async Task Block_panel_is_titled_by_what_is_blocked_with_the_dates_above()
+    {
+        // The panel title is a heading, so it carries a name like every other panel; the dates go in
+        // the kicker. A date as the title came out in the heading font's old-style figures (2026-10-03).
+        var blockId = Guid.NewGuid();
+        var start = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(900);
+        var end = start.AddDays(2);
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.BlockedPeriods.Add(new BlockedPeriod
+            {
+                Id = blockId,
+                Scope = BlockScope.WholeProperty,
+                StartDate = start,
+                EndDate = end,
+                Reason = "E2E paneltitel",
+                CreatedAt = DateTime.UtcNow,
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/blockeringar");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var row = Page.Locator("table.admin-table tbody tr", new() { HasText = "E2E paneltitel" });
+            await row.GetByRole(AriaRole.Button, new() { Name = "Redigera" }).ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new Regex("is-open"));
+
+            await Assertions.Expect(panel.Locator(".admin-panel__title")).ToHaveTextAsync("Hela anläggningen");
+            await Assertions.Expect(panel.Locator(".admin-panel__kicker"))
+                .ToHaveTextAsync($"{start:yyyy-MM-dd} – {end:yyyy-MM-dd}");
+
+            // A new block has nothing to name yet, and no empty kicker line above its title.
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Stäng" }).ClickAsync();
+            await Page.GetByRole(AriaRole.Button, new() { Name = "+ Lägg till blockering" }).ClickAsync();
+            await Assertions.Expect(panel.Locator(".admin-panel__title")).ToHaveTextAsync("Ny blockering");
+            await Assertions.Expect(panel.Locator(".admin-panel__kicker")).ToHaveCountAsync(0);
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.BlockedPeriods.Where(p => p.Id == blockId).ExecuteDeleteAsync();
+        }
+    }
+
+    [Fact]
     public async Task Approve_gates_behind_confirmation_and_only_fires_on_confirm()
     {
         var id = Guid.NewGuid();

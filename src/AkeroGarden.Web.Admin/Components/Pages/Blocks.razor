@@ -67,7 +67,10 @@ else
 
 <EditForm Model="_form" OnValidSubmit="Save">
     <DataAnnotationsValidator />
-    <AdminPanel Visible="_panelOpen" Title="@(_isCreating ? "Ny blockering" : $"{_form.StartDate:yyyy-MM-dd} – {_form.EndDate:yyyy-MM-dd}")" OnClose="ClosePanel">
+    @* The title names what is blocked, like every other panel's title names its record; the dates
+       go in the kicker. A date set as the title came out in the heading font's old-style figures
+       and read unevenly. Both are the stored block, not the form being edited. *@
+    <AdminPanel Visible="_panelOpen" Title="@(EditingBlock is { } b ? TargetLabel(b) : "Ny blockering")" Kicker="DatesKicker" OnClose="ClosePanel">
         <ChildContent>
             <Toast @bind-Message="_panelError" />
             @* FR-102: a block may not close a building a live booking has assigned. Shown in the panel
@@ -284,12 +287,19 @@ else
         await Load();
     }
 
+    private BlockedPeriod? EditingBlock => _isCreating ? null : _blocks?.FirstOrDefault(x => x.Id == _editingId);
+
+    // Null when creating, so AdminPanel renders no (empty) kicker line at all.
+    private RenderFragment? DatesKicker => EditingBlock is { } k
+        ? @<text>@($"{k.StartDate:yyyy-MM-dd} – {k.EndDate:yyyy-MM-dd}")</text>
+        : null;
+
     private BlockedPeriod? _pendingDelete;
 
     private void RequestDeleteCurrent()
     {
         if (_editingId is not null)
-            _pendingDelete = _blocks!.First(x => x.Id == _editingId);
+            _pendingDelete = EditingBlock;
     }
 
     private void CancelDelete() => _pendingDelete = null;

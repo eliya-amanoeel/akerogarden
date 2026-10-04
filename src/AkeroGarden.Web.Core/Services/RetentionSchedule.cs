@@ -17,20 +17,20 @@ public static class RetentionSchedule
     public const int AuditRetentionYears = 2;
 
     /// <summary>The instant before which non-booking audit entries are purged (FR-98):
-    /// <see cref="AuditRetentionYears"/> before <paramref name="today"/>, as UTC midnight — the
-    /// two-year civil boundary needs no sub-day precision.</summary>
+    /// <see cref="AuditRetentionYears"/> before <paramref name="today"/>, at Swedish midnight —
+    /// the start of that Swedish day, as every other date in the system is.</summary>
     public static DateTime AuditPurgeCutoffUtc(DateOnly today) =>
-        today.AddYears(-AuditRetentionYears).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        StockholmTime.ToUtc(today.AddYears(-AuditRetentionYears), TimeOnly.MinValue);
 
     /// <summary>Months a nightly job run is kept in the job history before it is deleted (FR-114).
     /// Long enough to look back over a season; the audit entries it points to outlive it (FR-98).</summary>
     public const int JobRunRetentionMonths = 6;
 
     /// <summary>The instant before which job runs are deleted (FR-114):
-    /// <see cref="JobRunRetentionMonths"/> before <paramref name="today"/>, as UTC midnight — same
-    /// civil-date shape as <see cref="AuditPurgeCutoffUtc"/>.</summary>
+    /// <see cref="JobRunRetentionMonths"/> before <paramref name="today"/>, at Swedish midnight —
+    /// same shape as <see cref="AuditPurgeCutoffUtc"/>.</summary>
     public static DateTime JobRunPurgeCutoffUtc(DateOnly today) =>
-        today.AddMonths(-JobRunRetentionMonths).ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+        StockholmTime.ToUtc(today.AddMonths(-JobRunRetentionMonths), TimeOnly.MinValue);
 
     /// <summary>True if the record is at or past its deletion date and must be deleted (FR-69/91).</summary>
     public static bool IsDeletionDue(DateOnly? deleteAfter, DateOnly today) =>

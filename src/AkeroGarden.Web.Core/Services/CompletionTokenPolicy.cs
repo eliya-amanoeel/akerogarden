@@ -14,13 +14,8 @@ public static class CompletionTokenPolicy
 
     /// <summary>Days before check-in at which the token stops being valid — the operational deadline,
     /// since the kitchen and cleaning need the details by then (§2.6). Also the point at or after
-    /// which an issue counts as <i>late</i> and falls back to <see cref="LateIssueLeadTime"/>.</summary>
+    /// which an issue counts as <i>late</i> and falls back to <see cref="LateIssueLeadDays"/>.</summary>
     public const int CheckInLeadDays = 14;
-
-    /// <summary>
-    /// <see cref="CheckInLeadDays"/> as an offset, for computing the cut-off instant.
-    /// </summary>
-    public static readonly TimeSpan CheckInLeadTime = TimeSpan.FromDays(CheckInLeadDays);
 
     /// <summary>Minimum validity floor from issue, regardless of how close check-in is (§2.6).</summary>
     public static readonly TimeSpan MinLifetimeFloor = TimeSpan.FromHours(48);
@@ -30,7 +25,7 @@ public static class CompletionTokenPolicy
     /// issues no token at all; a daily job issues one when check-in comes within this window.
     ///
     /// <para><b>40 is load-bearing, not a round number.</b> <see cref="MaxLifetime"/> only outlives
-    /// <see cref="CheckInLeadTime"/> while the link is issued within <b>44</b> days of check-in
+    /// <see cref="CheckInLeadDays"/> while the link is issued within <b>44</b> days of check-in
     /// (issue + 30 ≥ check-in − 14). Past that the 30-day ceiling binds first and the link dies while
     /// the guest is still waiting — the exact gap deferred issuance exists to close. 40 sits four days
     /// inside that boundary so the daily job has room to fire without the rule resting on its edge.
@@ -58,7 +53,7 @@ public static class CompletionTokenPolicy
     /// is chased with then lasted two days, while a guest approved one day later got eleven — and
     /// which of the two you got depended on the hour the job happened to run.</para>
     /// </summary>
-    public static readonly TimeSpan LateIssueLeadTime = TimeSpan.FromDays(3);
+    public const int LateIssueLeadDays = 3;
 
     /// <summary>Standard check-in time (§2.8) — the instant "14 days before check-in" counts from.
     /// Deliberately the <b>standard</b> time and not the booking's own stated one (FR-100): link
@@ -104,25 +99,24 @@ public static class CompletionTokenPolicy
     /// still usable.
     ///
     /// <para>The branch is decided on <b>whole days</b>, not by comparing instants against the 14:00
-    /// standard check-in time — see <see cref="LateIssueLeadTime"/> for what that cost.</para>
+    /// standard check-in time — see <see cref="LateIssueLeadDays"/> for what that cost.</para>
     /// </summary>
     /// <param name="issuedAtUtc">When the token is issued (UTC).</param>
     /// <param name="checkIn">The stay's check-in date; combined with the standard 14:00 check-in time.</param>
     public static DateTime ComputeExpiry(DateTime issuedAtUtc, DateOnly checkIn)
     {
-        var checkInInstant = checkIn.ToDateTime(StandardCheckInTime, DateTimeKind.Utc);
         var floor = issuedAtUtc + MinLifetimeFloor;
-        var daysToCheckIn = checkIn.DayNumber - DateOnly.FromDateTime(issuedAtUtc).DayNumber;
+        var daysToCheckIn = checkIn.DayNumber - StockholmTime.DateOf(issuedAtUtc).DayNumber;
 
         DateTime target;
         if (daysToCheckIn <= CheckInLeadDays)
         {
-            target = checkInInstant - LateIssueLeadTime;
+            target = DeadlineUtc(checkIn, LateIssueLeadDays);
         }
         else
         {
             var thirtyDayCeiling = issuedAtUtc + MaxLifetime;
-            var fourteenDaysBeforeCheckIn = checkInInstant - CheckInLeadTime;
+            var fourteenDaysBeforeCheckIn = DeadlineUtc(checkIn, CheckInLeadDays);
             target = thirtyDayCeiling < fourteenDaysBeforeCheckIn
                 ? thirtyDayCeiling
                 : fourteenDaysBeforeCheckIn;
@@ -130,6 +124,16 @@ public static class CompletionTokenPolicy
 
         return target > floor ? target : floor;
     }
+
+    /// <summary>
+    /// The instant <paramref name="daysBefore"/> days before check-in at the standard 14:00,
+    /// <b>Swedish</b> time — what the guest's email promises. Counted in calendar days and then
+    /// converted, not as check-in minus <c>n × 24h</c>: across a summer/winter time change the
+    /// latter lands at 13:00 or 15:00. It was 14:00 UTC until 2026-10, so every link lived one or
+    /// two hours past the time its email stated (§2.6 requires the exact expiry).
+    /// </summary>
+    public static DateTime DeadlineUtc(DateOnly checkIn, int daysBefore) =>
+        StockholmTime.ToUtc(checkIn.AddDays(-daysBefore), StandardCheckInTime);
 
     /// <summary>
     /// True while the token is valid: not expired at <paramref name="nowUtc"/> (valid up to,

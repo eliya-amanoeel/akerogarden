@@ -62,7 +62,7 @@ public class BookingService(
             throw new ArgumentException("Måltidsplan krävs för en bokningsförfrågan.", nameof(input));
 
         var now = Now;
-        var submissionDate = DateOnly.FromDateTime(now);
+        var submissionDate = StockholmTime.DateOf(now);
 
         var activeFacilities = await db.Facilities.Where(f => f.IsActive).ToListAsync();
 
@@ -162,7 +162,7 @@ public class BookingService(
     public async Task<Booking> CreateGeneralInquiryAsync(GeneralInquiryInput input, bool createdByAdmin = false)
     {
         var now = Now;
-        var submissionDate = DateOnly.FromDateTime(now);
+        var submissionDate = StockholmTime.DateOf(now);
 
         var booking = new Booking
         {
@@ -627,7 +627,7 @@ public class BookingService(
         // §2.6). A group booking a year out cannot name its participants yet, and a link issued now
         // would expire long before they could — so approval more than 40 days ahead stores no token
         // and CompletionLinkIssuanceJob issues one when check-in comes within the window.
-        var linkIssued = CompletionTokenPolicy.ShouldIssueOn(DateOnly.FromDateTime(now), booking.CheckIn.Value);
+        var linkIssued = CompletionTokenPolicy.ShouldIssueOn(StockholmTime.DateOf(now), booking.CheckIn.Value);
         if (linkIssued)
             IssueCompletionLink(booking, now);
 
@@ -656,7 +656,7 @@ public class BookingService(
         logger.LogInformation("Booking {BookingId} approved", booking.Id);
 
         // FR-75: warn when check-in is 14 days away or sooner (the link is shortened).
-        var daysToCheckIn = booking.CheckIn.Value.DayNumber - DateOnly.FromDateTime(now).DayNumber;
+        var daysToCheckIn = booking.CheckIn.Value.DayNumber - StockholmTime.DateOf(now).DayNumber;
         var shortExpiry = daysToCheckIn <= 14;
         return new ApproveResult(true, null, booking.CompletionTokenExpiry, shortExpiry);
     }
@@ -920,7 +920,7 @@ public class BookingService(
         booking.DenialReason = reason.Trim();
         booking.Status = BookingStatus.Denied;
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
-            BookingStatus.Denied, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
+            BookingStatus.Denied, StockholmTime.DateOf(booking.CreatedAt), booking.CheckOut, StockholmTime.DateOf(now));
         booking.UpdatedAt = now;
         // No denial reason in the summary — it is admin free-text that could name the guest (NFR-37).
         await RecordBookingAuditAsync(booking, AuditAction.BookingDenied, "Bokningen avslogs.");
@@ -944,7 +944,7 @@ public class BookingService(
         var now = Now;
         booking.Status = BookingStatus.Closed;
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
-            BookingStatus.Closed, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
+            BookingStatus.Closed, StockholmTime.DateOf(booking.CreatedAt), booking.CheckOut, StockholmTime.DateOf(now));
         booking.UpdatedAt = now;
         await RecordBookingAuditAsync(booking, AuditAction.InquiryClosed, "Förfrågan markerades som besvarad.");
         await db.SaveChangesAsync();
@@ -970,7 +970,7 @@ public class BookingService(
         booking.CancellationInitiator = initiator;
         booking.CancellationReason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim();
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
-            BookingStatus.Cancelled, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
+            BookingStatus.Cancelled, StockholmTime.DateOf(booking.CreatedAt), booking.CheckOut, StockholmTime.DateOf(now));
         booking.UpdatedAt = now;
         // The initiator is an enum, not PII; the free-text reason is deliberately omitted (NFR-37).
         var initiatorLabel = initiator == CancellationInitiator.GuestInitiated ? "gästinitierad" : "anläggningsinitierad";
@@ -1019,7 +1019,7 @@ public class BookingService(
         var now = Now;
         booking.Status = BookingStatus.Completed;
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
-            BookingStatus.Completed, DateOnly.FromDateTime(booking.CreatedAt), booking.CheckOut, DateOnly.FromDateTime(now));
+            BookingStatus.Completed, StockholmTime.DateOf(booking.CreatedAt), booking.CheckOut, StockholmTime.DateOf(now));
         booking.UpdatedAt = now;
         await RecordBookingAuditAsync(booking, AuditAction.BookingMarkedCompleted, "Bokningen markerades som avslutad.");
         await db.SaveChangesAsync();

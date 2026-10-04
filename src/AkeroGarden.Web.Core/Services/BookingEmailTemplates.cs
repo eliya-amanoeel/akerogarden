@@ -463,8 +463,9 @@ public static class BookingEmailTemplates
     private static string FormatDate(DateOnly? date) =>
         date is null ? "—" : date.Value.ToString("d MMMM yyyy", Sv);
 
-    private static string FormatDateTime(DateTime instant) =>
-        instant.ToString("d MMMM yyyy 'kl.' HH:mm", Sv);
+    /// <summary>A stored UTC instant in Swedish time — the guest reads "kl. 14:00" as their clock.</summary>
+    private static string FormatDateTime(DateTime utc) =>
+        StockholmTime.ToLocal(utc).ToString("d MMMM yyyy 'kl.' HH:mm", Sv);
 
     private static string FormatMealPlan(MealPlan? plan) => plan switch
     {

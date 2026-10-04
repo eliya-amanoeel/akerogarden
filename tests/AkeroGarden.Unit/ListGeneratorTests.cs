@@ -11,6 +11,8 @@ namespace AkeroGarden.Unit;
 /// </summary>
 public class ListGeneratorTests
 {
+    private static readonly DateOnly GeneratedOn = new(2026, 7, 1);
+
     private static BookingListData Data(int participantCount)
     {
         var booking = new Booking
@@ -59,8 +61,8 @@ public class ListGeneratorTests
         // participants are rendered into it, not a fixed empty shell. Content fidelity (that the
         // shaped values themselves are correct) is asserted exhaustively in ListShaperTests, and the
         // shaped-value → cell mapping is asserted on the Excel path below.
-        var small = ListPdfGenerator.ParticipantList(Data(3));
-        var large = ListPdfGenerator.ParticipantList(Data(60));
+        var small = ListPdfGenerator.ParticipantList(Data(3), GeneratedOn);
+        var large = ListPdfGenerator.ParticipantList(Data(60), GeneratedOn);
 
         // PDF magic bytes "%PDF".
         Assert.Equal([0x25, 0x50, 0x44, 0x46], small.Take(4).ToArray());
@@ -73,7 +75,7 @@ public class ListGeneratorTests
             $"A 60-participant list ({large.Length} B) should be materially larger than a 3-participant " +
             $"one ({small.Length} B) — if it isn't, participant rows aren't being rendered into the PDF.");
 
-        var food = ListPdfGenerator.FoodPreferenceList(Data(3));
+        var food = ListPdfGenerator.FoodPreferenceList(Data(3), GeneratedOn);
         Assert.Equal([0x25, 0x50, 0x44, 0x46], food.Take(4).ToArray());
     }
 
@@ -156,8 +158,8 @@ public class ListGeneratorTests
         var data = Data(300);
         var sw = Stopwatch.StartNew();
 
-        var a = ListPdfGenerator.ParticipantList(data);
-        var b = ListPdfGenerator.FoodPreferenceList(data);
+        var a = ListPdfGenerator.ParticipantList(data, GeneratedOn);
+        var b = ListPdfGenerator.FoodPreferenceList(data, GeneratedOn);
         var c = ListExcelGenerator.ParticipantList(data);
         var d = ListExcelGenerator.FoodPreferenceList(data);
 
@@ -184,7 +186,7 @@ public class ListGeneratorTests
         // reaches the generator and that the document still renders — stated rather than papered
         // over, matching the coverage limit already recorded for the booking reference.
         Assert.Equal(2, data.VegetarianCount);
-        var pdf = ListPdfGenerator.FoodPreferenceList(data);
+        var pdf = ListPdfGenerator.FoodPreferenceList(data, GeneratedOn);
         Assert.Equal([0x25, 0x50, 0x44, 0x46], pdf.Take(4).ToArray());
     }
 

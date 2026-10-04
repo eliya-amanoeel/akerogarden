@@ -34,7 +34,7 @@ public class ReminderJob(
     public string Name => "14-dagarspåminnelse";
 
     public Task RunAsync(CancellationToken cancellationToken) =>
-        RunAsync(RetentionJob.StockholmToday(clock), cancellationToken);
+        RunAsync(StockholmTime.Today(clock), cancellationToken);
 
     /// <summary>Runs the reminder sweep for an explicit <paramref name="today"/> (the test seam).</summary>
     public async Task<ReminderRunSummary> RunAsync(DateOnly today, CancellationToken cancellationToken = default)

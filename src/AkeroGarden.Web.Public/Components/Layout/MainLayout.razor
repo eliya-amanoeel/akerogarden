@@ -1,5 +1,6 @@
 @inherits LayoutComponentBase
 @inject NavigationManager Nav
+@inject TimeProvider Clock
 
 @* Public pages are Static SSR with plain progressive-enhancement JS and full-page form posts.
    Blazor's enhanced navigation (in-place page swaps) would prevent those inline scripts from
@@ -46,7 +47,7 @@
                 </nav>
             </div>
             <div class="site-footer__bar">
-                <span>&copy; @DateTime.Now.Year Åkerögården</span>
+                <span>&copy; @StockholmTime.Today(Clock).Year Åkerögården</span>
                 <span>Retreat &amp; konferens sedan 1978</span>
             </div>
         </div>

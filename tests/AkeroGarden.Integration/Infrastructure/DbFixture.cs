@@ -53,9 +53,10 @@ public sealed class DbFixture : IAsyncLifetime
     /// <summary>"Today" according to whatever clock this container holds — pinned or real. Seed
     /// helpers must derive dates from <i>this</i>, never from <c>DateTime.UtcNow</c>: a test that
     /// pins the clock and then seeds against the wall clock has two different "now"s, which is
-    /// worse than not pinning at all.</summary>
+    /// worse than not pinning at all. Swedish date, as the services judge it — a UTC date here would
+    /// disagree with them between 22:00 and 24:00 UTC.</summary>
     public static DateOnly TodayIn(IServiceProvider provider) =>
-        DateOnly.FromDateTime(provider.GetRequiredService<TimeProvider>().GetUtcNow().UtcDateTime);
+        StockholmTime.Today(provider.GetRequiredService<TimeProvider>());
 
     /// <summary>The instant integration tests pin to unless they need a specific one. Chosen with no
     /// significance beyond being fixed: a test that depends on the actual value is over-fitted.</summary>

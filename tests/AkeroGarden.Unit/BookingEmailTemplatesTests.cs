@@ -90,15 +90,17 @@ public class BookingEmailTemplatesTests
     [Fact]
     public void Approval_IncludesMagicLinkExpiryAndDepositPolicy()
     {
-        var expiry = new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc);
+        var expiry = new DateTime(2026, 7, 15, 12, 0, 0, DateTimeKind.Utc); // 14:00 Swedish summer time
         var c = BookingEmailTemplates.Approval(
             "Anna", "https://akerogarden.se/slutfor/TOKEN", expiry, Ref, ["Smedjan"],
             new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl);
 
         Assert.Contains("https://akerogarden.se/slutfor/TOKEN", c.HtmlBody);
         Assert.Contains("Smedjan", c.HtmlBody);       // assigned lodging stated (FR-103)
-        Assert.Contains("2026", c.HtmlBody);          // exact expiry rendered in plain text
-        Assert.Contains("14:00", c.HtmlBody);
+        // Exact expiry in plain text, in Swedish time (§2.6). The whole phrase, because "14:00" alone
+        // also matches the check-in time and "2026" matches anything — which is how a UTC expiry
+        // went out in every email for a month without a test noticing.
+        Assert.Contains("giltig till och med <strong>15 juli 2026 kl. 14:00</strong>", c.HtmlBody);
         Assert.Contains("20 %", c.HtmlBody);          // deposit policy
         Assert.Contains(Ref, c.HtmlBody);
 
@@ -159,12 +161,12 @@ public class BookingEmailTemplatesTests
     [Fact]
     public void CompletionLinkAvailable_CarriesTheLinkExpiryAndReference()
     {
-        var expiry = new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc);
+        var expiry = new DateTime(2026, 12, 7, 13, 0, 0, DateTimeKind.Utc); // 14:00 Swedish winter time
         var c = BookingEmailTemplates.CompletionLinkAvailable(
             "Anna", "https://akerogarden.se/slutfor/TOKEN", expiry, Ref);
 
         Assert.Contains("https://akerogarden.se/slutfor/TOKEN", c.HtmlBody);
-        Assert.Contains("2026", c.HtmlBody);   // exact expiry in plain text (§2.6)
+        Assert.Contains("giltig till och med <strong>7 december 2026 kl. 14:00</strong>", c.HtmlBody); // §2.6
         Assert.Contains(Ref, c.HtmlBody);
         Assert.Contains(Ref, c.Subject);
 
@@ -277,7 +279,7 @@ public class BookingEmailTemplatesTests
     {
         var c = BookingEmailTemplates.CompletionNudge("Anna", "https://akerogarden.se/slutfor/tok123", new DateTime(2026, 7, 20, 10, 0, 0, DateTimeKind.Utc), Ref);
         Assert.Contains("slutfor/tok123", c.HtmlBody);
-        Assert.Contains("2026", c.HtmlBody);
+        Assert.Contains("20 juli 2026 kl. 12:00", c.HtmlBody); // 10:00 UTC in Swedish summer time
         Assert.Contains("inte", c.HtmlBody, StringComparison.OrdinalIgnoreCase); // "har ännu inte slutfört"
         Assert.Contains(Ref, c.HtmlBody);
     }
@@ -295,7 +297,7 @@ public class BookingEmailTemplatesTests
         var c = BookingEmailTemplates.AdminGuestNotCompleted(booking, "https://admin.akerogarden.se/bokningar/y", new DateTime(2026, 7, 20, 10, 0, 0, DateTimeKind.Utc));
         Assert.Contains("Anna", c.HtmlBody);
         Assert.Contains("bokningar/y", c.HtmlBody);
-        Assert.Contains("2026", c.HtmlBody);
+        Assert.Contains("20 juli 2026 kl. 12:00", c.HtmlBody); // 10:00 UTC in Swedish summer time
         Assert.Contains(Ref, c.HtmlBody);
     }
 

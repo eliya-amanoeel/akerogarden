@@ -167,7 +167,7 @@ else
     }
 
     private static string Started(JobRun run) =>
-        DailyRunSchedule.ToStockholmTime(run.StartedAt).ToString("yyyy-MM-dd HH:mm");
+        StockholmTime.ToLocal(run.StartedAt).ToString("yyyy-MM-dd HH:mm");
 
     // "Inget att göra" only for a run that finished cleanly — a run that stopped before doing
     // anything did not have nothing to do.

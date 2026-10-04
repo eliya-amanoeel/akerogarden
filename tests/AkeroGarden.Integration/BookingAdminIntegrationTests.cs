@@ -233,6 +233,30 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         Assert.False((await scope.ServiceProvider.GetRequiredService<BookingService>().CloseAsync(id)).Succeeded);
     }
 
+    /// <summary>
+    /// FR-108 counts the 40 days on the <b>Swedish</b> date. Approved at 00:30 Swedish time — still
+    /// the previous day in UTC — a check-in 40 days out used to count as 41 and get no link. Also
+    /// asserts the email states the expiry as 14:00 Swedish time (§2.6), end to end. A far-off year
+    /// so the pinned stay cannot collide with other tests' bookings in the shared database.
+    /// </summary>
+    [Fact]
+    public async Task Approve_JustAfterSwedishMidnight_CountsTheIssueWindowOnTheSwedishDate()
+    {
+        var approvedOn = new DateOnly(2036, 7, 15);
+        var instant = StockholmTime.ToUtc(approvedOn, new TimeOnly(0, 30));
+        var provider = NewProvider(out var email, pinnedNow: new DateTimeOffset(instant, TimeSpan.Zero));
+        var checkIn = approvedOn.AddDays(CompletionTokenPolicy.IssueLeadDays); // 2036-08-24
+        var id = await CreatePendingStayAsync(provider, checkIn);
+
+        using (var scope = provider.CreateScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id)).Succeeded);
+
+        var booking = await ReloadAsync(provider, id);
+        Assert.False(string.IsNullOrEmpty(booking.CompletionToken));
+        var approval = Assert.Single(email.Sent, e => e.Subject.Contains("godkänd"));
+        Assert.Contains("giltig till och med <strong>10 augusti 2036 kl. 14:00</strong>", approval.HtmlBody);
+    }
+
     [Fact]
     public async Task Cancel_FromApproved_SetsCancelled_AndSendsEmail()
     {
@@ -264,6 +288,36 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         var result = await scope.ServiceProvider.GetRequiredService<BookingService>()
             .CancelAsync(id, CancellationInitiator.GuestInitiated, null);
         Assert.False(result.Succeeded); // §2.5: Pending is denied, not cancelled
+    }
+
+    /// <summary>
+    /// §5.6: a guest cancelling two months or less before check-in forfeits the deposit. Judged on
+    /// the <b>Swedish</b> date — the server runs UTC, and 00:30 on the cut-off day in Sweden is still
+    /// the day before in UTC, which used to promise a full refund the terms do not give. 23:30 the
+    /// evening before is the other side of the line. Clock pinned: the hour is the subject.
+    /// </summary>
+    [Theory]
+    // Each row its own year: the rows share one database and approval refuses to double-book (FR-10).
+    [InlineData(2034, 0, 0, 30, false)]  // 00:30 on the cut-off day → forfeited
+    [InlineData(2035, -1, 23, 30, true)] // 23:30 the evening before → refunded in full
+    public async Task GuestCancellation_IsJudgedOnTheSwedishDate(
+        int year, int daysFromCutOff, int hour, int minute, bool refunded)
+    {
+        var checkIn = new DateOnly(year, 9, 15);
+        var cutOff = checkIn.AddMonths(-CancellationPolicy.ForfeitCutoffMonths); // 15 July
+        var instant = StockholmTime.ToUtc(cutOff.AddDays(daysFromCutOff), new TimeOnly(hour, minute));
+        var provider = NewProvider(out var email, pinnedNow: new DateTimeOffset(instant, TimeSpan.Zero));
+        var id = await CreatePendingStayAsync(provider, checkIn);
+
+        using (var scope = provider.CreateScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.True((await svc.ApproveAsync(id)).Succeeded);
+            Assert.True((await svc.CancelAsync(id, CancellationInitiator.GuestInitiated, null)).Succeeded);
+        }
+
+        var mail = Assert.Single(email.Sent, e => e.Subject.Contains("avbokats"));
+        Assert.Contains(refunded ? "återbetalas handpenningen i sin helhet" : "återbetalas inte handpenningen", mail.HtmlBody);
     }
 
     [Fact]

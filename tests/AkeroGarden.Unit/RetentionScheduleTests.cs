@@ -59,20 +59,22 @@ public class RetentionScheduleTests
     }
 
     [Fact]
-    public void AuditPurgeCutoff_IsTwoYearsBeforeToday_AtUtcMidnight()
+    public void AuditPurgeCutoff_IsTwoYearsBeforeToday_AtSwedishMidnight()
     {
         var cutoff = RetentionSchedule.AuditPurgeCutoffUtc(Today);
 
-        Assert.Equal(new DateTime(2024, 7, 5, 0, 0, 0, DateTimeKind.Utc), cutoff); // FR-98: 2 years
+        // FR-98: 2 years. Midnight 2024-07-05 in Sweden (summer, UTC+2) is 22:00 UTC the day before.
+        Assert.Equal(new DateTime(2024, 7, 4, 22, 0, 0, DateTimeKind.Utc), cutoff);
         Assert.Equal(DateTimeKind.Utc, cutoff.Kind);
     }
 
     [Fact]
-    public void JobRunPurgeCutoff_IsSixMonthsBeforeToday_AtUtcMidnight()
+    public void JobRunPurgeCutoff_IsSixMonthsBeforeToday_AtSwedishMidnight()
     {
         var cutoff = RetentionSchedule.JobRunPurgeCutoffUtc(Today);
 
-        Assert.Equal(new DateTime(2026, 1, 5, 0, 0, 0, DateTimeKind.Utc), cutoff); // FR-114: 6 months
+        // FR-114: 6 months. Midnight 2026-01-05 in Sweden (winter, UTC+1) is 23:00 UTC the day before.
+        Assert.Equal(new DateTime(2026, 1, 4, 23, 0, 0, DateTimeKind.Utc), cutoff);
         Assert.Equal(DateTimeKind.Utc, cutoff.Kind);
     }
 }

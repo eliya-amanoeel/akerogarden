@@ -3,6 +3,7 @@
 @using System.Globalization
 @using AkeroGarden.Web.Core.Services
 @inject OccupancyProvider OccupancyProvider
+@inject TimeProvider Clock
 
 <PageTitle>Tillgänglighet — Åkerögården</PageTitle>
 <SeoMeta Title="Tillgänglighet"
@@ -101,7 +102,7 @@
 
     protected override async Task OnInitializedAsync()
     {
-        _today = DateOnly.FromDateTime(DateTime.UtcNow);
+        _today = StockholmTime.Today(Clock);
         var firstOfMonth = new DateOnly(_today.Year, _today.Month, 1);
         _months = Enumerable.Range(0, 12).Select(firstOfMonth.AddMonths).ToList();
 

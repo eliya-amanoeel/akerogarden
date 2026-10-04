@@ -5,6 +5,7 @@
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject NavigationManager Nav
+@inject TimeProvider Clock
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Kalendervy — Åkerögården Admin</PageTitle>
@@ -131,7 +132,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var today = StockholmTime.Today(Clock);
         var horizon = today.AddMonths(12);
 
         // Upcoming stay bookings (those whose stay has not ended), newest-checkin first.

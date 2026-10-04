@@ -40,7 +40,7 @@ public class CompletionLinkIssuanceJob(
     public string Name => "Utfärdande av slutförandelänk";
 
     public Task RunAsync(CancellationToken cancellationToken) =>
-        RunAsync(RetentionJob.StockholmToday(clock), cancellationToken);
+        RunAsync(StockholmTime.Today(clock), cancellationToken);
 
     /// <summary>Runs the issuance sweep for an explicit <paramref name="today"/> (the test seam).</summary>
     public async Task<int> RunAsync(DateOnly today, CancellationToken cancellationToken = default)

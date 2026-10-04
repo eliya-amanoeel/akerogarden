@@ -6,6 +6,7 @@
 @inject BlockedPeriodService BlockedPeriodService
 @inject BuildingService BuildingService
 @inject RoomService RoomService
+@inject TimeProvider Clock
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Blockeringar — Åkerögården Admin</PageTitle>
@@ -160,7 +161,7 @@ else
 
 @code {
     private List<BlockedPeriod>? _blocks;
-    private BlockedPeriod _form = NewForm();
+    private BlockedPeriod _form = new();
     private Guid? _editingId;
     private bool _isCreating;
     private bool _panelOpen;
@@ -175,6 +176,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        _form = NewForm(); // here, not in the field initializer: it reads the injected clock
         _buildings = await BuildingService.GetAllAsync();
         foreach (var b in _buildings) _buildingNames[b.Id] = b.Name;
         await Load();
@@ -191,11 +193,11 @@ else
         }
     }
 
-    private static BlockedPeriod NewForm() => new()
+    private BlockedPeriod NewForm() => new()
     {
         Scope = BlockScope.WholeProperty,
-        StartDate = DateOnly.FromDateTime(DateTime.UtcNow),
-        EndDate = DateOnly.FromDateTime(DateTime.UtcNow)
+        StartDate = StockholmTime.Today(Clock),
+        EndDate = StockholmTime.Today(Clock)
     };
 
     private void OpenCreate()

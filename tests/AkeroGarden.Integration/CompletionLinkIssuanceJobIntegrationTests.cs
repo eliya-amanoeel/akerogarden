@@ -137,8 +137,8 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         Assert.Equal(1, await RunAsync(provider, today));
 
         var expiry = (await ReloadAsync(provider, id)).CompletionTokenExpiry!.Value;
-        var nudgeInstant = checkIn.ToDateTime(CompletionTokenPolicy.StandardCheckInTime, DateTimeKind.Utc)
-                           - CompletionTokenPolicy.CheckInLeadTime;
+        var nudgeInstant = StockholmTime.ToUtc(
+            checkIn.AddDays(-CompletionTokenPolicy.CheckInLeadDays), CompletionTokenPolicy.StandardCheckInTime);
 
         Assert.True(CompletionTokenPolicy.IsValidAt(expiry, nudgeInstant.AddSeconds(-1)),
             $"link expired {expiry:u}, before the nudge at {nudgeInstant:u}");
@@ -204,8 +204,8 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         Assert.Single(email.Sent, e => e.Subject.Contains("fylla i era uppgifter"));
 
         // And the replacement survives to the nudge that replaces it in turn (§2.6).
-        var nudgeInstant = checkIn.ToDateTime(CompletionTokenPolicy.StandardCheckInTime, DateTimeKind.Utc)
-                           - CompletionTokenPolicy.CheckInLeadTime;
+        var nudgeInstant = StockholmTime.ToUtc(
+            checkIn.AddDays(-CompletionTokenPolicy.CheckInLeadDays), CompletionTokenPolicy.StandardCheckInTime);
         Assert.True(CompletionTokenPolicy.IsValidAt(booking.CompletionTokenExpiry!.Value, nudgeInstant.AddSeconds(-1)));
     }
 

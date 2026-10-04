@@ -9,46 +9,27 @@ namespace AkeroGarden.Web.Core.Services;
 /// </summary>
 public static class DailyRunSchedule
 {
-    private static readonly TimeZoneInfo Stockholm = TimeZoneInfo.FindSystemTimeZoneById("Europe/Stockholm");
-
     /// <summary>
     /// The next UTC instant at which the daily run fires: today's run if it is still ahead,
     /// otherwise tomorrow's.
     /// </summary>
     public static DateTimeOffset NextRunUtc(DateTimeOffset nowUtc, int runHourLocal)
     {
-        var todayLocal = TimeZoneInfo.ConvertTime(nowUtc, Stockholm).Date;
+        var todayLocal = StockholmTime.DateOf(nowUtc.UtcDateTime);
 
         var next = RunInstantOn(todayLocal, runHourLocal);
         return next <= nowUtc ? RunInstantOn(todayLocal.AddDays(1), runHourLocal) : next;
     }
-
-    /// <summary>
-    /// A stored UTC instant as Swedish wall-clock time, for the job history (FR-114). Not
-    /// <c>ToLocalTime()</c>: the server's own zone is not Stockholm, and a run scheduled for 03:00
-    /// must read 03:00 — the hour the admin was told it runs.
-    /// </summary>
-    public static DateTime ToStockholmTime(DateTime utc) =>
-        TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), Stockholm);
 
     /// <summary>Delay from <paramref name="nowUtc"/> until the next run. Never negative.</summary>
     public static TimeSpan TimeUntilNextRun(DateTimeOffset nowUtc, int runHourLocal) =>
         NextRunUtc(nowUtc, runHourLocal) - nowUtc;
 
     /// <summary>
-    /// The UTC instant at which the run falls on a given Stockholm date.
+    /// The UTC instant at which the run falls on a given Stockholm date. On the spring transition
+    /// day an hour that does not exist runs at the first one that does; on the autumn day an hour
+    /// that occurs twice runs once, in standard time (see <see cref="StockholmTime.ToUtc"/>).
     /// </summary>
-    public static DateTimeOffset RunInstantOn(DateTime localDate, int runHourLocal)
-    {
-        var wall = DateTime.SpecifyKind(localDate.Date.AddHours(runHourLocal), DateTimeKind.Unspecified);
-
-        // Spring forward: this wall time does not exist (02:00–02:59 on the transition day) and
-        // converting it would throw. Run at the first instant that does exist instead.
-        if (Stockholm.IsInvalidTime(wall))
-            wall = wall.AddHours(1);
-
-        // Autumn back: an ambiguous wall time (02:00–02:59 occurs twice) resolves to standard time.
-        // Either instant is acceptable — what matters is that the run happens once that day.
-        return new DateTimeOffset(TimeZoneInfo.ConvertTimeToUtc(wall, Stockholm), TimeSpan.Zero);
-    }
+    public static DateTimeOffset RunInstantOn(DateOnly localDate, int runHourLocal) =>
+        new(StockholmTime.ToUtc(localDate, new TimeOnly(runHourLocal, 0)), TimeSpan.Zero);
 }

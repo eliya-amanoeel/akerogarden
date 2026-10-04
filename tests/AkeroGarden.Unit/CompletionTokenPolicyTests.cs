@@ -22,11 +22,11 @@ public class CompletionTokenPolicyTests
     [Fact]
     public void NearCheckIn_ExpiresAt14DaysBeforeCheckIn()
     {
-        // Check-in 20 days out → 14 days before check-in (at 14:00) is earlier than the 30-day
-        // ceiling and later than the 48h floor.
+        // Check-in 20 days out → 14 days before check-in (at 14:00 Swedish time, 12:00 UTC in summer)
+        // is earlier than the 30-day ceiling and later than the 48h floor.
         var checkIn = new DateOnly(2026, 7, 21);
         var expiry = CompletionTokenPolicy.ComputeExpiry(Issued, checkIn);
-        Assert.Equal(new DateTime(2026, 7, 7, 14, 0, 0, DateTimeKind.Utc), expiry);
+        Assert.Equal(new DateTime(2026, 7, 7, 12, 0, 0, DateTimeKind.Utc), expiry);
     }
 
     [Fact]
@@ -38,12 +38,13 @@ public class CompletionTokenPolicyTests
         var checkIn = new DateOnly(2026, 7, 11);
         var expiry = CompletionTokenPolicy.ComputeExpiry(Issued, checkIn);
 
-        Assert.Equal(new DateTime(2026, 7, 8, 14, 0, 0, DateTimeKind.Utc), expiry);
+        Assert.Equal(new DateTime(2026, 7, 8, 12, 0, 0, DateTimeKind.Utc), expiry); // 14:00 Swedish
         Assert.True(expiry > Issued.AddHours(48), "the late-issue window must beat the bare 48h floor");
     }
 
     [Theory]
-    [InlineData(2)]    // the nightly job's real 03:00 Stockholm sweep, in UTC
+    [InlineData(0)]    // just after Swedish midnight — still UTC's previous day
+    [InlineData(3)]    // the nightly job's real 03:00 sweep
     [InlineData(13)]   // just before the 14:00 check-in instant
     [InlineData(15)]   // just after it
     public void IssuedOnTheCutOffDate_RunsToThreeDaysBeforeCheckIn_WhateverTheHour(int hour)
@@ -54,12 +55,12 @@ public class CompletionTokenPolicyTests
         // being chased, where a guest approved a day later got eleven. Whole days, so the hour the
         // job runs cannot decide it (FR-53).
         var checkIn = new DateOnly(2026, 7, 21);
-        var issued = checkIn.AddDays(-CompletionTokenPolicy.CheckInLeadDays)
-            .ToDateTime(new TimeOnly(hour, 0), DateTimeKind.Utc);
+        var issued = StockholmTime.ToUtc(
+            checkIn.AddDays(-CompletionTokenPolicy.CheckInLeadDays), new TimeOnly(hour, 30));
 
         var expiry = CompletionTokenPolicy.ComputeExpiry(issued, checkIn);
 
-        Assert.Equal(new DateTime(2026, 7, 18, 14, 0, 0, DateTimeKind.Utc), expiry);
+        Assert.Equal(new DateTime(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc), expiry); // 14:00 Swedish
         Assert.True(expiry - issued > TimeSpan.FromDays(10), "the nudge link must be usable, not a 48h stub");
     }
 
@@ -69,7 +70,7 @@ public class CompletionTokenPolicyTests
         // The other side of the boundary: 15 days out is not late, so the operational 14-day deadline
         // still governs and the 48-hour floor carries what is left of it.
         var checkIn = new DateOnly(2026, 7, 21);
-        var issued = checkIn.AddDays(-15).ToDateTime(new TimeOnly(2, 0), DateTimeKind.Utc);
+        var issued = StockholmTime.ToUtc(checkIn.AddDays(-15), new TimeOnly(3, 0));
 
         var expiry = CompletionTokenPolicy.ComputeExpiry(issued, checkIn);
 
@@ -129,11 +130,54 @@ public class CompletionTokenPolicyTests
         // dead-link gap deferred issuance exists to close has been reopened (§2.6).
         var checkIn = DateOnly.FromDateTime(Issued).AddDays(CompletionTokenPolicy.IssueLeadDays);
         var expiry = CompletionTokenPolicy.ComputeExpiry(Issued, checkIn);
-        var nudgeInstant = checkIn.ToDateTime(CompletionTokenPolicy.StandardCheckInTime, DateTimeKind.Utc)
-                           - CompletionTokenPolicy.CheckInLeadTime;
+        var nudgeInstant = StockholmTime.ToUtc(
+            checkIn.AddDays(-CompletionTokenPolicy.CheckInLeadDays), CompletionTokenPolicy.StandardCheckInTime);
 
         Assert.True(CompletionTokenPolicy.IsValidAt(expiry, nudgeInstant.AddSeconds(-1)),
             $"a link issued {CompletionTokenPolicy.IssueLeadDays} days out expired at {expiry}, before the nudge at {nudgeInstant}");
+    }
+
+    [Fact]
+    public void IssuedJustAfterSwedishMidnight_CountsTheSwedishDate()
+    {
+        // 00:30 Swedish time on the 14-days-before date is 22:30 UTC the day before. Counted on the
+        // UTC date it read as 15 days out, took the normal branch and fell to the 48-hour floor — a
+        // two-day link where the same approval half an hour later got eleven.
+        var checkIn = new DateOnly(2026, 7, 21);
+        var issued = StockholmTime.ToUtc(new DateOnly(2026, 7, 7), new TimeOnly(0, 30));
+
+        var expiry = CompletionTokenPolicy.ComputeExpiry(issued, checkIn);
+
+        Assert.Equal(new DateTime(2026, 7, 18, 12, 0, 0, DateTimeKind.Utc), expiry);
+    }
+
+    [Theory]
+    [InlineData(2026, 7, 21, 2026, 7, 1, 2026, 7, 7)]     // summer throughout
+    [InlineData(2026, 12, 21, 2026, 12, 1, 2026, 12, 7)]  // winter throughout
+    [InlineData(2026, 11, 5, 2026, 10, 15, 2026, 10, 22)] // deadline in summer, check-in in winter
+    [InlineData(2026, 4, 10, 2026, 3, 20, 2026, 3, 27)]   // deadline in winter, check-in in summer
+    public void FourteenDayDeadline_Is14OClockSwedishTime_InEverySeason(
+        int cy, int cm, int cd, int iy, int im, int id, int dy, int dm, int dd)
+    {
+        // §2.6: the email states the exact expiry. It says 14:00, so the link must die at 14:00 in
+        // Sweden — not 14:00 UTC (one or two hours later), and not check-in minus 14 × 24 hours,
+        // which lands at 13:00 or 15:00 when a clock change falls between the two dates.
+        var issued = StockholmTime.ToUtc(new DateOnly(iy, im, id), new TimeOnly(10, 0));
+
+        var expiry = CompletionTokenPolicy.ComputeExpiry(issued, new DateOnly(cy, cm, cd));
+
+        Assert.Equal(new DateTime(dy, dm, dd, 14, 0, 0), StockholmTime.ToLocal(expiry));
+    }
+
+    [Fact]
+    public void LateIssueDeadline_Is14OClockSwedishTime_AcrossTheSpringClockChange()
+    {
+        // Late issue, clocks go forward on 2026-03-29 between the deadline and check-in.
+        var issued = StockholmTime.ToUtc(new DateOnly(2026, 3, 25), new TimeOnly(10, 0));
+
+        var expiry = CompletionTokenPolicy.ComputeExpiry(issued, new DateOnly(2026, 3, 31));
+
+        Assert.Equal(new DateTime(2026, 3, 28, 14, 0, 0), StockholmTime.ToLocal(expiry));
     }
 
     [Fact]

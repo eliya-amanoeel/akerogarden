@@ -331,7 +331,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         // against a wall-clock seed, which is worse than not pinning. ("The clock is an input, never
         // an ambient fact.")
         var nowUtc = clock.GetUtcNow().UtcDateTime;
-        var today = DateOnly.FromDateTime(nowUtc);
+        var today = StockholmTime.DateOf(nowUtc);
 
         var utflykt = r.Facilities.First(f => f.Name == "Utflykt - gården");
         var konferensrum = r.Facilities.First(f => f.Name == "Konferensrum");

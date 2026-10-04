@@ -26,7 +26,7 @@ public class RetentionJob(
     public string Name => "GDPR-gallring";
 
     public Task RunAsync(CancellationToken cancellationToken) =>
-        RunAsync(StockholmToday(clock), cancellationToken);
+        RunAsync(StockholmTime.Today(clock), cancellationToken);
 
     /// <summary>
     /// Runs the retention sweep for an explicit <paramref name="today"/> — the seam the unit/
@@ -107,13 +107,6 @@ public class RetentionJob(
         // `warned` counts confirmed sends, not candidates — a run where the mail server was down now
         // reports 0 warned rather than overstating what the guests' admin was actually told.
         return new RetentionRunSummary(due.Count, warned, auditPurged, jobRunsPurged);
-    }
-
-    /// <summary>The current date in Europe/Stockholm — retention dates are civil dates, not UTC.</summary>
-    public static DateOnly StockholmToday(TimeProvider clock)
-    {
-        var tz = TimeZoneInfo.FindSystemTimeZoneById("Europe/Stockholm");
-        return DateOnly.FromDateTime(TimeZoneInfo.ConvertTime(clock.GetUtcNow(), tz).DateTime);
     }
 }
 

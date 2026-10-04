@@ -6,6 +6,7 @@
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject MealOptionService MealOptionService
+@inject TimeProvider Clock
 @inject Microsoft.Extensions.Options.IOptions<BookingEmailOptions> EmailOptions
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
@@ -535,7 +536,7 @@ else
                        to send rather than one deliberately not issued yet. *@
                     @if (_booking.CompletionTokenExpiry is { } linkExpiry)
                     {
-                        <p class="action-note"><strong>Slutförandelänk giltig till:</strong><br />@linkExpiry.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</p>
+                        <p class="action-note"><strong>Slutförandelänk giltig till:</strong><br />@StockholmTime.ToLocal(linkExpiry).ToString("yyyy-MM-dd HH:mm")</p>
                         @* FR-112: shown in the panel, not only mailed. On an on-behalf-of booking the
                            admin fills the form in themselves, and hunting a shared inbox for a link
                            that was sent to a colleague is the obvious failure. It also means a link
@@ -864,7 +865,7 @@ else
 
     private int DaysToCheckIn =>
         _booking?.CheckIn is null ? int.MaxValue
-        : _booking.CheckIn.Value.DayNumber - DateOnly.FromDateTime(DateTime.UtcNow).DayNumber;
+        : _booking.CheckIn.Value.DayNumber - StockholmTime.Today(Clock).DayNumber;
 
     private bool IsCheckInWithin14Days => DaysToCheckIn <= 14;
 
@@ -873,7 +874,7 @@ else
     // what the guest is being promised.
     private bool ApprovalWillSendLink =>
         _booking?.CheckIn is { } checkIn
-        && CompletionTokenPolicy.ShouldIssueOn(DateOnly.FromDateTime(DateTime.UtcNow), checkIn);
+        && CompletionTokenPolicy.ShouldIssueOn(StockholmTime.Today(Clock), checkIn);
 
     private bool CanCancel => _booking is not null &&
         BookingStateMachine.CanTransition(_booking.Status, BookingStatus.Cancelled);
@@ -1046,11 +1047,11 @@ else
         // on a completed action, not a failure, so all three stay success toasts. A null TokenExpiry
         // means no link was issued at all (FR-51/108); stating an expiry there would print an empty
         // date and imply a mail the guest never received.
-        _message = ToastMessage.Ok(result.TokenExpiry is null
+        _message = ToastMessage.Ok(result.TokenExpiry is not { } expiry
             ? "Bokningen är godkänd och ett bekräftelsemejl är skickat. Slutförandelänken skickas automatiskt cirka sex veckor före ankomst."
             : result.ShortExpiryWarning
-                ? $"Bokningen är godkänd. Slutförandelänken är förkortad och går ut {result.TokenExpiry?.ToLocalTime():yyyy-MM-dd HH:mm} — kontakta gästen vid behov."
-                : $"Bokningen är godkänd och e-post med slutförandelänk är skickad (giltig till {result.TokenExpiry?.ToLocalTime():yyyy-MM-dd HH:mm}).");
+                ? $"Bokningen är godkänd. Slutförandelänken är förkortad och går ut {StockholmTime.ToLocal(expiry):yyyy-MM-dd HH:mm} — kontakta gästen vid behov."
+                : $"Bokningen är godkänd och e-post med slutförandelänk är skickad (giltig till {StockholmTime.ToLocal(expiry):yyyy-MM-dd HH:mm}).");
         await Load();
     }
 

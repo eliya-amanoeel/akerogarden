@@ -17,14 +17,14 @@ public class DailyRunScheduleTests
     public void Winter_ResolvesTheConfiguredHourAtStandardTime()
     {
         // 2026-01-15, CET (+01:00): 03:00 local is 02:00 UTC.
-        Assert.Equal(Utc(2026, 1, 15, 2), DailyRunSchedule.RunInstantOn(new DateTime(2026, 1, 15), 3));
+        Assert.Equal(Utc(2026, 1, 15, 2), DailyRunSchedule.RunInstantOn(new DateOnly(2026, 1, 15), 3));
     }
 
     [Fact]
     public void Summer_ResolvesTheConfiguredHourAtDaylightTime()
     {
         // 2026-07-15, CEST (+02:00): 03:00 local is 01:00 UTC.
-        Assert.Equal(Utc(2026, 7, 15, 1), DailyRunSchedule.RunInstantOn(new DateTime(2026, 7, 15), 3));
+        Assert.Equal(Utc(2026, 7, 15, 1), DailyRunSchedule.RunInstantOn(new DateOnly(2026, 7, 15), 3));
     }
 
     [Fact]
@@ -60,7 +60,7 @@ public class DailyRunScheduleTests
     {
         // 2026-03-29: Stockholm jumps 02:00 CET → 03:00 CEST. True 03:00 local is 01:00 UTC.
         // Resolving with the offset in force at midnight (+01:00) would give 02:00 UTC — an hour late.
-        Assert.Equal(Utc(2026, 3, 29, 1), DailyRunSchedule.RunInstantOn(new DateTime(2026, 3, 29), 3));
+        Assert.Equal(Utc(2026, 3, 29, 1), DailyRunSchedule.RunInstantOn(new DateOnly(2026, 3, 29), 3));
     }
 
     [Fact]
@@ -77,7 +77,7 @@ public class DailyRunScheduleTests
     {
         // 02:00 is skipped entirely on 2026-03-29; converting it directly would throw. The run moves
         // to 03:00 CEST = 01:00 UTC rather than being lost.
-        Assert.Equal(Utc(2026, 3, 29, 1), DailyRunSchedule.RunInstantOn(new DateTime(2026, 3, 29), 2));
+        Assert.Equal(Utc(2026, 3, 29, 1), DailyRunSchedule.RunInstantOn(new DateOnly(2026, 3, 29), 2));
     }
 
     [Fact]
@@ -86,14 +86,14 @@ public class DailyRunScheduleTests
         // 2026-10-25: 03:00 CEST → 02:00 CET, so 02:00 local occurs twice. Either instant is fine;
         // what matters is that it resolves to exactly one and the job runs once. Standard time (CET,
         // +01:00) gives 01:00 UTC.
-        Assert.Equal(Utc(2026, 10, 25, 1), DailyRunSchedule.RunInstantOn(new DateTime(2026, 10, 25), 2));
+        Assert.Equal(Utc(2026, 10, 25, 1), DailyRunSchedule.RunInstantOn(new DateOnly(2026, 10, 25), 2));
     }
 
     [Fact]
     public void AutumnBack_UnambiguousHourIsUnaffected()
     {
         // 03:00 on the autumn transition day is not ambiguous: CET (+01:00) ⇒ 02:00 UTC.
-        Assert.Equal(Utc(2026, 10, 25, 2), DailyRunSchedule.RunInstantOn(new DateTime(2026, 10, 25), 3));
+        Assert.Equal(Utc(2026, 10, 25, 2), DailyRunSchedule.RunInstantOn(new DateOnly(2026, 10, 25), 3));
     }
 
     [Theory]
@@ -102,23 +102,11 @@ public class DailyRunScheduleTests
     [InlineData(23)]
     public void AnyConfiguredHour_ResolvesToThatLocalHour(int hour)
     {
-        var instant = DailyRunSchedule.RunInstantOn(new DateTime(2026, 1, 15), hour);
+        var instant = DailyRunSchedule.RunInstantOn(new DateOnly(2026, 1, 15), hour);
         var local = TimeZoneInfo.ConvertTime(
             instant, TimeZoneInfo.FindSystemTimeZoneById("Europe/Stockholm"));
 
         Assert.Equal(hour, local.Hour);
         Assert.Equal(new DateTime(2026, 1, 15), local.Date);
-    }
-
-    [Theory]
-    [InlineData(2026, 1, 15, 2)] // winter: UTC+1 — the 03:00 run is stored as 02:00 UTC
-    [InlineData(2026, 7, 15, 1)] // summer: UTC+2 — the 03:00 run is stored as 01:00 UTC
-    public void ToStockholmTime_ShowsTheNightlyRunAtThreeOClock_InBothSeasons(int y, int m, int d, int utcHour)
-    {
-        // FR-114: the job history must read 03:00, the hour the admin is told the jobs run — not the
-        // server's own zone, and not one hour off for half the year.
-        var stockholm = DailyRunSchedule.ToStockholmTime(new DateTime(y, m, d, utcHour, 0, 0, DateTimeKind.Utc));
-
-        Assert.Equal(new DateTime(y, m, d, 3, 0, 0), stockholm);
     }
 }

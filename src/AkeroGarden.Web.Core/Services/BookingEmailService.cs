@@ -173,9 +173,12 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     {
         if (booking.CancellationInitiator is null)
             throw new InvalidOperationException("Avbokningsmejl kräver att avbokningens initiativtagare är satt.");
+        if (booking.CancelledAt is null)
+            throw new InvalidOperationException("Avbokningsmejl kräver att avbokningstidpunkten är satt.");
 
-        // Guest-initiated timing is judged from the cancellation date against check-in (§5.6).
-        var cancelledOn = DateOnly.FromDateTime(booking.CancelledAt ?? DateTime.UtcNow);
+        // Guest-initiated timing is judged from the cancellation date against check-in (§5.6) — the
+        // Swedish date: a cancellation at 00:30 on the cut-off day is on that day, not the one before.
+        var cancelledOn = StockholmTime.DateOf(booking.CancelledAt.Value);
         var outcome = booking.CheckIn is null
             ? DepositOutcome.FullRefund // no dated stay to judge timing against; default to full refund
             : CancellationPolicy.ResolveDepositOutcome(booking.CancellationInitiator.Value, booking.CheckIn.Value, cancelledOn);

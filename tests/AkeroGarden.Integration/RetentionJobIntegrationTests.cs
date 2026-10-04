@@ -95,7 +95,7 @@ public class RetentionJobIntegrationTests : IClassFixture<DbFixture>
     {
         var provider = NewProvider(out _);
         var today = new DateOnly(2026, 7, 5);
-        var cutoff = RetentionSchedule.AuditPurgeCutoffUtc(today); // 2024-07-05 UTC (2 years back)
+        var cutoff = RetentionSchedule.AuditPurgeCutoffUtc(today); // Swedish midnight 2024-07-05 (2 years back)
 
         // A live booking (null DeleteAfter → never deleted) to anchor a booking-scoped audit row.
         var liveBookingId = await SeedAsync(provider, BookingStatus.Approved, deleteAfter: null);

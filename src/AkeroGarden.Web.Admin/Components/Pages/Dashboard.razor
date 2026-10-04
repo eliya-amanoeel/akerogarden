@@ -6,12 +6,13 @@
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject NavigationManager Nav
+@inject TimeProvider Clock
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Översikt — Åkerögården Admin</PageTitle>
 
 <AdminHeader Title="Översikt">
-    <span class="crumb">@DateTime.Now.ToString("dddd d MMMM yyyy", Sv)</span>
+    <span class="crumb">@StockholmTime.Today(Clock).ToString("dddd d MMMM yyyy", Sv)</span>
 </AdminHeader>
 
 @if (_loading)
@@ -176,7 +177,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        var today = DateOnly.FromDateTime(DateTime.Now);
+        var today = StockholmTime.Today(Clock);
 
         _pending = await BookingService.GetBookingsAsync(status: BookingStatus.Pending);
 
@@ -218,7 +219,7 @@ else
         }
         else
         {
-            var days = (int)Math.Ceiling((b.CompletionTokenExpiry.Value - DateTime.UtcNow).TotalDays);
+            var days = (int)Math.Ceiling((b.CompletionTokenExpiry.Value - Clock.GetUtcNow().UtcDateTime).TotalDays);
             text = days <= 0 ? "Länken har gått ut"
                 : days == 1 ? "Går ut inom 1 dygn"
                 : $"{days} dygn kvar";

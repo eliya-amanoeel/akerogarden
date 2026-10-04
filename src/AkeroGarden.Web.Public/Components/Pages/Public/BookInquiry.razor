@@ -6,6 +6,7 @@
 @inject BookingService BookingService
 @inject FacilityService FacilityService
 @inject AvailabilityService Availability
+@inject TimeProvider Clock
 @inject IInquiryRateLimiter RateLimiter
 @inject ILogger<BookInquiry> Logger
 
@@ -357,7 +358,7 @@ else
     // dates a native picker offers — individual days cannot be disabled — so it keeps the obvious
     // mistake (a date in the past) out of the picker, while the server re-checks both the past date
     // and occupancy on post: `min` is a convenience, never the rule (FR-113).
-    private readonly DateOnly _today = DateOnly.FromDateTime(DateTime.UtcNow);
+    private DateOnly _today => StockholmTime.Today(Clock);
 
     private string _earliestSelectable => _today.ToString("yyyy-MM-dd");
 

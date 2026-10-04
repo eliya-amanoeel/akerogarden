@@ -79,7 +79,7 @@ else
                 {
                     <tr>
                         <td class="mono">@b.BookingReference</td>
-                        <td class="mono">@b.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</td>
+                        <td class="mono">@StockholmTime.DateOf(b.CreatedAt).ToString("yyyy-MM-dd")</td>
                         <td>
                             <a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a>
                             @* FR-112: on an on-behalf-of booking this is the ADMIN's address, not
@@ -129,7 +129,7 @@ else
                         </dd>
                     </div>
                     <div><dt>Gäster</dt><dd>@(b.OvernightGuestCount?.ToString() ?? "—")</dd></div>
-                    <div><dt>Inkommen</dt><dd>@b.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd")</dd></div>
+                    <div><dt>Inkommen</dt><dd>@StockholmTime.DateOf(b.CreatedAt).ToString("yyyy-MM-dd")</dd></div>
                 </Fields>
             </AdminDataCard>
         }

@@ -311,12 +311,14 @@ const string XlsxContentType = "application/vnd.openxmlformats-officedocument.sp
 // later does not inherit access to guest names and allergies by default.
 var lists = app.MapGroup("/bokningar/{id:guid}")
     .RequireAuthorization(policy => policy.RequireAuthenticatedUser().RequireRole(AdminRoles.All));
-lists.MapGet("/deltagarlista.pdf", (Guid id, BookingService bookings) =>
-    BuildListAsync(id, bookings, "deltagarlista", ".pdf", "application/pdf", ListPdfGenerator.ParticipantList));
+lists.MapGet("/deltagarlista.pdf", (Guid id, BookingService bookings, TimeProvider clock) =>
+    BuildListAsync(id, bookings, "deltagarlista", ".pdf", "application/pdf",
+        data => ListPdfGenerator.ParticipantList(data, StockholmTime.Today(clock))));
 lists.MapGet("/deltagarlista.xlsx", (Guid id, BookingService bookings) =>
     BuildListAsync(id, bookings, "deltagarlista", ".xlsx", XlsxContentType, ListExcelGenerator.ParticipantList));
-lists.MapGet("/matlista.pdf", (Guid id, BookingService bookings) =>
-    BuildListAsync(id, bookings, "matlista", ".pdf", "application/pdf", ListPdfGenerator.FoodPreferenceList));
+lists.MapGet("/matlista.pdf", (Guid id, BookingService bookings, TimeProvider clock) =>
+    BuildListAsync(id, bookings, "matlista", ".pdf", "application/pdf",
+        data => ListPdfGenerator.FoodPreferenceList(data, StockholmTime.Today(clock))));
 lists.MapGet("/matlista.xlsx", (Guid id, BookingService bookings) =>
     BuildListAsync(id, bookings, "matlista", ".xlsx", XlsxContentType, ListExcelGenerator.FoodPreferenceList));
 

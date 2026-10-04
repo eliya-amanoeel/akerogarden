@@ -174,8 +174,8 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         Assert.Equal(1, (await RunAsync(provider, today)).Nudges);
 
         var expiry = (await ReloadAsync(provider, id)).CompletionTokenExpiry!.Value;
-        var expected = checkIn.ToDateTime(CompletionTokenPolicy.StandardCheckInTime, DateTimeKind.Utc)
-                       - CompletionTokenPolicy.LateIssueLeadTime;
+        var expected = StockholmTime.ToUtc(
+            checkIn.AddDays(-CompletionTokenPolicy.LateIssueLeadDays), CompletionTokenPolicy.StandardCheckInTime);
 
         Assert.Equal(expected, expiry);
         Assert.True(expiry - NowIn(provider) > TimeSpan.FromDays(10),

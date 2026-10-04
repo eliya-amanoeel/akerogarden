@@ -28,12 +28,14 @@ public static class ListPdfGenerator
     // columns as the fuller working copy.
     private static readonly string[] ParticipantHeaders = ["Namn", "Typ", "Ålder"];
 
-    public static byte[] ParticipantList(BookingListData data) =>
+    // generatedOn is the caller's Swedish date (StockholmTime.Today), printed in the footer. Not read
+    // here from DateTime.Now: the server runs UTC, so a list printed after midnight said yesterday.
+    public static byte[] ParticipantList(BookingListData data, DateOnly generatedOn) =>
         Build("Deltagarlista", data, ParticipantHeaders,
             data.Participants.Select(p => new[] { p.Name, p.Type, p.Age }),
-            [2f, 1f, 1f]);
+            [2f, 1f, 1f], generatedOn);
 
-    public static byte[] FoodPreferenceList(BookingListData data)
+    public static byte[] FoodPreferenceList(BookingListData data, DateOnly generatedOn)
     {
         var subtitle = $"{data.ContactName} · Incheckning {Fmt(data.CheckIn)} – Utcheckning {Fmt(data.CheckOut)}";
 
@@ -133,14 +135,15 @@ public static class ListPdfGenerator
             page.Footer().AlignRight().Text(t =>
             {
                 t.Span($"Åkerögården · {data.Prep.Count} rätter · {data.SpecialDiets.Count} kostbehov · ");
-                t.Span($"{DateTime.Now:yyyy-MM-dd}");
+                t.Span($"{generatedOn:yyyy-MM-dd}");
             });
         }));
 
         return document.GeneratePdf();
     }
 
-    private static byte[] Build(string title, BookingListData data, string[] headers, IEnumerable<string[]> rows, float[] widths)
+    private static byte[] Build(
+        string title, BookingListData data, string[] headers, IEnumerable<string[]> rows, float[] widths, DateOnly generatedOn)
     {
         var rowList = rows.ToList();
         var subtitle = $"{data.ContactName} · Incheckning {Fmt(data.CheckIn)} – Utcheckning {Fmt(data.CheckOut)}";
@@ -180,7 +183,7 @@ public static class ListPdfGenerator
             page.Footer().AlignRight().Text(t =>
             {
                 t.Span($"Åkerögården · {rowList.Count} rader · ");
-                t.Span($"{DateTime.Now:yyyy-MM-dd}");
+                t.Span($"{generatedOn:yyyy-MM-dd}");
             });
         }));
 

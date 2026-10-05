@@ -29,6 +29,9 @@ namespace AkeroGarden.Web.Core.Services;
 ///
 /// <para>Separate from <see cref="ReminderJob"/> on purpose: a different distance from check-in, a
 /// different query, and a different email. "Today" is evaluated in Europe/Stockholm.</para>
+///
+/// <para><b>A failed send is retried the next night.</b> The booking's previous link fields are put
+/// back, so it still holds no usable link and the query above finds it again.</para>
 /// </summary>
 public class CompletionLinkIssuanceJob(
     ApplicationDbContext db,
@@ -42,7 +45,8 @@ public class CompletionLinkIssuanceJob(
     public Task RunAsync(CancellationToken cancellationToken) =>
         RunAsync(StockholmTime.Today(clock), cancellationToken);
 
-    /// <summary>Runs the issuance sweep for an explicit <paramref name="today"/> (the test seam).</summary>
+    /// <summary>Runs the issuance sweep for an explicit <paramref name="today"/> (the test seam).
+    /// Returns the links that actually reached the guest; a failed send is not counted.</summary>
     public async Task<int> RunAsync(DateOnly today, CancellationToken cancellationToken = default)
     {
         // The date range below is the issue rule itself, expressed as SQL: "check-in at most
@@ -66,19 +70,27 @@ public class CompletionLinkIssuanceJob(
 
         foreach (var booking in due)
         {
+            // Captured so a failed send can be undone. Keeping a link the guest never received made
+            // the booking hold a "usable" link, so this query skipped it from then on and the guest
+            // waited for the 14-day nudge. Restored, it is due again tomorrow.
+            var previousLink = CompletionLinkState.Of(booking);
             bookings.IssueCompletionLink(booking, now);
-            // System actor (FR-95): the automatic issue involved no admin.
-            await audit.RecordAsync(AuditAction.CompletionLinkIssued, nameof(Booking), booking.Id,
-                "Slutförandelänk utfärdades automatiskt när incheckningen kom inom 40 dagar.",
-                booking.Id, booking.BookingReference, AuditActor.System);
             if (!await emails.SendCompletionLinkAvailableAsync(booking))
             {
+                previousLink.RestoreTo(booking);
                 // Sending never throws (NFR-13); recorded so the job history shows the run as failed
                 // instead of reporting a link the guest never received (FR-114).
                 await audit.RecordAsync(AuditAction.EmailSendFailed, nameof(Booking), booking.Id,
                     "Mejlet med slutförandelänken kunde inte skickas.",
                     booking.Id, booking.BookingReference, AuditActor.System);
+                continue;
             }
+
+            // System actor (FR-95): the automatic issue involved no admin. Only after a confirmed
+            // send — a link taken back was never issued as far as the trail is concerned.
+            await audit.RecordAsync(AuditAction.CompletionLinkIssued, nameof(Booking), booking.Id,
+                "Slutförandelänk utfärdades automatiskt när incheckningen kom inom 40 dagar.",
+                booking.Id, booking.BookingReference, AuditActor.System);
             issued++;
         }
 

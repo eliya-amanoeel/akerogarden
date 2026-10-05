@@ -22,27 +22,41 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     {
         var fake = new FakeEmailService();
         email = fake;
-        return _fixture.BuildServices(s =>
+        return _fixture.BuildServices(s => Register(s, fake));
+    }
+
+    /// <summary>
+    /// Services on a database of their own, for the retry tests. Their subject is a whole run: a
+    /// failed send leaves its booking due on purpose, and the "next night" run then acts on every
+    /// due booking — on the shared database that includes other tests' bookings that have just
+    /// entered the window, so a count would depend on which tests xUnit ran first.
+    /// </summary>
+    private async Task<(IServiceProvider Provider, FakeEmailService Email)> NewIsolatedProviderAsync()
+    {
+        var fake = new FakeEmailService();
+        return (await _fixture.BuildIsolatedServicesAsync(s => Register(s, fake)), fake);
+    }
+
+    private static void Register(IServiceCollection s, FakeEmailService fake)
+    {
+        s.AddSingleton<IEmailService>(fake);
+        // Pinned, not TimeProvider.System: every assertion in this file is about a *distance*
+        // (the 40-day issue window, the 14-day nudge, the link outliving it), which is the one
+        // thing a midnight crossing breaks. Every date below is then taken from this same clock
+        // via DbFixture.TodayIn — a pinned service with a wall-clock seed holds two disagreeing
+        // "now"s and is worse than not pinning.
+        DbFixture.PinClock(s, DbFixture.FixedNow);
+        s.AddScoped<BookingEmailService>();
+        s.AddScoped<BookingService>();
+        s.AddScoped<CleaningZoneService>();
+        s.AddScoped<CompletionLinkIssuanceJob>();
+        s.Configure<BookingEmailOptions>(o =>
         {
-            s.AddSingleton<IEmailService>(fake);
-            // Pinned, not TimeProvider.System: every assertion in this file is about a *distance*
-            // (the 40-day issue window, the 14-day nudge, the link outliving it), which is the one
-            // thing a midnight crossing breaks. Every date below is then taken from this same clock
-            // via DbFixture.TodayIn — a pinned service with a wall-clock seed holds two disagreeing
-            // "now"s and is worse than not pinning.
-            DbFixture.PinClock(s, DbFixture.FixedNow);
-            s.AddScoped<BookingEmailService>();
-            s.AddScoped<BookingService>();
-            s.AddScoped<CleaningZoneService>();
-            s.AddScoped<CompletionLinkIssuanceJob>();
-            s.Configure<BookingEmailOptions>(o =>
-            {
-                o.PublicBaseUrl = "https://akerogarden.se";
-                o.AdminBaseUrl = "https://admin.akerogarden.se";
-                o.AdminNotificationEmail = "admin@test.se";
-                o.ContactEmail = "info@test.se";
-                o.PropertyAddress = "Åkerögården, Norrtälje";
-            });
+            o.PublicBaseUrl = "https://akerogarden.se";
+            o.AdminBaseUrl = "https://admin.akerogarden.se";
+            o.AdminNotificationEmail = "admin@test.se";
+            o.ContactEmail = "info@test.se";
+            o.PropertyAddress = "Åkerögården, Norrtälje";
         });
     }
 
@@ -266,21 +280,66 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     }
 
     [Fact]
-    public async Task A_link_email_that_could_not_be_sent_is_recorded_as_a_failed_send()
+    public async Task A_link_email_that_fails_is_taken_back_and_sent_the_next_night()
     {
-        // FR-114: the issuance is recorded either way; a failed email adds its own entry, which is
-        // what marks the night's run Misslyckades instead of reporting a link nobody received.
-        var provider = NewProvider(out var email);
+        // A failed send used to keep the new link: the booking then held a "usable" link the guest
+        // never received, so the job skipped it from then on. Now the booking is left exactly as it
+        // was, the failure marks the run Misslyckades (FR-114), and the next run issues it again.
+        var (provider, email) = await NewIsolatedProviderAsync();
         email.Delivers = false;
         var today = DbFixture.TodayIn(provider);
         var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(29));
 
+        Assert.Equal(0, await RunAsync(provider, today)); // nothing reached the guest
+
+        var untouched = await ReloadAsync(provider, id);
+        Assert.Null(untouched.CompletionToken);
+        Assert.Null(untouched.CompletionTokenExpiry);
+        Assert.Null(untouched.CompletionLinkSentAt);
+        Assert.Equal(new[] { AuditAction.EmailSendFailed }, await ActionsFor(provider, id)); // no "utfärdades"
+
+        email.Delivers = true;
+        Assert.Equal(1, await RunAsync(provider, today.AddDays(1)));
+
+        var issued = await ReloadAsync(provider, id);
+        Assert.False(string.IsNullOrEmpty(issued.CompletionToken));
+        Assert.Single(email.Sent, e => e.Subject.Contains("fylla i era uppgifter"));
+        Assert.Single(await ActionsFor(provider, id), a => a == AuditAction.CompletionLinkIssued);
+    }
+
+    [Fact]
+    public async Task A_failed_send_puts_back_the_dead_early_link_it_was_replacing()
+    {
+        // "Exactly as it was" includes a link the admin sent early that has since died (FR-49):
+        // restoring it keeps the booking without a usable link, which is what makes it due again.
+        var (provider, email) = await NewIsolatedProviderAsync();
+        email.Delivers = false;
+        var today = DbFixture.TodayIn(provider);
+        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(29));
+        var expired = NowIn(provider).AddDays(-1);
+        var sentEarly = NowIn(provider).AddDays(-31);
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var b = await db.Bookings.SingleAsync(x => x.Id == id);
+            b.CompletionToken = "early-link-now-dead";
+            b.CompletionTokenExpiry = expired;
+            b.CompletionLinkSentAt = sentEarly;
+            await db.SaveChangesAsync();
+        }
+
         await RunAsync(provider, today);
 
+        var booking = await ReloadAsync(provider, id);
+        Assert.Equal("early-link-now-dead", booking.CompletionToken);
+        Assert.Equal(expired, booking.CompletionTokenExpiry);
+        Assert.Equal(sentEarly, booking.CompletionLinkSentAt);
+    }
+
+    private static async Task<List<AuditAction>> ActionsFor(IServiceProvider provider, Guid id)
+    {
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-        var actions = await db.AuditLogs.Where(a => a.BookingId == id).Select(a => a.Action).ToListAsync();
-        Assert.Contains(AuditAction.CompletionLinkIssued, actions);
-        Assert.Contains(AuditAction.EmailSendFailed, actions);
+        return await db.AuditLogs.Where(a => a.BookingId == id).Select(a => a.Action).ToListAsync();
     }
 }

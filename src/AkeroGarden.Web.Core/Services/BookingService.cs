@@ -1067,10 +1067,11 @@ public class BookingService(
     /// and the completion nudge (FR-63) all route through it, so a new field never has to be
     /// remembered in four places. Caller persists and sends the appropriate mail.
     ///
-    /// <para><c>CompletionLinkSentAt</c> is set here rather than after the mail is dispatched because
-    /// email failures are logged and swallowed by design (NFR-13) — there is no send confirmation to
-    /// wait for. It marks "a link was issued and mailed", which is what the nudge grace period and
-    /// the issuance job both need, and matches how the reminder flags already behave.</para>
+    /// <para><c>CompletionLinkSentAt</c> is set here, before the mail goes out, because the mail
+    /// carries the link issued here. Whether it reached the guest is the caller's to act on: the
+    /// nightly jobs put the previous link back with <see cref="CompletionLinkState"/> when the send
+    /// fails, so they retry the next night (FR-63/108); approval and the admin resend (FR-49) keep
+    /// it.</para>
     /// </summary>
     public void IssueCompletionLink(Booking booking, DateTime nowUtc)
     {
@@ -1265,6 +1266,28 @@ public class BookingService(
 /// <summary>Outcome of an approval: success plus, per FR-75, whether the completion link was
 /// shortened because check-in is 14 days away or sooner (so the admin can follow up directly).</summary>
 public record ApproveResult(bool Succeeded, string? Error, DateTime? TokenExpiry, bool ShortExpiryWarning);
+
+/// <summary>
+/// The fields <see cref="BookingService.IssueCompletionLink"/> overwrites, captured before a nightly
+/// job issues a link so it can put them back when the email carrying the new link fails.
+/// <para>Why: issuing invalidates the previous link. A job that issues, fails to send and keeps the
+/// new link leaves the guest with a dead old URL and a new one they never received — and, because the
+/// booking now holds a "usable" link sent "just now", neither job would pick it up again. Restored,
+/// the booking is exactly as it was, so the next night finds it due and retries.</para>
+/// </summary>
+public record CompletionLinkState(string? Token, DateTime? Expiry, DateTime? SentAt, DateTime UpdatedAt)
+{
+    public static CompletionLinkState Of(Booking booking) =>
+        new(booking.CompletionToken, booking.CompletionTokenExpiry, booking.CompletionLinkSentAt, booking.UpdatedAt);
+
+    public void RestoreTo(Booking booking)
+    {
+        booking.CompletionToken = Token;
+        booking.CompletionTokenExpiry = Expiry;
+        booking.CompletionLinkSentAt = SentAt;
+        booking.UpdatedAt = UpdatedAt;
+    }
+}
 
 /// <summary>One assigned lodging building and the rooms inside it, for the completion form's
 /// read-only "Ert boende" panel (FR-103/D4).</summary>

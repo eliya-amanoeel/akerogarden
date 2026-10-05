@@ -103,13 +103,13 @@ flowchart TD
 
     Q3 -->|"DetailsComplete / Active"| Q4{"Already reminded?"}
     Q4 -->|"yes"| J3
-    Q4 -->|"no"| A2["Pre-arrival reminder<br/>address + the booking's own times<br/>sets ReminderEmailSentAt"] --> J3
+    Q4 -->|"no"| A2["Pre-arrival reminder<br/>address + the booking's own times<br/>sets ReminderEmailSentAt — only if sent"] --> J3
 
     Q3 -->|"still Approved"| Q5{"Already nudged?"}
     Q5 -->|"yes"| J3
     Q5 -->|"no"| Q6{"Link sent more<br/>than 3 days ago?"}
     Q6 -->|"no — defer to a later run"| J3
-    Q6 -->|"yes (or never sent)"| A3["Reissue the link<br/>Guest: completion nudge<br/>Admin: guest has not completed<br/>sets CompletionNudgeSentAt"] --> J3
+    Q6 -->|"yes (or never sent)"| A3["Reissue the link<br/>Guest: completion nudge<br/>Admin: guest has not completed<br/>sets CompletionNudgeSentAt — only if the guest's email went out"] --> J3
 
     J3["**3. GDPR retention** (FR-66/69)"] --> Q7{"Past DeleteAfter?"}
     Q7 -->|"yes"| A4["Hard-delete the booking<br/>and everything hanging off it"]
@@ -121,6 +121,12 @@ flowchart TD
 **Two flags, never one.** The pre-arrival reminder and the completion nudge are guarded separately.
 A guest nudged at 14 days who then submits at 12 still receives the pre-arrival email at 10. While
 one flag guarded both, that guest received neither the address nor their stated times.
+
+**A failed email changes nothing, so the next night retries it** (NFR-13, FR-63/108). A flag is set
+only on a confirmed send. Issuance and the nudge replace the guest's link before sending; if the
+send fails they put the previous link back, so the guest keeps what they had and the booking is due
+again tomorrow. A failed nudge also holds the admin alert, which would name a link that no longer
+exists. Only the admin alert on its own is never retried — that would nudge the guest twice.
 
 **Why issuance runs first.** The two are normally 26 days apart. If issuance has been down and a
 link-less booking reaches 14 days, this order hands it the link first — the nudge then sees a link

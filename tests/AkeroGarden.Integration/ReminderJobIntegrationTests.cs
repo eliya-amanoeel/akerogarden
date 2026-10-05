@@ -23,26 +23,40 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
     {
         var fake = new FakeEmailService();
         email = fake;
-        return _fixture.BuildServices(s =>
+        return _fixture.BuildServices(s => Register(s, fake));
+    }
+
+    /// <summary>
+    /// Services on a database of their own, for the retry tests. Their subject is a whole run: a
+    /// failed send leaves its booking due on purpose, and the "next night" run then acts on every
+    /// due booking — on the shared database that includes other tests' bookings that have just
+    /// entered the window, so a count would depend on which tests xUnit ran first.
+    /// </summary>
+    private async Task<(IServiceProvider Provider, FakeEmailService Email)> NewIsolatedProviderAsync()
+    {
+        var fake = new FakeEmailService();
+        return (await _fixture.BuildIsolatedServicesAsync(s => Register(s, fake)), fake);
+    }
+
+    private static void Register(IServiceCollection s, FakeEmailService fake)
+    {
+        s.AddSingleton<IEmailService>(fake);
+        // Pinned: this file asserts distances — the 14-day nudge, the grace period before it,
+        // and how much life the replacement link has left. Every date below comes from this
+        // same clock, never from DateTime.UtcNow, so the seed and the job's `today` cannot
+        // disagree across a midnight.
+        DbFixture.PinClock(s, DbFixture.FixedNow);
+        s.AddScoped<BookingEmailService>();
+        s.AddScoped<BookingService>();
+        s.AddScoped<CleaningZoneService>();
+        s.AddScoped<ReminderJob>();
+        s.Configure<BookingEmailOptions>(o =>
         {
-            s.AddSingleton<IEmailService>(fake);
-            // Pinned: this file asserts distances — the 14-day nudge, the grace period before it,
-            // and how much life the replacement link has left. Every date below comes from this
-            // same clock, never from DateTime.UtcNow, so the seed and the job's `today` cannot
-            // disagree across a midnight.
-            DbFixture.PinClock(s, DbFixture.FixedNow);
-            s.AddScoped<BookingEmailService>();
-            s.AddScoped<BookingService>();
-            s.AddScoped<CleaningZoneService>();
-            s.AddScoped<ReminderJob>();
-            s.Configure<BookingEmailOptions>(o =>
-            {
-                o.PublicBaseUrl = "https://akerogarden.se";
-                o.AdminBaseUrl = "https://admin.akerogarden.se";
-                o.AdminNotificationEmail = "admin@test.se";
-                o.ContactEmail = "info@test.se";
-                o.PropertyAddress = "Åkerögården, Norrtälje";
-            });
+            o.PublicBaseUrl = "https://akerogarden.se";
+            o.AdminBaseUrl = "https://admin.akerogarden.se";
+            o.AdminNotificationEmail = "admin@test.se";
+            o.ContactEmail = "info@test.se";
+            o.PropertyAddress = "Åkerögården, Norrtälje";
         });
     }
 
@@ -285,33 +299,84 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task A_reminder_that_could_not_be_sent_is_recorded_as_a_failed_send()
+    public async Task A_reminder_that_fails_is_recorded_and_sent_the_next_night()
     {
-        // Sending never throws (NFR-13). Without this entry the failure left no trace in the data.
-        var provider = NewProvider(out var email);
+        // Sending never throws (NFR-13). The marker used to be stamped anyway, so one SMTP outage
+        // meant the guest never got the address or the times. Now only a confirmed send sets it.
+        var (provider, email) = await NewIsolatedProviderAsync();
         email.Delivers = false;
         var today = new DateOnly(2026, 7, 5);
         var id = await SeedAsync(provider, BookingStatus.DetailsComplete, checkIn: today.AddDays(12), withParticipant: true);
 
-        await RunAsync(provider, today);
+        Assert.Equal(0, (await RunAsync(provider, today)).StandardReminders);
 
         var entry = Assert.Single(await AuditFor(provider, id));
         Assert.Equal(AuditAction.EmailSendFailed, entry.Action);
+        Assert.Null((await ReloadAsync(provider, id)).ReminderEmailSentAt);
+
+        email.Delivers = true;
+        Assert.Equal(1, (await RunAsync(provider, today.AddDays(1))).StandardReminders);
+        Assert.NotNull((await ReloadAsync(provider, id)).ReminderEmailSentAt);
+        Assert.Single(email.Sent, e => e.Subject.Contains("Påminnelse inför"));
     }
 
     [Fact]
-    public async Task A_nudge_whose_emails_fail_records_one_failed_send_per_email()
+    public async Task A_nudge_that_fails_keeps_the_guests_link_and_is_sent_the_next_night()
     {
-        var provider = NewProvider(out var email);
-        email.Delivers = false;
+        // The nudge reissues the link before sending, which invalidates the guest's current one. When
+        // the send failed, the guest used to hold a dead link and the new one never arrived. Now the
+        // old link is put back, the admin alert is held (it would state an expiry that no longer
+        // exists), and both go out on the retry — with the restored send time, the 3-day grace does
+        // not block it. Only the guest's address fails, to prove the alert is held, not just lost.
+        var (provider, email) = await NewIsolatedProviderAsync();
+        email.FailsFor = address => address != "admin@test.se";
+        var today = new DateOnly(2026, 7, 5);
+        var linkSentAt = NowIn(provider).AddDays(-10);
+        var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: today.AddDays(9),
+            withToken: true, linkSentAt: linkSentAt);
+        var before = await ReloadAsync(provider, id);
+
+        Assert.Equal(0, (await RunAsync(provider, today)).Nudges);
+
+        var after = await ReloadAsync(provider, id);
+        Assert.Equal("old-token", after.CompletionToken);
+        Assert.Equal(before.CompletionTokenExpiry, after.CompletionTokenExpiry);
+        Assert.Equal(linkSentAt, after.CompletionLinkSentAt);
+        Assert.Null(after.CompletionNudgeSentAt);
+        Assert.Empty(email.Sent); // no admin alert either
+        var entry = Assert.Single(await AuditFor(provider, id)); // no "utfärdades"
+        Assert.Equal(AuditAction.EmailSendFailed, entry.Action);
+
+        email.FailsFor = null;
+        Assert.Equal(1, (await RunAsync(provider, today.AddDays(1))).Nudges);
+
+        var retried = await ReloadAsync(provider, id);
+        Assert.NotEqual("old-token", retried.CompletionToken);
+        Assert.NotNull(retried.CompletionNudgeSentAt);
+        Assert.Single(email.Sent, e => e.ToAddress != "admin@test.se" && e.Subject.Contains("slutför dina"));
+        Assert.Single(email.Sent, e => e.ToAddress == "admin@test.se" && e.Subject.Contains("inte slutfört"));
+    }
+
+    [Fact]
+    public async Task A_nudge_whose_admin_alert_fails_is_not_sent_to_the_guest_twice()
+    {
+        // The guest's nudge went out, so the nudge is done. A retry for the alert alone would send the
+        // guest a second nudge — so the failure is only recorded, and shows red in the job history.
+        var (provider, email) = await NewIsolatedProviderAsync();
+        email.FailsFor = address => address == "admin@test.se";
         var today = new DateOnly(2026, 7, 5);
         var id = await SeedAsync(provider, BookingStatus.Approved, checkIn: today.AddDays(9),
             withToken: true, linkSentAt: NowIn(provider).AddDays(-10));
 
-        await RunAsync(provider, today);
-
+        Assert.Equal(1, (await RunAsync(provider, today)).Nudges);
+        Assert.NotNull((await ReloadAsync(provider, id)).CompletionNudgeSentAt);
         var entries = await AuditFor(provider, id);
         Assert.Single(entries, e => e.Action == AuditAction.CompletionLinkIssued);
-        Assert.Equal(2, entries.Count(e => e.Action == AuditAction.EmailSendFailed)); // guest + admin
+        Assert.Single(entries, e => e.Action == AuditAction.EmailSendFailed);
+
+        email.FailsFor = null;
+        Assert.Equal(0, (await RunAsync(provider, today.AddDays(1))).Nudges);
+        Assert.Single(email.Sent, e => e.ToAddress != "admin@test.se"); // the guest got exactly one
+        Assert.DoesNotContain(email.Sent, e => e.ToAddress == "admin@test.se");
     }
 }

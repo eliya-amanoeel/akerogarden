@@ -22,6 +22,11 @@ namespace AkeroGarden.Web.Core.Services;
 /// and the second found it already set, so that guest never got the address or the times at all —
 /// every booking approved inside the 14-day window lost it. Do not merge the flags back.</para>
 ///
+/// <para><b>A failed send changes nothing, so the next night retries.</b> A flag is set only on a
+/// confirmed send, and a nudge whose email fails puts the guest's previous link back. Retries stop
+/// on their own when check-in leaves the window; there is no counter because one attempt a night is
+/// already the limit.</para>
+///
 /// <para>"Today" is evaluated in Europe/Stockholm.</para>
 /// </summary>
 public class ReminderJob(
@@ -68,37 +73,53 @@ public class ReminderJob(
                     nameof(Booking), booking.Id,
                     sent ? "Påminnelse inför ankomst skickad." : "Påminnelsen inför ankomst kunde inte skickas.",
                     booking.Id, booking.BookingReference, AuditActor.System);
-                booking.ReminderEmailSentAt = now;
-                standard++;
+                // The marker only on a confirmed send — the same rule as RetentionJob's warning
+                // (finding #11). Stamped regardless, one SMTP outage meant the guest never got the
+                // reminder at all; left null, the next night retries while check-in is in the window.
+                if (sent)
+                {
+                    booking.ReminderEmailSentAt = now;
+                    standard++;
+                }
             }
 
             if (ReminderSchedule.IsCompletionNudgeDue(
                     booking.Status, booking.CheckIn, booking.CompletionNudgeSentAt,
                     booking.CompletionLinkSentAt, today, now))
             {
-                // Reissue first so the nudge never carries an already-expired link (I13). This also
-                // sets CompletionLinkSentAt — harmless here, since the nudge is guarded by its own
-                // flag and will not re-evaluate its own grace period.
+                // Reissue first so the nudge never carries an already-expired link (I13). Reissuing
+                // invalidates the guest's current link, so it is captured first and put back if the
+                // nudge does not go out: the guest keeps the link they have, and with the old
+                // CompletionLinkSentAt restored the grace period does not block tomorrow's retry.
+                var previousLink = CompletionLinkState.Of(booking);
                 bookings.IssueCompletionLink(booking, now);
-                // System actor (FR-63/95): the automated nudge issued the link — no admin involved.
-                await audit.RecordAsync(AuditAction.CompletionLinkIssued, nameof(Booking), booking.Id,
-                    "Slutförandelänk utfärdades automatiskt av 14-dagarspåminnelsen.",
-                    booking.Id, booking.BookingReference, AuditActor.System);
-                // The nudge itself is the CompletionLinkIssued entry above; only failures add a line.
                 if (!await emails.SendCompletionNudgeAsync(booking))
                 {
+                    previousLink.RestoreTo(booking);
+                    // No "utfärdades" entry — the link was taken back — and no admin alert: it would
+                    // state a new link expiry that no longer exists. Both follow on the retry.
                     await audit.RecordAsync(AuditAction.EmailSendFailed, nameof(Booking), booking.Id,
                         "Påminnelsen om att fylla i uppgifterna kunde inte skickas till gästen.",
                         booking.Id, booking.BookingReference, AuditActor.System);
+                    continue;
                 }
+
+                // System actor (FR-63/95): the automated nudge issued the link — no admin involved.
+                // The nudge itself is this entry; only failures add a line.
+                await audit.RecordAsync(AuditAction.CompletionLinkIssued, nameof(Booking), booking.Id,
+                    "Slutförandelänk utfärdades automatiskt av 14-dagarspåminnelsen.",
+                    booking.Id, booking.BookingReference, AuditActor.System);
+                booking.CompletionNudgeSentAt = now;
+                nudged++;
+
+                // Not retried if it fails: the nudge is already marked sent, so a retry would also
+                // send the guest a second nudge. The failure shows red in the job history (FR-114).
                 if (!await emails.SendAdminGuestNotCompletedAsync(booking))
                 {
                     await audit.RecordAsync(AuditAction.EmailSendFailed, nameof(Booking), booking.Id,
                         "Meddelandet till administratören om att gästen inte fyllt i kunde inte skickas.",
                         booking.Id, booking.BookingReference, AuditActor.System);
                 }
-                booking.CompletionNudgeSentAt = now;
-                nudged++;
             }
         }
 
@@ -107,5 +128,6 @@ public class ReminderJob(
     }
 }
 
-/// <summary>Outcome of one <see cref="ReminderJob"/> run — pre-arrival-reminder and nudge counts.</summary>
+/// <summary>Outcome of one <see cref="ReminderJob"/> run — pre-arrival reminders and nudges that
+/// actually went out; a failed send is not counted (it is retried the next night).</summary>
 public record ReminderRunSummary(int StandardReminders, int Nudges);

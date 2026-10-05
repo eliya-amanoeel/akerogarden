@@ -23,11 +23,18 @@ public sealed class FakeEmailService : IEmailService
     /// </summary>
     public bool Delivers { get; set; } = true;
 
+    /// <summary>
+    /// When set, a send to an address it returns true for fails the same way as
+    /// <see cref="Delivers"/> = false. For a test where one recipient's mail goes out and another's
+    /// does not — the completion nudge's guest email versus its admin alert.
+    /// </summary>
+    public Func<string, bool>? FailsFor { get; set; }
+
     public Task<bool> SendAsync(
         string toAddress, string toName, string subject, string htmlBody,
         string? replyToAddress = null, string? replyToName = null)
     {
-        if (!Delivers)
+        if (!Delivers || FailsFor?.Invoke(toAddress) == true)
             return Task.FromResult(false);
 
         Sent.Add(new SentEmail(toAddress, toName, subject, htmlBody, replyToAddress, replyToName));

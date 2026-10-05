@@ -14,7 +14,7 @@ hardening and handover) closed 2026-09-09. What remains is operational, not engi
 |---|---|
 | **Public site** | `akerogarden.se` — Blazor Static SSR |
 | **Admin panel** | `admin.akerogarden.se` — Blazor Interactive Server, login-gated |
-| **Staging** | `staging.akerogarden.se` + `admin.staging.akerogarden.se` |
+| **Staging** | `staging.akerogarden.se` + `admin.staging.akerogarden.se` — **locked to everyone by default**; open it per visit ([`infra/ops/staging-access-runbook.md`](infra/ops/staging-access-runbook.md)) |
 | **Source of truth** | [`docs/product/requirements.md`](docs/product/requirements.md) |
 
 ## Tech stack
@@ -70,11 +70,13 @@ dotnet restore
 | Azurite | 10000–10002 | Blob storage emulator |
 | Mailpit | 1025 (SMTP) / **8025 (web UI)** | catches all outbound mail — open the UI to read it |
 
-Configuration comes from `dotnet user-secrets`, not `.env` files or `appsettings.json` — **no secrets are
-ever committed**. Set the connection string per project, e.g.:
+Local connection strings (Postgres, Redis, Azurite) are already in each project's
+`appsettings.Development.json` and match `docker-compose.yml`, so a fresh clone runs with no setup —
+they are dev-only credentials for local containers. **Anything real goes in `dotnet user-secrets`**
+locally and Key Vault in Azure; no secret is ever committed. The dev switches live there too, e.g.:
 
 ```bash
-dotnet user-secrets set "ConnectionStrings:Postgres" "..." --project src/AkeroGarden.Web.Admin
+dotnet user-secrets set "Jobs:RunOnStartup" "true" --project src/AkeroGarden.Web.Admin
 ```
 
 Run either surface:
@@ -100,9 +102,16 @@ DemoSeed__Reset=true Jobs__RunOnStartup=true dotnet run --project src/AkeroGarde
 `Jobs:RunOnStartup` runs the jobs once immediately, then hands back to the normal schedule. It is off
 by default and must never be set in production. `DemoSeed:Reset` wipes app data (the admin user
 survives) and reseeds — including one `DetailsComplete` booking with check-in exactly 14 days out and
-deliberately non-standard times, which is the booking the reminder actually picks up.
+deliberately non-standard times (*Ingrid Påminnelse*, picked up by the reminder) and one `Approved`
+booking exactly 40 days out with no link (*Elsa Wikander*, picked up by link issuance). There is no
+seeded nudge case: move an approved booking's check-in inside 14 days by hand.
 
 Mail lands in Mailpit at <http://localhost:8025>.
+
+To see what a **mail-server outage** does, `docker compose stop mailpit` before starting the app: every
+send then genuinely fails. The jobs record it (red in *Jobbhistorik*) and leave the booking untouched,
+so `docker compose start mailpit` and another start with `Jobs:RunOnStartup` is "the next night" —
+everything that failed goes out then (NFR-13, FR-63/108).
 
 ## Tests
 
@@ -114,12 +123,14 @@ dotnet test                                        # everything
 dotnet test tests/AkeroGarden.Unit                 # one tier
 ```
 
-E2E needs Playwright browsers installed once (`pwsh tests/AkeroGarden.E2E/bin/.../playwright.ps1 install`
-after a first build). There is deliberately **no pixel/visual-regression diffing** — it is flaky across
+E2E needs Playwright browsers installed once, after a first build:
+`pwsh tests/AkeroGarden.E2E/bin/Debug/net10.0/playwright.ps1 install`. There is deliberately **no pixel/visual-regression diffing** — it is flaky across
 macOS↔CI-Linux font rendering, so the suite asserts behaviour and structure instead.
 
 A test must honestly verify what it claims. Never route a test around a known bug to get it green — fix
-the bug, or assert the current wrong behaviour so it stays visible. See `.claude/CLAUDE.md` for the full
+the bug, or assert the current wrong behaviour so it stays visible. **The clock is an input:** anything
+that compares against "now" takes it from an injected `TimeProvider` or a `today` parameter, and a test
+whose subject is a distance (40 days, 14 days, an expiry) pins it. See `.claude/CLAUDE.md` for the full
 test-integrity rule.
 
 ## Infrastructure and deployment
@@ -143,6 +154,9 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 - **No monetary totals stored, and no payment state at all** — prices are reference data. Invoicing happens entirely outside the system, so there is nothing here to track it with (FR-42 retired 2026-08).
 - **No hard-deletes of referenced reference data** — deactivate instead.
 - **The booking state machine is one-way** — invalid transitions are blocked in code, not just hidden in the UI.
+- **Every date and time is Swedish time** (NFR-40). The servers run UTC; stored instants stay UTC, and every conversion to a Swedish date or clock time goes through `StockholmTime`. A guard test (`NoAmbientTimeTests`) fails the build on `DateTime.Now`, `ToLocalTime()` or `DateOnly.FromDateTime` anywhere else.
+- **Sending email never throws** (NFR-13) — it returns `false`. Anything that records "we sent it" must check that result; the nightly jobs mark an email sent only on a confirmed send and otherwise leave the booking unchanged, so the next night retries.
+- **Every schema change is an incremental migration.** The pre-launch baseline was regenerated twice and that exception is spent: the history is never rewritten now that real guest data exists.
 - **Code style is enforced at build time** — `.editorconfig` + `Directory.Build.props`; formatting
   violations fail the build.
 
@@ -151,10 +165,13 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | Document | What it is |
 |---|---|
 | [`docs/product/requirements.md`](docs/product/requirements.md) | The SRS — single source of truth. Unversioned living document |
-| [`docs/product/erd.md`](docs/product/erd.md) | Entity-relationship diagram (15 entities) |
+| [`docs/product/erd.md`](docs/product/erd.md) | Entity-relationship diagram (16 entities) |
+| [`docs/product/booking-lifecycle-timeline.md`](docs/product/booking-lifecycle-timeline.md) | Status transitions and their emails, what the nightly run decides, and dated link-issuance scenarios |
 | [`docs/product/architecture.md`](docs/product/architecture.md) | App-level architecture — surfaces, hosting, external services |
 | [`docs/archive/implementation-plan.md`](docs/archive/implementation-plan.md) | Closed history: what was built, in what order, satisfying which requirements. **All phases 0–11 are done** and each is one table row. Not a source of truth — the SRS is |
 | [`docs/ux/design.md`](docs/ux/design.md) | Design system — tokens, type scale, components |
+| [`docs/legal/known-conflicts-at-launch.md`](docs/legal/known-conflicts-at-launch.md) | What was knowingly carried across the launch line in the legal texts. **Read before touching anything legal** |
+| [`docs/handover/admin-manual.html`](docs/handover/admin-manual.html) | The admin manual (Swedish) — source of truth for the PDF handed to the client |
 | [`infra/ops/`](infra/ops/) | Operational runbooks |
 
 If this README and the SRS ever disagree, **the SRS wins** — raise the conflict rather than silently

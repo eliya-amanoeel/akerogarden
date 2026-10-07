@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<title>Åkerögården — Frågor om betalning och villkor</title>
+<style>
+  @page { size: A4; margin: 18mm 18mm 16mm; }
+
+  :root{
+    --green:#3f6a0f;
+    --green-fill:#71b002;
+    --ink:#1e1c1a;
+    --text:#4a4845;
+    --muted:#646159;
+    --line:rgba(30,28,26,.14);
+    --warm:#f0ebe1;
+    --bg:#faf8f4;
+  }
+
+  *{box-sizing:border-box;}
+  html{font-size:11pt;}
+  body{
+    margin:0;
+    font-family:"Helvetica Neue",Helvetica,Arial,sans-serif;
+    color:var(--text); line-height:1.5; background:#fff;
+  }
+
+  .kicker{
+    font-size:7.5pt; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--green); font-weight:700; margin:0 0 5mm;
+  }
+  h1{
+    font-family:Georgia,"Times New Roman",serif;
+    font-weight:400; font-size:26pt; line-height:1.1;
+    color:var(--ink); margin:0 0 2.5mm;
+  }
+  .subtitle{ font-size:9.5pt; color:var(--muted); margin:0 0 4mm; }
+  .rule{ height:2.5pt; background:var(--green-fill); border:0; margin:0 0 7mm; }
+
+  .intro{
+    background:var(--warm); border-left:3pt solid var(--green);
+    padding:5mm 6mm; margin:0 0 7mm; font-size:9.5pt;
+  }
+  .intro p{ margin:0 0 3mm; }
+  .intro p:last-child{ margin-bottom:0; }
+  .intro b{ color:var(--ink); }
+
+  /* ---------- the new flow, in four steps ---------- */
+  .flow{
+    border:1pt solid var(--line); background:var(--bg);
+    padding:4mm 5mm; margin:0 0 9mm; font-size:9.5pt;
+    break-inside:avoid; page-break-inside:avoid;
+  }
+  .flow h3{
+    font-family:Georgia,"Times New Roman",serif;
+    font-size:11.5pt; color:var(--ink); margin:0 0 2.5mm;
+  }
+  .flow ol{ margin:0; padding-left:5mm; }
+  .flow li{ margin:0 0 1.2mm; color:var(--ink); }
+
+  /* ---------- part heading ---------- */
+  .part{
+    font-size:7.5pt; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--green); font-weight:700;
+    border-bottom:1pt solid var(--line);
+    padding:0 0 1.5mm; margin:10mm 0 5mm;
+    break-after:avoid; page-break-after:avoid;
+  }
+
+  /* ---------- one question ---------- */
+  .q{ margin:0 0 8mm; break-inside:avoid; page-break-inside:avoid; }
+  .q h2{
+    font-family:Georgia,"Times New Roman",serif;
+    font-size:13pt; font-weight:700; color:var(--ink);
+    margin:0 0 2.5mm; line-height:1.25;
+  }
+  .q h2 .num{ color:var(--green); margin-right:2mm; }
+  .lead{ font-size:10pt; color:var(--text); margin:0 0 3.5mm; }
+
+  /* ---------- tick options ---------- */
+  .opts{ margin:0 0 3.5mm; }
+  .opt{
+    font-size:10pt; color:var(--ink);
+    padding:1.6mm 0 1.6mm 8mm; position:relative;
+  }
+  .opt::before{
+    content:""; position:absolute; left:0; top:1.9mm;
+    width:3.8mm; height:3.8mm;
+    border:1pt solid var(--ink); background:#fff;
+  }
+  .fill{
+    display:inline-block; min-width:38mm;
+    border-bottom:1pt solid var(--line);
+  }
+  .fill--sm{ min-width:16mm; }
+  .fill--lg{ min-width:70mm; }
+  .line{ font-size:10pt; color:var(--ink); margin:0 0 3.5mm; }
+
+  /* ---------- background note ---------- */
+  .note{
+    font-size:8.5pt; color:var(--muted);
+    border-left:2pt solid var(--line);
+    padding:0 0 0 3.5mm; margin:0;
+  }
+  .note b{ color:var(--text); }
+
+  /* ---------- free-text box ---------- */
+  .answer{
+    border:1pt solid var(--line); border-left:3pt solid var(--green);
+    background:var(--bg); min-height:14mm; padding:2.5mm 3.5mm; margin:0 0 3.5mm;
+  }
+  .answer span{
+    font-size:7.5pt; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--muted); font-weight:700;
+  }
+
+  .scale{
+    font-size:9pt; margin:0 0 3.5mm; padding:3mm 4mm;
+    background:var(--bg); border:1pt solid var(--line);
+  }
+  .scale div{ margin:0 0 1mm; }
+  .scale div:last-child{ margin:0; }
+  .scale .gap{ color:#8f2915; font-weight:700; }
+
+  /* ---------- needs no answer ---------- */
+  .noanswer{
+    border:1pt solid var(--line); padding:4mm 5mm; margin:10mm 0 8mm;
+    font-size:9.5pt; break-inside:avoid; page-break-inside:avoid;
+  }
+  .noanswer h3{
+    font-family:Georgia,"Times New Roman",serif;
+    font-size:11.5pt; color:var(--ink); margin:0 0 2.5mm;
+  }
+  .noanswer ul{ margin:0; padding-left:5mm; }
+  .noanswer li{ margin:0 0 1.5mm; }
+
+  footer{
+    margin-top:8mm; padding-top:3.5mm;
+    border-top:1pt solid var(--line);
+    font-size:8pt; color:var(--muted);
+  }
+</style>
+</head>
+<body>
+
+<p class="kicker">Åkerögården · Underlag</p>
+<h1>Frågor om betalning och villkor</h1>
+<p class="subtitle">Om hur ni vill att saker ska fungera på gården · 7 oktober 2026</p>
+<hr class="rule">
+
+<div class="intro">
+  <p><b>Det här ersätter frågorna från 23 augusti.</b> Ni behöver inte svara på dem — allt som fortfarande behövs finns här.</p>
+  <p><b>Varför vi frågar.</b> Ni vill att en bokning blir bekräftad först när handpenningen har kommit in. För att bygga det, och för att mejlen till gästerna ska säga samma sak som villkoren biskopen skickade, behöver vi några besked som bara ni kan ge.</p>
+  <p><b>Så svarar ni.</b> Sex frågor, de flesta med ett kryss. Det tar ungefär fem minuter. Vet ni inte? Skriv <i>vet inte</i> och gå vidare — ett tomt svar är bättre än ett felaktigt.</p>
+</div>
+
+<div class="flow">
+  <h3>Så här blir det</h3>
+  <ol>
+    <li>En grupp skickar en förfrågan via webbplatsen.</li>
+    <li>Ni säger ja, och väljer för varje bokning om gruppen ska betala handpenning först. Ska de betala först, reserveras datumen för gruppen och de får ett mejl om hur de betalar.</li>
+    <li>När pengarna har kommit markerar ni det i bokningssystemet, och gruppen får sin bokningsbekräftelse. Gruppen väntar tills någon av er har markerat betalningen — se därför efter regelbundet om pengar har kommit in.</li>
+    <li>Gruppen fyller i deltagare och mat precis som i dag.</li>
+  </ol>
+  <p class="note">Kommer pengarna inte i tid får gruppen en påminnelse. Kommer de inte heller då, bestämmer ni själva om bokningen ska avbokas.</p>
+</div>
+
+<!-- ======================================================= -->
+<p class="part">Del 1 · Handpenningen</p>
+
+<div class="q">
+  <h2><span class="num">1.</span>Hur får gruppen veta hur mycket de ska betala?</h2>
+  <p class="lead">Bokningssystemet vet inte vad en bokning kostar — priset bestämmer ni. Mejlet från systemet säger därför att beloppet kommer från er.</p>
+  <div class="opts">
+    <div class="opt">Vi skickar en faktura på handpenningen</div>
+    <div class="opt">Vi skriver beloppet i ett eget mejl till gruppen</div>
+    <div class="opt">Annat: <span class="fill"></span></div>
+  </div>
+</div>
+
+<div class="q">
+  <h2><span class="num">2.</span>Vart ska gruppen skicka pengarna?</h2>
+  <p class="lead">Kryssa i allt som ska gå att använda och skriv numret.</p>
+  <div class="opts">
+    <div class="opt">Bankgiro: <span class="fill"></span></div>
+    <div class="opt">Swish: <span class="fill"></span></div>
+    <div class="opt">Bankkonto — clearingnummer: <span class="fill fill--sm"></span> kontonummer: <span class="fill"></span></div>
+    <div class="opt">Vårt bankgiro tar bara emot OCR-nummer</div>
+  </div>
+  <p class="note">Uppgifterna står i mejlet till gruppen. Gruppen skriver bokningens referensnummer (till exempel AG-2026-0042) som meddelande, så att ni ser vem som har betalat.</p>
+</div>
+
+<div class="q">
+  <h2><span class="num">3.</span>Hur lång tid har gruppen på sig att betala handpenningen?</h2>
+  <div class="opts">
+    <div class="opt">5 dagar</div>
+    <div class="opt">7 dagar</div>
+    <div class="opt">14 dagar</div>
+    <div class="opt">Annat: <span class="fill"></span></div>
+  </div>
+  <p class="note">Under tiden är datumen reserverade för gruppen — ingen annan kan boka dem. Är det kort tid kvar till ankomsten blir tiden kortare, så att den aldrig går ut efter att gruppen har kommit. Skickar ni faktura, välj samma antal dagar som förfallodagen på fakturan.</p>
+</div>
+
+<!-- ======================================================= -->
+<p class="part">Del 2 · Avbokning</p>
+
+<div class="q">
+  <h2><span class="num">4.</span>En grupp avbokar sex veckor innan de skulle komma. Vad ska de betala?</h2>
+  <div class="scale">
+    <div>Avbokar de tidigare än <b>8 veckor</b> innan — ingenting.</div>
+    <div class="gap">Sex veckor innan — står inte i villkoren.</div>
+    <div>Avbokar de <b>4 till 2 veckor</b> innan — 75 % av summan.</div>
+    <div>Avbokar de senare än <b>2 veckor</b> innan — 100 % av summan.</div>
+  </div>
+  <div class="opts">
+    <div class="opt">Ingenting</div>
+    <div class="opt">50 % av summan</div>
+    <div class="opt">75 % av summan</div>
+    <div class="opt">Annat: <span class="fill"></span></div>
+  </div>
+  <p class="note">Villkoren som biskopen skickade (punkt 7) säger vad som gäller tidigare än 8 veckor innan, och vad som gäller från 4 veckor och närmare. Tiden däremellan står det inget om — avbokar en grupp just då har ni ingen regel att hänvisa till.</p>
+</div>
+
+<!-- ======================================================= -->
+<p class="part">Del 3 · Under vistelsen</p>
+
+<div class="q">
+  <h2><span class="num">5.</span>Får grupper använda köket och de gemensamma rummen fritt?</h2>
+  <p class="lead">Kryssa i det som stämmer för de utrymmen alla delar.</p>
+  <div class="opts">
+    <div class="opt">Köket får användas på natten</div>
+    <div class="opt">Gruppen ska själv städa efter sig i köket</div>
+    <div class="opt">De gemensamma rummen är öppna hela natten</div>
+    <div class="opt">De gemensamma rummen stänger kl. <span class="fill fill--sm"></span> på kvällen</div>
+  </div>
+  <p class="note">I villkoren som biskopen skickade står det om städning i allmänhet (punkt 12) och om tystnad efter kl. 23.00 (punkt 15), men ingenting om köket eller om när de gemensamma rummen stänger.</p>
+</div>
+
+<div class="q">
+  <h2><span class="num">6.</span>Ni hittar en skada efter att gruppen rest hem. Hur länge har ni på er att säga till?</h2>
+  <div class="opts">
+    <div class="opt">7 dagar efter avresan</div>
+    <div class="opt">14 dagar efter avresan</div>
+    <div class="opt">30 dagar efter avresan</div>
+    <div class="opt">Ingen gräns</div>
+    <div class="opt">Annat: <span class="fill"></span></div>
+  </div>
+  <p class="note">I villkoren som biskopen skickade (punkt 19) står det att gästen ska säga till så snart en skada upptäcks. Åt andra hållet står ingenting. Utan en gräns blir en räkning som kommer långt efteråt svår att driva in, särskilt mot en privatperson.</p>
+</div>
+
+<div class="q">
+  <h2>Något annat vi bör veta?</h2>
+  <div class="answer"><span>Övrigt</span></div>
+</div>
+
+<div class="noanswer">
+  <h3>Bra att veta — inget svar behövs</h3>
+  <ul>
+    <li><b>”Rekommenderas” blir ”gäller”.</b> I villkoren (punkt 7) står ordet ”rekommenderas” framför avbokningsreglerna. En regel som bara rekommenderas är inte bindande — en gäst kan hävda att den inte gäller för dem. Vi ändrar ordet till ”gäller”. Säg till om ni inte vill det.</li>
+    <li><b>Mejlen hänvisar till villkoren.</b> När en grupp avbokar säger mejlet från systemet att en eventuell avgift följer de villkor som gällde när bokningen bekräftades, och att ni återkommer med besked. Då kan mejlet aldrig säga något annat än villkoren (punkt 32).</li>
+    <li><b>Mejlen anger inget datum för resten av betalningen.</b> I dag står det att resten faktureras före ankomst. Framöver står bara att resten faktureras — när den ska vara betald anger ni på fakturan.</li>
+    <li><b>Bokningar som redan är godkända</b> påverkas inte. De fortsätter som i dag.</li>
+    <li><b>En förteckning över personuppgifter.</b> Gården tar emot uppgifter om allergier, och de räknas som hälsouppgifter. Då kräver dataskyddslagen (GDPR) att ni har en skriftlig förteckning över hur ni hanterar personuppgifter. Den behöver inte vara lång.</li>
+  </ul>
+</div>
+
+<footer>
+  Åkerögården drivs av Kaldeiska katolska Mar Narsay Missionen i Södertälje, org.nr 815601-0129 · Åkerövägen 81, 761 94 Norrtälje
+</footer>
+
+</body>
+</html>

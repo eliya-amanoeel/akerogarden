@@ -493,10 +493,12 @@ $RECYCLE.BIN/
 #intentionally non-tracked files by me.
 /docs/temp/findings.md
 
-# Client questionnaire, generated for sending — not tracked.
-# The source of truth is docs/legal/klientfragor-juridiska-underlag.md, which IS tracked.
-# Dated globs so a regenerated copy is covered too.
+# Client questionnaires. The PDFs are generated from the HTML for sending and are never tracked.
+# The HTML of a form the client is answering IS tracked — it is the only record of the questions
+# their answers refer to. The 2026-08-23 form stays untracked: it is superseded by 2026-10-07 and
+# kept locally only until that one comes back.
 /docs/legal/klientfragor-*.html
+!/docs/legal/klientfragor-2026-10-07.html
 /docs/legal/Akerogarden-klientfragor-*.pdf
 
 # Handover manual, generated for sending — not tracked.

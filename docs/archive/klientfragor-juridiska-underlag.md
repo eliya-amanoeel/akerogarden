@@ -1,5 +1,14 @@
 # Frågor till Åkerögården inför juristgranskningen
 
+> **Archived 2026-10-07.** The first, prose version of the client questions (mid-August 2026), written
+> for a jurist review that never took place. The client found it too hard to answer; it was replaced
+> by the plain-language form of 2026-08-23, and that in turn by `docs/legal/klientfragor-2026-10-07.html`.
+> Everything below is answered, decided or superseded — including the "Punkter som går direkt till
+> juristen" list, decided by the maintainer on 2026-10-07. **Outcomes are recorded in
+> `docs/legal/known-conflicts-at-launch.md`, not here.** The body is left as written.
+
+---
+
 > **Syfte:** de två juridiska dokumenten — `Integritetspolicy.md` och `Boknings-och-ordningsvillkor.md` — är färdigskrivna i övrigt, men innehåller platser markerade `[ATT BEKRÄFTA]` där texten kräver ett besked som bara ni kan ge. Det handlar om hur ni faktiskt vill att verksamheten ska fungera, inte om formuleringar. Ingenting av detta kan besvaras av juristen eller av utvecklingsteamet åt er.
 >
 > **Varför det brådskar:** juristgranskningen är sista steget före lansering. Skickas dokumenten till juristen med luckor kvar granskas en ofullständig text, och det blir en andra granskningsrunda — dubbel kostnad och dubbel väntetid. Fyll därför i så mycket som möjligt först.

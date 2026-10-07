@@ -9,6 +9,30 @@
 > eight questions were **sent** to the client (confirmed 2026-09-10); the answers are still
 > outstanding, so everything in §2–§6 stands, and §3 still waits on question 6. The body is left as
 > written — this is a point-in-time record of what was knowingly carried across the launch line.
+>
+> **Status note, 2026-10-07 — the open items below were decided; the code changes are not yet built.**
+> The client asked for bookings to be confirmed only once the 20 % deposit has arrived. Working that
+> through settled most of this file, so the August form was replaced by
+> `docs/legal/klientfragor-2026-10-07.html` (six questions; question numbers in the body below still
+> refer to the August form). Decided by the maintainer:
+>
+> - **§3 — resolved by design, no longer waits on question 6.** The approval and cancellation emails
+>   stop restating a cancellation rule. A guest cancellation says any fee follows the terms in force
+>   when the booking was confirmed, and that Åkerögården will come back with the amount — the client's
+>   own §32. This reverses the 2026-09-07 decision to keep the emails unchanged, which was a holding
+>   position until question 6 was answered.
+> - **§4 — both defects handled.** The 8-to-4-week gap is asked again in the new form;
+>   "rekommenderas" becomes "gäller" in §7, changed without waiting for the form.
+> - **§5 — fixed on our side.** `/mat-och-priser` will show prices including VAT; not raised with the
+>   client.
+> - **§6 — closed.** The client's §10 puts arrival and departure times in the confirmation, and the
+>   approval email already states the booking's own times; 14:00/12:00 are editable defaults.
+> - **The points routed to the jurist** (archived `docs/archive/klientfragor-juridiska-underlag.md`):
+>   allergy data stays on explicit consent (art. 9.2 a), as built. Retention periods stand — the
+>   booking system stores no amounts, invoices or receipts, so the bookkeeping act's seven years does
+>   not reach it. Cookie and role descriptions were verified against the code. The client is told in
+>   the new form that a record of processing (art. 30) is required, since allergy data removes the
+>   small-organisation exemption.
 
 This file exists so that nobody later finds these conflicts and assumes they were missed.
 They were found, written down, and knowingly carried. It is a record, not a to-do list.
@@ -28,7 +52,7 @@ The consequence is that no external reviewer will catch the items below. They sh
 
 On 2026-08-23 the client returned a complete, independently written *Boknings- och
 vistelsevillkor* (33 sections, kept at `docs/legal/klientsvar.md`) instead of filling in the
-eight questions we sent (`docs/legal/klientfragor-juridiska-underlag.md`, and the plain-language
+eight questions we sent (`docs/archive/klientfragor-juridiska-underlag.md`, and the plain-language
 rewrite that followed it).
 
 The returned document is more thorough than our draft and is the client's own text, so it is

@@ -29,7 +29,7 @@ Documents that were deliberately **not** archived, and why:
 | `docs/review/post-launch-security-review.md` | Still the tracker for two parked findings with explicit re-open triggers — #16 "re-open if it rises or reaches a user", #13 "close it opportunistically" |
 | `docs/review/demo-feedback-2026-08-05.md` | Authoritative on its scope, and the record of *why* several requirements are worded as they are. Consulted, not merely remembered |
 | `docs/legal/known-conflicts-at-launch.md` | The current authority on what was knowingly carried across the launch line |
-| `docs/legal/klientfragor-2026-08-23.html` | Eight questions still unanswered — this is a document still to be sent |
+| `docs/legal/klientfragor-2026-10-07.html` | The client questions behind the deposit work — answered 2026-10-08, but two of its points are still open (SRS §12) and the answers are not yet built in. *(This row named the 2026-08-23 form until 2026-10-08; that form was sent, superseded and is untracked.)* |
 
 ---
 
@@ -40,6 +40,7 @@ Documents that were deliberately **not** archived, and why:
 | [`implementation-plan.md`](implementation-plan.md) | The phased build plan, phases 0–11. Every phase is closed (Phase 11 on 2026-09-09) and each is one summary table row. Its header explains why it was collapsed rather than deleted. Carries the **phase → requirement map**, the one piece of provenance the SRS deliberately does not hold |
 | [`requirements-changelog.md`](requirements-changelog.md) | Frozen SRS history up to the retirement of document versioning (2026-07-18). **Never append to it** — requirement changes are now edited in place in the SRS, with the rationale in the commit body |
 | [`architect-review.md`](architect-review.md) | Pre-development architectural review, June 2026. All 20 Round 2 items resolved and folded into the SRS. Kept for the pre-build design debate: which alternatives were considered and rejected. Its `v0.x` references point at SRS versions that no longer exist |
+| [`Boknings-och-ordningsvillkor.md`](Boknings-och-ordningsvillkor.md) | Our own draft booking terms (summer 2026), replaced on 2026-08-23 by the client's document, which is what is published (`docs/legal/klientsvar.md`). Archived 2026-10-08 |
 | [`klientfragor-juridiska-underlag.md`](klientfragor-juridiska-underlag.md) | The first, prose version of the client questions (mid-August 2026), written for a jurist review that never happened. Replaced by the plain-language forms; its last open part — the points routed to the jurist — was decided on 2026-10-07. Archived the same day; outcomes live in `docs/legal/known-conflicts-at-launch.md` |
 | [`security-review.md`](security-review.md) | The Phase 7 security gate deliverable, 2026-07-08. No vulnerabilities found; its three items deferred to live Azure verification were all closed during the 2026-09-08/09 post-launch review |
 

@@ -171,6 +171,9 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | [`docs/archive/implementation-plan.md`](docs/archive/implementation-plan.md) | Closed history: what was built, in what order, satisfying which requirements. **All phases 0–11 are done** and each is one table row. Not a source of truth — the SRS is |
 | [`docs/ux/design.md`](docs/ux/design.md) | Design system — tokens, type scale, components |
 | [`docs/legal/known-conflicts-at-launch.md`](docs/legal/known-conflicts-at-launch.md) | What was knowingly carried across the launch line in the legal texts. **Read before touching anything legal** |
+| [`docs/review/deposit-flow-2026-10-07.md`](docs/review/deposit-flow-2026-10-07.md) | Decision record for the deposit-before-confirmation requirement — decided, not built |
+| [`docs/review/post-launch-security-review.md`](docs/review/post-launch-security-review.md) | Post-launch security & architecture review and its remediation tracker |
+| [`docs/review/demo-feedback-2026-08-05.md`](docs/review/demo-feedback-2026-08-05.md) | Decision record for the 2026-08-05 client demo |
 | [`docs/handover/admin-manual.html`](docs/handover/admin-manual.html) | The admin manual (Swedish) — source of truth for the PDF handed to the client |
 | [`infra/ops/`](infra/ops/) | Operational runbooks |
 

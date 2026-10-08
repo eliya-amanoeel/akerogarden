@@ -10,7 +10,6 @@
 
 **KALDEISKA KATOLSKA MAR NARSAY MISSIONEN I SÖDERTÄLJE**
 Organisationsnummer: 815601-0129
-Postadress: Gröndalsvägen 8, 151 65 Södertälje
 Anläggningens adress: Åkerövägen 81, 761 94 Norrtälje
 E-post: info@akerogarden.se
 

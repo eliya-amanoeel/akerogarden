@@ -116,7 +116,16 @@ az postgres flexible-server delete -g $RG -n $DRILL --yes
 
 ## Record the result
 
-Log the drill outcome (env, date, `RESTORE_TIME`, row counts matched Y/N). For **production** this is a Phase-9 go-live exit criterion ("backups proven restorable"); for **staging** it's an optional pre-go-live rehearsal.
+NFR-29 asks for a drill **every quarter, with the result documented** — this table is where it is
+documented. Add a row for every drill, pass or fail. Production is the one that counts: it holds real
+guest data. The throwaway restored server holds that data too, so delete it (Part D) before writing
+the row.
+
+| Date | Environment | `RESTORE_TIME` | Row counts matched | Notes |
+|---|---|---|---|---|
+| 2026-07-21 | Production | not recorded | not recorded | Phase 10c, **before launch — no guest data yet**. Its only record is "restore drill … passed" in the 10c row of `docs/archive/implementation-plan.md` |
+
+**Next drill due ~2026-10-21** — the first against a database holding real guests.
 
 ### Note — if the shared subnet is rejected
 Some regions/tooling won't inject a second flexible server into an in-use delegated subnet. If `az ... restore` fails on networking, create a second delegated subnet in `$VNET` (delegation `Microsoft.DBforPostgreSQL/flexibleServers`) and a matching private DNS zone, then pass `--subnet <id> --private-dns-zone <id>` to the restore. Delete both after Part D.

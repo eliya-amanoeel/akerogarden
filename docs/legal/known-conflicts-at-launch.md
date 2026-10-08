@@ -22,7 +22,10 @@
 >   own §32. This reverses the 2026-09-07 decision to keep the emails unchanged, which was a holding
 >   position until question 6 was answered.
 > - **§4 — both defects handled.** The 8-to-4-week gap is asked again in the new form;
->   "rekommenderas" becomes "gäller" in §7, changed without waiting for the form.
+>   "rekommenderas" becomes "gäller" in §7. *(2026-10-08: the client left the gap unanswered — it
+>   stays open in SRS §12 — and said the deposit is never refunded, so §7 is rewritten, not just
+>   reworded. All terms changes are published together with the deposit work, not before; see
+>   `docs/review/deposit-flow-2026-10-07.md` D14/D19.)*
 > - **§5 — fixed on our side.** `/mat-och-priser` will show prices including VAT; not raised with the
 >   client.
 > - **§6 — closed.** The client's §10 puts arrival and departure times in the confirmation, and the

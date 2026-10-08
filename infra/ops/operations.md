@@ -3,6 +3,14 @@
 How to find out *why* something failed in staging or production, without SSH-ing into the
 App Service container. Written for whoever operates this system next (Phase 11).
 
+## Recurring duties
+
+Things that must happen on a schedule, because nothing in the system does them by itself.
+
+| Duty | How often | How | Next |
+|---|---|---|---|
+| **Restore drill** (NFR-29) — prove the production database can actually be restored | Quarterly | [`restore-drill-runbook.md`](restore-drill-runbook.md); log the result in its table | ~2026-10-21 |
+
 ## Where logs go
 
 Staging and production export structured logs, traces, and dependency calls (Postgres, SMTP,

@@ -334,7 +334,7 @@ Log: date/time of cutover, DNS propagation confirmation method used, SSL binding
 
 - ~~WordPress hosting not yet decommissioned~~ — **done 2026-09-09**, web hosting only; zone, registration, mail and the `www` forward all intact. Part F carries the record.
 - The `www` forward is a 308, not the 301 the implementation plan names. Equivalent for canonicalisation; the plan's wording is what's imprecise, not the configuration. **It also drops the path** — see the second Part E note; low severity, accepted.
-- Unrelated to DNS but pending at go-live: the eight client questions in `docs/legal/`, and the email/terms cancellation divergence recorded in `docs/legal/known-conflicts-at-launch.md`.
+- Unrelated to DNS but pending at go-live: the eight client questions in `docs/legal/`, and the email/terms cancellation divergence recorded in `docs/legal/known-conflicts-at-launch.md`. *(Both since settled: the questions were replaced and answered by 2026-10-08, and the divergence is resolved by design — see the status notes in that file.)*
 
 ---
 

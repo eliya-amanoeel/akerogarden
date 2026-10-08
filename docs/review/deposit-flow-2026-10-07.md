@@ -5,7 +5,8 @@ This document records the design agreed for that, every decision taken and whose
 waits on the client, the gaps found while checking it, and everything the change touches.
 
 > **Status: decided, not built.** Nothing below exists in the code yet, and the SRS has deliberately
-> not been edited: it states current truth, and three parameters still wait on the client (§5). When
+> not been edited: it states current truth. The client answered on 2026-10-08 and two questions about
+> their terms remain (§5); **nothing is built or published until the maintainer says so**. When
 > this is built, the SRS, ERD, lifecycle diagram and manual take over as the authority and this file
 > becomes the record of *why*. Same role as `demo-feedback-2026-08-05.md` had for that work.
 
@@ -77,13 +78,18 @@ Pending ──► AwaitingDeposit ──► Approved ──► DetailsComplete �
 
 | Email | When | Content |
 |---|---|---|
-| **Deposit request** (new) | `Pending → AwaitingDeposit` | Reference; the dates are reserved until the due date; the deposit is 20 %, the amount comes separately from Åkerögården; where to pay, with the reference as payment message; the due date; **link to the terms** (§2 — paying is the guest's acceptance) |
+| **Deposit request** (new) | `Pending → AwaitingDeposit` | Reference; the dates are reserved until the due date; the deposit is 20 %, the amount comes in a separate email from Åkerögården; where to pay (payee, bankgiro, Swish, clearing + account — D17), with the reference as payment message; the due date; **the deposit is not refunded on cancellation once paid** (D14 — must be shown before the guest pays); **link to the terms** (§2 — paying is the guest's acceptance) |
 | **Deposit reminder** (new) | Deadline passed, once | Not yet received; pay as soon as possible or the booking may be cancelled |
 | **Approval — deposit path** | `AwaitingDeposit → Approved` | As today, but says the deposit has been received and the booking is confirmed |
 | **Approval — direct path** | `Pending → Approved` | As today, but **no sentence saying a deposit confirms the booking** |
-| **Cancellation — guest** | Admin cancels, guest-initiated | *"Eventuell avbokningsavgift följer de villkor som gällde när er bokning bekräftades. Vi återkommer med besked."* (client's §32) |
+| **Cancellation — guest** | Admin cancels, guest-initiated | Where a deposit was paid: *"Handpenningen återbetalas inte."* Then: *"Eventuell ytterligare avbokningsavgift följer de villkor som gällde när er bokning bekräftades. Vi återkommer med besked."* (client's §32) |
 | **Cancellation — property** | Admin cancels, property-initiated | Full refund of **anything paid** — mentions a deposit only if one was requested |
-| **Cancellation — unpaid release** (new variant) | `AwaitingDeposit → Cancelled` | The booking was never confirmed, nothing is owed (terms §2) |
+| **Cancellation — unpaid release** (new variant) | `AwaitingDeposit → Cancelled`, deposit **not** received | The booking was never confirmed, nothing is owed (terms §2) |
+
+**Cancelling a booking still in `AwaitingDeposit` asks the admin "Har handpenningen kommit in?"**
+Paying is the binding moment (D15), so money that has arrived but not yet been marked makes the deposit
+non-refundable — the system cannot know that, so the answer picks the email: *yes* → the guest
+cancellation wording, *no* → the unpaid release.
 
 Across all approval variants: **no cancellation rule restated** (point to the terms instead of the old
 two-month rule at `BookingEmailTemplates.cs:287`), and **no balance due date** — *"resterande belopp
@@ -99,7 +105,7 @@ cancellation needs; it stays set after the booking leaves `AwaitingDeposit`.
   existing refusal/warning boxes.
 - **Booking detail, `AwaitingDeposit`:** the due date, overdue state, **"Bekräfta bokningen"** (neutral
   wording — the admin may also confirm without payment, e.g. after deciding to invoice instead), and
-  cancel.
+  cancel with the deposit question above.
 - **Dashboard:** new card *Väntar på handpenning*, sorted by due date, overdue in red. This is the
   only safety net for an unpaid booking nobody acts on.
 - **Status badge:** every semantic hue is already allocated (`design.md`). A new state needs its own
@@ -136,33 +142,47 @@ All taken 2026-10-07 by the maintainer unless marked.
 | D6 | Deadline **capped** so it never falls after arrival |
 | D7 | Emails name **no balance due date** |
 | D8 | Cancellation emails point to the terms in force at confirmation (**§32 wording**). Reverses the 2026-09-07 decision to keep the emails unchanged — that was a holding position until question 6 was answered. Resolves known-conflicts §3 |
-| D9 | "rekommenderas" → **"gäller"** in the client's §7, **changed right away**, without waiting for the form |
+| D9 | "rekommenderas" → **"gäller"** in the client's §7. Decided 2026-10-07 to change it right away; **changed 2026-10-08: it waits with everything else** (D19) |
 | D10 | Prices on `/mat-och-priser` shown **including VAT** — fixed quietly, not raised with the client (known-conflicts §5) |
 | D11 | Check-in/check-out 14:00/12:00 **closed**: the approval email already states the booking's own times, which is what the client's §10 asks for |
 | D12 | Allergy data stays on **consent**; retention periods **stand** (the system holds no accounting records). The maintainer acts as part of the client's organisation, so **no processing agreement** is needed |
 
-**Still to decide (ours, before building):**
+Taken 2026-10-08, after the client's answers (§5):
 
-- **Retention while waiting.** Recommended: same as `Pending`, submission + 12 months — otherwise it is
-  the one status a forgotten booking can sit in forever with guest data.
-- **Where the payment details live.** Recommended: a code default in `BookingEmailOptions`, like
-  `PropertyAddress` — changed through a reviewed PR, no manual Bicep apply.
+| # | Decision |
+|---|---|
+| D13 | Amount told to the group **by a separate email** from Åkerögården (client) |
+| D14 | **The deposit is never refunded**, however early the group cancels (client). This overturns our 2026-10-07 reading that §7's *"ingen avbokningsavgift"* more than 8 weeks out implied a full refund; §7 must be rewritten to say so |
+| D15 | **Paying the deposit is the binding moment** — non-refundable once paid, not once the admin confirms. Hence the cancel question in §2 |
+| D16 | **7 days** to pay (client), capped per D6 |
+| D17 | Payment details: payee **"Kaldeiska katolska Mar Narsay Missionen i Södertälje"** (the privacy policy's name, not the variant in the client's answer); bankgiro **5713-3399**; Swish **123 583 24 23**; clearing **5364**, account **108 72 28** (SEB — the maintainer confirmed the split of the client's `53641087228`). Kept as a **code default** in `BookingEmailOptions`, like `PropertyAddress`: changed only through a reviewed PR, never from the admin panel |
+| D18 | Retention while waiting: **as `Pending`** — 12 months from submission |
+| D19 | The terms-page changes — §7 rewrite, "gäller", kitchen and common-room rules (client), and **damage claimed within one week of departure** (set by the maintainer; the client left that question unanswered) — are published **together with everything else**, not before. The client is told afterwards, naming the one-week deadline explicitly |
+| D20 | A failed deposit-request email is accepted: admin-triggered emails ignore failed sends (out of scope since 2026-10-05) and the nightly reminder at the deadline is the safety net |
+| D21 | Bookings already confirmed before this ships get **no special handling** — they are few and will be treated fairly by hand |
 
 ---
 
 ## 5. Waiting on the client
 
-Form: `docs/legal/klientfragor-2026-10-07.html` (replaces the 2026-08-23 form).
+Form: `docs/legal/klientfragor-2026-10-07.html` (replaces the 2026-08-23 form). **Answered
+2026-10-08** (`Akerogarden_Svar_Betalning_och_Villkor.pdf`, kept outside the repo):
 
-| Form question | Needed for |
+| Form question | Answer |
 |---|---|
-| 1 — invoice or own email for the amount | Wording of the deposit-request email |
-| 2 — bankgiro / Swish / account, OCR-only? | The payment block in the email; whether the reference can be a message |
-| 3 — days to pay | N in the deadline |
-| 4 — cancellation 8 to 4 weeks out | Not blocking — a gap in the client's terms, no longer in our emails |
-| 5, 6 — kitchen, damage deadline | Not blocking — the client's terms only |
+| 1 — how the group learns the amount | A separate email (D13) |
+| 2 — where to pay | Bankgiro, Swish and account; reference number as payment message, OCR-only not ticked (D17) |
+| 3 — days to pay | 7 (D16) |
+| 4 — cancellation 8 to 4 weeks out | **Not answered.** Instead: the deposit is never refunded (D14) |
+| 5 — kitchen and common rooms | No kitchen at night; cleaning is a paid add-on, otherwise the group cleans the kitchen; common rooms close 23:00 |
+| 6 — damage claim deadline | **Not answered** (restated §19). Set to one week by the maintainer (D19) |
 
-**Build can start without 4–6. It cannot finish without 1–3.**
+**Still with the client** — recorded in SRS §12, neither blocks the build:
+
+1. **Cancellation 8 to 4 weeks before arrival.** The deposit is now the minimum anyone pays; the
+   question is only whether more is owed.
+2. **Bed linen and towels** — terms §12 says what is included *"framgår av bokningen"*, and nothing in
+   the system or on the site says either way.
 
 ---
 
@@ -189,8 +209,9 @@ Swish or transfer give the client the payer's name and number; the policy names 
 purpose but has neither). `MatOchPriser.razor` (D10 — its code comment cites C8 for not showing an
 incl-VAT price; C8 forbids stored booking totals, not a per-item display price).
 
-**Legal text** — `BookingTerms.razor` and `docs/legal/klientsvar.md` (D9, plus the *"Senast
-uppdaterad"* date), `docs/legal/Integritetspolicy.md` in step with the policy page,
+**Legal text** — `BookingTerms.razor` and `docs/legal/klientsvar.md`: §7 rewritten for D14 and D9,
+the kitchen and common-room rules in §12/§15, the one-week damage deadline in §19, and the *"Senast
+uppdaterad"* date (D19). `docs/legal/Integritetspolicy.md` in step with the policy page,
 `known-conflicts-at-launch.md` (mark §3–§6 done once built).
 
 **SRS** — §2.1, §2.3, §2.4, §2.5, §2.7, §5.6 note, §8.1, §9; FR-38, 63, 75, 76, 77, 79, 91, 95, 102,
@@ -217,10 +238,13 @@ approval remains.
 
 ## 7. Order of work
 
-1. **Now, separately:** D9 ("gäller" + date) — live before the client reads the form, which says
-   *"Vi ändrar"*. D10 can ride along or follow.
-2. **Before the migration:** the quarterly restore drill (NFR-29, due ~2026-10-21). It has never been
+Nothing starts until the maintainer says so (2026-10-08). When it does:
+
+1. **Before the migration:** the quarterly restore drill (NFR-29, due ~2026-10-21). It has never been
    run against a database holding real guests, and it is the only proof a bad migration can be undone.
-3. **On the client's answers to 1–3:** SRS and docs first, then code, on one branch.
+2. **SRS and docs first, then code, on one branch** — the terms-page changes (D19) and the VAT fix
+   (D10) ride along. The client's answers to the build parameters are all in.
+3. **Tell the client what changed** once it is live, with the two open questions (§5) in the same
+   message if still unanswered.
 4. **Full completion gate** before merge — this touches the booking state machine.
 5. **Staging, then production** — never deployed across 03:00.

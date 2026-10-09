@@ -9,7 +9,7 @@ Things that must happen on a schedule, because nothing in the system does them b
 
 | Duty | How often | How | Next |
 |---|---|---|---|
-| **Restore drill** (NFR-29) — prove the production database can actually be restored | Quarterly | [`restore-drill-runbook.md`](restore-drill-runbook.md); log the result in its table | ~2026-10-21 |
+| **Restore drill** (NFR-29) — prove the production database can actually be restored | Quarterly | [`restore-drill-runbook.md`](restore-drill-runbook.md); log the result in its table | **Overdue** — the 2026-10-08 attempt failed on Azure capacity (see the runbook); retry |
 
 ## Where logs go
 

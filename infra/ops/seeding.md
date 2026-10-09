@@ -15,8 +15,11 @@ wired into `src/AkeroGarden.Web.Admin/Program.cs` only — the public app never 
 3. **Reseeds** the real Åkerögården property layout and a synthetic Swedish demo dataset: 6 physical
    buildings, 8 buildings (Blidö/Ljusterö/Singö/Tjockö/Vätö 1/Vätö 2/Smedjan/Tallstugan) with 28 rooms
    (79 beds total); 10 meal options; 5 price rules; 5 facilities; 7 cleaning zones incl. the "Hela
-   lägret" bundle; 3 blocks; and one booking in every lifecycle state (Pending/Approved/
-   DetailsComplete/Active/Completed/Denied/Cancelled/Closed).
+   lägret" bundle; 3 blocks; and one booking in every lifecycle state (Pending/AwaitingDeposit/
+   Approved/DetailsComplete/Active/Completed/Denied/Cancelled/Closed). Two bookings wait for their
+   deposit (FR-115): one on time, and one **overdue and not yet reminded** — so the next nightly run
+   sends a deposit reminder email (FR-116) to its `example.com` address, the same way the seeded
+   link-issuance booking demonstrates that job.
 
 It runs **every time the app starts while the flag is on** — that's why you remove the flag after seeding.
 

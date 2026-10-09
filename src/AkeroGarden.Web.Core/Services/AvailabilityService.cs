@@ -151,9 +151,15 @@ public class AvailabilityService(OccupancyProvider occupancy)
         {
             if (message.Length > 0)
                 message.Append(' ');
-            message.Append("Vi behöver två dagar för städning efter er avresa, och ");
+            // Says why without the mechanism: not how many days, not "cleaning", and "inte lediga"
+            // rather than "bokade" — the cause may be a closure the guest must not be told about
+            // (FR-09). Plural agreement follows the dates, which "är upptaget" got wrong for a range.
+            var days = availability.ConflictingTurnoverDates.Count;
+            message.Append("Vi behöver också tid att göra i ordning gården mellan två grupper, och ");
+            message.Append(days == 1 ? "dagen närmast efter er avresa (" : "dagarna närmast efter er avresa (");
             message.Append(FormatRuns(availability.ConflictingTurnoverDates));
-            message.Append(" är upptaget. Välj gärna en tidigare avresa eller andra datum.");
+            message.Append(days == 1 ? ") är inte ledig." : ") är inte lediga.");
+            message.Append(" Välj gärna en tidigare avresa eller andra datum.");
         }
         else
         {

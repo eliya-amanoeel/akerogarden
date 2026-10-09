@@ -191,12 +191,35 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         {
             var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
             await svc.ApproveAsync(id);
-            await svc.CancelAsync(id, CancellationInitiator.PropertyInitiated, "internt känsligt skäl");
+            await svc.CancelAsync(id, CancellationInitiator.PropertyInitiated, "internt känsligt skäl", depositPaid: false);
         }
 
         var row = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.BookingCancelled));
         Assert.Contains("anläggningsinitierad", row.Summary); // enum label, not PII
         Assert.DoesNotContain("känsligt", row.Summary);       // free-text reason omitted
+        Assert.DoesNotContain("handpenning", row.Summary);    // no deposit was asked for
+    }
+
+    [Fact]
+    public async Task DepositPath_WritesRequest_Confirmation_AndTheDepositAnswerOnCancel()
+    {
+        var provider = NewProvider();
+        var (id, _, _) = await CreatePendingStayAsync(provider);
+
+        using (var scope = provider.CreateScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.True((await svc.RequestDepositAsync(id)).Succeeded);
+            Assert.True((await svc.ApproveAsync(id)).Succeeded);
+            Assert.True((await svc.CancelAsync(id, CancellationInitiator.GuestInitiated, null, depositPaid: true)).Succeeded);
+        }
+
+        var request = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.DepositRequested));
+        Assert.Contains("att betalas senast", request.Summary);
+        var confirmed = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.BookingApproved));
+        Assert.Contains("bekräftades efter begärd handpenning", confirmed.Summary);
+        var cancelled = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.BookingCancelled));
+        Assert.Contains("handpenning betald", cancelled.Summary);
     }
 
     [Fact]

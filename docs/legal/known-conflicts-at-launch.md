@@ -10,7 +10,8 @@
 > outstanding, so everything in §2–§6 stands, and §3 still waits on question 6. The body is left as
 > written — this is a point-in-time record of what was knowingly carried across the launch line.
 >
-> **Status note, 2026-10-07 — the open items below were decided; the code changes are not yet built.**
+> **Status note, 2026-10-07 — the open items below were decided.** *(2026-10-09: built on
+> `feat/deposit-before-confirmation`; they are live once that is deployed.)*
 > The client asked for bookings to be confirmed only once the 20 % deposit has arrived. Working that
 > through settled most of this file, so the August form was replaced by
 > `docs/legal/klientfragor-2026-10-07.html` (six questions; question numbers in the body below still
@@ -26,8 +27,8 @@
 >   stays open in SRS §12 — and said the deposit is never refunded, so §7 is rewritten, not just
 >   reworded. All terms changes are published together with the deposit work, not before; see
 >   `docs/review/deposit-flow-2026-10-07.md` D14/D19.)*
-> - **§5 — fixed on our side.** `/mat-och-priser` will show prices including VAT; not raised with the
->   client.
+> - **§5 — still open.** Planned as a quiet fix (VAT-inclusive prices), then held back on 2026-10-09:
+>   the stored VAT rates are unconfirmed placeholders, so it goes to the client first (SRS §12, Q3).
 > - **§6 — closed.** The client's §10 puts arrival and departure times in the confirmation, and the
 >   approval email already states the booking's own times; 14:00/12:00 are editable defaults.
 > - **The points routed to the jurist** (archived `docs/archive/klientfragor-juridiska-underlag.md`):

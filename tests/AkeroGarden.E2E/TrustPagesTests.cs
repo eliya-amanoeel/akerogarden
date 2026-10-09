@@ -170,13 +170,19 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         // The headings below are the client's own document (docs/legal/klientsvar.md), adopted
         // 2026-08-23, which replaced our draft — hence "vistelsevillkor" rather than the draft's
         // "ordningsvillkor", and §6/§7 rather than the draft's §2/§3. The cancellation rule here is
-        // a percentage-of-value scale, NOT the 20% deposit this test used to name; the emails still
-        // state the old rule and that divergence is knowingly carried
-        // (docs/legal/known-conflicts-at-launch.md).
+        // a percentage-of-value scale; since the deposit work the emails no longer restate any rule
+        // and point to this page instead (FR-79), so the two cannot contradict each other again.
         await Page.GotoAsync("/bokningsvillkor");
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Boknings- och vistelsevillkor" })).ToBeVisibleAsync();
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "6. Betalning" })).ToBeVisibleAsync();
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "7. Avbokning av hela arrangemanget" })).ToBeVisibleAsync();
+
+        // The client's answers of 2026-10-08 (deposit-flow decision record D14/D15/D19): the deposit
+        // is never refunded and binds once paid, and the scale "gäller" — a rule that is only
+        // "rekommenderas" is weak against a consumer.
+        await Assertions.Expect(Page.GetByText("En inbetald handpenning återbetalas inte vid avbokning")).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByText("blir bokningen bindande när handpenningen")).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByText("rekommenderas")).ToHaveCountAsync(0);
 
         // The page must be a finished document, not a draft. Both of these were live on the page
         // until 2026-09-07: six "Kompletteras innan publicering" notes standing in for clauses the

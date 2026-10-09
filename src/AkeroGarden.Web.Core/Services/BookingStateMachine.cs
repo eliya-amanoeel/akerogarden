@@ -16,9 +16,12 @@ public static class BookingStateMachine
     public static readonly IReadOnlySet<(BookingStatus From, BookingStatus To)> AllowedTransitions =
         new HashSet<(BookingStatus, BookingStatus)>
         {
-            (BookingStatus.Pending, BookingStatus.Approved),         // Admin — stay requests only
+            (BookingStatus.Pending, BookingStatus.Approved),         // Admin — stay requests only; approved directly
+            (BookingStatus.Pending, BookingStatus.AwaitingDeposit),  // Admin — stay requests only; asks for the deposit (FR-115)
             (BookingStatus.Pending, BookingStatus.Denied),           // Admin — stay requests only
             (BookingStatus.Pending, BookingStatus.Closed),           // Admin — general inquiries only
+            (BookingStatus.AwaitingDeposit, BookingStatus.Approved), // Admin — confirms the booking (FR-115)
+            (BookingStatus.AwaitingDeposit, BookingStatus.Cancelled),// Admin — withdrawn, or never paid (FR-76/116)
             (BookingStatus.Approved, BookingStatus.DetailsComplete), // System — on guest completion
             (BookingStatus.Approved, BookingStatus.Cancelled),       // Admin
             (BookingStatus.DetailsComplete, BookingStatus.Active),   // Admin — marks arrived

@@ -111,6 +111,59 @@ else
         </section>
     </div>
 
+    @* ── Väntar på handpenning (FR-116) ──────────────────────────
+       Full width below the grid rather than a third grid card, which would leave one card alone on
+       its row. Sorted by due date, so an overdue booking is always at the top — this card is the
+       only safety net for a deposit nobody paid: there is no admin email and nothing is released
+       automatically (FR-116). Overdue reuses the red badge with the word "Förfallen", so colour is
+       never the only signal. *@
+    <section class="card dash-full">
+        <div class="card__head">
+            <h2>Väntar på handpenning</h2>
+            @if (_awaitingDeposit.Count > 0)
+            {
+                <span class="n">@_awaitingDeposit.Count</span>
+            }
+            <a class="link" href="/bokningar">Alla bokningar →</a>
+        </div>
+        @if (_awaitingDeposit.Count == 0)
+        {
+            <p class="admin-empty">Inga bokningar väntar på handpenning.</p>
+        }
+        else
+        {
+            <div class="admin-table-wrap">
+                <table class="admin-table">
+                    <tbody>
+                        @foreach (var b in _awaitingDeposit)
+                        {
+                            <tr>
+                                <td>
+                                    <a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a>
+                                    <span class="sub">@b.BookingReference@(GuestSuffix(b))</span>
+                                </td>
+                                <td class="num mono">@DateRange(b)</td>
+                                <td class="cell-end">@DepositBadge(b)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+            <div class="data-cards">
+                @foreach (var b in _awaitingDeposit)
+                {
+                    <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
+                        <Badge>@DepositBadge(b)</Badge>
+                        <Sub>@b.BookingReference@(GuestSuffix(b))</Sub>
+                        <Fields>
+                            <div><dt>Datum</dt><dd>@DateRange(b)</dd></div>
+                        </Fields>
+                    </AdminDataCard>
+                }
+            </div>
+        }
+    </section>
+
     @* ── Kommande ankomster ─────────────────────────────────────── *@
     <section class="card">
         <div class="card__head">
@@ -170,6 +223,7 @@ else
 
     private bool _loading = true;
     private List<Booking> _pending = [];
+    private List<Booking> _awaitingDeposit = [];
     private List<Booking> _awaitingCompletion = [];
     private List<Booking> _upcoming = [];
 
@@ -180,6 +234,11 @@ else
         var today = StockholmTime.Today(Clock);
 
         _pending = await BookingService.GetBookingsAsync(status: BookingStatus.Pending);
+
+        // Earliest due first, so an overdue booking leads the card (FR-116).
+        _awaitingDeposit = (await BookingService.GetBookingsAsync(status: BookingStatus.AwaitingDeposit))
+            .OrderBy(b => b.DepositDueDate)
+            .ToList();
 
         _awaitingCompletion = await BookingService.GetBookingsAsync(status: BookingStatus.Approved);
 
@@ -207,6 +266,16 @@ else
         builder.OpenElement(0, "span");
         builder.AddAttribute(1, "class", BookingDisplay.StatusBadgeClass(s));
         builder.AddContent(2, BookingDisplay.StatusLabel(s));
+        builder.CloseElement();
+    };
+
+    private RenderFragment DepositBadge(Booking b) => builder =>
+    {
+        var overdue = DepositPolicy.IsOverdue(b.DepositDueDate, StockholmTime.Today(Clock));
+        var due = b.DepositDueDate?.ToString("d MMM", Sv) ?? "—";
+        builder.OpenElement(0, "span");
+        builder.AddAttribute(1, "class", overdue ? "badge badge--denied" : "badge badge--deposit");
+        builder.AddContent(2, overdue ? $"Förfallen {due}" : $"Senast {due}");
         builder.CloseElement();
     };
 

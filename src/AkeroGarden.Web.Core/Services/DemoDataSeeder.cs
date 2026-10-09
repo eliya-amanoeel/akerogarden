@@ -412,6 +412,34 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddBuilding(farOut, vato1);
         db.Bookings.Add(farOut);
 
+        // 2d. Waiting for the deposit (FR-115) — asked for yesterday, due in six days. Holds its dates
+        // on the calendar, and the dashboard's "Väntar på handpenning" card has something in it.
+        var awaitingDeposit = StayRequest(
+            "Sara Lindqvist", "sara.lindqvist@example.com", "070-434 56 78",
+            today.AddDays(70), today.AddDays(72), overnight: 20, dayGuests: 0,
+            MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-3));
+        awaitingDeposit.Status = BookingStatus.AwaitingDeposit;
+        awaitingDeposit.DepositDueDate = today.AddDays(DepositPolicy.DaysToPay - 1);
+        awaitingDeposit.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
+            BookingStatus.AwaitingDeposit, today.AddDays(-3), awaitingDeposit.CheckOut, today);
+        awaitingDeposit.Message = "Ungdomsläger för scoutkåren.";
+        AddBuilding(awaitingDeposit, vato1);
+        db.Bookings.Add(awaitingDeposit);
+
+        // 2e. Deposit overdue and not yet reminded (FR-116) — red on the dashboard, and the one booking
+        // DepositReminderJob picks up, so the reminder email can be seen in a seeded environment.
+        var depositOverdue = StayRequest(
+            "Mikael Ström", "mikael.strom@example.com", "073-565 78 90",
+            today.AddDays(100), today.AddDays(102), overnight: 10, dayGuests: 0,
+            MealPlan.SelfCateringAll, createdAt: nowUtc.AddDays(-12));
+        depositOverdue.Status = BookingStatus.AwaitingDeposit;
+        depositOverdue.DepositDueDate = today.AddDays(-2);
+        depositOverdue.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
+            BookingStatus.AwaitingDeposit, today.AddDays(-12), depositOverdue.CheckOut, today);
+        depositOverdue.Message = "Föreningens planeringshelg.";
+        AddBuilding(depositOverdue, blido);
+        db.Bookings.Add(depositOverdue);
+
         // 3. DetailsComplete — guest submitted the completion form (participants + the group's meal
         // choices + cleaning, FR-93). Occupies rooms in both Tjockö and Singö — both map to the same Lilla
         // bostadslängan zone, so this demonstrates the "one row per distinct occupied zone, never

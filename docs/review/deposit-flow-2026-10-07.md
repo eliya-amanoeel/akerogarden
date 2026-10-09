@@ -4,11 +4,9 @@ The client asked, on 2026-10-07, that a booking be confirmed only once the 20 % 
 This document records the design agreed for that, every decision taken and whose it was, what still
 waits on the client, the gaps found while checking it, and everything the change touches.
 
-> **Status: decided, not built.** Nothing below exists in the code yet, and the SRS has deliberately
-> not been edited: it states current truth. The client answered on 2026-10-08 and two questions about
-> their terms remain (§5); **nothing is built or published until the maintainer says so**. When
-> this is built, the SRS, ERD, lifecycle diagram and manual take over as the authority and this file
-> becomes the record of *why*. Same role as `demo-feedback-2026-08-05.md` had for that work.
+> **Status (2026-10-09): built on `feat/deposit-before-confirmation`, not yet deployed.** The SRS
+> (FR-115/116), ERD, lifecycle diagram and admin manual now carry it and are the authority; this file
+> is the record of *why*. Two questions about the client's terms remain (§5) and block nothing. Same role as `demo-feedback-2026-08-05.md` had for that work.
 
 ---
 
@@ -80,7 +78,7 @@ Pending ──► AwaitingDeposit ──► Approved ──► DetailsComplete �
 |---|---|---|
 | **Deposit request** (new) | `Pending → AwaitingDeposit` | Reference; the dates are reserved until the due date; the deposit is 20 %, the amount comes in a separate email from Åkerögården; where to pay (payee, bankgiro, Swish, clearing + account — D17), with the reference as payment message; the due date; **the deposit is not refunded on cancellation once paid** (D14 — must be shown before the guest pays); **link to the terms** (§2 — paying is the guest's acceptance) |
 | **Deposit reminder** (new) | Deadline passed, once | Not yet received; pay as soon as possible or the booking may be cancelled |
-| **Approval — deposit path** | `AwaitingDeposit → Approved` | As today, but says the deposit has been received and the booking is confirmed |
+| **Approval — deposit path** | `AwaitingDeposit → Approved` | As today, but worded as a confirmation. *(Planned 2026-10-07 to say the deposit had arrived; changed while building on 2026-10-09 — the admin may confirm without payment, so that sentence could be false.)* |
 | **Approval — direct path** | `Pending → Approved` | As today, but **no sentence saying a deposit confirms the booking** |
 | **Cancellation — guest** | Admin cancels, guest-initiated | Where a deposit was paid: *"Handpenningen återbetalas inte."* Then: *"Eventuell ytterligare avbokningsavgift följer de villkor som gällde när er bokning bekräftades. Vi återkommer med besked."* (client's §32) |
 | **Cancellation — property** | Admin cancels, property-initiated | Full refund of **anything paid** — mentions a deposit only if one was requested |
@@ -143,7 +141,7 @@ All taken 2026-10-07 by the maintainer unless marked.
 | D7 | Emails name **no balance due date** |
 | D8 | Cancellation emails point to the terms in force at confirmation (**§32 wording**). Reverses the 2026-09-07 decision to keep the emails unchanged — that was a holding position until question 6 was answered. Resolves known-conflicts §3 |
 | D9 | "rekommenderas" → **"gäller"** in the client's §7. Decided 2026-10-07 to change it right away; **changed 2026-10-08: it waits with everything else** (D19) |
-| D10 | Prices on `/mat-och-priser` shown **including VAT** — fixed quietly, not raised with the client (known-conflicts §5) |
+| D10 | Prices on `/mat-och-priser` shown **including VAT** — fixed quietly, not raised with the client (known-conflicts §5). *Built (commit `feb5c30`, recoverable from it), then held back from the 2026-10-09 deploy: its inputs are unconfirmed (see the smoke-test note in §5); the maintainer takes it to the client* |
 | D11 | Check-in/check-out 14:00/12:00 **closed**: the approval email already states the booking's own times, which is what the client's §10 asks for |
 | D12 | Allergy data stays on **consent**; retention periods **stand** (the system holds no accounting records). The maintainer acts as part of the client's organisation, so **no processing agreement** is needed |
 
@@ -184,6 +182,23 @@ Form: `docs/legal/klientfragor-2026-10-07.html` (replaces the 2026-08-23 form). 
 2. **Bed linen and towels** — terms §12 says what is included *"framgår av bokningen"*, and nothing in
    the system or on the site says either way.
 
+### Raised in the local smoke test, 2026-10-09 — open, to discuss
+
+1. **The amount in the deposit email (maintainer's proposal).** The deposit request carries every
+   payment detail except the amount, so the client must send a separate email just for the number —
+   hard to justify for the guest or the client. Putting it in means the admin types the amount when
+   asking for the deposit, which **stores an amount and so reopens C8** (§5.6, CLAUDE.md). Not
+   decided; the design today keeps it out (D3, D13).
+2. **"Pris och betalningsvillkor får ni från oss separat"** in the direct-path approval email. Same
+   root as 1: the system knows no prices, so the confirmation cannot state them as the client's §2
+   says it should. Whatever is decided for 1 decides this sentence.
+3. **VAT-inclusive prices (D10).** The arithmetic is right (550 × 1.12 = 616), but its inputs are
+   unconfirmed: the 12 %/25 % rates were seeded as placeholders "to be confirmed with the accountant",
+   and production's prices are identical to the seed; that the stored amounts *exclude* VAT is an SRS
+   assumption with no source; and a church mission may not charge VAT at all, or not on room hire.
+   Showing computed consumer prices on unconfirmed rates is worse than today's "exklusive moms". A
+   question for the client.
+
 ---
 
 ## 6. Everything it touches
@@ -195,7 +210,7 @@ today's approval preconditions; `ApproveAsync` accepts `AwaitingDeposit`; `GetAp
 `Booking` (due date + reminder-sent columns), `AuditAction` (new verbs, stored as strings),
 `BookingDisplay`, the nightly reminder (new `IScheduledJob`, so job history picks it up).
 
-**Migration** — two nullable columns. **The first schema change since launch.** Additive and safe; the
+**Migration** — two nullable columns. Not the first since launch — `AddOnBehalfOfBooking` (2026-09-09) and `AddJobRuns` (2026-10-02) already ran against production — and as additive as they were; the
 pipeline already deploys the migrating admin site first, and the public role is covered by
 `ALTER DEFAULT PRIVILEGES`.
 
@@ -238,13 +253,24 @@ approval remains.
 
 ## 7. Order of work
 
-Nothing starts until the maintainer says so (2026-10-08). When it does:
+The maintainer gave the go on 2026-10-08; the work is on `feat/deposit-before-confirmation`.
 
-1. **Before the migration:** the quarterly restore drill (NFR-29, due ~2026-10-21). It has never been
-   run against a database holding real guests, and it is the only proof a bad migration can be undone.
+1. **Before the production deploy (not before the work starts):** a passing restore drill (NFR-29).
+   It has never been run against a database holding real guests, and it is the only proof a bad
+   migration can be undone. **The 2026-10-08 attempt failed on Azure capacity and the drill is
+   postponed** — attempts and the risk they exposed are in `infra/ops/restore-drill-runbook.md`. If it
+   still cannot pass when the work is ready, deploying without it is a decision to take explicitly,
+   not by default. **Taken 2026-10-09 by the maintainer: deploy to production without a passing
+   drill; the drill is postponed with no date set.** The migration is additive (two nullable
+   columns), as the two post-launch migrations before it were; the drill remains owed under NFR-29.
 2. **SRS and docs first, then code, on one branch** — the terms-page changes (D19) and the VAT fix
    (D10) ride along. The client's answers to the build parameters are all in.
 3. **Tell the client what changed** once it is live, with the two open questions (§5) in the same
    message if still unanswered.
 4. **Full completion gate** before merge — this touches the booking state machine.
-5. **Staging, then production** — never deployed across 03:00.
+5. **Staging, then production** — never deployed across 03:00. On the day it goes live, bump *"Senast
+   uppdaterad"* on `/bokningsvillkor` **and** `/integritetspolicy` (both texts changed with it — page and source
+   `.md` alike), then tell the client what changed —
+   naming the one-week damage deadline explicitly, since it is ours (D19). **After** the production
+   deploy, apply `infra/azure/alerts.bicep`: its nightly-jobs threshold rose from 3 to 4, and applied
+   before the fourth job exists it fires every night.

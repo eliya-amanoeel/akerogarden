@@ -23,9 +23,12 @@ namespace AkeroGarden.Web.Core.Services;
 /// </summary>
 public class OccupancyProvider(ApplicationDbContext db)
 {
-    /// <summary>Statuses whose bookings occupy the property on the public calendar (FR-10).</summary>
+    /// <summary>Statuses whose bookings occupy the property on the public calendar (FR-10).
+    /// <see cref="BookingStatus.AwaitingDeposit"/> is one: the group has been told the dates are
+    /// reserved for them while they pay (FR-115). This one array feeds the calendar, the availability
+    /// check (FR-113) and the block refusal (FR-102) — widen it here, nowhere else.</summary>
     public static readonly BookingStatus[] OccupyingStatuses =
-        [BookingStatus.Approved, BookingStatus.DetailsComplete, BookingStatus.Active];
+        [BookingStatus.AwaitingDeposit, BookingStatus.Approved, BookingStatus.DetailsComplete, BookingStatus.Active];
 
     /// <summary>
     /// Computes the availability state for every date in <c>[from, to]</c> from real data.

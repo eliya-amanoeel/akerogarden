@@ -9,7 +9,7 @@ namespace AkeroGarden.Web.Core.Services;
 /// warning (both Phase 5) operate off the stored result.
 ///
 /// <list type="bullet">
-///   <item><c>Pending</c> — submission date + 12 months</item>
+///   <item><c>Pending</c> / <c>AwaitingDeposit</c> — submission date + 12 months</item>
 ///   <item><c>Closed</c> — submission date + 12 months</item>
 ///   <item><c>Denied</c> — denial date + 12 months</item>
 ///   <item><c>Cancelled</c> — cancellation date + 12 months</item>
@@ -37,6 +37,8 @@ public static class RetentionCalculator
         status switch
         {
             BookingStatus.Pending => submissionDate.AddMonths(12),
+            // A booking waiting for a deposit nobody pays must not keep guest data indefinitely (FR-91).
+            BookingStatus.AwaitingDeposit => submissionDate.AddMonths(12),
             BookingStatus.Closed => submissionDate.AddMonths(12),
             BookingStatus.Denied => transitionDate.AddMonths(12),
             BookingStatus.Cancelled => transitionDate.AddMonths(12),

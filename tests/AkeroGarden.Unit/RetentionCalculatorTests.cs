@@ -20,6 +20,17 @@ public class RetentionCalculatorTests
         Assert.Equal(new DateOnly(2027, 1, 15), result);
     }
 
+    // A booking waiting for a deposit nobody pays keeps the date it had as Pending — otherwise it
+    // would be the one status a forgotten booking could hold guest data in forever (FR-91).
+    [Fact]
+    public void AwaitingDeposit_Is12MonthsFromSubmission()
+    {
+        var result = RetentionCalculator.ComputeDeleteAfter(
+            BookingStatus.AwaitingDeposit, Submission, checkOut: null, TransitionDate);
+        // From submission (2026-01-15), not from asking for the deposit (2026-03-10).
+        Assert.Equal(new DateOnly(2027, 1, 15), result);
+    }
+
     [Fact]
     public void Closed_Is12MonthsFromSubmission()
     {

@@ -150,6 +150,8 @@ public static class AkeroServiceCollectionExtensions
         // have not filled in your details".
         services.AddScoped<IScheduledJob, CompletionLinkIssuanceJob>();
         services.AddScoped<IScheduledJob, ReminderJob>();
+        // Independent of the three above — different status, its own trigger (FR-116).
+        services.AddScoped<IScheduledJob, DepositReminderJob>();
         services.AddScoped<IJobRunRecorder, JobRunRecorder>();
         services.AddScoped<JobHistoryService>();
         services.AddHostedService<DailyJobRunner>();

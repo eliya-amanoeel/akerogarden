@@ -40,7 +40,7 @@ flowchart TB
         end
         subgraph AdminSite["Admin site — admin.akerogarden.se"]
             AdminApp["Admin panel\nBlazor Interactive Server\nIdentity login · roles:\nAdministratör / Samordnare"]
-            BgJob["In-process BackgroundService\n(Always On)\nlink issuance · reminders · GDPR retention ·\npre-deletion warnings"]
+            BgJob["In-process BackgroundService\n(Always On)\nlink issuance · reminders · deposit reminders ·\nGDPR retention · pre-deletion warnings"]
         end
     end
 
@@ -93,7 +93,7 @@ flowchart TB
 
 3. **Guests never authenticate.** There is no guest account system. The only guest-facing "auth" is the magic-link token — issued at approval when check-in is within 40 days, otherwise by the nightly job once it is (FR-108): single-use, ≥128-bit entropy, expiring at the earliest of 30 days after issue or 14 days before check-in; a link issued 14 days or fewer out runs instead to 3 days before check-in, never less than 48 hours — §2.6, FR-51–54, NFR-03. Admin auth is the only real login surface, via ASP.NET Core Identity (§6.4, FR-70–74), carrying two roles — `Administratör` with full access and `Samordnare` restricted to the two per-booking list downloads (FR-104). Authorisation is enforced **per page**: `Samordnare` has its own booking list and download view and no access to the booking detail page at all, rather than sharing a page with parts conditionally hidden. Hiding fragments would mean every future addition to that page needed a role check, and a single omission would leak guest contact data.
 
-4. **The background job is in-process, not a separate service.** Scheduled work (pre-arrival reminders, completion nudges, deferred completion-link issuance (FR-108), GDPR retention deletes, 30-day pre-deletion warnings) runs as an in-process hosted `BackgroundService` inside the **admin** site's process (Phase 10b — it lives only on the admin host, so it runs in exactly one process; the public site is purely request-serving), kept alive by **Always On** (B1 supports it). An external scheduler (Azure Functions timer trigger or Logic App) was evaluated and deferred — §10, FR-69/91/98. It authors `AuditLog` rows with `ActorType = System`, and records each job's run and outcome as a `JobRun`, tagging the audit rows it writes with it — the admin's *Jobbhistorik* (FR-114).
+4. **The background job is in-process, not a separate service.** Scheduled work (pre-arrival reminders, completion nudges, deferred completion-link issuance (FR-108), deposit reminders (FR-116), GDPR retention deletes, 30-day pre-deletion warnings) runs as an in-process hosted `BackgroundService` inside the **admin** site's process (Phase 10b — it lives only on the admin host, so it runs in exactly one process; the public site is purely request-serving), kept alive by **Always On** (B1 supports it). An external scheduler (Azure Functions timer trigger or Logic App) was evaluated and deferred — §10, FR-69/91/98. It authors `AuditLog` rows with `ActorType = System`, and records each job's run and outcome as a `JobRun`, tagging the audit rows it writes with it — the admin's *Jobbhistorik* (FR-114).
 
 5. **Redis is rate-limiting only, and public-only.** Azure Managed Redis (successor to the retired Azure Cache for Redis) holds no application data — its sole job is distributed rate-limit counters for the inquiry form. Only the **public** site is rate-limited, so only the public site holds the Redis connection; the admin site never touches Redis (Phase 10b, NFR-04).
 

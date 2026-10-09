@@ -15,6 +15,9 @@ public class BookingStateMachineTests
         { BookingStatus.Pending, BookingStatus.Approved },
         { BookingStatus.Pending, BookingStatus.Denied },
         { BookingStatus.Pending, BookingStatus.Closed },
+        { BookingStatus.Pending, BookingStatus.AwaitingDeposit },
+        { BookingStatus.AwaitingDeposit, BookingStatus.Approved },
+        { BookingStatus.AwaitingDeposit, BookingStatus.Cancelled },
         { BookingStatus.Approved, BookingStatus.DetailsComplete },
         { BookingStatus.Approved, BookingStatus.Cancelled },
         { BookingStatus.DetailsComplete, BookingStatus.Active },
@@ -49,12 +52,21 @@ public class BookingStateMachineTests
     [InlineData(BookingStatus.Approved, BookingStatus.Completed)]
     [InlineData(BookingStatus.Pending, BookingStatus.DetailsComplete)]
     [InlineData(BookingStatus.Pending, BookingStatus.Cancelled)] // Pending is denied, never cancelled (FR-76)
+    // A booking waiting for its deposit is confirmed or cancelled — it never skips ahead, is never
+    // denied (the admin already said yes), and never goes back to Pending (FR-115).
+    [InlineData(BookingStatus.AwaitingDeposit, BookingStatus.DetailsComplete)]
+    [InlineData(BookingStatus.AwaitingDeposit, BookingStatus.Active)]
+    [InlineData(BookingStatus.AwaitingDeposit, BookingStatus.Denied)]
+    [InlineData(BookingStatus.AwaitingDeposit, BookingStatus.Pending)]
+    [InlineData(BookingStatus.AwaitingDeposit, BookingStatus.Closed)]
     // No going backwards.
+    [InlineData(BookingStatus.Approved, BookingStatus.AwaitingDeposit)]
     [InlineData(BookingStatus.DetailsComplete, BookingStatus.Approved)]
     [InlineData(BookingStatus.Active, BookingStatus.DetailsComplete)]
     // Same-state is not a transition.
     [InlineData(BookingStatus.Pending, BookingStatus.Pending)]
     [InlineData(BookingStatus.Approved, BookingStatus.Approved)]
+    [InlineData(BookingStatus.AwaitingDeposit, BookingStatus.AwaitingDeposit)]
     public void CanTransition_False_ForDisallowed(BookingStatus from, BookingStatus to)
     {
         Assert.False(BookingStateMachine.CanTransition(from, to));
@@ -70,11 +82,21 @@ public class BookingStateMachineTests
     }
 
     [Fact]
-    public void AllowedTargets_ForPending_AreApproveDenyClose()
+    public void AllowedTargets_ForPending_AreApproveRequestDepositDenyClose()
     {
         var targets = BookingStateMachine.AllowedTargets(BookingStatus.Pending);
         Assert.Equal(
-            new[] { BookingStatus.Approved, BookingStatus.Denied, BookingStatus.Closed }.OrderBy(x => x),
+            new[] { BookingStatus.Approved, BookingStatus.AwaitingDeposit, BookingStatus.Denied, BookingStatus.Closed }
+                .OrderBy(x => x),
+            targets.OrderBy(x => x));
+    }
+
+    [Fact]
+    public void AllowedTargets_ForAwaitingDeposit_AreConfirmAndCancelOnly()
+    {
+        var targets = BookingStateMachine.AllowedTargets(BookingStatus.AwaitingDeposit);
+        Assert.Equal(
+            new[] { BookingStatus.Approved, BookingStatus.Cancelled }.OrderBy(x => x),
             targets.OrderBy(x => x));
     }
 

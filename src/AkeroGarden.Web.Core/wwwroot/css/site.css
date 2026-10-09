@@ -74,6 +74,11 @@
        on a hovered row — a pass by four hundredths. This is NOT the near-duplicate the
        duplication rule forbids; it is a different colour for a measurably different ground. */
     --color-active: #2c4708;   --color-active-bg: rgba(113, 176, 2, 0.22);
+    /* "Väntar på handpenning" (FR-115) — the one status family outside the warm palette, because
+       every warm hue was already a status and this one sits between Väntar (amber) and Godkänd
+       (green). Measured composited over the HOVERED admin row (#f0ebe1), the ground that once hid
+       a failure: 5.67:1 hovered, 6.29 on the page background, 6.66 on a white card. */
+    --color-deposit: #2c5470;  --color-deposit-bg: rgba(44, 84, 112, 0.12);
 
     /* Admin shell. Declared here rather than in a second `:root` beside the admin section,
        which is where they used to live — a palette split across two blocks is one nobody can
@@ -1163,7 +1168,7 @@ select.inp {
    eye to track across a very long row. Widening the frame makes a table harder to read, not easier. */
 .admin-body { padding: 1.5rem 2rem 3rem; max-width: 1160px; }
 
-/* ── Status badges (all 8 booking states) ────────────────── */
+/* ── Status badges (all 9 booking states) ────────────────── */
 .badge {
     display: inline-flex; align-items: center; gap: 0.35rem;
     font-size: 0.75rem; font-weight: 700;
@@ -1175,6 +1180,7 @@ select.inp {
 .badge--approved  { color: var(--color-ok);   background: var(--color-ok-bg); }
 .badge--complete  { color: var(--color-info); background: var(--color-info-bg); }
 .badge--active    { color: var(--color-active); background: var(--color-active-bg); }
+.badge--deposit   { color: var(--color-deposit); background: var(--color-deposit-bg); }
 /* The one badge that had borrowed a general-purpose token instead of a purpose-picked colour,
    and the only one that failed. Its tint is translucent, so on /bokningar the real ground is the
    tint composited over the ROW — and .admin-table tbody tr:hover swaps that row to
@@ -1309,6 +1315,9 @@ select.inp {
    overflowed by 13px at a 32px root while the track carried `1fr`'s auto minimum. */
 .dash-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-bottom: 1rem; }
 @media (min-width: 45em) { .dash-grid { grid-template-columns: 1fr 1fr; } }
+/* A full-width dashboard card between the grid and the next card ("Väntar på handpenning"): the
+   grid's own bottom margin spaces the cards above it, so this carries the same gap below itself. */
+.dash-full { margin-bottom: 1rem; }
 
 /* ── Admin data table (dense, scannable, status-forward) ─── */
 .admin-table-wrap { overflow-x: auto; background: #fff; border: 1px solid var(--color-line); border-radius: var(--radius-card); }

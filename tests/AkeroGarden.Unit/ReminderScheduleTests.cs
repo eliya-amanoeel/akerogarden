@@ -18,6 +18,7 @@ public class ReminderScheduleTests
     [InlineData(BookingStatus.DetailsComplete, true)]
     [InlineData(BookingStatus.Active, true)]
     [InlineData(BookingStatus.Pending, false)]
+    [InlineData(BookingStatus.AwaitingDeposit, false)] // no link to chase, no details to remind about (FR-63)
     [InlineData(BookingStatus.Completed, false)]
     [InlineData(BookingStatus.Denied, false)]
     [InlineData(BookingStatus.Cancelled, false)]

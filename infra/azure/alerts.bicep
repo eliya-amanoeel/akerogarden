@@ -252,10 +252,10 @@ resource availabilityAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
 
 // ── Nightly job liveness (post-launch security review, finding #18) ───────────────────────────
 // The daily automation — GDPR retention deletion, the completion-link issuance sweep and the 14-day
-// reminder — runs as an in-process BackgroundService on the ADMIN site. It works: the three jobs have
-// logged a run every day since launch. Nothing, however, notices if it stops.
+// reminder, and since 2026-10 the deposit reminder (FR-116) — runs as an in-process BackgroundService on
+// the ADMIN site. It works: the jobs have logged a run every day since launch. Nothing, however, notices if it stops.
 //
-// That matters more than an ordinary background job, because one of the three performs the statutory
+// That matters more than an ordinary background job, because one of them performs the statutory
 // erasure in requirements.md §2.7. If the loop dies (an unhandled fault in ExecuteAsync, Jobs:Enabled
 // flipped, the site left stopped) retention silently stops running and the only signal is an absence —
 // no error is raised, and RetentionJob deliberately leaves no audit trail behind, since a deleted
@@ -265,9 +265,11 @@ resource availabilityAlert 'Microsoft.Insights/metricAlerts@2018-03-01' = {
 // runner already writes. Cost, from the Azure retail price list for Sweden Central: EUR 0.0429/month
 // at 15-minute evaluation.
 //
-// Threshold reasoning: three jobs log "Kör schemalagt jobb" once per daily run, so a healthy 24 hours
-// contains exactly 3. Alerting at fewer than 3 catches both the loop dying and a single job being
-// dropped from the runner. The 24-hour window is wider than the once-daily cadence on purpose — a
+// Threshold reasoning: four jobs log "Kör schemalagt jobb" once per daily run, so a healthy 24 hours
+// contains exactly 4. Alerting at fewer than 4 catches both the loop dying and a single job being
+// dropped from the runner. **Keep this equal to the number of IScheduledJob registrations** in
+// AkeroServiceCollectionExtensions.AddAkeroScheduledJobs — and when it rises, deploy the code BEFORE
+// applying this template, or the alert fires every night until the new job exists. The 24-hour window is wider than the once-daily cadence on purpose — a
 // narrower one would fire every day simply because the run happens at 03:00.
 resource logAnalyticsWorkspace 'Microsoft.OperationalInsights/workspaces@2023-09-01' existing = {
   name: '${prefix}-logs'
@@ -278,7 +280,7 @@ resource nightlyJobsAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pre
   location: location
   properties: {
     displayName: '${prefix}-nightly-jobs-not-running'
-    description: 'The daily job runner (GDPR retention, completion-link issuance, 14-day reminder) has logged fewer than three runs in 24 hours. Statutory erasure may not be running.'
+    description: 'The daily job runner (GDPR retention, completion-link issuance, 14-day reminder, deposit reminder) has logged fewer than four runs in 24 hours. Statutory erasure may not be running.'
     severity: 1
     enabled: true
     scopes: [logAnalyticsWorkspace.id]
@@ -290,12 +292,12 @@ resource nightlyJobsAlert 'Microsoft.Insights/scheduledQueryRules@2023-03-15-pre
           query: 'AppTraces | where Message startswith "Kör schemalagt jobb"'
           timeAggregation: 'Count'
           operator: 'LessThan'
-          threshold: 3
+          threshold: 4
           // TWO consecutive failing evaluations, not one. The window is a rolling 24h and the jobs
           // run at 01:00:00.1–01:00:01.5 (measured over 7 days in production, 2026-09-09), so for a
-          // few minutes after 01:00 yesterday's three traces have just aged out of the window while
+          // few minutes after 01:00 yesterday's traces have just aged out of the window while
           // today's — which DID run — are not queryable yet, because Log Analytics ingestion lags by
-          // minutes. With minFailingPeriodsToAlert: 1 that reads as "fewer than three runs" and
+          // minutes. With minFailingPeriodsToAlert: 1 that reads as "fewer than four runs" and
           // fires a severity-1 alert almost every night, auto-resolving each time. An alert that
           // cries wolf nightly gets muted, and this is the one guarding statutory GDPR erasure.
           // Two periods = 30 minutes of sustained shortfall, far longer than ingestion lag and far

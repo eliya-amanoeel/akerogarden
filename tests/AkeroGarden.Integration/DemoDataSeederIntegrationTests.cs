@@ -71,7 +71,7 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         var statuses = await db.Bookings.Select(b => b.Status).Distinct().ToListAsync();
         foreach (var expected in new[]
                  {
-                     BookingStatus.Pending, BookingStatus.Approved, BookingStatus.DetailsComplete,
+                     BookingStatus.Pending, BookingStatus.AwaitingDeposit, BookingStatus.Approved, BookingStatus.DetailsComplete,
                      BookingStatus.Active, BookingStatus.Completed, BookingStatus.Denied,
                      BookingStatus.Cancelled, BookingStatus.Closed,
                  })
@@ -101,6 +101,14 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         Assert.Null(farOut.CompletionToken);
         Assert.False(CompletionTokenPolicy.ShouldIssueOn(
             Today, farOut.CheckIn!.Value));
+
+        // Waiting for a deposit (FR-115/116): one on time, one overdue and not yet reminded — the one
+        // DepositReminderJob acts on. Retention is kept, like Pending (FR-91).
+        var waiting = await db.Bookings.Where(b => b.Status == BookingStatus.AwaitingDeposit).ToListAsync();
+        Assert.Equal(2, waiting.Count);
+        Assert.All(waiting, b => Assert.NotNull(b.DeleteAfter));
+        Assert.Single(waiting, b => !DepositPolicy.IsOverdue(b.DepositDueDate, Today));
+        Assert.Single(waiting, b => DepositPolicy.IsReminderDue(b.Status, b.DepositDueDate, b.DepositReminderSentAt, Today));
 
         var completed = await db.Bookings.SingleAsync(b => b.Status == BookingStatus.Completed);
         Assert.NotNull(completed.DeleteAfter);

@@ -15,9 +15,12 @@ namespace AkeroGarden.Web.Core.Data.Entities;
 /// <see cref="AkeroGarden.Web.Core.Services.BookingStateMachine"/> so illegal transitions are
 /// blocked in code, not just hidden in the UI.</para>
 ///
-/// <para><b>No monetary totals and no payment state (C8, FR-42 retired).</b> No booking total,
-/// deposit amount, or balance is stored, and no invoicing/payment flags either — invoicing happens
-/// entirely outside the system, so a flag here tracked nothing the system could act on.</para>
+/// <para><b>No monetary totals, and payment state only where the system acts on it (C8, FR-42
+/// retired, FR-115/116).</b> No booking total, deposit amount, or balance is stored, and no
+/// invoicing or "paid" flag either — such a flag would track nothing the system could act on. The
+/// one piece of payment state is <see cref="BookingStatus.AwaitingDeposit"/> with
+/// <see cref="DepositDueDate"/> and <see cref="DepositReminderSentAt"/>: it holds the dates and
+/// gates confirmation. Do not add an amount beside it (SRS §5.6).</para>
 /// </summary>
 public class Booking
 {
@@ -300,4 +303,20 @@ public class Booking
     /// times at all — every booking approved inside the 14-day window lost it. Do not merge them
     /// back.</para></summary>
     public DateTime? CompletionNudgeSentAt { get; set; }
+
+    // ── Deposit (FR-115/116) ─────────────────────────────────────────────────────
+    /// <summary>The day the deposit is due, set when the admin asks for it (FR-115) — computed by
+    /// <see cref="AkeroGarden.Web.Core.Services.DepositPolicy.DueDate"/>. Null for a booking approved
+    /// directly.
+    ///
+    /// <para><b>It stays set after the booking leaves <see cref="BookingStatus.AwaitingDeposit"/></b>,
+    /// because it is also the only record that a deposit was asked for: a property-initiated
+    /// cancellation promises to refund "everything paid", and must not mention a deposit the guest
+    /// was never asked for (FR-79). Stored rather than derived — <see cref="UpdatedAt"/> moves on
+    /// every edit, and business logic must not read the audit log.</para></summary>
+    public DateOnly? DepositDueDate { get; set; }
+
+    /// <summary>Set when the deposit reminder is sent (FR-116) — only on a confirmed send, so a
+    /// failed one is retried the next night, the same rule as <see cref="ReminderEmailSentAt"/>.</summary>
+    public DateTime? DepositReminderSentAt { get; set; }
 }

@@ -125,7 +125,23 @@ the row.
 |---|---|---|---|---|
 | 2026-07-21 | Production | not recorded | not recorded | Phase 10c, **before launch — no guest data yet**. Its only record is "restore drill … passed" in the 10c row of `docs/archive/implementation-plan.md` |
 
-**Next drill due ~2026-10-21** — the first against a database holding real guests.
+| 2026-10-08 | Production | — | — | **FAILED — no restore possible.** Part A passed (35-day retention, earliest restore 2026-09-04). Part B was refused three times with `RegionalAllocationFailed` ("not sufficient capacity for the requested compute size in this region") — `--zone 1`, `2` and `3` alike. Nothing was created. **Drill postponed**; retry with the same commands, zone 1 first, and add a row per attempt |
+
+**The risk this exposed.** A point-in-time restore always creates a server of the **same size as the
+source** — `az postgres flexible-server restore` has no size option, only `--zone`. Production is
+Burstable `Standard_B1ms` in Sweden Central, and on 2026-10-08 no zone there had capacity for it. **If a
+real restore had been needed that day — a bad migration, an accidental delete — it would have failed
+the same way.** Shortages like this are usually temporary; if retries keep failing for about a week, treat
+it as structural and weigh a larger tier against the risk (the July sizing decision is in
+`infra/azure/README.md`, "SKU limitations"). Sweden Central compute, 2026-10-08 list price: B1ms
+~$14.5/month, B2s ~$29, General Purpose D2ds_v5 ~$137 — and no size has guaranteed capacity.
+
+**A drill that passes is the precondition for deploying the deposit work to production**
+(`docs/review/deposit-flow-2026-10-07.md` §7), since it carries a schema change. Two migrations have already
+reached production since launch without a passing drill (`AddOnBehalfOfBooking`, `AddJobRuns`) — the drill is
+no less owed for that; NFR-29 asks for it quarterly regardless.
+
+**Next drill: overdue** — the first against a database holding real guests has not yet succeeded.
 
 ### Note — if the shared subnet is rejected
 Some regions/tooling won't inject a second flexible server into an in-use delegated subnet. If `az ... restore` fails on networking, create a second delegated subnet in `$VNET` (delegation `Microsoft.DBforPostgreSQL/flexibleServers`) and a matching private DNS zone, then pass `--subnet <id> --private-dns-zone <id>` to the restore. Delete both after Part D.

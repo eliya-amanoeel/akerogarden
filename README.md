@@ -151,7 +151,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 - **No personal data outside the EU** — all Azure resources in North Europe or Sweden Central.
 - **No PII in URLs**; **no Swedish personnummer** collected or stored, ever.
 - **Nothing loads from a third-party host** — no font CDN, analytics, tag manager, embedded map, video or social widget. Fonts are self-hosted. Widened from fonts-only in 2026-08 and **enforced since 2026-09-08 by a `default-src 'self'` Content-Security-Policy on both hosts** (NFR-39), so this is no longer a convention you could breach by accident — the browser blocks it. The same policy forbids inline styling, so `style="…"` attributes in `.razor` markup are dropped; use a modifier class in `site.css`.
-- **No monetary totals stored, and no payment state at all** — prices are reference data. Invoicing happens entirely outside the system, so there is nothing here to track it with (FR-42 retired 2026-08).
+- **No monetary totals stored, and payment state only where the system acts on it** — prices are reference data and no amount is ever stored. The one piece of payment state is a booking waiting for its deposit (FR-115/116), which holds the dates and gates confirmation; invoicing and the money itself stay entirely outside the system (FR-42 retired 2026-08).
 - **No hard-deletes of referenced reference data** — deactivate instead.
 - **The booking state machine is one-way** — invalid transitions are blocked in code, not just hidden in the UI.
 - **Every date and time is Swedish time** (NFR-40). The servers run UTC; stored instants stay UTC, and every conversion to a Swedish date or clock time goes through `StockholmTime`. A guard test (`NoAmbientTimeTests`) fails the build on `DateTime.Now`, `ToLocalTime()` or `DateOnly.FromDateTime` anywhere else.
@@ -171,7 +171,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | [`docs/archive/implementation-plan.md`](docs/archive/implementation-plan.md) | Closed history: what was built, in what order, satisfying which requirements. **All phases 0–11 are done** and each is one table row. Not a source of truth — the SRS is |
 | [`docs/ux/design.md`](docs/ux/design.md) | Design system — tokens, type scale, components |
 | [`docs/legal/known-conflicts-at-launch.md`](docs/legal/known-conflicts-at-launch.md) | What was knowingly carried across the launch line in the legal texts. **Read before touching anything legal** |
-| [`docs/review/deposit-flow-2026-10-07.md`](docs/review/deposit-flow-2026-10-07.md) | Decision record for the deposit-before-confirmation requirement — decided, not built |
+| [`docs/review/deposit-flow-2026-10-07.md`](docs/review/deposit-flow-2026-10-07.md) | Decision record for the deposit-before-confirmation requirement (FR-115/116) — the reasoning behind it |
 | [`docs/review/post-launch-security-review.md`](docs/review/post-launch-security-review.md) | Post-launch security & architecture review and its remediation tracker |
 | [`docs/review/demo-feedback-2026-08-05.md`](docs/review/demo-feedback-2026-08-05.md) | Decision record for the 2026-08-05 client demo |
 | [`docs/handover/admin-manual.html`](docs/handover/admin-manual.html) | The admin manual (Swedish) — source of truth for the PDF handed to the client |

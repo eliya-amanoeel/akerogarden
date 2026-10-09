@@ -267,7 +267,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         {
             var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
             await svc.ApproveAsync(id);
-            Assert.True((await svc.CancelAsync(id, CancellationInitiator.PropertyInitiated, "Renovering")).Succeeded);
+            Assert.True((await svc.CancelAsync(id, CancellationInitiator.PropertyInitiated, "Renovering", depositPaid: false)).Succeeded);
         }
 
         var booking = await ReloadAsync(provider, id);
@@ -286,38 +286,150 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         using var scope = provider.CreateScope();
         var result = await scope.ServiceProvider.GetRequiredService<BookingService>()
-            .CancelAsync(id, CancellationInitiator.GuestInitiated, null);
+            .CancelAsync(id, CancellationInitiator.GuestInitiated, null, depositPaid: false);
         Assert.False(result.Succeeded); // §2.5: Pending is denied, not cancelled
     }
 
-    /// <summary>
-    /// §5.6: a guest cancelling two months or less before check-in forfeits the deposit. Judged on
-    /// the <b>Swedish</b> date — the server runs UTC, and 00:30 on the cut-off day in Sweden is still
-    /// the day before in UTC, which used to promise a full refund the terms do not give. 23:30 the
-    /// evening before is the other side of the line. Clock pinned: the hour is the subject.
-    /// </summary>
-    [Theory]
-    // Each row its own year: the rows share one database and approval refuses to double-book (FR-10).
-    [InlineData(2034, 0, 0, 30, false)]  // 00:30 on the cut-off day → forfeited
-    [InlineData(2035, -1, 23, 30, true)] // 23:30 the evening before → refunded in full
-    public async Task GuestCancellation_IsJudgedOnTheSwedishDate(
-        int year, int daysFromCutOff, int hour, int minute, bool refunded)
+    // ── Deposit before confirmation (FR-115/116) ─────────────────────────────────
+
+    [Fact]
+    public async Task RequestDeposit_HoldsTheDates_SetsTheDueDate_AndSendsWhereToPay()
     {
-        var checkIn = new DateOnly(year, 9, 15);
-        var cutOff = checkIn.AddMonths(-CancellationPolicy.ForfeitCutoffMonths); // 15 July
-        var instant = StockholmTime.ToUtc(cutOff.AddDays(daysFromCutOff), new TimeOnly(hour, minute));
-        var provider = NewProvider(out var email, pinnedNow: new DateTimeOffset(instant, TimeSpan.Zero));
-        var id = await CreatePendingStayAsync(provider, checkIn);
+        // Pinned: the due date is a distance from today (DepositPolicy.DueDate).
+        var pinned = DateTimeOffset.UtcNow;
+        var provider = NewProvider(out var email, pinnedNow: pinned);
+        var id = await CreatePendingStayAsync(provider);
+
+        DepositRequestResult result;
+        using (var scope = provider.CreateScope())
+            result = await scope.ServiceProvider.GetRequiredService<BookingService>().RequestDepositAsync(id);
+        Assert.True(result.Succeeded, result.Error);
+
+        var booking = await ReloadAsync(provider, id);
+        var expectedDue = DepositPolicy.DueDate(StockholmTime.DateOf(pinned.UtcDateTime), booking.CheckIn!.Value);
+        Assert.Equal(BookingStatus.AwaitingDeposit, booking.Status);
+        Assert.Equal(expectedDue, booking.DepositDueDate);
+        Assert.Equal(expectedDue, result.DueDate);
+        Assert.Null(booking.CompletionToken);  // no link before the booking is confirmed
+        Assert.NotNull(booking.DeleteAfter);   // retention kept, like Pending (FR-91)
+
+        var mail = Assert.Single(email.Sent);
+        Assert.Contains("väntar på handpenning", mail.Subject);
+        Assert.Contains("5713-3399", mail.HtmlBody);                         // the code-default payment details
+        Assert.Contains(booking.BookingReference, mail.HtmlBody);
+        Assert.Contains("återbetalas inte vid avbokning", mail.HtmlBody);
+    }
+
+    [Fact]
+    public async Task RequestDeposit_HoldsTheDates_AgainstAnotherInquiry()
+    {
+        var provider = NewProvider(out _);
+        var held = await CreatePendingStayAsync(provider);
+        var heldBooking = await ReloadAsync(provider, held);
+        var rival = await CreatePendingStayAsync(provider, heldBooking.CheckIn);
+
+        using var scope = provider.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+        Assert.True((await svc.RequestDepositAsync(held)).Succeeded);
+
+        // The waiting booking occupies its nights (FR-10/FR-113): neither path can say yes to the rival.
+        Assert.False((await svc.ApproveAsync(rival)).Succeeded);
+        Assert.False((await svc.RequestDepositAsync(rival)).Succeeded);
+    }
+
+    [Fact]
+    public async Task RequestDeposit_RunsTheSameChecksAsApproval_BuildingRequired()
+    {
+        var provider = NewProvider(out var email);
+        Guid id;
+        using (var scope = provider.CreateScope())
+        {
+            var checkIn = DbFixture.StayWindow(scope.ServiceProvider, Interlocked.Increment(ref _window), FarOutDays);
+            var b = await scope.ServiceProvider.GetRequiredService<BookingService>().CreateStayRequestAsync(new StayRequestInput
+            {
+                ContactName = "Gäst",
+                ContactEmail = $"guest-{Guid.NewGuid():N}@test.se",
+                CheckIn = checkIn,
+                CheckOut = checkIn.AddDays(2),
+                OvernightGuestCount = 4,
+                MealPlan = MealPlan.FullBoardAll,
+                AcceptTerms = true
+            }, createdByAdmin: true);
+            id = b.Id; // no building assigned
+        }
+
+        using (var scope = provider.CreateScope())
+        {
+            var result = await scope.ServiceProvider.GetRequiredService<BookingService>().RequestDepositAsync(id);
+            Assert.False(result.Succeeded);
+            Assert.Equal("Tilldela minst en byggnad innan bokningen godkänns.", result.Error);
+        }
+
+        Assert.Equal(BookingStatus.Pending, (await ReloadAsync(provider, id)).Status);
+        Assert.Empty(email.Sent);
+    }
+
+    [Fact]
+    public async Task Confirm_AfterDeposit_ApprovesTheBooking_WithTheConfirmationEmail()
+    {
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider);
+
+        using (var scope = provider.CreateScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.True((await svc.RequestDepositAsync(id)).Succeeded);
+            Assert.True((await svc.ApproveAsync(id)).Succeeded);
+        }
+
+        var booking = await ReloadAsync(provider, id);
+        Assert.Equal(BookingStatus.Approved, booking.Status);
+        Assert.Null(booking.DeleteAfter);          // live in-progress state (FR-91)
+        Assert.NotNull(booking.DepositDueDate);    // kept: the record that a deposit was asked for
+        var confirmation = Assert.Single(email.Sent, e => e.Subject.Contains("bekräftad"));
+        Assert.Contains("Er bokning är nu bekräftad", confirmation.HtmlBody);
+    }
+
+    /// <summary>Paying is the binding moment (D15). Cancelling a booking still waiting for its
+    /// deposit asks whether the money arrived, and the answer decides what the guest is told.</summary>
+    [Theory]
+    [InlineData(false, "inte skyldiga oss något")]
+    [InlineData(true, "Handpenningen återbetalas inte.")]
+    public async Task Cancel_WhileAwaitingDeposit_TheAnswerAboutTheDepositPicksTheEmail(bool depositPaid, string expected)
+    {
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider);
+
+        using (var scope = provider.CreateScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.True((await svc.RequestDepositAsync(id)).Succeeded);
+            Assert.True((await svc.CancelAsync(id, CancellationInitiator.GuestInitiated, null, depositPaid)).Succeeded);
+        }
+
+        Assert.Equal(BookingStatus.Cancelled, (await ReloadAsync(provider, id)).Status);
+        var mail = Assert.Single(email.Sent, e => e.Subject.Contains("avbokats"));
+        Assert.Contains(expected, mail.HtmlBody);
+    }
+
+    [Fact]
+    public async Task Cancel_ABookingApprovedDirectly_NeverClaimsADepositWasPaid()
+    {
+        // A stray `depositPaid: true` on a booking that was never asked for one must not put
+        // "Handpenningen återbetalas inte" in the guest's email.
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider);
 
         using (var scope = provider.CreateScope())
         {
             var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
             Assert.True((await svc.ApproveAsync(id)).Succeeded);
-            Assert.True((await svc.CancelAsync(id, CancellationInitiator.GuestInitiated, null)).Succeeded);
+            Assert.True((await svc.CancelAsync(id, CancellationInitiator.GuestInitiated, null, depositPaid: true)).Succeeded);
         }
 
         var mail = Assert.Single(email.Sent, e => e.Subject.Contains("avbokats"));
-        Assert.Contains(refunded ? "återbetalas handpenningen i sin helhet" : "återbetalas inte handpenningen", mail.HtmlBody);
+        Assert.DoesNotContain("Handpenning", mail.HtmlBody);
+        Assert.Contains("Eventuell avbokningsavgift följer", mail.HtmlBody);
     }
 
     [Fact]

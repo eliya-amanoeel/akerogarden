@@ -513,8 +513,11 @@ else
                             </div>
                         </div>
                     }
+                    @* Two ways to say yes (FR-38/FR-115), both behind the same refusals above. *@
+                    <p class="form-hint">Begär handpenning: datumen reserveras och gästen betalar 20 % inom @DepositPolicy.DaysToPay dagar innan bokningen bekräftas. Godkänn: bekräftas direkt, utan handpenning.</p>
                     <div class="rail-actions">
-                        <button class="btn" @onclick="() => _pending = PendingBookingAction.Approve">Godkänn</button>
+                        <button class="btn" @onclick="() => _pending = PendingBookingAction.RequestDeposit">Begär handpenning</button>
+                        <button class="btn-outline" @onclick="() => _pending = PendingBookingAction.Approve">Godkänn</button>
                     </div>
                     <div class="action-panel">
                         <label for="deny-reason">Avslagsmotivering (skickas till gästen)</label>
@@ -526,6 +529,26 @@ else
                 {
                     <div class="rail-actions">
                         <button class="btn" @onclick="Close">Markera som besvarad</button>
+                    </div>
+                }
+
+                @if (_booking.Status == BookingStatus.AwaitingDeposit)
+                {
+                    @* FR-115/116. Nothing is released automatically: an overdue deposit is the admin's
+                       call, so it is stated here in red rather than acted on. *@
+                    <p class="action-note"><strong>Handpenning senast:</strong><br />@SwedishDate(_booking.DepositDueDate)</p>
+                    @if (DepositPolicy.IsOverdue(_booking.DepositDueDate, StockholmTime.Today(Clock)))
+                    {
+                        <div class="alert alert--error" role="alert">
+                            <span class="alert__ic" aria-hidden="true">!</span>
+                            <div>
+                                <b>Handpenningen är försenad</b>
+                                <div>@(_booking.DepositReminderSentAt is null ? "En påminnelse skickas till gästen i natt." : "Gästen har fått en påminnelse.") Bekräfta bokningen om pengarna har kommit in, eller avboka den.</div>
+                            </div>
+                        </div>
+                    }
+                    <div class="rail-actions">
+                        <button class="btn" @onclick="() => _pending = PendingBookingAction.Confirm">Bekräfta bokningen</button>
                     </div>
                 }
 
@@ -585,9 +608,22 @@ else
                             <option value="@CancellationInitiator.GuestInitiated">Gästen</option>
                             <option value="@CancellationInitiator.PropertyInitiated">Anläggningen</option>
                         </select>
+                        @* FR-77: asked whenever a deposit was requested. Paying, not confirming, makes it
+                           non-refundable, and the system cannot see the bank — so the admin's answer
+                           decides what the guest is told. No default: guessing either way puts a false
+                           sentence in the guest's email. *@
+                        @if (_booking.DepositDueDate is not null)
+                        {
+                            <label for="cancel-deposit">Har handpenningen betalats?</label>
+                            <select id="cancel-deposit" @bind="_cancelDepositAnswer">
+                                <option value="">Välj…</option>
+                                <option value="ja">Ja</option>
+                                <option value="nej">Nej</option>
+                            </select>
+                        }
                         <label for="cancel-reason">Orsak (intern, valfritt)</label>
                         <InputTextArea id="cancel-reason" @bind-Value="_cancelReason" />
-                        <button class="btn-outline btn-danger" @onclick="() => _pending = PendingBookingAction.Cancel">Avboka</button>
+                        <button class="btn-outline btn-danger" @onclick="RequestCancel">Avboka</button>
                     </div>
                 }
             </section>
@@ -655,13 +691,15 @@ else
     // Guest-facing actions gate behind a confirmation (Phase 11) — each one emails or otherwise
     // reaches the booker, so an accidental click has an external, hard-to-undo effect. Purely
     // internal transitions (Close, MarkArrived) and reversible saves are deliberately NOT gated.
-    private enum PendingBookingAction { Approve, Deny, Cancel, MarkCompleted, Regenerate }
+    private enum PendingBookingAction { Approve, RequestDeposit, Confirm, Deny, Cancel, MarkCompleted, Regenerate }
 
     private PendingBookingAction? _pending;
 
     private string PendingTitle => _pending switch
     {
         PendingBookingAction.Approve => "Godkänn bokning",
+        PendingBookingAction.RequestDeposit => "Begär handpenning",
+        PendingBookingAction.Confirm => "Bekräfta bokningen",
         PendingBookingAction.Deny => "Avslå bokning",
         PendingBookingAction.Cancel => "Avboka bokning",
         PendingBookingAction.MarkCompleted => "Markera som avslutad",
@@ -683,6 +721,16 @@ else
         PendingBookingAction.Approve =>
             $"Bokningen godkänns och ett bekräftelsemejl skickas till {_booking?.ContactEmail}. "
             + "Slutförandelänken skickas automatiskt cirka sex veckor före ankomst. Vill du fortsätta?",
+        // Same reason as approval for naming the address (FR-38): for a manually created booking this
+        // is the first email the guest ever receives.
+        PendingBookingAction.RequestDeposit =>
+            $"Datumen reserveras och ett mejl med betalningsuppgifter skickas till {_booking?.ContactEmail}. "
+            + $"Handpenningen ska vara betald senast {SwedishDate(DepositDueIfRequestedNow)}. Vill du fortsätta?",
+        PendingBookingAction.Confirm when ApprovalWillSendLink =>
+            $"Bokningen bekräftas och ett bekräftelsemejl med slutförandelänk skickas till {_booking?.ContactEmail}. Vill du fortsätta?",
+        PendingBookingAction.Confirm =>
+            $"Bokningen bekräftas och ett bekräftelsemejl skickas till {_booking?.ContactEmail}. "
+            + "Slutförandelänken skickas automatiskt cirka sex veckor före ankomst. Vill du fortsätta?",
         PendingBookingAction.Deny => "Bokningen avslås och gästen underrättas via e-post. Vill du fortsätta?",
         PendingBookingAction.Cancel => "Bokningen avbokas och gästen underrättas via e-post. Vill du fortsätta?",
         PendingBookingAction.MarkCompleted => "Bokningen markeras som avslutad och ett tackmejl skickas till gästen. Vill du fortsätta?",
@@ -697,6 +745,8 @@ else
     private string PendingConfirmText => _pending switch
     {
         PendingBookingAction.Approve => "Godkänn",
+        PendingBookingAction.RequestDeposit => "Begär handpenning",
+        PendingBookingAction.Confirm => "Bekräfta",
         PendingBookingAction.Deny => "Avslå",
         PendingBookingAction.Cancel => "Avboka",
         PendingBookingAction.MarkCompleted => "Markera avslutad",
@@ -716,6 +766,8 @@ else
         switch (action)
         {
             case PendingBookingAction.Approve: await Approve(); break;
+            case PendingBookingAction.RequestDeposit: await RequestDeposit(); break;
+            case PendingBookingAction.Confirm: await Approve(); break;
             case PendingBookingAction.Deny: await Deny(); break;
             case PendingBookingAction.Cancel: await Cancel(); break;
             case PendingBookingAction.MarkCompleted: await MarkCompleted(); break;
@@ -731,6 +783,7 @@ else
     private string? _notes;
     private string? _denyReason;
     private string? _cancelReason;
+    private string _cancelDepositAnswer = "";
     private CancellationInitiator _cancelInitiator = CancellationInitiator.GuestInitiated;
 
     // Guest-data editing (FR-48). Three models for three sections, each saving on change — see the
@@ -875,6 +928,16 @@ else
     private bool ApprovalWillSendLink =>
         _booking?.CheckIn is { } checkIn
         && CompletionTokenPolicy.ShouldIssueOn(StockholmTime.Today(Clock), checkIn);
+
+    /// <summary>The due date the guest would be given if asked now — the same rule the service applies
+    /// (DepositPolicy), so the dialog and the email cannot disagree.</summary>
+    /// <summary>"16 oktober 2026". Explicitly Swedish: the app sets no culture, so a month name
+    /// formatted with the ambient one comes out in English on the Linux servers (NFR-32).</summary>
+    private static string SwedishDate(DateOnly? date) =>
+        date?.ToString("d MMMM yyyy", System.Globalization.CultureInfo.GetCultureInfo("sv-SE")) ?? "—";
+
+    private DateOnly? DepositDueIfRequestedNow =>
+        _booking?.CheckIn is { } checkIn ? DepositPolicy.DueDate(StockholmTime.Today(Clock), checkIn) : null;
 
     private bool CanCancel => _booking is not null &&
         BookingStateMachine.CanTransition(_booking.Status, BookingStatus.Cancelled);
@@ -1041,6 +1104,9 @@ else
 
     private async Task Approve()
     {
+        // Also confirms a booking that waited for its deposit (FR-115) — same service call, so the
+        // toast only swaps the verb.
+        var verb = _booking?.Status == BookingStatus.AwaitingDeposit ? "bekräftad" : "godkänd";
         var result = await BookingService.ApproveAsync(Id);
         if (!result.Succeeded) { _message = ToastMessage.Error(result.Error); return; }
         // Every branch reports a booking that was approved — a shortened or deferred link is a caveat
@@ -1048,10 +1114,10 @@ else
         // means no link was issued at all (FR-51/108); stating an expiry there would print an empty
         // date and imply a mail the guest never received.
         _message = ToastMessage.Ok(result.TokenExpiry is not { } expiry
-            ? "Bokningen är godkänd och ett bekräftelsemejl är skickat. Slutförandelänken skickas automatiskt cirka sex veckor före ankomst."
+            ? $"Bokningen är {verb} och ett bekräftelsemejl är skickat. Slutförandelänken skickas automatiskt cirka sex veckor före ankomst."
             : result.ShortExpiryWarning
-                ? $"Bokningen är godkänd. Slutförandelänken är förkortad och går ut {StockholmTime.ToLocal(expiry):yyyy-MM-dd HH:mm} — kontakta gästen vid behov."
-                : $"Bokningen är godkänd och e-post med slutförandelänk är skickad (giltig till {StockholmTime.ToLocal(expiry):yyyy-MM-dd HH:mm}).");
+                ? $"Bokningen är {verb}. Slutförandelänken är förkortad och går ut {StockholmTime.ToLocal(expiry):yyyy-MM-dd HH:mm} — kontakta gästen vid behov."
+                : $"Bokningen är {verb} och e-post med slutförandelänk är skickad (giltig till {StockholmTime.ToLocal(expiry):yyyy-MM-dd HH:mm}).");
         await Load();
     }
 
@@ -1070,11 +1136,32 @@ else
         await Load();
     }
 
+    private async Task RequestDeposit()
+    {
+        var result = await BookingService.RequestDepositAsync(Id);
+        _message = result.Succeeded
+            ? ToastMessage.Ok($"Handpenning är begärd och gästen har fått betalningsuppgifterna. Den ska vara betald senast {SwedishDate(result.DueDate)}.")
+            : ToastMessage.Error(result.Error);
+        await Load();
+    }
+
+    /// <summary>Opens the cancel dialog — unless the deposit question is unanswered, which would send
+    /// the guest a guess (FR-77).</summary>
+    private void RequestCancel()
+    {
+        if (_booking?.DepositDueDate is not null && _cancelDepositAnswer == "")
+        {
+            _message = ToastMessage.Error("Ange om handpenningen har betalats innan du avbokar.");
+            return;
+        }
+        _pending = PendingBookingAction.Cancel;
+    }
+
     private async Task Cancel()
     {
-        var result = await BookingService.CancelAsync(Id, _cancelInitiator, _cancelReason);
+        var result = await BookingService.CancelAsync(Id, _cancelInitiator, _cancelReason, depositPaid: _cancelDepositAnswer == "ja");
         _message = result.Succeeded ? ToastMessage.Ok("Bokningen är avbokad och gästen har underrättats.") : ToastMessage.Error(result.Error);
-        if (result.Succeeded) _cancelReason = null;
+        if (result.Succeeded) { _cancelReason = null; _cancelDepositAnswer = ""; }
         await Load();
     }
 

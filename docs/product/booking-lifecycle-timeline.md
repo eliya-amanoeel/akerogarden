@@ -17,9 +17,13 @@ stateDiagram-v2
     [*] --> Pending: guest submits an inquiry
     [*] --> Pending: admin records it (FR-47/112)
 
-    Pending --> Approved: admin approves (stay request)
+    Pending --> Approved: admin approves directly (stay request)
+    Pending --> AwaitingDeposit: admin asks for the deposit (FR-115)
     Pending --> Denied: admin denies (stay request)
     Pending --> Closed: admin answers (general inquiry)
+
+    AwaitingDeposit --> Approved: admin confirms — deposit received
+    AwaitingDeposit --> Cancelled: admin cancels (withdrawn, or never paid)
 
     Approved --> DetailsComplete: guest submits the completion form
     Approved --> Cancelled: admin cancels
@@ -40,6 +44,14 @@ stateDiagram-v2
         Admin: new inquiry
         (neither is sent when an admin
         recorded the booking — FR-47)
+    end note
+
+    note right of AwaitingDeposit
+        Guest: deposit request — where to pay,
+        due in 7 days, not refundable once paid
+        Dates held while waiting
+        Due date passed: one reminder (FR-116),
+        then overdue on the dashboard
     end note
 
     note right of Approved
@@ -71,9 +83,9 @@ A booking an admin takes by telephone starts in `Pending` like any other and fol
 path — **it still waits for approval**, and approval still issues the completion link. What differs is
 only what is sent at creation: **no guest acknowledgement and no admin notification** (FR-47). The
 acknowledgement says *"we have received your booking request"*, which is untrue for a booking already
-agreed on the phone, and undeliverable to a guest with no email address at all. The approval mail is
-then the single, accurate first message the guest receives — which is also why the terms reach them
-there rather than earlier. That gap was closed by decision on 2026-09-09 with a process control:
+agreed on the phone, and undeliverable to a guest with no email address at all. The approval mail —
+or, if the admin asks for a deposit, the deposit request (FR-115) — is then the single, accurate first
+message the guest receives, which is also why the terms reach them there rather than earlier. That gap was closed by decision on 2026-09-09 with a process control:
 `/bokningar/ny` tells the admin to send a guest who has an email to the web form instead (FR-111).
 
 Where the guest has no email, the admin's own address stands in as the booking's contact email so the
@@ -86,18 +98,25 @@ lifetimes and the nightly decisions do not know or care how the booking was crea
 
 ## 2. What the nightly run decides
 
-One run, 03:00 Europe/Stockholm, three jobs in this order. The order matters only in the rare case
-noted below.
+One run, 03:00 Europe/Stockholm, four jobs in the order they are registered
+(`AkeroServiceCollectionExtensions.AddAkeroScheduledJobs`). The order matters only in the rare case
+noted below. *(Until 2026-10 this section drew retention last; the code has always run it first.)*
 
 ```mermaid
 flowchart TD
-    N(["Nightly run — 03:00 Europe/Stockholm"]) --> J1
+    N(["Nightly run — 03:00 Europe/Stockholm"]) --> J0
 
-    J1["**1. Completion-link issuance** (FR-108)"] --> Q1{"Still Approved,<br/>check-in within 40 days,<br/>and no usable link?"}
+    J0["**1. GDPR retention** (FR-66/69)"] --> Q7{"Past DeleteAfter?"}
+    Q7 -->|"yes"| A4["Hard-delete the booking<br/>and everything hanging off it"] --> J1
+    Q7 -->|"no"| Q8{"Within 30 days of it,<br/>not yet warned?"}
+    Q8 -->|"yes"| A5["Admin: record due for deletion"] --> J1
+    Q8 -->|"no"| J1
+
+    J1["**2. Completion-link issuance** (FR-108)"] --> Q1{"Still Approved,<br/>check-in within 40 days,<br/>and no usable link?"}
     Q1 -->|"no"| J2
     Q1 -->|"yes"| A1["Issue a link<br/>Email: 'you can now fill in your details'"] --> J2
 
-    J2["**2. The two 14-day emails** (FR-63/64)"] --> Q2{"Check-in within 14 days?"}
+    J2["**3. The two 14-day emails** (FR-63/64)"] --> Q2{"Check-in within 14 days?"}
     Q2 -->|"no"| J3
     Q2 -->|"yes"| Q3{"Status?"}
 
@@ -111,11 +130,9 @@ flowchart TD
     Q6 -->|"no — defer to a later run"| J3
     Q6 -->|"yes (or never sent)"| A3["Reissue the link<br/>Guest: completion nudge<br/>Admin: guest has not completed<br/>sets CompletionNudgeSentAt — only if the guest's email went out"] --> J3
 
-    J3["**3. GDPR retention** (FR-66/69)"] --> Q7{"Past DeleteAfter?"}
-    Q7 -->|"yes"| A4["Hard-delete the booking<br/>and everything hanging off it"]
-    Q7 -->|"no"| Q8{"Within 30 days of it,<br/>not yet warned?"}
-    Q8 -->|"yes"| A5["Admin: record due for deletion"]
-    Q8 -->|"no"| E(["done"])
+    J3["**4. Deposit reminder** (FR-116)"] --> Q9{"Still AwaitingDeposit,<br/>due date passed,<br/>not yet reminded?"}
+    Q9 -->|"no"| E(["done"])
+    Q9 -->|"yes"| A6["Guest: deposit not received<br/>sets DepositReminderSentAt — only if sent<br/>Never cancels: the admin decides"] --> E
 ```
 
 **Two flags, never one.** The pre-arrival reminder and the completion nudge are guarded separately.
@@ -224,6 +241,8 @@ eleven. Corrected 2026-08-10; see FR-53.
 ```mermaid
 flowchart LR
     P["Pending"] -->|"never answered"| R1["delete 12 months<br/>after submission"]
+    AD["AwaitingDeposit"] -->|"never paid, never cancelled"| R1
+    AD -->|"cancelled"| R4
     P -->|"denied"| R2["delete 12 months<br/>after denial"]
     P -->|"closed (general inquiry)"| R3["delete 12 months<br/>after submission"]
     A["Approved / DetailsComplete / Active"] -->|"cancelled"| R4["delete 12 months<br/>after cancellation"]
@@ -237,9 +256,12 @@ flowchart LR
     W --> D["Hard delete — booking,<br/>participants, meals, buildings,<br/>cleaning and facility rows,<br/>and its audit entries (FR-98)"]
 ```
 
-Live in-progress states (`Approved`, `DetailsComplete`, `Active`) carry **no** deletion date; the
+`AwaitingDeposit` keeps the 12-months-from-submission date it had as `Pending` (FR-91), so a booking
+nobody pays and nobody cancels cannot keep guest data indefinitely. Live in-progress states
+(`Approved`, `DetailsComplete`, `Active`) carry **no** deletion date; the
 clock only starts when the booking reaches a terminal state.
 
-Worked example on the same booking: cancelled by the guest on **2026-11-15**. That is inside two
-months of arrival, so the cancellation email states the deposit is forfeited. The record is deleted
+Worked example on the same booking: cancelled by the guest on **2026-11-15**. If a deposit was paid,
+the cancellation email states it is not refunded, and that any further fee follows the terms in force
+when the booking was confirmed (FR-79) — the email never restates the scale itself. The record is deleted
 **2027-11-15**, and the admin is warned on **2027-10-16**.

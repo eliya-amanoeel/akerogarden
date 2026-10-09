@@ -51,7 +51,7 @@ public static class CompletionAccessPolicy
                 => CompletionAccess.Valid,
             BookingStatus.Approved
                 => CompletionAccess.Expired,
-            _ // Pending, Denied, Closed, Cancelled — the link is not usable
+            _ // Pending, AwaitingDeposit, Denied, Closed, Cancelled — the link is not usable
                 => CompletionAccess.NotActive,
         };
 }

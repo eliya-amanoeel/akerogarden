@@ -320,6 +320,12 @@ namespace AkeroGarden.Web.Core.Migrations
                     b.Property<bool>("DepartureLunch")
                         .HasColumnType("boolean");
 
+                    b.Property<DateOnly?>("DepositDueDate")
+                        .HasColumnType("date");
+
+                    b.Property<DateTime?>("DepositReminderSentAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("InvoiceAddress")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");

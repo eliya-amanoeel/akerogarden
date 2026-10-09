@@ -11,7 +11,13 @@ public enum BookingStatus
     /// <summary>Inquiry submitted, awaiting admin review (both booking types).</summary>
     Pending,
 
-    /// <summary>Stay request approved; awaiting guest completion.</summary>
+    /// <summary>Stay request whose deposit the admin has asked for (FR-115). Holds its dates while
+    /// the group pays; the admin confirms it to <see cref="Approved"/> once the money has arrived.
+    /// Placed after <see cref="Pending"/> so lists ordered by declaration read in lifecycle order —
+    /// safe to insert because the status is persisted as a string, not an ordinal.</summary>
+    AwaitingDeposit,
+
+    /// <summary>Stay request confirmed — directly, or once its deposit arrived; awaiting guest completion.</summary>
     Approved,
 
     /// <summary>Stay request denied; retained 12 months. Terminal.</summary>
@@ -26,7 +32,7 @@ public enum BookingStatus
     /// <summary>Stay finished; in retention period. Terminal.</summary>
     Completed,
 
-    /// <summary>Cancelled by admin from Approved/DetailsComplete/Active. Terminal.</summary>
+    /// <summary>Cancelled by admin from AwaitingDeposit/Approved/DetailsComplete/Active. Terminal.</summary>
     Cancelled,
 
     /// <summary>General inquiry read and responded to; no approve/deny applies. Terminal.</summary>

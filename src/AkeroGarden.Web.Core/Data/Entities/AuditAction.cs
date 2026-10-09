@@ -27,6 +27,9 @@ public enum AuditAction
     ParticipantsEdited,
     AdminNotesEdited,
     BuildingAssignmentChanged,
+    // The admin asked for the deposit (FR-115). Confirming afterwards is BookingApproved — the same
+    // transition into Approved, whichever path led there; its message says which.
+    DepositRequested,
 
     // ── Reference data (FR-96) — EntityType disambiguates which kind ────────────
     ReferenceDataCreated,
@@ -48,6 +51,7 @@ public enum AuditAction
     // What the jobs did that the booking-lifecycle actions above do not already cover. Link issuance
     // stays CompletionLinkIssued (one verb, see above).
     PreArrivalReminderSent,
+    DepositReminderSent,
     DeletionWarningSent,
     // Written without BookingId on purpose: a booking-scoped entry is cascade-deleted with the very
     // booking it describes (FR-98), so the record that it was deleted would vanish with it. Kept by

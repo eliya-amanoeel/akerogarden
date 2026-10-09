@@ -1396,6 +1396,104 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         }
     }
 
+    /// <summary>
+    /// The deposit path end to end in the browser (FR-115/116, FR-77): ask for the deposit behind a
+    /// confirmation dialog, see the booking held on the dashboard, be stopped from cancelling without
+    /// saying whether the deposit was paid, then confirm. Each step is checked against the database,
+    /// not only the screen.
+    /// </summary>
+    [Fact]
+    public async Task Deposit_is_requested_held_on_the_dashboard_and_confirmed()
+    {
+        var id = Guid.NewGuid();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var checkIn = await FreeCheckInWithinIssueWindowAsync(today);
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Bookings.Add(new Booking
+            {
+                Id = id,
+                BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
+                BookingType = BookingType.StayRequest,
+                Status = BookingStatus.Pending,
+                ContactName = "Handpenning Testsson",
+                ContactEmail = "handpenning@example.se",
+                CheckIn = checkIn,
+                CheckOut = checkIn.AddDays(2),
+                OvernightGuestCount = 6,
+                MealPlan = MealPlan.FullBoardAll,
+                ArrivalDinner = true,
+                DepartureBreakfast = true,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                DeleteAfter = today.AddYears(1),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync($"/bokningar/{id}");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            // Asking for the deposit runs the same checks as approval, building included (FR-103).
+            await Page.GetByRole(AriaRole.Checkbox, new() { Name = "Huvudbyggnaden" }).CheckAsync();
+            await Assertions.Expect(Page.Locator(".form-status"))
+                .ToContainTextAsync("Byggnadstilldelningen är sparad.");
+
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Begär handpenning", Exact = true }).ClickAsync();
+            var dialog = Page.GetByRole(AriaRole.Dialog);
+            await Assertions.Expect(dialog).ToContainTextAsync("handpenning@example.se"); // FR-38: the address
+            await Assertions.Expect(dialog).ToContainTextAsync("ska vara betald senast");
+            await dialog.GetByRole(AriaRole.Button, new() { Name = "Begär handpenning", Exact = true }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("Handpenning är begärd");
+
+            await using (var db = Fixture.NewDbContext())
+            {
+                var booking = (await db.Bookings.FindAsync(id))!;
+                Assert.Equal(BookingStatus.AwaitingDeposit, booking.Status);
+                Assert.NotNull(booking.DepositDueDate);
+                Assert.Null(booking.CompletionToken); // no link before confirmation
+            }
+
+            await Assertions.Expect(Page.Locator(".action-note", new() { HasText = "Handpenning senast" })).ToBeVisibleAsync();
+
+            // Cancelling without answering the deposit question must not open the dialog (FR-77).
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Avboka", Exact = true }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status"))
+                .ToContainTextAsync("Ange om handpenningen har betalats");
+            await Assertions.Expect(Page.GetByRole(AriaRole.Dialog)).Not.ToBeVisibleAsync();
+
+            // The dashboard card lists it while it waits (FR-116).
+            await Page.GotoAsync("/");
+            var card = Page.Locator("section.card", new() { Has = Page.GetByRole(AriaRole.Heading, new() { Name = "Väntar på handpenning" }) });
+            await Assertions.Expect(card.GetByRole(AriaRole.Link, new() { Name = "Handpenning Testsson" }).First).ToBeVisibleAsync();
+
+            // Confirm — the booking becomes Approved and, inside the issue window, gets its link.
+            await Page.GotoAsync($"/bokningar/{id}");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Bekräfta bokningen", Exact = true }).ClickAsync();
+            await Page.GetByRole(AriaRole.Dialog)
+                .GetByRole(AriaRole.Button, new() { Name = "Bekräfta", Exact = true }).ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("Bokningen är bekräftad");
+
+            await using (var db = Fixture.NewDbContext())
+            {
+                var booking = (await db.Bookings.FindAsync(id))!;
+                Assert.Equal(BookingStatus.Approved, booking.Status);
+                Assert.NotNull(booking.DepositDueDate); // kept: the record that a deposit was asked for
+                Assert.NotNull(booking.CompletionToken);
+            }
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Bookings.Where(b => b.Id == id).ExecuteDeleteAsync();
+        }
+    }
+
     [Fact]
     public async Task Approve_gates_behind_confirmation_and_only_fires_on_confirm()
     {

@@ -77,7 +77,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             AssignedBuildingNames(booking),
             booking.CheckInTime,
             booking.CheckOutTime,
-            BuildTermsUrl());
+            BuildTermsUrl(),
+            depositRequested: booking.DepositDueDate is not null);
         return SendToGuestAsync(booking, content);
     }
 
@@ -168,23 +169,37 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToGuestAsync(booking, content);
     }
 
-    /// <summary>Cancellation email with the deposit clause resolved per initiator and timing (FR-79).</summary>
-    public Task<bool> SendCancellationAsync(Booking booking)
+    /// <summary>Cancellation email (FR-79). <paramref name="notice"/> and
+    /// <paramref name="depositPaid"/> come from the cancellation itself — the status it was cancelled
+    /// from and the admin's answer about the deposit are not on the booking afterwards.</summary>
+    public Task<bool> SendCancellationAsync(Booking booking, CancellationNotice notice, bool depositPaid)
     {
-        if (booking.CancellationInitiator is null)
-            throw new InvalidOperationException("Avbokningsmejl kräver att avbokningens initiativtagare är satt.");
-        if (booking.CancelledAt is null)
-            throw new InvalidOperationException("Avbokningsmejl kräver att avbokningstidpunkten är satt.");
-
-        // Guest-initiated timing is judged from the cancellation date against check-in (§5.6) — the
-        // Swedish date: a cancellation at 00:30 on the cut-off day is on that day, not the one before.
-        var cancelledOn = StockholmTime.DateOf(booking.CancelledAt.Value);
-        var outcome = booking.CheckIn is null
-            ? DepositOutcome.FullRefund // no dated stay to judge timing against; default to full refund
-            : CancellationPolicy.ResolveDepositOutcome(booking.CancellationInitiator.Value, booking.CheckIn.Value, cancelledOn);
-
         var content = BookingEmailTemplates.Cancellation(
-            booking.ContactName, booking.CancellationInitiator.Value, outcome, booking.BookingReference);
+            booking.ContactName, notice, depositPaid, booking.BookingReference, BuildTermsUrl());
+        return SendToGuestAsync(booking, content);
+    }
+
+    /// <summary>Deposit request (FR-115). Requires <see cref="Booking.DepositDueDate"/> to be set and
+    /// <see cref="Booking.BuildingAssignments"/> loaded (the lodging line names them).</summary>
+    public Task<bool> SendDepositRequestAsync(Booking booking)
+    {
+        if (booking.DepositDueDate is null)
+            throw new InvalidOperationException("Begäran om handpenning kräver ett satt förfallodatum.");
+
+        var content = BookingEmailTemplates.DepositRequest(
+            booking.ContactName, booking.BookingReference, booking.CheckIn, booking.CheckOut,
+            AssignedBuildingNames(booking), booking.DepositDueDate.Value, _opts.Payment, BuildTermsUrl());
+        return SendToGuestAsync(booking, content);
+    }
+
+    /// <summary>Deposit reminder (FR-116) — the nightly job's one reminder past the due date.</summary>
+    public Task<bool> SendDepositReminderAsync(Booking booking)
+    {
+        if (booking.DepositDueDate is null)
+            throw new InvalidOperationException("Påminnelse om handpenning kräver ett satt förfallodatum.");
+
+        var content = BookingEmailTemplates.DepositReminder(
+            booking.ContactName, booking.BookingReference, booking.DepositDueDate.Value, _opts.Payment, BuildTermsUrl());
         return SendToGuestAsync(booking, content);
     }
 

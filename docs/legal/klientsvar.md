@@ -98,14 +98,18 @@ Vid sen betalning har Åkerögården rätt att debitera dröjsmålsränta enligt
 
 Om ett avtalat förskott inte betalas i tid har Åkerögården rätt att, efter påminnelse, betrakta bokningen som avbokad.
 
+Har Åkerögården begärt en handpenning blir bokningen bindande när handpenningen har betalats.
+
 1. Avbokning av hela arrangemanget
 
 Avbokning ska göras skriftligen till Åkerögården.
 
-Om inget annat särskilt anges i bokningsbekräftelsen rekommenderas följande avbokningsvillkor:
+En inbetald handpenning återbetalas inte vid avbokning, oavsett när avbokningen sker. Handpenningen räknas av mot en eventuell avbokningsavgift.
+
+Om inget annat särskilt anges i bokningsbekräftelsen gäller följande avbokningsvillkor:
 
 Mer än 8 veckor före ankomst:
-Ingen avbokningsavgift, med undantag för särskilda kostnader som Åkerögården redan haft för beställningen och som inte kan återbetalas.
+Ingen avbokningsavgift utöver handpenningen, med undantag för särskilda kostnader som Åkerögården redan haft för beställningen och som inte kan återbetalas.
 
 Mellan 4 och 2 veckor före ankomst:
 75 % av bokningens bekräftade värde debiteras.
@@ -166,7 +170,11 @@ Möbler och inventarier får inte flyttas mellan rum eller byggnader utan tillst
 
 Vad som ingår beträffande sänglinne, handdukar och slutstädning framgår av bokningen.
 
+Städning kan köpas som tilläggstjänst mot en separat avgift.
+
 Om gästerna själva ansvarar för städning ska rummen och de lokaler som gruppen disponerat lämnas i det skick och enligt de instruktioner som Åkerögården anger.
+
+Köket får inte användas nattetid. Använder gruppen köket utan att ha köpt städning ansvarar gruppen själv för att köket städas ordentligt efter användning.
 
 Vid otillräcklig städning eller onormalt nedsmutsade lokaler kan en skälig extra städavgift debiteras.
 
@@ -205,6 +213,8 @@ Alla gäster förväntas därför visa hänsyn till andra personer och grupper.
 Störande eller högljutt beteende ska undvikas, särskilt under kvälls- och nattetid.
 
 Tystnad ska normalt råda utomhus och i boendedelarna mellan **kl. 23.00 och 07.00**, om inget annat överenskommits för ett specifikt arrangemang.
+
+De gemensamma utrymmena stänger **kl. 23.00**.
 
 Musik, högtalare och andra aktiviteter som kan störa andra gäster måste anpassas till platsens karaktär och får inte användas på ett störande sätt.
 
@@ -254,6 +264,8 @@ Vid brandlarm ska byggnaden omedelbart utrymmas och instruktioner från personal
 Beställaren ansvarar för skador på byggnader, rum, inventarier eller utrustning som orsakats av deltagare genom uppsåt eller vårdslöshet.
 
 Skador ska rapporteras till Åkerögården så snart de upptäcks.
+
+Upptäcker Åkerögården en skada efter avresan meddelas beställaren senast en vecka efter avresan.
 
 Åkerögården har rätt att debitera en skälig kostnad för reparation eller ersättning av skadad eller saknad egendom.
 

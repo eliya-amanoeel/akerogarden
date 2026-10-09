@@ -147,7 +147,7 @@ public class AvailabilityServiceTests
     }
 
     [Fact]
-    public void Describe_TurnoverConflict_ExplainsTheCleaningDays()
+    public void Describe_TurnoverConflict_ExplainsTheDaysAfterDeparture_WithoutTheMechanism()
     {
         var checkIn = new DateOnly(2026, 10, 10);
         var checkOut = new DateOnly(2026, 10, 15);
@@ -155,7 +155,8 @@ public class AvailabilityServiceTests
 
         var message = AvailabilityService.Describe(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
 
-        Assert.Contains("två dagar för städning", message);
+        Assert.Contains("tid att göra i ordning gården mellan två grupper", message);
+        Assert.DoesNotContain("städning", message);
         Assert.Contains("15 oktober", message);
     }
 

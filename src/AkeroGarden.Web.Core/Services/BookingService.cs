@@ -575,8 +575,9 @@ public class BookingService(
     // ── Status transitions (§2.5 — enforced via BookingStateMachine) ───────────────
 
     /// <summary>
-    /// Approves a Pending stay request (FR-38), sends the approval email (FR-52), and reports whether
-    /// check-in is close enough that the link is shortened (FR-75).
+    /// Approves a stay request (FR-38) — directly from Pending, or confirming one that waited for its
+    /// deposit (FR-115) — sends the approval email (FR-52), and reports whether check-in is close
+    /// enough that the link is shortened (FR-75).
     ///
     /// <para>A completion token is generated only when check-in is 40 days away or sooner (FR-51/108,
     /// §2.6); approved further ahead, <see cref="ApproveResult.TokenExpiry"/> is null and the guest is
@@ -586,55 +587,29 @@ public class BookingService(
     {
         var booking = await db.Bookings.FindAsync(id);
         if (booking is null) return new ApproveResult(false, "Bokningen kunde inte hittas.", null, false);
-        if (booking.BookingType != BookingType.StayRequest)
-            return new ApproveResult(false, "Endast bokningsförfrågningar kan godkännas.", null, false);
-        if (!BookingStateMachine.CanTransition(booking.Status, BookingStatus.Approved))
-            return new ApproveResult(false, "Bokningen kan inte godkännas i sitt nuvarande läge.", null, false);
-        if (booking.CheckIn is null)
-            return new ApproveResult(false, "Bokningen saknar incheckningsdatum.", null, false);
+        if (await RefuseConfirmationAsync(booking, BookingStatus.Approved) is { } refusal)
+            return new ApproveResult(false, refusal, null, false);
 
-        // One group at a time — the property is never let to two groups over the same nights, which
-        // is why the public calendar shows an occupied date as unavailable whatever the group's size
-        // (FR-10). Approval is where that becomes true rather than merely displayed: the calendar is
-        // a display, and a Pending inquiry can sit in the inbox while another booking is approved
-        // over the same dates. Blocking, not warning — an overlap approved by mistake is discovered
-        // by two groups arriving at the same gate, and the deposit and cancellation terms have by
-        // then been sent to both.
-        if (booking.CheckOut is { } checkOut)
-        {
-            var stay = await availability.EvaluateStayAsync(booking.CheckIn.Value, checkOut, booking.Id);
-            if (!stay.IsAvailable)
-                return new ApproveResult(false, AvailabilityService.DescribeForAdmin(stay), null, false);
-        }
-
-        // Building assignment is a precondition of approval (FR-38/FR-103/D1) — the approval email
-        // names the buildings, so approving without them would send the guest an incomplete answer.
-        //
-        // D6 exempts bookings with no overnight guests, but that exemption is unreachable here and is
-        // deliberately not coded (decision 2026-08-06): general inquiries are already rejected above
-        // by the BookingType check, and StayRequestInput.OvernightGuestCount is [Range(1, 1000)], so
-        // a stay request always has at least one overnight guest. A `> 0` clause would have been a
-        // branch no input could take and no test could honestly cover.
-        if (!await db.BookingBuildingAssignments.AnyAsync(a => a.BookingId == booking.Id))
-        {
-            return new ApproveResult(
-                false, "Tilldela minst en byggnad innan bokningen godkänns.", null, false);
-        }
-
+        // Reached from Pending (approved directly) or AwaitingDeposit (confirmed once the deposit came,
+        // FR-115). Everything below is the same either way; only the audit wording and the email's
+        // opening line differ.
+        var afterDeposit = booking.Status == BookingStatus.AwaitingDeposit;
+        var checkIn = booking.CheckIn!.Value; // refused above when null
         var now = Now;
 
         // The link is issued when the guest can use it, not when the booking is approved (FR-51/108,
         // §2.6). A group booking a year out cannot name its participants yet, and a link issued now
         // would expire long before they could — so approval more than 40 days ahead stores no token
         // and CompletionLinkIssuanceJob issues one when check-in comes within the window.
-        var linkIssued = CompletionTokenPolicy.ShouldIssueOn(StockholmTime.DateOf(now), booking.CheckIn.Value);
+        var linkIssued = CompletionTokenPolicy.ShouldIssueOn(StockholmTime.DateOf(now), checkIn);
         if (linkIssued)
             IssueCompletionLink(booking, now);
 
         booking.Status = BookingStatus.Approved;
         booking.DeleteAfter = null; // live in-progress state (FR-91)
         booking.UpdatedAt = now;
-        await RecordBookingAuditAsync(booking, AuditAction.BookingApproved, "Bokningen godkändes.");
+        await RecordBookingAuditAsync(booking, AuditAction.BookingApproved,
+            afterDeposit ? "Bokningen bekräftades efter begärd handpenning." : "Bokningen godkändes.");
 
         // Audited separately from the approval itself, and only when a link was actually issued
         // (FR-95). Since FR-108 made that conditional, "was this guest ever sent a link, and when"
@@ -656,9 +631,87 @@ public class BookingService(
         logger.LogInformation("Booking {BookingId} approved", booking.Id);
 
         // FR-75: warn when check-in is 14 days away or sooner (the link is shortened).
-        var daysToCheckIn = booking.CheckIn.Value.DayNumber - StockholmTime.DateOf(now).DayNumber;
+        var daysToCheckIn = checkIn.DayNumber - StockholmTime.DateOf(now).DayNumber;
         var shortExpiry = daysToCheckIn <= 14;
         return new ApproveResult(true, null, booking.CompletionTokenExpiry, shortExpiry);
+    }
+
+    /// <summary>
+    /// Asks for the deposit instead of approving directly (FR-115): <c>Pending → AwaitingDeposit</c>.
+    /// The booking holds its dates from now (it is in <see cref="OccupancyProvider.OccupyingStatuses"/>),
+    /// gets a due date (<see cref="DepositPolicy.DueDate"/>), and the guest is sent the deposit request
+    /// with where to pay. No completion link: that comes with confirmation (<see cref="ApproveAsync"/>).
+    ///
+    /// <para>It runs <b>every check a direct approval runs</b> — the same method — because this is now
+    /// the moment the dates are held and the guest is told yes.</para>
+    /// </summary>
+    public async Task<DepositRequestResult> RequestDepositAsync(Guid id)
+    {
+        var booking = await db.Bookings.FindAsync(id);
+        if (booking is null) return new DepositRequestResult(false, "Bokningen kunde inte hittas.", null);
+        if (await RefuseConfirmationAsync(booking, BookingStatus.AwaitingDeposit) is { } refusal)
+            return new DepositRequestResult(false, refusal, null);
+
+        var now = Now;
+        var today = StockholmTime.DateOf(now);
+        booking.Status = BookingStatus.AwaitingDeposit;
+        booking.DepositDueDate = DepositPolicy.DueDate(today, booking.CheckIn!.Value); // refused above when null
+        booking.DepositReminderSentAt = null;
+        // Kept from Pending: a booking nobody pays must not keep guest data indefinitely (FR-91).
+        booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
+            BookingStatus.AwaitingDeposit, StockholmTime.DateOf(booking.CreatedAt), booking.CheckOut, today);
+        booking.UpdatedAt = now;
+        await RecordBookingAuditAsync(booking, AuditAction.DepositRequested,
+            $"Handpenning begärdes, att betalas senast {booking.DepositDueDate:yyyy-MM-dd}.");
+        await db.SaveChangesAsync();
+
+        // The deposit request names the assigned buildings, like the approval email (FR-103).
+        await db.Entry(booking).Collection(b => b.BuildingAssignments).LoadAsync();
+        await emails.SendDepositRequestAsync(booking);
+        logger.LogInformation("Deposit requested for booking {BookingId}", booking.Id);
+        return new DepositRequestResult(true, null, booking.DepositDueDate);
+    }
+
+    /// <summary>
+    /// The checks shared by direct approval and the deposit request — the two ways a stay request is
+    /// told yes (FR-38, FR-115). Returns the refusal to show the admin, or null when the booking may
+    /// move to <paramref name="target"/>. One method, so the two paths cannot drift apart.
+    /// </summary>
+    private async Task<string?> RefuseConfirmationAsync(Booking booking, BookingStatus target)
+    {
+        if (booking.BookingType != BookingType.StayRequest)
+            return "Endast bokningsförfrågningar kan godkännas.";
+        if (!BookingStateMachine.CanTransition(booking.Status, target))
+            return "Bokningen kan inte godkännas i sitt nuvarande läge.";
+        if (booking.CheckIn is null)
+            return "Bokningen saknar incheckningsdatum.";
+
+        // One group at a time — the property is never let to two groups over the same nights, which
+        // is why the public calendar shows an occupied date as unavailable whatever the group's size
+        // (FR-10). Approval is where that becomes true rather than merely displayed: the calendar is
+        // a display, and a Pending inquiry can sit in the inbox while another booking is approved
+        // over the same dates. Blocking, not warning — an overlap approved by mistake is discovered
+        // by two groups arriving at the same gate, and the deposit and cancellation terms have by
+        // then been sent to both.
+        if (booking.CheckOut is { } checkOut)
+        {
+            var stay = await availability.EvaluateStayAsync(booking.CheckIn.Value, checkOut, booking.Id);
+            if (!stay.IsAvailable)
+                return AvailabilityService.DescribeForAdmin(stay);
+        }
+
+        // Building assignment is a precondition of approval (FR-38/FR-103/D1) — the approval email
+        // names the buildings, so approving without them would send the guest an incomplete answer.
+        //
+        // D6 exempts bookings with no overnight guests, but that exemption is unreachable here and is
+        // deliberately not coded (decision 2026-08-06): general inquiries are already rejected above
+        // by the BookingType check, and StayRequestInput.OvernightGuestCount is [Range(1, 1000)], so
+        // a stay request always has at least one overnight guest. A `> 0` clause would have been a
+        // branch no input could take and no test could honestly cover.
+        if (!await db.BookingBuildingAssignments.AnyAsync(a => a.BookingId == booking.Id))
+            return "Tilldela minst en byggnad innan bokningen godkänns.";
+
+        return null;
     }
 
     /// <summary>
@@ -953,17 +1006,26 @@ public class BookingService(
     }
 
     /// <summary>
-    /// Cancels a booking from Approved/DetailsComplete/Active (FR-76–79). Records the initiator
-    /// and optional internal reason, sets the 12-month retention, and sends the cancellation
-    /// email with the deposit clause resolved by initiator × timing.
+    /// Cancels a booking from AwaitingDeposit/Approved/DetailsComplete/Active (FR-76–79). Records the
+    /// initiator and optional internal reason, sets the 12-month retention, and sends the cancellation
+    /// email with its money clause resolved by <see cref="CancellationPolicy.Resolve"/>.
+    ///
+    /// <para><paramref name="depositPaid"/> is the admin's answer to "has the deposit arrived?",
+    /// asked whenever a deposit was requested (FR-77). It is not stored — that would be the "paid"
+    /// flag §5.6 forbids — only used for this email and named in the audit entry.</para>
     /// </summary>
-    public async Task<SaveResult> CancelAsync(Guid id, CancellationInitiator initiator, string? reason)
+    public async Task<SaveResult> CancelAsync(
+        Guid id, CancellationInitiator initiator, string? reason, bool depositPaid)
     {
         var booking = await db.Bookings.FindAsync(id);
         if (booking is null) return SaveResult.Fail("Bokningen kunde inte hittas.");
         if (!BookingStateMachine.CanTransition(booking.Status, BookingStatus.Cancelled))
             return SaveResult.Fail("Bokningen kan inte avbokas i sitt nuvarande läge.");
 
+        // A deposit can only have been paid if one was asked for; a stray `true` on a booking
+        // approved directly must not put "Handpenningen återbetalas inte" in a guest's email.
+        depositPaid &= booking.DepositDueDate is not null;
+        var notice = CancellationPolicy.Resolve(booking.Status, initiator, depositPaid);
         var now = Now;
         booking.Status = BookingStatus.Cancelled;
         booking.CancelledAt = now;
@@ -974,10 +1036,11 @@ public class BookingService(
         booking.UpdatedAt = now;
         // The initiator is an enum, not PII; the free-text reason is deliberately omitted (NFR-37).
         var initiatorLabel = initiator == CancellationInitiator.GuestInitiated ? "gästinitierad" : "anläggningsinitierad";
-        await RecordBookingAuditAsync(booking, AuditAction.BookingCancelled, $"Bokningen avbokades ({initiatorLabel}).");
+        var depositLabel = booking.DepositDueDate is null ? "" : depositPaid ? ", handpenning betald" : ", handpenning ej betald";
+        await RecordBookingAuditAsync(booking, AuditAction.BookingCancelled, $"Bokningen avbokades ({initiatorLabel}{depositLabel}).");
         await db.SaveChangesAsync();
 
-        await emails.SendCancellationAsync(booking);
+        await emails.SendCancellationAsync(booking, notice, depositPaid);
         logger.LogInformation("Booking {BookingId} cancelled by {Initiator}", booking.Id, initiator);
         return SaveResult.Success;
     }
@@ -1266,6 +1329,9 @@ public class BookingService(
 /// <summary>Outcome of an approval: success plus, per FR-75, whether the completion link was
 /// shortened because check-in is 14 days away or sooner (so the admin can follow up directly).</summary>
 public record ApproveResult(bool Succeeded, string? Error, DateTime? TokenExpiry, bool ShortExpiryWarning);
+
+/// <summary>Outcome of asking for the deposit (FR-115); <see cref="DueDate"/> is what the guest was told.</summary>
+public record DepositRequestResult(bool Succeeded, string? Error, DateOnly? DueDate);
 
 /// <summary>
 /// The fields <see cref="BookingService.IssueCompletionLink"/> overwrites, captured before a nightly

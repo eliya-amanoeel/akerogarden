@@ -2,7 +2,7 @@
 
 > **PUBLICERAD 2026-09-07.** Denna text är live på `/integritetspolicy`. Den har **inte** granskats av jurist och kommer inte att göra det — beslutet att lansera utan juristgranskning togs 2026-09-07, se `known-conflicts-at-launch.md`. Innehållet är verifierat mot koden (personuppgiftsansvarig, rättsliga grunder, lagringstider, kakor) men är inte juridiskt granskat. Håll denna fil synkroniserad med `PrivacyPolicy.razor` för hand.
 
-*Senast uppdaterad: 7 september 2026*
+*Senast uppdaterad: 9 oktober 2026*
 
 ## 1. Vem är personuppgiftsansvarig?
 
@@ -28,6 +28,7 @@ Vi samlar in personuppgifter i samband med bokningsförfrågningar, bokningar oc
 | Deltagaruppgifter | För- och efternamn på deltagare samt ålderskategori | Bokande gäst, vid slutförande av bokning |
 | Allergiuppgifter | Allergier per namngiven deltagare | Bokande gäst, vid slutförande av bokning |
 | Måltidsuppgifter | Gruppens gemensamma val av måltidsalternativ samt **antal** portioner med kostpreferens (vegetariskt/veganskt) — dessa antal är inte kopplade till namngivna personer | Bokande gäst, vid slutförande av bokning |
+| Betalningsuppgifter | Betalarens namn samt bankkonto eller, vid Swish, telefonnummer — när handpenning eller faktura betalas. Hanteras i vår bokföring, inte i bokningssystemet | Bokande gäst, vid betalning |
 
 **Vi samlar aldrig in personnummer.** Vi ber aldrig om, och lagrar aldrig, svenska personnummer i bokningssystemet.
 
@@ -74,8 +75,9 @@ Vi sparar bokningsuppgifter endast så länge det är nödvändigt för respekti
 |---|---|---|
 | Genomförd vistelse | 2 år | Utcheckningsdatum |
 | Nekad eller avbokad bokning | 12 månader | Datum för nekande/avbokning |
-| Obesvarad förfrågan (ingen respons) | 12 månader | Inskickningsdatum |
+| Obesvarad förfrågan eller bokning som väntar på handpenning | 12 månader | Inskickningsdatum |
 | Avslutad allmän förfrågan | 12 månader | Inskickningsdatum |
+| Betalningsuppgifter i bokföringen | 7 år | Utgången av det kalenderår då räkenskapsåret avslutades (bokföringslagen) |
 
 Bokningar som är under aktiv hantering (godkänd, väntar komplettering, eller pågående vistelse) raderas inte automatiskt förrän de når ett av ovanstående utfall. Radering sker automatiskt av ett schemalagt systemjobb.
 

@@ -378,8 +378,10 @@ set a team with an on-call rotation might build. It creates:
   decision to accept the Burstable B1ms tier and watch rather than load-test
 - one Postgres `storage_percent` alert at 80% (post-launch review #15), paired with `autoGrow` so the
   alert is a warning rather than the only thing between the server and a full disk
-- one **log** alert (`scheduledQueryRules`): fewer than three `Kör schemalagt jobb` traces in 24 h,
-  meaning the nightly job runner has stopped and statutory GDPR erasure may not be running (#18).
+- one **log** alert (`scheduledQueryRules`): fewer `Kör schemalagt jobb` traces in 24 h than there are
+  nightly jobs — four since the deposit reminder (FR-116) — meaning the runner has stopped or a job was
+  dropped, and statutory GDPR erasure may not be running (#18). **When a job is added, deploy the code
+  before applying `alerts.bicep`**, or the raised threshold fires every night until the job exists.
   It requires **two consecutive** failing evaluations — with one, it fired nightly on ingestion lag,
   because shortly after the 01:00 run yesterday's traces have aged out of the rolling window while
   today's are not yet queryable

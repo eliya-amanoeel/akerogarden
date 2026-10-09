@@ -8,6 +8,7 @@ public static class BookingDisplay
     public static string StatusLabel(BookingStatus status) => status switch
     {
         BookingStatus.Pending => "Väntar",
+        BookingStatus.AwaitingDeposit => "Väntar på handpenning",
         BookingStatus.Approved => "Godkänd",
         BookingStatus.Denied => "Avslagen",
         BookingStatus.DetailsComplete => "Uppgifter klara",
@@ -23,6 +24,7 @@ public static class BookingDisplay
     public static string StatusBadgeClass(BookingStatus status) => status switch
     {
         BookingStatus.Pending => "badge badge--pending",
+        BookingStatus.AwaitingDeposit => "badge badge--deposit",
         BookingStatus.Approved => "badge badge--approved",
         BookingStatus.DetailsComplete => "badge badge--complete",
         BookingStatus.Active => "badge badge--active",

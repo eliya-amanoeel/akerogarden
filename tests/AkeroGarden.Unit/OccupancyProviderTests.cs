@@ -127,6 +127,20 @@ public class OccupancyProviderTests
         Assert.DoesNotContain(status, OccupancyProvider.OccupyingStatuses);
     }
 
+    /// <summary>A booking waiting for its deposit holds its dates: the group was told they are
+    /// reserved for them while they pay (FR-10, FR-115). Same honest limit as above — the filter
+    /// being applied is pinned by the integration tests.</summary>
+    [Theory]
+    [InlineData(BookingStatus.AwaitingDeposit)]
+    [InlineData(BookingStatus.Approved)]
+    [InlineData(BookingStatus.DetailsComplete)]
+    [InlineData(BookingStatus.Active)]
+    public void OccupyingStatuses_AreExactlyTheLiveConfirmedOrHeldOnes(BookingStatus status)
+    {
+        Assert.Contains(status, OccupancyProvider.OccupyingStatuses);
+        Assert.Equal(4, OccupancyProvider.OccupyingStatuses.Length);
+    }
+
     [Fact]
     public void WholePropertyBlock_HoldsTheDate_WithNoBookings()
     {

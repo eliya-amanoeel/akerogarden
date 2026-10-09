@@ -255,7 +255,14 @@ public static class BookingEmailTemplates
     /// <paramref name="magicLinkUrl"/>/<paramref name="expiryUtc"/> replaces the link paragraph with
     /// a statement that the form opens roughly six weeks before the stay and that nothing is required
     /// until then. The two are one template rather than two because everything else on the page —
-    /// lodging, deposit terms, times — is identical, and a copy would drift.</para>
+    /// lodging, payment and cancellation lines, times — is identical, and a copy would drift.</para>
+    ///
+    /// <para><b>Two paths in (FR-115), told apart by <paramref name="depositRequested"/>.</b> After a
+    /// deposit the booking is confirmed, not newly approved — the guest was already told yes in the
+    /// deposit request. It deliberately does <b>not</b> say the deposit has arrived: the admin may
+    /// confirm without payment (deciding to invoice instead), and the email must never assert what the
+    /// system cannot know. Neither variant restates a cancellation rule or a balance due date (FR-79,
+    /// §5.6) — the terms carry the rule, the invoice carries the date.</para>
     ///
     /// <para><b>The booking's times, not the 14:00/12:00 standard.</b> The admin is warned about a
     /// deviating time at the approve button (FR-101) and can adjust it first (FR-48), so whatever is
@@ -265,11 +272,13 @@ public static class BookingEmailTemplates
     public static EmailContent Approval(
         string contactName, string? magicLinkUrl, DateTime? expiryUtc, string bookingReference,
         IReadOnlyList<string> assignedBuildingNames, TimeOnly? checkInTime, TimeOnly? checkOutTime,
-        string termsUrl)
+        string termsUrl, bool depositRequested)
     {
         var body = new StringBuilder();
         body.Append(Greeting(contactName));
-        body.Append("<p>Din bokningsförfrågan är godkänd! För att slutföra din bokning behöver du fylla i uppgifter om deltagare och måltider.</p>");
+        body.Append(depositRequested
+            ? "<p>Er bokning är nu bekräftad! För att slutföra den behöver ni fylla i uppgifter om deltagare och måltider.</p>"
+            : "<p>Din bokningsförfrågan är godkänd! För att slutföra din bokning behöver du fylla i uppgifter om deltagare och måltider.</p>");
         body.Append(ReferenceLine(bookingReference));
         body.Append(LodgingLine(assignedBuildingNames));
         if (magicLinkUrl is not null && expiryUtc is not null)
@@ -282,18 +291,77 @@ public static class BookingEmailTemplates
             body.Append("<p>En länk för att fylla i uppgifter om deltagare och måltider skickas till er cirka sex veckor före ankomst. Fram till dess behöver ni inte göra något.</p>");
         }
 
-        body.Append("<h3>Handpenning och avbokning</h3>");
-        body.Append("<p>En handpenning på 20 % av totalsumman betalas för att bekräfta bokningen. Resterande 80 % faktureras före ankomst.</p>");
-        body.Append("<p>Vid avbokning mer än två månader före ankomst återbetalas handpenningen i sin helhet. Vid avbokning två månader eller mindre före ankomst återbetalas inte handpenningen.</p>");
-        // The full terms travel with this email specifically, not with the shared footer: §1 of the
-        // terms makes the booking binding at approval, so this is the moment the deposit and
-        // cancellation rules above start to apply. The two paragraphs are a summary — the link is
-        // what the guest was actually shown of the whole document at the binding moment.
-        body.Append($"<p>Fullständiga <a href=\"{Enc(termsUrl)}\">boknings- och ordningsvillkor</a> finns på vår webbplats.</p>");
+        body.Append("<h3>Betalning och avbokning</h3>");
+        body.Append(depositRequested
+            ? "<p>Resterande belopp faktureras av oss.</p>"
+            : "<p>Pris och betalningsvillkor får ni från oss separat.</p>");
+        body.Append("<p>Vid avbokning gäller de boknings- och vistelsevillkor som gällde när bokningen bekräftades.</p>");
+        // The full terms travel with this email specifically, not with the shared footer: under §2 of
+        // the client's terms the booking binds once Åkerögården has confirmed it and the guest has
+        // accepted, so this is sent at the binding moment — and the link is what the guest was shown
+        // of the whole document then. (The deposit request links them too: there, paying is accepting.)
+        body.Append($"<p>Fullständiga <a href=\"{Enc(termsUrl)}\">boknings- och vistelsevillkor</a> finns på vår webbplats.</p>");
         body.Append($"<p>Incheckning sker kl. {Enc(StatedTimePolicy.Display(checkInTime, MealOccasionResolver.StandardCheckInTime))} "
             + $"och utcheckning kl. {Enc(StatedTimePolicy.Display(checkOutTime, MealOccasionResolver.StandardCheckOutTime))}.</p>");
-        return new EmailContent(WithReference("Din bokning är godkänd – slutför dina uppgifter", bookingReference), body.ToString());
+        return new EmailContent(
+            WithReference(depositRequested ? "Din bokning är bekräftad – slutför dina uppgifter" : "Din bokning är godkänd – slutför dina uppgifter", bookingReference),
+            body.ToString());
     }
+
+    /// <summary>Deposit request (FR-115, §9) — sent when the admin asks for the deposit instead of
+    /// approving directly. It is the first "yes" the guest receives, and the dates are held from now.
+    ///
+    /// <para><b>The non-refundable line is not optional.</b> Against a consumer a non-refundable
+    /// condition only binds if it was shown before the booking became binding — and paying is what
+    /// makes it binding (the client's §2/§6). So it is stated here, before the guest pays, not only in
+    /// the terms behind the link.</para>
+    ///
+    /// <para>No amount: the system stores none (C8). The client tells the group the amount in a
+    /// separate email (their answer of 2026-10-08).</para></summary>
+    public static EmailContent DepositRequest(
+        string contactName, string bookingReference, DateOnly? checkIn, DateOnly? checkOut,
+        IReadOnlyList<string> assignedBuildingNames, DateOnly dueDate, PaymentDetails payment, string termsUrl)
+    {
+        var body = new StringBuilder();
+        body.Append(Greeting(contactName));
+        body.Append($"<p>Tack för er bokningsförfrågan! Vi kan ta emot er och har reserverat {FormatDate(checkIn)} – {FormatDate(checkOut)} åt er.</p>");
+        body.Append(ReferenceLine(bookingReference));
+        body.Append(LodgingLine(assignedBuildingNames));
+        body.Append("<h3>Handpenning</h3>");
+        body.Append("<p>För att bekräfta bokningen betalar ni en handpenning på 20 % av bokningens totala belopp. Beloppet får ni i ett separat mejl från oss.</p>");
+        body.Append($"<p>Betala senast <strong>{FormatDate(dueDate)}</strong>. Fram till dess är datumen reserverade för er.</p>");
+        body.Append(PaymentBlock(payment, bookingReference));
+        body.Append("<p><strong>När handpenningen är betald är bokningen bindande, och handpenningen återbetalas inte vid avbokning.</strong> Vi skickar en bokningsbekräftelse när betalningen har kommit in.</p>");
+        body.Append($"<p>Genom att betala godkänner ni våra <a href=\"{Enc(termsUrl)}\">boknings- och vistelsevillkor</a>.</p>");
+        return new EmailContent(WithReference("Er bokning väntar på handpenning", bookingReference), body.ToString());
+    }
+
+    /// <summary>Deposit reminder (FR-116, §9) — sent once, the night after the due date, while the
+    /// booking still waits. The client's terms (§6) allow an unpaid booking to be treated as cancelled
+    /// only <i>after a reminder</i>; this is that reminder. It cancels nothing — the admin decides.</summary>
+    public static EmailContent DepositReminder(
+        string contactName, string bookingReference, DateOnly dueDate, PaymentDetails payment, string termsUrl)
+    {
+        var body = new StringBuilder();
+        body.Append(Greeting(contactName));
+        body.Append($"<p>Vi har ännu inte fått in handpenningen för er bokning. Den skulle ha betalats senast {FormatDate(dueDate)}.</p>");
+        body.Append(ReferenceLine(bookingReference));
+        body.Append(PaymentBlock(payment, bookingReference));
+        body.Append($"<p>Betala så snart som möjligt. Kommer handpenningen inte in kan bokningen avbokas, enligt punkt 6 i våra <a href=\"{Enc(termsUrl)}\">boknings- och vistelsevillkor</a>.</p>");
+        body.Append("<p>Har ni redan betalat kan ni bortse från det här mejlet.</p>");
+        return new EmailContent(WithReference("Påminnelse: handpenningen har inte kommit in", bookingReference), body.ToString());
+    }
+
+    /// <summary>Where to pay, with the booking reference as the payment message so the client can
+    /// tell whose money arrived. Shared by the request and the reminder so the two cannot disagree.</summary>
+    private static string PaymentBlock(PaymentDetails payment, string bookingReference) =>
+        "<p>"
+        + $"<strong>Betalningsmottagare:</strong> {Enc(payment.Recipient)}<br>"
+        + $"<strong>Bankgiro:</strong> {Enc(payment.Bankgiro)}<br>"
+        + $"<strong>Swish:</strong> {Enc(payment.Swish)}<br>"
+        + $"<strong>Bankkonto:</strong> clearingnummer {Enc(payment.ClearingNumber)}, kontonummer {Enc(payment.AccountNumber)}"
+        + "</p>"
+        + $"<p>Ange referensnumret <strong>{Enc(bookingReference)}</strong> som meddelande när ni betalar.</p>";
 
     /// <summary>The completion link is now available (§9, FR-108) — sent when check-in comes within
     /// 40 days of a booking that was approved too far ahead to be given a link at the time, and by an
@@ -421,24 +489,39 @@ public static class BookingEmailTemplates
         return new EmailContent(WithReference("Tack för ditt besök hos Åkerögården", bookingReference), body.ToString());
     }
 
-    /// <summary>Cancellation email — deposit clause conditional on initiator and timing (§9, FR-79).</summary>
+    /// <summary>Cancellation email (§9, FR-79). <b>Never restates the cancellation scale</b> — a guest
+    /// cancellation points to the terms in force when the booking was confirmed (the client's §32), so
+    /// the email cannot contradict the terms and a change to them needs no code change.
+    /// <paramref name="depositPaid"/> adds the one fact the terms make certain: a paid deposit is not
+    /// refunded (§7).</summary>
     public static EmailContent Cancellation(
         string contactName,
-        CancellationInitiator initiator,
-        DepositOutcome outcome,
-        string bookingReference)
+        CancellationNotice notice,
+        bool depositPaid,
+        string bookingReference,
+        string termsUrl)
     {
         var body = new StringBuilder();
         body.Append(Greeting(contactName));
         body.Append("<p>Din bokning hos Åkerögården har avbokats.</p>");
         body.Append(ReferenceLine(bookingReference));
 
-        var clause = initiator == CancellationInitiator.PropertyInitiated
-            ? "Vi återbetalar hela handpenningen."
-            : outcome == DepositOutcome.FullRefund
-                ? "Eftersom avbokningen sker mer än två månader före ankomst återbetalas handpenningen i sin helhet."
-                : "Eftersom avbokningen sker två månader eller mindre före ankomst återbetalas inte handpenningen.";
-        body.Append($"<p>{clause}</p>");
+        switch (notice)
+        {
+            case CancellationNotice.NothingOwed:
+                body.Append("<p>Bokningen hade ännu inte bekräftats, eftersom handpenningen inte hade kommit in. Ni är därför inte skyldiga oss något.</p>");
+                break;
+            case CancellationNotice.PropertyCancelled:
+                body.Append("<p>Vi återbetalar allt ni har betalat till oss.</p>");
+                break;
+            default:
+                if (depositPaid)
+                    body.Append("<p>Handpenningen återbetalas inte.</p>");
+                body.Append($"<p>{(depositPaid ? "Eventuell ytterligare avbokningsavgift" : "Eventuell avbokningsavgift")} följer de "
+                    + $"<a href=\"{Enc(termsUrl)}\">boknings- och vistelsevillkor</a> som gällde när er bokning bekräftades. Vi återkommer med besked.</p>");
+                break;
+        }
+
         body.Append("<p>Har du frågor är du välkommen att kontakta oss.</p>");
         return new EmailContent(WithReference("Din bokning har avbokats", bookingReference), body.ToString());
     }

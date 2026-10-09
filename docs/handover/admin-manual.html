@@ -79,7 +79,7 @@
 <p>Gå till <b>admin.akerogarden.se</b> och logga in med er e-postadress och ert lösenord. Har ni glömt lösenordet finns länken <b>Glömt lösenord</b> på inloggningssidan — ni får ett mejl med en länk för att välja ett nytt.</p>
 
 <h3>Översikt</h3>
-<p>När ni loggat in möts ni av <b>Översikt</b>: förfrågningar som väntar på svar (<b>Väntar på svar</b>), godkända bokningar där gästen ännu inte fyllt i sina uppgifter (<b>Väntar på slutförande</b>) och kommande ankomster (<b>Kommande ankomster</b>). Det är härifrån ni oftast börjar.</p>
+<p>När ni loggat in möts ni av <b>Översikt</b>: förfrågningar som väntar på svar (<b>Väntar på svar</b>), godkända bokningar där gästen ännu inte fyllt i sina uppgifter (<b>Väntar på slutförande</b>), bokningar där ni väntar på handpenningen (<b>Väntar på handpenning</b> — en försenad står överst, i rött) och kommande ankomster (<b>Kommande ankomster</b>). Det är härifrån ni oftast börjar.</p>
 
 <h3>När en förfrågan kommer in</h3>
 <p>En gäst som fyller i formuläret på webbplatsen hamnar direkt i <b>Bokningar</b> med status <b>Väntar</b>. Ni får samtidigt ett mejl till <code>info@akerogarden.se</code>. Gästen får en automatisk bekräftelse på att förfrågan är mottagen — det är inte en bokning, bara en kvittens.</p>
@@ -92,10 +92,25 @@
     <li>Kontrollera att datumen är lediga — <b>Kalendervy</b> visar allt som redan är bokat. Systemet kontrollerar detta självt när du klickar <b>Godkänn</b>: en förfrågan som krockar med en annan grupp, eller med en blockering av hela gården, går inte att godkänna, och du får ett meddelande om vilka datum som är upptagna. Avresedagen och dagen efter är alltid avsatta för städning och räknas som upptagna — reser en grupp på söndag kan nästa grupp komma tidigast på tisdag.</li>
     <li>Under <b>Byggnadstilldelning</b>: kryssa i den eller de byggnader gruppen ska bo i. Bredvid varje byggnad står hur många bäddar den har. Valet sparas direkt. <b>Minst en byggnad måste vara vald</b> — annars går bokningen inte att godkänna.</li>
     <li>Läs eventuella meddelanden i rutorna till höger (se nedan).</li>
-    <li>Klicka <b>Godkänn</b>. En ruta visar vilken e-postadress mejlet går till — <b>kontrollera att den är rätt</b> — och klicka <b>Godkänn</b> igen.</li>
+    <li>Välj hur ni säger ja — <b>Begär handpenning</b> eller <b>Godkänn</b> (se nedan). En ruta visar vilken e-postadress mejlet går till — <b>kontrollera att den är rätt</b> — och klicka på knappen igen.</li>
   </ol>
 </div>
-<p>Gästen får ett bekräftelsemejl med vilka byggnader de ska bo i och reglerna för deposition och avbokning. Gruppen fördelar sig själv mellan rummen i byggnaderna — ni tilldelar aldrig enskilda rum.</p>
+<p><b>Begär handpenning</b> är det vanliga: gruppen betalar 20 % innan bokningen bekräftas. <b>Godkänn</b> bekräftar direkt, utan handpenning — till exempel för en församling eller kommun som betalar mot faktura, eller när det är mycket kort tid kvar. Ni väljer för varje bokning.</p>
+<p>När bokningen är bekräftad får gästen ett bekräftelsemejl med vilka byggnader de ska bo i och en länk till boknings- och vistelsevillkoren. <b>Mejlet anger varken pris eller avbokningsavgifter</b> — pris och betalningsvillkor skickar ni själva, som tidigare. Gruppen fördelar sig själv mellan rummen i byggnaderna — ni tilldelar aldrig enskilda rum.</p>
+
+<h4>Begära handpenning</h4>
+<div class="step">
+  <ol>
+    <li>Klicka <b>Begär handpenning</b> och bekräfta. <b>Datumen reserveras direkt</b> — ingen annan kan boka dem medan ni väntar.</li>
+    <li>Gästen får ett mejl med betalningsuppgifterna (bankgiro, Swish och bankkonto), bokningens referensnummer att skriva som meddelande, och sista betalningsdag: <b>sju dagar senare</b>, eller dagen före ankomst om den kommer tidigare. Mejlet säger också att handpenningen inte betalas tillbaka vid avbokning.</li>
+    <li><b>Mejlet anger inte beloppet.</b> Skicka beloppet till gästen i ett eget mejl, direkt efteråt.</li>
+    <li>Håll koll på kontot. När pengarna har kommit: öppna bokningen och klicka <b>Bekräfta bokningen</b>. Gästen får då bokningsbekräftelsen — samma mejl som när ni godkänner direkt.</li>
+  </ol>
+</div>
+<div class="note">
+  <p><b>Bekräfta samma dag som pengarna kommer.</b> Gästen väntar på bekräftelsen, och systemet kan inte se ert bankkonto — det vet bara det ni markerar.</p>
+  <p><b>Kommer pengarna inte?</b> Dagen efter sista betalningsdag får gästen automatiskt en påminnelse, och bokningen står som <b>Förfallen</b> i rött under <i>Väntar på handpenning</i> på översikten. <b>Systemet avbokar aldrig av sig självt</b> — en betalning kan ta en dag eller två. Ni bestämmer: bekräfta om pengarna kommit, annars avboka (se <i>Avboka</i>). Datumen är reserverade tills ni gör något, så låt den inte bli liggande.</p>
+</div>
 <p><b>Länken där gästen fyller i deltagare och måltider</b> kommer med bekräftelsen om det är högst sex veckor (40 dagar) kvar till ankomst. Ligger vistelsen längre fram skickar systemet länken av sig självt när det är 40 dagar kvar, så att uppgifterna hinner bli aktuella — bekräftelsen talar om det.</p>
 <p><b>Hur länge länken gäller:</b></p>
 <ul>
@@ -134,7 +149,8 @@
 <p>En bokning går alltid framåt, steg för steg. <b>En status kan aldrig ändras tillbaka</b> — har ni avbokat eller markerat avslutad av misstag går det inte att ångra.</p>
 <table>
   <tr><th>Status</th><th>Betyder</th><th>Det här kan ni göra</th></tr>
-  <tr><td><b>Väntar</b></td><td>Förfrågan har kommit in och väntar på ert svar.</td><td><b>Godkänn</b> eller <b>Avslå</b>. Är det en allmän förfrågan: svara gästen och klicka <b>Markera som besvarad</b>.</td></tr>
+  <tr><td><b>Väntar</b></td><td>Förfrågan har kommit in och väntar på ert svar.</td><td><b>Begär handpenning</b>, <b>Godkänn</b> eller <b>Avslå</b>. Är det en allmän förfrågan: svara gästen och klicka <b>Markera som besvarad</b>.</td></tr>
+  <tr><td><b>Väntar på handpenning</b></td><td>Ni har sagt ja och väntar på handpenningen. Datumen är reserverade.</td><td><b>Bekräfta bokningen</b> när pengarna kommit. Ändra byggnader och tider. Avboka. Raderas automatiskt tolv månader efter att förfrågan kom in, om den aldrig bekräftas eller avbokas.</td></tr>
   <tr><td><b>Godkänd</b></td><td>Ni har sagt ja. Gästen ska fylla i deltagare och måltider.</td><td>Ändra byggnader och tider. Skicka länken till gästen igen. Avboka. Statusen blir <b>Uppgifter klara</b> av sig själv när gästen skickat in.</td></tr>
   <tr><td><b>Uppgifter klara</b></td><td>Gästen har skickat in deltagarlista och måltidsval.</td><td>Hämta listorna. Rätta deltagare och måltider. <b>Markera anländ</b> när gruppen kommer. Avboka.</td></tr>
   <tr><td><b>På plats</b></td><td>Gruppen är här nu.</td><td>Hämta listorna. <b>Markera avslutad</b> när de rest hem. Avboka.</td></tr>
@@ -168,12 +184,13 @@
 <div class="step">
   <ol>
     <li>Välj under <b>Vem avbokar?</b>: <b>Gästen</b> eller <b>Anläggningen</b>.</li>
+    <li>Har ni begärt handpenning för bokningen: svara på <b>Har handpenningen betalats?</b> — <b>Ja</b> eller <b>Nej</b>. Utan svar går det inte att avboka.</li>
     <li>Skriv gärna en orsak i <b>Orsak (intern, valfritt)</b> — gästen ser den inte.</li>
     <li>Klicka <b>Avboka</b> och bekräfta.</li>
   </ol>
 </div>
 <div class="note">
-  <p><b>Välj ”Vem avbokar?” med omsorg.</b> Valet styr vad gästens avbokningsmejl säger om depositionen: avbokar gästen själv beror det på hur långt det är kvar till ankomst, avbokar anläggningen står det i mejlet att hela handpenningen betalas tillbaka. Avbokningen går inte att ångra. (Se även <i>En punkt som behöver rättas</i> i Del D.)</p>
+  <p><b>Svaren styr vad gästens avbokningsmejl säger.</b> Avbokar <b>gästen</b>: har handpenningen betalats står det att den inte betalas tillbaka, och att en eventuell ytterligare avgift följer villkoren — <b>ni återkommer själva med beloppet</b>, mejlet anger inget. Avbokar <b>anläggningen</b>: att allt gästen betalat betalas tillbaka. Kom handpenningen <b>aldrig</b>: att bokningen aldrig blev bekräftad och att gästen inte är skyldig något. Avbokningen går inte att ångra.</p>
 </div>
 
 <h3>Anteckningar</h3>
@@ -399,13 +416,15 @@
 <table>
   <tr><th>Mejl</th><th>När</th><th>Innehåll</th></tr>
   <tr><td><b>Kvittens</b></td><td>Direkt när gästen skickat formuläret på webbplatsen.</td><td>Att förfrågan har kommit fram. Det är ännu inte en bokning. Skickas inte för bokningar ni lagt in själva.</td></tr>
-  <tr><td><b>Bokningsbekräftelse</b></td><td>När ni klickar <b>Godkänn</b>.</td><td>Tilldelade byggnader och reglerna för deposition och avbokning. Högst 40 dagar kvar: länken till formuläret och sista dag den gäller. Längre fram: besked om att länken kommer senare.</td></tr>
+  <tr><td><b>Betalningsuppgifter</b></td><td>När ni klickar <b>Begär handpenning</b>.</td><td>Att datumen är reserverade, var och hur handpenningen betalas, sista betalningsdag, och att den inte betalas tillbaka vid avbokning. <b>Inte beloppet</b> — det skickar ni själva.</td></tr>
+  <tr><td><b>Påminnelse om handpenning</b></td><td>Dagen efter sista betalningsdag, om ni inte bekräftat bokningen. En gång.</td><td>Att handpenningen inte har kommit in, betalningsuppgifterna igen, och att bokningen annars kan avbokas.</td></tr>
+  <tr><td><b>Bokningsbekräftelse</b></td><td>När ni klickar <b>Godkänn</b> eller <b>Bekräfta bokningen</b>.</td><td>Tilldelade byggnader och en länk till villkoren — inga priser och inga avbokningsavgifter. Högst 40 dagar kvar: länken till formuläret och sista dag den gäller. Längre fram: besked om att länken kommer senare.</td></tr>
   <tr><td><b>Länk till formuläret</b></td><td>Automatiskt när det är 40 dagar kvar till ankomst — eller när ni klickar <b>Skicka slutförandelänk nu</b> / <b>Återutfärda</b>.</td><td>Länken där gästen fyller i deltagare, måltider och tider.</td></tr>
   <tr><td><b>Kvitto på uppgifterna</b></td><td>När gästen skickat in formuläret.</td><td>Det gästen fyllt i: deltagare, allergier, måltider, tider och byggnader — så att de kan se att allt blev rätt.</td></tr>
   <tr><td><b>Påminnelse att fylla i</b></td><td>14 dagar före ankomst, om gästen fortfarande inte skickat in.</td><td>En uppmaning att fylla i formuläret, med en <b>ny länk</b> som gäller till tre dagar före ankomst. Den tidigare länken slutar då att fungera.</td></tr>
   <tr><td><b>Inför ankomst</b></td><td>14 dagar före ankomst, om uppgifterna är inskickade.</td><td>En sammanfattning: antal gäster, måltider och byggnader.</td></tr>
   <tr><td><b>Avslag</b></td><td>När ni klickar <b>Avslå</b>.</td><td>Er motivering, ordagrant.</td></tr>
-  <tr><td><b>Avbokning</b></td><td>När ni klickar <b>Avboka</b>.</td><td>Att bokningen är avbokad, och vad som gäller för depositionen — beroende på vem som avbokade och när.</td></tr>
+  <tr><td><b>Avbokning</b></td><td>När ni klickar <b>Avboka</b>.</td><td>Att bokningen är avbokad, och vad som gäller för pengarna — beroende på vem som avbokade och om handpenningen var betald (se <i>Avboka</i>).</td></tr>
   <tr><td><b>Tackmejl</b></td><td>När ni klickar <b>Markera avslutad</b>.</td><td>Ett kort tack och välkommen tillbaka. Samma text för alla.</td></tr>
 </table>
 
@@ -419,7 +438,7 @@
 </table>
 
 <h3>Jobbhistorik — vad systemet gjort på natten</h3>
-<p>Varje natt kl. 03:00 kör systemet tre jobb av sig självt: det skickar länkar till formuläret, skickar påminnelser 14 dagar före ankomst och raderar gamla uppgifter. Under <b>Jobbhistorik</b> i menyn ser ni varje körning de senaste sex månaderna.</p>
+<p>Varje natt kl. 03:00 kör systemet fyra jobb av sig självt: det raderar gamla uppgifter, skickar länkar till formuläret, skickar påminnelser 14 dagar före ankomst och påminner om handpenning som inte kommit in. Under <b>Jobbhistorik</b> i menyn ser ni varje körning de senaste sex månaderna.</p>
 <ul>
   <li><b>Lyckades</b> (grön) — jobbet gjorde det det skulle.</li>
   <li><b>Misslyckades</b> (röd) — jobbet avbröts, eller ett mejl kunde inte skickas. Klicka <b>Visa</b> för att se vad som hände och vilken bokning det gällde.</li>
@@ -427,15 +446,15 @@
 <p>Undrar ni om en viss gäst har fått sitt mejl? Skriv bokningens referensnummer i sökrutan — då visas bara de körningar som rörde den bokningen. Ett mejl till en gäst som inte kunde skickas försöker systemet skicka igen nästa natt. Är samma bokning röd flera nätter i rad: kontakta gästen själva.</p>
 
 <h3>Uppgifter raderas automatiskt</h3>
-<p>Systemet rensar gamla personuppgifter av sig självt, som integritetspolicyn lovar: <b>två år</b> efter en genomförd vistelse, och <b>tolv månader</b> för förfrågningar som avslagits, avbokats eller aldrig besvarats, och för allmänna förfrågningar. Ni behöver inte göra något — men det betyder också att gamla deltagarlistor inte finns kvar för alltid.</p>
+<p>Systemet rensar gamla personuppgifter av sig självt, som integritetspolicyn lovar: <b>två år</b> efter en genomförd vistelse, och <b>tolv månader</b> för förfrågningar som avslagits, avbokats eller aldrig besvarats, för bokningar vars handpenning aldrig kom in och som ingen avbokat, och för allmänna förfrågningar. Ni behöver inte göra något — men det betyder också att gamla deltagarlistor inte finns kvar för alltid.</p>
 
 <h3>Systemet räknar inte ut priser</h3>
-<p>Prisuppgifterna finns för att visa på webbplatsen och som stöd när ni gör en offert. Systemet summerar aldrig en bokning och håller inte reda på vad som är betalt. <b>Fakturering sker helt utanför systemet</b> — som tidigare.</p>
+<p>Prisuppgifterna finns för att visa på webbplatsen och som stöd när ni gör en offert. Systemet summerar aldrig en bokning och håller inte reda på vad som är betalt — det enda det vet är att ni har begärt handpenning och om ni har bekräftat bokningen. <b>Belopp och fakturering sköts helt utanför systemet</b> — som tidigare.</p>
 
 <h3>Villkoren på webbplatsen</h3>
 <p>Bokningsvillkoren ligger på <b>akerogarden.se/bokningsvillkor</b> och integritetspolicyn på <b>akerogarden.se/integritetspolicy</b>. Gästen godkänner båda med en kryssruta när de skickar sin bokningsförfrågan, och systemet sparar tidpunkten.</p>
 <div class="note">
-  <p><b>En punkt som behöver rättas.</b> Avbokningsreglerna i de publicerade villkoren (punkt 7) och formuleringen i systemets automatiska mejl stämmer ännu inte överens — mejlen talar om handpenning, villkoren om en andel av bokningens värde. Avbokar en gäst sent: <b>titta först i bokningsbekräftelsen vad gästen har fått veta, och lova inget belopp innan ni har bestämt avgiften.</b> Detta är känt och ska rättas.</p>
+  <p><b>Mejlen hänvisar till villkoren.</b> Systemets mejl återger aldrig avbokningsreglerna — de hänvisar till de villkor som gällde när bokningen bekräftades. Ändras villkoren behöver mejlen alltså inte ändras, och de kan aldrig säga något annat än villkoren. Avbokar en gäst: läs vad villkoren säger, och <b>lova inget belopp innan ni har bestämt avgiften</b>.</p>
 </div>
 </div>
 

@@ -187,11 +187,16 @@ Form: `docs/legal/klientfragor-2026-10-07.html` (replaces the 2026-08-23 form). 
 1. **The amount in the deposit email (maintainer's proposal).** The deposit request carries every
    payment detail except the amount, so the client must send a separate email just for the number —
    hard to justify for the guest or the client. Putting it in means the admin types the amount when
-   asking for the deposit, which **stores an amount and so reopens C8** (§5.6, CLAUDE.md). Not
-   decided; the design today keeps it out (D3, D13).
+   asking for the deposit, which **stores an amount and so reopens C8** (§5.6, CLAUDE.md). **The
+   maintainer's call, not the client's (2026-10-09). Direction agreed, not yet built:** an amount
+   field in the *Begär handpenning* dialog that the admin fills in — **no pre-calculated price**. A
+   suggested amount was considered and set aside: price rules carry a free-text unit and are linked
+   to nothing, facilities have no unit, cleaning and the guests' ages are only known after
+   completion, and VAT is unsettled (Q3) — a pre-filled number would routinely be wrong and get
+   accepted anyway. Storing the one admin-entered amount means amending C8 openly when it is built.
 2. **"Pris och betalningsvillkor får ni från oss separat"** in the direct-path approval email. Same
    root as 1: the system knows no prices, so the confirmation cannot state them as the client's §2
-   says it should. Whatever is decided for 1 decides this sentence.
+   says it should. Decided together with 1 when it is built.
 3. **VAT-inclusive prices (D10).** The arithmetic is right (550 × 1.12 = 616), but its inputs are
    unconfirmed: the 12 %/25 % rates were seeded as placeholders "to be confirmed with the accountant",
    and production's prices are identical to the seed; that the stored amounts *exclude* VAT is an SRS

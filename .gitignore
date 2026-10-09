@@ -493,12 +493,11 @@ $RECYCLE.BIN/
 #intentionally non-tracked files by me.
 /docs/temp/findings.md
 
-# Client questionnaires. The PDFs are generated from the HTML for sending and are never tracked.
-# The HTML of a form the client is answering IS tracked — it is the only record of the questions
-# their answers refer to. The 2026-08-23 form stays untracked: it is superseded by 2026-10-07 and
-# kept locally only until that one comes back.
+# Client questionnaires — the HTML forms and the PDFs generated from them. Never tracked
+# (maintainer's decision, 2026-10-09): they are working copies sent to the client and kept by the
+# maintainer. What a form decided is recorded in the repo instead — the decision records under
+# docs/review/ and SRS §12 carry the questions and the answers.
 /docs/legal/klientfragor-*.html
-!/docs/legal/klientfragor-2026-10-07.html
 /docs/legal/Akerogarden-klientfragor-*.pdf
 
 # Handover manual, generated for sending — not tracked.

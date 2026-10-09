@@ -29,7 +29,7 @@ Documents that were deliberately **not** archived, and why:
 | `docs/review/post-launch-security-review.md` | Still the tracker for two parked findings with explicit re-open triggers — #16 "re-open if it rises or reaches a user", #13 "close it opportunistically" |
 | `docs/review/demo-feedback-2026-08-05.md` | Authoritative on its scope, and the record of *why* several requirements are worded as they are. Consulted, not merely remembered |
 | `docs/legal/known-conflicts-at-launch.md` | The current authority on what was knowingly carried across the launch line |
-| `docs/legal/klientfragor-2026-10-07.html` | The client questions behind the deposit work — answered 2026-10-08, but two of its points are still open (SRS §12) and the answers are not yet built in. *(This row named the 2026-08-23 form until 2026-10-08; that form was sent, superseded and is untracked.)* |
+| SRS §12 (Open Questions) | The questions still waiting on the client. The client forms themselves (`docs/legal/klientfragor-*.html`) are deliberately untracked since 2026-10-09 — their questions and answers live in the decision records and §12. *(This row named a client form until then.)* |
 
 ---
 

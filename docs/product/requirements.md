@@ -1192,10 +1192,10 @@ Questions waiting on the client. Each names what its answer changes; none blocks
 | Q1 | What does a group pay on cancelling **8 to 4 weeks** before arrival? The client's terms (§7) cover more than 8 weeks and 4 weeks or closer, but not the time between. Since 2026-10-08 the client holds the 20 % deposit as never refunded, so the deposit is the minimum — the question is only whether more is owed | 2026-08-23, again 2026-10-07; unanswered both times | The published terms (§7) only. The system's cancellation email refers to the terms rather than restating them, so no code depends on it |
 | Q2 | Are **bed linen and towels** included in a stay? The client's terms (§12) say this *"framgår av bokningen"*, but nothing on the site, in the emails or in the system says either way | 2026-10-08 | Public copy only (likely `/mat-och-priser`) |
 | Q3 | **VAT on the published prices.** Are the amounts entered in the admin really excluding VAT, are the 12 % / 25 % rates right (they were seeded as placeholders), and does the organisation charge VAT on room hire at all? Private individuals book, so a consumer-facing price must include VAT (prisinformationslagen) — but showing computed prices on unconfirmed rates is worse than today's "exklusive moms" | 2026-10-09 | `/mat-och-priser`; the VAT-inclusive display is built and waits on this answer (`docs/review/deposit-flow-2026-10-07.md`) |
-| Q4 | **Should the deposit email state the amount?** Today it carries every payment detail but the amount, which the client sends in a separate email; stating it means storing an admin-entered amount and amending the no-amounts rule (C8). The same answer decides the direct-path confirmation's "pris och betalningsvillkor får ni från oss separat" | 2026-10-09 | The deposit and approval emails, and C8 |
 
 The decisions behind the deposit-before-confirmation requirement (FR-115/116) and the client's answers
-that settled it are in `docs/review/deposit-flow-2026-10-07.md`. Feature ideas that would only start on the client's request —
+that settled it are in `docs/review/deposit-flow-2026-10-07.md`. Whether the deposit email should state the
+amount is not a client question — the maintainer decides it, and it is open there (§5 of that record). Feature ideas that would only start on the client's request —
 uploading the participant list, guest reviews, whole-physical-building blocking — are in Section 10,
 not here: nobody is waiting on an answer to them.
 

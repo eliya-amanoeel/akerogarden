@@ -25,9 +25,12 @@ public static class SitemapBuilder
     /// <summary>
     /// Routes that exist but must never be advertised: the token-gated completion form (a per-guest
     /// URL — advertising the *pattern* is pointless and indexing a real one would expose a booking),
-    /// and the two framework error pages, which are outcomes rather than destinations.
+    /// the two framework error pages, and the inquiry thank-you pages <c>/boka/tack</c> and
+    /// <c>/kontakt/tack</c> (NFR-41) — all outcomes rather than destinations. The completion
+    /// thank-you, <c>/slutfor/tack</c>, is covered by <c>/slutfor</c>.
     /// </summary>
-    public static readonly string[] NeverIndexed = ["/slutfor", "/error", "/not-found"];
+    public static readonly string[] NeverIndexed =
+        ["/slutfor", "/boka/tack", "/kontakt/tack", "/error", "/not-found"];
 
     /// <summary>
     /// Filters raw route patterns down to the public pages worth listing: no route parameters (a

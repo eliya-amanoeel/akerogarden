@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using AkeroGarden.E2E.Infrastructure;
 using Deque.AxeCore.Playwright;
 using Microsoft.Playwright;
@@ -142,6 +143,40 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
     }
 
+    [Fact]
+    public async Task After_submitting_back_and_reload_send_nothing_and_never_show_an_error()
+    {
+        // NFR-41. The link is single-use, so a re-sent form could never change the booking — but
+        // while the thank-you was the POST response, Back or Reload re-sent it and the guest who had
+        // just submitted was shown "Uppgifterna är redan inskickade … Behöver du ändra något?".
+        var url = Url(E2EFixture.CompletionResubmitToken);
+        await Page.GotoAsync(url);
+        await Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name").FillAsync("Anna Andersson");
+        await Page.Locator(".prow[aria-label='Deltagare 2'] .prow__name").FillAsync("Bengt Berg");
+        await ChooseEveryVisibleSittingAsync();
+
+        var posts = new List<string>();
+        Page.Request += (_, r) =>
+        {
+            if (r.Method == "POST" && r.Url.Contains("/slutfor/")) posts.Add(r.Url);
+        };
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka in uppgifter" }).ClickAsync();
+
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/slutfor/tack$"));
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
+
+        await Page.ReloadAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
+
+        // Back is the link itself, read fresh: the honest state of a used link, and no re-send.
+        await Page.GoBackAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(Regex.Escape(url) + "$"));
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Uppgifterna är redan inskickade" }))
+            .ToBeVisibleAsync();
+
+        Assert.Single(posts);
+    }
+
     /// <summary>Picks the first real option on every sitting the group is taking, so the form is
     /// complete — the server requires a dish for each (§4.1).</summary>
     private async Task ChooseEveryVisibleSittingAsync()
@@ -189,6 +224,21 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         Assert.True(
             serious.Count == 0,
             "axe found serious/critical a11y violations on the completion form:\n" +
+            string.Join("\n", serious.SelectMany(v => v.Nodes.Select(n => $"  [{v.Id}] {n.Html}"))));
+    }
+
+    [Fact]
+    public async Task Completion_thank_you_has_no_serious_accessibility_violations()
+    {
+        // Its own page since NFR-41 — no longer covered by the form's check above.
+        await Page.GotoAsync("/slutfor/tack");
+
+        var results = await Page.RunAxe();
+        var serious = results.Violations.Where(v => v.Impact is "serious" or "critical").ToList();
+
+        Assert.True(
+            serious.Count == 0,
+            "axe found serious/critical a11y violations on the completion thank-you:\n" +
             string.Join("\n", serious.SelectMany(v => v.Nodes.Select(n => $"  [{v.Id}] {n.Html}"))));
     }
 }

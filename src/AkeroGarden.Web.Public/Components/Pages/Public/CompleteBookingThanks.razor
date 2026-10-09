@@ -1,0 +1,26 @@
+@page "/slutfor/tack"
+@layout MainLayout
+
+@* The thank-you after a successful completion submission, as its own page (NFR-41). CompleteBooking
+   redirects here rather than rendering the thanks as the response to its POST. As a POST response,
+   Back or Reload re-sent the form; the link is single-use (FR-62), so the re-send changed nothing —
+   but the guest who had just submitted was told "Uppgifterna är redan inskickade … Behöver du ändra
+   något?", which reads as though something went wrong.
+
+   The literal segment wins over CompleteBooking's /slutfor/{token} in routing, and no issued token
+   can be "tack" (CompletionTokenPolicy.GenerateToken: 32 random bytes, 43 characters). The path still passes
+   through TelemetryUrlRedactor, which masks the segment like a token — harmless, and the request
+   name in telemetry stays the route template, so the two pages remain distinguishable there. *@
+
+<PageTitle>Tack — Åkerögården</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <div class="utility">
+            <div class="utility__badge utility__badge--ok" aria-hidden="true">✓</div>
+            <h1>Tack!</h1>
+            <p>Dina uppgifter har skickats in. Vi hör av oss om något behöver kompletteras.</p>
+            <div class="utility__actions"><a class="btn" href="/">Till startsidan</a></div>
+        </div>
+    </div>
+</section>

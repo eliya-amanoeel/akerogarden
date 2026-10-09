@@ -23,6 +23,7 @@ public class PublicSecurityHeadersTests(E2EFixture fixture) : PublicE2ETestBase(
     {
         "/", "/boka", "/kalender", "/kontakt", "/faciliteter",
         "/mat-och-priser", "/om-oss", "/integritetspolicy", "/bokningsvillkor",
+        "/boka/tack", "/kontakt/tack", "/slutfor/tack",
     };
 
     [Theory]

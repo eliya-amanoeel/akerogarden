@@ -66,12 +66,14 @@
 </div>
 
 @code {
-    // Suppressed where a docked CTA would be wrong: on the form itself, on the calendar (which
-    // docks its own selection bar and would collide), on the guest completion flow (an approved
-    // booking, not a new inquiry), and on the error page.
+    // Suppressed where a docked CTA would be wrong: on the form itself and its two thank-you pages
+    // (/boka/tack, /kontakt/tack — NFR-41; just after sending is not the moment to push a booking),
+    // on the calendar (which docks its own selection bar and would collide), on the guest completion
+    // flow (an approved booking, not a new inquiry), and on the error page.
     private static readonly string[] SuppressedPrefixes =
     [
         "/boka",
+        "/kontakt/tack",
         "/kalender",
         "/slutfor",
         "/error",

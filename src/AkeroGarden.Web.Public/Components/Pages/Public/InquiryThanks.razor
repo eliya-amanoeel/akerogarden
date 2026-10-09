@@ -1,0 +1,52 @@
+@attribute [Route(StayRequestPath)]
+@attribute [Route(MessagePath)]
+@layout MainLayout
+@inject NavigationManager Nav
+
+@* The thank-you after a successful /boka submission, as its own page (NFR-41). BookInquiry redirects
+   here rather than rendering the thanks as the response to its POST: a page that *is* a POST
+   response is re-sent by the browser when the guest steps Back onto it or reloads it, and each
+   re-send created another booking and another acknowledgement email. Reached by GET, this page can
+   be revisited any number of times and changes nothing.
+
+   One fixed address per track, each "<section>/tack" like /slutfor/tack: which form was sent is the
+   address itself, so there is no default and nothing a visitor can vary — anything else is the
+   router's ordinary 404. The general question is thanked under /kontakt although it is sent from
+   /boka: a question is a contact message, and it reads that way to the guest. The addresses are
+   constants (hence [Route] rather than @page, which takes only a literal) so BookInquiry's
+   redirects cannot drift from them. Fixed text only, nothing about the guest (NFR-05). Reaching it
+   without having submitted shows a harmless thank-you, so nothing here checks. Kept out of the
+   sitemap and robots.txt (SitemapBuilder.NeverIndexed): it is an outcome, not a destination. *@
+
+<PageTitle>Tack — Åkerögården</PageTitle>
+
+<section class="section">
+    <div class="container">
+        <div class="tack">
+            <div class="tack__badge" aria-hidden="true">✓</div>
+            <h1>Tack!</h1>
+            <p>@Confirmation</p>
+            <div class="submit-row submit-row--center">
+                <a class="btn" href="/">Till startsidan</a>
+                <a class="btn-ghost" href="/faciliteter">Se faciliteter</a>
+            </div>
+        </div>
+    </div>
+</section>
+
+@code {
+    /// <summary>After a stay request (FR-03).</summary>
+    public const string StayRequestPath = "/boka/tack";
+
+    /// <summary>After a general inquiry (FR-04).</summary>
+    public const string MessagePath = "/kontakt/tack";
+
+    private bool IsMessage =>
+        new Uri(Nav.Uri).AbsolutePath.TrimEnd('/').Equals(MessagePath, StringComparison.OrdinalIgnoreCase);
+
+    private string Confirmation => IsMessage
+        ? "Vi har tagit emot ditt meddelande och skickat en bekräftelse till din e-post. "
+            + "Vi återkommer så snart vi kan."
+        : "Vi har tagit emot din bokningsförfrågan och skickat en bekräftelse till din e-post. "
+            + "Vi återkommer med besked så snart vi kan — vanligtvis inom några dagar.";
+}

@@ -180,6 +180,8 @@ public class FunnelTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     [Theory]
     [InlineData("/kalender")]
     [InlineData("/boka")]
+    [InlineData("/boka/tack")]
+    [InlineData("/kontakt/tack")]
     public async Task Funnel_page_has_no_serious_accessibility_violations(string path)
     {
         await Page.GotoAsync(path);
@@ -237,5 +239,186 @@ public class FunnelTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         var booking = await db.Bookings.SingleAsync(b => b.ContactEmail == email);
         Assert.Equal(new TimeOnly(8, 30), booking.CheckInTime);
         Assert.Equal(new TimeOnly(18, 0), booking.CheckOutTime);
+    }
+
+    // ── Sent once (NFR-41) ───────────────────────────────────────────────────────────────────────
+    // Production received one stay request three times in 40 seconds on 2026-10-08: the thank-you
+    // was the response to the POST, and each step Back onto it re-sent the form. These drive the
+    // browser the way that guest did and count what actually reached the server.
+
+    /// <summary>Records every POST to <paramref name="path"/> the page sends from now on.</summary>
+    private static List<string> RecordPosts(IPage page, string path)
+    {
+        var posts = new List<string>();
+        page.Request += (_, r) =>
+        {
+            if (r.Method == "POST" && new Uri(r.Url).AbsolutePath == path) posts.Add(r.Url);
+        };
+        return posts;
+    }
+
+    [Fact]
+    public async Task A_sent_stay_request_survives_back_reload_and_forward_without_being_sent_again()
+    {
+        await Page.GotoAsync("/boka");
+        await FillValidStayFormAsync(Page);
+        var email = $"en-gang-{Guid.NewGuid():N}@example.se";
+        await Page.FillAsync("#s-email", email);
+        await Page.FillAsync("#s-email-confirm", email);
+
+        var posts = RecordPosts(Page, "/boka");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
+
+        // The thank-you is its own address, reached by GET — the structural half of the claim. While
+        // it was the POST response the URL stayed /boka, and that is what made Back re-send.
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/boka/tack$"));
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByText("Vi har tagit emot din bokningsförfrågan")).ToBeVisibleAsync();
+
+        await Page.ReloadAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
+
+        // Back lands on the form the guest came from, usable. Whether Chromium restored it from its
+        // page cache or reloaded it is not controlled here — the unlock on restore has its own test.
+        await Page.GoBackAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/boka$"));
+        await Assertions.Expect(Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }))
+            .ToBeEnabledAsync();
+
+        await Page.GoForwardAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/boka/tack$"));
+
+        Assert.Single(posts);
+        await using var db = Fixture.NewDbContext();
+        Assert.Equal(1, await db.Bookings.CountAsync(b => b.ContactEmail == email));
+    }
+
+    /// <summary>
+    /// Keeps the page in place when the form is submitted, and counts the submissions the browser
+    /// would have sent. The listener sits on <c>window</c>, which the submit event reaches only after
+    /// <c>document</c> — where submit-once.js decides — so it sees that decision (a submission the
+    /// script blocked arrives already cancelled) and then cancels the rest itself, so no page load
+    /// starts. Why not hold a real POST in flight instead: while a page load is pending, Playwright
+    /// makes every element lookup wait for it to finish, so nothing on the page can be checked
+    /// (tried 2026-10-09 — both tests timed out with the script present and absent alike).
+    /// </summary>
+    private static Task StaySubmittingInPlaceAsync(IPage page) => page.EvaluateAsync(@"() => {
+            window.__sent = 0;
+            window.addEventListener('submit', e => {
+                if (!e.defaultPrevented) window.__sent++;
+                e.preventDefault();
+            });
+        }");
+
+    [Fact]
+    public async Task A_second_click_while_the_first_submission_is_on_its_way_sends_nothing()
+    {
+        // The window the redirect cannot close: the guest clicks again while the first post is on its
+        // way (1–2.5 s in production). A Playwright double-click does NOT test this: its two clicks are
+        // milliseconds apart and Chromium replaces the first submission before sending it, so it stayed
+        // green with submit-once.js removed (2026-10-09). Here both clicks are real and the page stays
+        // put between them, as it does while a post is on its way; this test goes red without the script.
+        await Page.GotoAsync("/boka");
+        await FillValidStayFormAsync(Page);
+        await StaySubmittingInPlaceAsync(Page);
+
+        var submit = Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" });
+        await submit.ClickAsync();
+        // Measured after the first click, which scrolls the button into view.
+        var box = await submit.BoundingBoxAsync();
+        Assert.NotNull(box);
+
+        // A plain mouse click at the button, as a person makes it — no waiting for it to be clickable,
+        // because a greyed-out button is exactly what a person would click on here.
+        await Page.Mouse.ClickAsync(box.X + box.Width / 2, box.Y + box.Height / 2);
+
+        Assert.Equal(1, await Page.EvaluateAsync<int>("() => window.__sent"));
+    }
+
+    [Fact]
+    public async Task A_sent_general_inquiry_lands_on_the_message_thank_you_and_is_not_sent_again()
+    {
+        // The general track had no end-to-end submit test at all before this; it shares the page and
+        // so shared the bug.
+        await Page.GotoAsync("/boka");
+        await Page.Locator(".segmented__btn[for='track-general']").ClickAsync();
+        var email = $"meddelande-{Guid.NewGuid():N}@example.se";
+        await Page.FillAsync("#g-name", "Anna Andersson");
+        await Page.FillAsync("#g-email", email);
+        await Page.FillAsync("#g-email-confirm", email);
+        await Page.FillAsync("#g-message", "Har ni plats för en konfirmationsgrupp i maj?");
+        await Page.Locator(".track--general label:has-text('integritetspolicyn') input[type=checkbox]").CheckAsync();
+
+        var posts = RecordPosts(Page, "/boka");
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka meddelande" }).ClickAsync();
+
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/kontakt/tack$"));
+        await Assertions.Expect(Page.GetByText("Vi har tagit emot ditt meddelande")).ToBeVisibleAsync();
+
+        await Page.ReloadAsync();
+        await Page.GoBackAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/boka$"));
+
+        Assert.Single(posts);
+        await using var db = Fixture.NewDbContext();
+        Assert.Equal(1, await db.Bookings.CountAsync(b => b.ContactEmail == email));
+    }
+
+    [Fact]
+    public async Task A_sent_form_restored_from_the_page_cache_is_unlocked()
+    {
+        // submit-once.js locks a form the moment it is sent. A page the browser later restores from its
+        // back/forward cache comes back exactly as it was left — locked — and the guest could not send
+        // the form at all. The lock here is the real one, set by a real submit (kept in place, see
+        // StaySubmittingInPlaceAsync). The restore is simulated with the event the browser fires on it
+        // (pageshow, persisted), because a test cannot make Chromium choose its cache over a reload.
+        await Page.GotoAsync("/boka");
+        await FillValidStayFormAsync(Page);
+        await StaySubmittingInPlaceAsync(Page);
+
+        var submit = Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" });
+        await submit.ClickAsync();
+        await Assertions.Expect(submit).ToBeDisabledAsync();
+
+        await Page.EvaluateAsync("() => window.dispatchEvent(new PageTransitionEvent('pageshow', { persisted: true }))");
+
+        await Assertions.Expect(submit).ToBeEnabledAsync();
+        Assert.Null(await Page.Locator(".track--stay form").GetAttributeAsync("data-submitting"));
+    }
+
+    [Fact]
+    public async Task A_submit_stopped_by_validation_leaves_the_form_sendable()
+    {
+        // The validation script cancels an invalid submit; submit-once.js must not count that as sent.
+        // If it did, the form would lock on the first mistake and the guest could never send it.
+        await Page.GotoAsync("/boka");
+        await FillValidStayFormAsync(Page);
+        var email = $"rattad-{Guid.NewGuid():N}@example.se";
+        await Page.FillAsync("#s-email", email);
+        await Page.FillAsync("#s-email-confirm", "fel@example.se");
+
+        var submit = Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" });
+        await submit.ClickAsync();
+        await Assertions.Expect(Page.GetByText("E-postadresserna stämmer inte överens.")).ToBeVisibleAsync();
+
+        await Page.FillAsync("#s-email-confirm", email);
+        await submit.ClickAsync();
+
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/boka/tack$"));
+        await using var db = Fixture.NewDbContext();
+        Assert.Equal(1, await db.Bookings.CountAsync(b => b.ContactEmail == email));
+    }
+
+    [Theory]
+    [InlineData("/boka/tack/okand")]
+    [InlineData("/kontakt/tack/okand")]
+    public async Task Only_the_two_fixed_thank_you_addresses_exist(string path)
+    {
+        // Which form was sent is the address itself (NFR-41), so there is no default text to fall back
+        // on: anything but the two fixed addresses is the ordinary 404.
+        var response = await Page.GotoAsync(path);
+
+        Assert.Equal(404, response!.Status);
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Sidan hittades inte" })).ToBeVisibleAsync();
     }
 }

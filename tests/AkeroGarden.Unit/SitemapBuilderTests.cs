@@ -36,6 +36,9 @@ public class SitemapBuilderTests
 
     [Theory]
     [InlineData("/slutfor")]
+    [InlineData("/slutfor/tack")]
+    [InlineData("/boka/tack")]
+    [InlineData("/kontakt/tack")]
     [InlineData("/Error")]
     [InlineData("/not-found")]
     public void Never_indexed_routes_are_excluded_whatever_their_casing(string route)
@@ -84,6 +87,9 @@ public class SitemapBuilderTests
 
         Assert.Contains("Sitemap: https://akerogarden.se/sitemap.xml", robots);
         Assert.Contains("Disallow: /slutfor", robots);
+        // The inquiry thank-you (NFR-41) is an outcome, not a page to land on from a search.
+        Assert.Contains("Disallow: /boka/tack", robots);
+        Assert.Contains("Disallow: /kontakt/tack", robots);
         // The blanket refusal must NOT be present — that would silently deindex the live site.
         Assert.DoesNotContain("Disallow: /\n", robots.Replace("\r\n", "\n"));
     }

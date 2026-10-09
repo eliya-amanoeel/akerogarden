@@ -109,6 +109,11 @@ public sealed class E2EFixture : IAsyncLifetime
     public const string CompletionToken = "e2e-completion-token-abc123";
     public const string CompletionSubmitToken = "e2e-completion-submit-token-xyz789";
 
+    /// <summary>Single-use, for the "Back and Reload after submitting send nothing" test (NFR-41) —
+    /// kept apart from <see cref="CompletionSubmitToken"/> so neither test depends on the other's
+    /// order.</summary>
+    public const string CompletionResubmitToken = "e2e-completion-resubmit-token-mno345";
+
     /// <summary>A SelfCateringAll booking — read-only, for the group-default meal-gating regression
     /// test (Phase 8 bug: the per-day pickers rendered regardless of "Helpension för alla").</summary>
     public const string SelfCateringCompletionToken = "e2e-completion-selfcatering-token-jkl012";
@@ -215,6 +220,10 @@ public sealed class E2EFixture : IAsyncLifetime
         var submitBooking = CompletionBooking(CompletionSubmitToken);
         submitBooking.BuildingAssignments.Add(Assignment());
         ctx.Bookings.Add(submitBooking);
+
+        var resubmitBooking = CompletionBooking(CompletionResubmitToken);
+        resubmitBooking.BuildingAssignments.Add(Assignment());
+        ctx.Bookings.Add(resubmitBooking);
 
         var selfCateringBooking = CompletionBooking(SelfCateringCompletionToken);
         selfCateringBooking.MealPlan = MealPlan.SelfCateringAll;

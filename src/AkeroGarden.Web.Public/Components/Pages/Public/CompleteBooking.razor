@@ -8,6 +8,7 @@
 @inject MealOptionService MealOptionService
 @inject CleaningZoneService CleaningZoneService
 @inject TimeProvider Clock
+@inject NavigationManager Nav
 
 @* Token-authenticated booking completion page (§6.6, FR-54..62). Static SSR: the token in the URL
    is the sole auth, validated server-side on every request; the submit handler re-validates before
@@ -20,19 +21,6 @@
 
 @if (!_loaded)
 {
-}
-else if (_submitted)
-{
-    <section class="section">
-        <div class="container">
-            <div class="utility">
-                <div class="utility__badge utility__badge--ok" aria-hidden="true">✓</div>
-                <h1>Tack!</h1>
-                <p>Dina uppgifter har skickats in. Vi hör av oss om något behöver kompletteras.</p>
-                <div class="utility__actions"><a class="btn" href="/">Till startsidan</a></div>
-            </div>
-        </div>
-    </section>
 }
 else if (_access == CompletionAccess.Valid && _booking is not null && _form is not null)
 {
@@ -458,6 +446,7 @@ else
 
 @* Fingerprinted via @Assets — see the note on BookInquiry's script tag. *@
 <script src="@Assets["js/completion-form.js"]"></script>
+<script src="@Assets["js/submit-once.js"]"></script>
 
 @code {
     [Parameter]
@@ -473,7 +462,6 @@ else
     private static readonly CultureInfo Sv = CultureInfo.GetCultureInfo("sv-SE");
 
     private bool _loaded;
-    private bool _submitted;
     private CompletionAccess _access;
     private Booking? _booking;
 
@@ -586,7 +574,9 @@ else
         switch (result.Outcome)
         {
             case CompletionSubmitOutcome.Success:
-                _submitted = true;
+                // Post/Redirect/Get (NFR-41) — see CompleteBookingThanks for why the thank-you is
+                // not rendered as this POST's response.
+                Nav.NavigateTo("/slutfor/tack");
                 break;
             case CompletionSubmitOutcome.ValidationFailed:
                 _errors = result.Errors;

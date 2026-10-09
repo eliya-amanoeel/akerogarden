@@ -86,6 +86,8 @@ public class PublicSwedishOnlyTests(E2EFixture fixture)
     [Theory]
     [InlineData("/")]
     [InlineData("/boka")]
+    [InlineData("/boka/tack")]
+    [InlineData("/kontakt/tack")]
     [InlineData("/bokningsvillkor")]
     [InlineData("/faciliteter")]
     [InlineData("/integritetspolicy")]
@@ -93,6 +95,7 @@ public class PublicSwedishOnlyTests(E2EFixture fixture)
     [InlineData("/kontakt")]
     [InlineData("/mat-och-priser")]
     [InlineData("/om-oss")]
+    [InlineData("/slutfor/tack")]
     public async Task Public_pages_render_swedish_only(string route)
     {
         await Page.GotoAsync(route);

@@ -53,6 +53,37 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Städning" })).ToBeVisibleAsync();
     }
 
+    /// <summary>
+    /// Consumers book (the client's terms §1/§31), so a price shown to them must include VAT
+    /// (prisinformationslagen). Asserts the arithmetic, not just the label: the leading figure in a
+    /// real row equals its ex-VAT line plus the row's own VAT rate.
+    /// </summary>
+    [Fact]
+    public async Task Mat_och_priser_leads_with_the_price_including_vat()
+    {
+        await Page.GotoAsync("/mat-och-priser");
+
+        await Assertions.Expect(Page.GetByRole(AriaRole.Columnheader, new() { Name = "Pris inkl. moms" }).First).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByText("exklusive moms")).ToHaveCountAsync(0);
+        // The client's answer of 2026-10-09: linen and towels are not included.
+        await Assertions.Expect(Page.GetByText("Sänglinne och handdukar ingår inte")).ToBeVisibleAsync();
+
+        var row = Page.Locator(".data-table tbody tr").First;
+        var priceCell = row.Locator("td.num").Nth(0);
+        var exVatText = await priceCell.Locator(".data-table__sub").InnerTextAsync();   // "450 kr exkl. moms"
+        var cellText = await priceCell.InnerTextAsync();
+        var inclText = cellText.Replace(exVatText, "").Trim();                          // "504 kr"
+        var vatText = await row.Locator("td.num").Nth(1).InnerTextAsync();             // "12 %"
+
+        static decimal Number(string s) => decimal.Parse(
+            new string(s.Where(c => char.IsDigit(c) || c == ',').ToArray()).Replace(',', '.'),
+            System.Globalization.CultureInfo.InvariantCulture);
+
+        var exVat = Number(exVatText);
+        var rate = Number(vatText) / 100m;
+        Assert.Equal(Math.Round(exVat * (1 + rate), 2, MidpointRounding.AwayFromZero), Number(inclText));
+    }
+
     [Fact]
     public async Task Mat_och_priser_opens_on_a_lead_photo_teaser()
     {
@@ -183,6 +214,11 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         await Assertions.Expect(Page.GetByText("En inbetald handpenning återbetalas inte vid avbokning")).ToBeVisibleAsync();
         await Assertions.Expect(Page.GetByText("blir bokningen bindande när handpenningen")).ToBeVisibleAsync();
         await Assertions.Expect(Page.GetByText("rekommenderas")).ToHaveCountAsync(0);
+        // The client's second answers (2026-10-09): no gap between 8 and 4 weeks any more, and
+        // linen and towels are stated as not included (§12).
+        await Assertions.Expect(Page.GetByText("Mer än 4 veckor före ankomst:")).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByText("8 veckor")).ToHaveCountAsync(0);
+        await Assertions.Expect(Page.GetByText("Sänglinne och handdukar ingår inte")).ToBeVisibleAsync();
 
         // The page must be a finished document, not a draft. Both of these were live on the page
         // until 2026-09-07: six "Kompletteras innan publicering" notes standing in for clauses the

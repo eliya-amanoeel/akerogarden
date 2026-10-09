@@ -16,7 +16,7 @@
         <span class="eyebrow">Mat &amp; priser</span>
         <h1>Vad ni får — och vad det kostar</h1>
         <div class="page-head__rule"></div>
-        <p class="page-head__intro">Helpension med hemlagad mat, eller självhushåll. Alla belopp anges exklusive moms.</p>
+        <p class="page-head__intro">Helpension med hemlagad mat, eller självhushåll. Priserna anges inklusive moms.</p>
     </div>
 </section>
 
@@ -75,7 +75,8 @@
 
         <div class="price-block">
             <h2 class="subhead">Prislista</h2>
-            <p class="price-note">Alla belopp anges exklusive moms.</p>
+            <p class="price-note">Priserna anges inklusive moms. Beloppet utan moms står under varje pris.</p>
+            <p class="price-note">Sänglinne och handdukar ingår inte — ta med eget.</p>
             @if (priceRules.Count == 0)
             {
                 <p>Inga priser finns för närvarande.</p>
@@ -87,7 +88,7 @@
                         <thead>
                             <tr>
                                 <th>Post</th>
-                                <th class="num">Pris</th>
+                                <th class="num">Pris inkl. moms</th>
                                 <th class="num">Moms</th>
                                 <th>Enhet</th>
                             </tr>
@@ -107,7 +108,10 @@
                                             <span class="data-table__sub">@rule.Notes</span>
                                         }
                                     </td>
-                                    <td class="num">@Amount(rule.AmountExVat)</td>
+                                    <td class="num">
+                                        @Amount(InclVat(rule.AmountExVat, rule.VatRate))
+                                        <span class="data-table__sub">@Amount(rule.AmountExVat) exkl. moms</span>
+                                    </td>
                                     <td class="num">@Vat(rule.VatRate)</td>
                                     <td>@rule.Unit</td>
                                 </tr>
@@ -131,7 +135,7 @@
                         <thead>
                             <tr>
                                 <th>Städzon</th>
-                                <th class="num">Pris</th>
+                                <th class="num">Pris inkl. moms</th>
                                 <th class="num">Moms</th>
                             </tr>
                         </thead>
@@ -146,7 +150,10 @@
                                             <span class="data-table__sub">@zone.Description</span>
                                         }
                                     </td>
-                                    <td class="num">@Amount(zone.AmountExVat)</td>
+                                    <td class="num">
+                                        @Amount(InclVat(zone.AmountExVat, zone.VatRate))
+                                        <span class="data-table__sub">@Amount(zone.AmountExVat) exkl. moms</span>
+                                    </td>
                                     <td class="num">@Vat(zone.VatRate)</td>
                                 </tr>
                             }
@@ -205,8 +212,15 @@
         }
     };
 
-    // Reference figures shown exactly as entered — no incl-VAT total is computed (C8).
-    private static string Amount(decimal amountExVat) => $"{amountExVat.ToString("0.##", Sv)} kr";
+    // Private individuals book as consumers (the client's terms §1/§31), and a price aimed at a
+    // consumer must be the price they pay, VAT included (prisinformationslagen 2004:347) — so the
+    // VAT-inclusive figure leads and the entered ex-VAT amount stays beside it for organisations.
+    // Computed per item for display only and never stored. C8 forbids stored booking totals, not
+    // this: there is no booking and no sum here, only one reference price at a time.
+    private static decimal InclVat(decimal amountExVat, decimal vatRate) =>
+        Math.Round(amountExVat * (1 + vatRate), 2, MidpointRounding.AwayFromZero);
+
+    private static string Amount(decimal amount) => $"{amount.ToString("0.##", Sv)} kr";
 
     private static string Vat(decimal vatRate) => $"{(vatRate * 100).ToString("0.##", Sv)} %";
 }

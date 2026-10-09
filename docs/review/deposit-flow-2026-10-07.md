@@ -141,7 +141,7 @@ All taken 2026-10-07 by the maintainer unless marked.
 | D7 | Emails name **no balance due date** |
 | D8 | Cancellation emails point to the terms in force at confirmation (**§32 wording**). Reverses the 2026-09-07 decision to keep the emails unchanged — that was a holding position until question 6 was answered. Resolves known-conflicts §3 |
 | D9 | "rekommenderas" → **"gäller"** in the client's §7. Decided 2026-10-07 to change it right away; **changed 2026-10-08: it waits with everything else** (D19) |
-| D10 | Prices on `/mat-och-priser` shown **including VAT** — fixed quietly, not raised with the client (known-conflicts §5). *Built (commit `feb5c30`, recoverable from it), then held back from the 2026-10-09 deploy: its inputs are unconfirmed (see the smoke-test note in §5); the maintainer takes it to the client* |
+| D10 | Prices on `/mat-och-priser` shown **including VAT** (known-conflicts §5). Built, held back from the first 2026-10-09 deploy because the rates were unconfirmed placeholders, then **confirmed by the client the same day** (12 % lodging and food, 25 % cleaning and add-ons, amounts excluding VAT) and shipped with that evening's deploy |
 | D11 | Check-in/check-out 14:00/12:00 **closed**: the approval email already states the booking's own times, which is what the client's §10 asks for |
 | D12 | Allergy data stays on **consent**; retention periods **stand** (the system holds no accounting records). The maintainer acts as part of the client's organisation, so **no processing agreement** is needed |
 
@@ -175,12 +175,15 @@ Form: `docs/legal/klientfragor-2026-10-07.html` (replaces the 2026-08-23 form). 
 | 5 — kitchen and common rooms | No kitchen at night; cleaning is a paid add-on, otherwise the group cleans the kitchen; common rooms close 23:00 |
 | 6 — damage claim deadline | **Not answered** (restated §19). Set to one week by the maintainer (D19) |
 
-**Still with the client** — recorded in SRS §12, neither blocks the build:
+**The follow-up form (2026-10-09), answered the same day:**
 
-1. **Cancellation 8 to 4 weeks before arrival.** The deposit is now the minimum anyone pays; the
-   question is only whether more is owed.
-2. **Bed linen and towels** — terms §12 says what is included *"framgår av bokningen"*, and nothing in
-   the system or on the site says either way.
+| Question | Answer | Where it landed |
+|---|---|---|
+| Cancellation 8 to 4 weeks before arrival | The deposit only, nothing more | Terms §7: "Mer än 4 veckor före ankomst: ingen avbokningsavgift utöver handpenningen" — the gap is closed |
+| Bed linen and towels | Not included; guests bring their own | Terms §12, the price page, and the pre-arrival email (FR-64) — the email the group leader reads before packing |
+| VAT on the published prices | Amounts exclude VAT; 12 % lodging and food, 25 % cleaning and add-ons | The VAT-inclusive price page ships (D10, FR-82) |
+
+No client questions remain (SRS §12).
 
 ### Raised in the local smoke test, 2026-10-09 — open, to discuss
 
@@ -197,7 +200,8 @@ Form: `docs/legal/klientfragor-2026-10-07.html` (replaces the 2026-08-23 form). 
 2. **"Pris och betalningsvillkor får ni från oss separat"** in the direct-path approval email. Same
    root as 1: the system knows no prices, so the confirmation cannot state them as the client's §2
    says it should. Decided together with 1 when it is built.
-3. **VAT-inclusive prices (D10).** The arithmetic is right (550 × 1.12 = 616), but its inputs are
+3. **VAT-inclusive prices (D10)** — *resolved the same day: the client confirmed the rates and that
+   the amounts exclude VAT (see the follow-up form above).* The arithmetic is right (550 × 1.12 = 616), but its inputs are
    unconfirmed: the 12 %/25 % rates were seeded as placeholders "to be confirmed with the accountant",
    and production's prices are identical to the seed; that the stored amounts *exclude* VAT is an SRS
    assumption with no source; and a church mission may not charge VAT at all, or not on room hire.

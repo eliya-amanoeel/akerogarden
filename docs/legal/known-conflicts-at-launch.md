@@ -26,9 +26,10 @@
 >   "rekommenderas" becomes "gäller" in §7. *(2026-10-08: the client left the gap unanswered — it
 >   stays open in SRS §12 — and said the deposit is never refunded, so §7 is rewritten, not just
 >   reworded. All terms changes are published together with the deposit work, not before; see
->   `docs/review/deposit-flow-2026-10-07.md` D14/D19.)*
-> - **§5 — still open.** Planned as a quiet fix (VAT-inclusive prices), then held back on 2026-10-09:
->   the stored VAT rates are unconfirmed placeholders, so it goes to the client first (SRS §12, Q3).
+>   `docs/review/deposit-flow-2026-10-07.md` D14/D19.)* *(2026-10-09, later: the client answered —
+   more than 4 weeks out, no fee beyond the deposit — so the gap is closed in §7.)*
+> - **§5 — closed.** VAT-inclusive prices were held back on 2026-10-09 while the stored rates were
+>   unconfirmed, then shipped the same evening once the client confirmed them (FR-82).
 > - **§6 — closed.** The client's §10 puts arrival and departure times in the confirmation, and the
 >   approval email already states the booking's own times; 14:00/12:00 are editable defaults.
 > - **The points routed to the jurist** (archived `docs/archive/klientfragor-juridiska-underlag.md`):

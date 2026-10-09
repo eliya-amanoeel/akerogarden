@@ -421,6 +421,9 @@ public static class BookingEmailTemplates
             body.Append($"<li><strong>Ert boende:</strong> {Enc(string.Join(", ", assignedBuildingNames))}</li>");
         body.Append($"<li><strong>Adress:</strong> {Enc(propertyAddress)}</li>");
         body.Append("</ul>");
+        // The client's answer of 2026-10-09: linen and towels are not included. Said here because this
+        // is the email the group leader reads right before packing — the terms (§12) say it too.
+        body.Append("<p>Tänk på att sänglinne och handdukar inte ingår — ta med eget.</p>");
         body.Append("<p>Har ni frågor inför ankomsten är ni välkomna att kontakta oss.</p>");
         return new EmailContent(WithReference("Påminnelse inför er vistelse hos Åkerögården", bookingReference), body.ToString());
     }

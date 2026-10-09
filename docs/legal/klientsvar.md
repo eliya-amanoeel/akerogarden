@@ -108,7 +108,7 @@ En inbetald handpenning återbetalas inte vid avbokning, oavsett när avbokninge
 
 Om inget annat särskilt anges i bokningsbekräftelsen gäller följande avbokningsvillkor:
 
-Mer än 8 veckor före ankomst:
+Mer än 4 veckor före ankomst:
 Ingen avbokningsavgift utöver handpenningen, med undantag för särskilda kostnader som Åkerögården redan haft för beställningen och som inte kan återbetalas.
 
 Mellan 4 och 2 veckor före ankomst:
@@ -168,7 +168,7 @@ Möbler och inventarier får inte flyttas mellan rum eller byggnader utan tillst
 
  12. Sänglinne, handdukar och städning
 
-Vad som ingår beträffande sänglinne, handdukar och slutstädning framgår av bokningen.
+Sänglinne och handdukar ingår inte — gästerna tar med eget. Vad som gäller för slutstädning framgår av bokningen.
 
 Städning kan köpas som tilläggstjänst mot en separat avgift.
 

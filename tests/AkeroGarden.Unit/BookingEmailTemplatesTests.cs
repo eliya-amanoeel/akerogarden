@@ -303,6 +303,8 @@ public class BookingEmailTemplatesTests
         // The assigned lodging the group needs in writing to divide itself up (FR-64/FR-103).
         Assert.Contains("Ert boende:", c.HtmlBody);
         Assert.Contains("Smedjan, Tallstugan", c.HtmlBody);
+        // The client's answer of 2026-10-09 — said in the email read right before packing.
+        Assert.Contains("sänglinne och handdukar inte ingår", WebUtility.HtmlDecode(c.HtmlBody));
     }
 
     [Fact]

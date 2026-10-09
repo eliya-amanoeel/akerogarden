@@ -422,7 +422,7 @@ Individual dietary needs are captured in **two separate ways**, because they are
 ## 5. Pricing
 
 > **All prices are admin-managed** and can be changed at any time through the admin panel. Active price rules are displayed publicly on the combined Mat & priser page (FR-82).  
-> Invoicing is performed manually outside the system. All prices are **exclusive of VAT**. VAT is stored per item via the `VatRate` field (on each price rule and cleaning zone), because rates differ by category — e.g. 12% for lodging and food, potentially 25% for facility/conference hire. The exact rate per category is admin-entered configuration to be confirmed with the client's accountant. Currency is SEK.
+> Invoicing is performed manually outside the system. All prices are **exclusive of VAT**. VAT is stored per item via the `VatRate` field (on each price rule and cleaning zone), because rates differ by category — **12% for lodging and food, 25% for cleaning and add-ons** (confirmed by the client, 2026-10-09). The rate per item stays admin-entered configuration. The public price page shows each price including VAT (FR-82). Currency is SEK.
 
 ### 5.1 Accommodation With Meals (Full Board)
 
@@ -538,7 +538,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | FR-06 | The system shall send an admin notification email immediately upon submission with all details and a direct link to the booking record |
 | FR-07 | The public website shall display the privacy policy and link to it from the booking form and the site footer |
 | FR-81 | The public facilities page shall display active facility records in their configured display order, drawn dynamically from the admin-managed facility list (name, description, image) |
-| FR-82 | The public website shall display current active price rules and active cleaning zones, drawn dynamically from the admin-managed price and cleaning-zone lists, on a combined **Mat & priser** page (shown together with the menu, FR-83) |
+| FR-82 | The public website shall display current active price rules and active cleaning zones, drawn dynamically from the admin-managed price and cleaning-zone lists, on a combined **Mat & priser** page (shown together with the menu, FR-83). **Each price is shown including VAT**, with the stored ex-VAT amount beneath it: private individuals book as consumers, and a price aimed at a consumer must be the price they pay (prisinformationslagen 2004:347). The VAT-inclusive figure is computed per item for display and never stored (C8). The page also states that bed linen and towels are not included (client, 2026-10-09) |
 | FR-83 | The public website shall display current active meal options (lunch and dinner), drawn dynamically from the admin-managed meal list, on the combined **Mat & priser** page (shown together with prices, FR-82) |
 
 > **Why menu and prices are one page.** FR-82 and FR-83 were originally two separate public pages. They were merged during the Phase 6 UI/UX pass because a group organiser weighs food and cost together — reading them apart forced a comparison the site should have made for them. Both requirements keep their numbers and describe content served on the single `/mat-och-priser` page. Meal options and price rules/cleaning zones remain separately admin-managed; this is a presentation decision only.
@@ -680,7 +680,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | ID | Requirement |
 |---|---|
 | FR-63 | Fourteen days before check-in the system shall send one of two emails, chosen by status: if `DetailsComplete` or later — the **pre-arrival reminder** (FR-64), fired once and guarded by `ReminderEmailSentAt`; if still `Approved` — the **completion nudge**, fired once and guarded by `CompletionNudgeSentAt`, which first **regenerates the completion token** (fresh link, invalidating any prior one — so the nudge never carries an expired link; that link runs to **3 days before check-in** under FR-53's late-issue floor, since the nudge is the "you are late" email and its link is the last one the guest gets) then sends the guest "You have not yet completed your booking details" with that fresh link, AND alerts the admin ("Guest has not completed their booking — consider following up directly") stating the new expiry. **The two flags must stay separate** (§8.1): one booking may legitimately receive both, and a guest who is nudged and then submits shall still get the pre-arrival reminder on a later run. **Grace period:** the nudge shall not be sent within **3 days** of the link being sent (`CompletionLinkSentAt`) — it is *deferred, not skipped*, and fires on a later run once the grace has passed. Without it a booking approved inside the 14-day window is nudged on the very next nightly run, so the guest reads "your booking is approved" in the afternoon and "you have not filled in your details" at 03:00 the next morning. **A failed send changes nothing and is retried the next night (NFR-13):** the guard is set only on a confirmed send, and a nudge whose guest email fails puts the guest's previous link back (token, expiry and `CompletionLinkSentAt`, so the grace period does not block the retry) and holds the admin alert, which would otherwise state a link expiry that no longer exists. If only the admin alert fails it is not retried — the nudge is done, and a retry would nudge the guest twice; the failure shows in the job history (FR-114). *Why:* stamping the guard regardless meant one mail-server outage cost the guest the reminder for good, and a failed nudge left them holding a dead link. **A booking still in `AwaitingDeposit` receives neither** — it has no completion link to chase and no details to remind about; an unpaid booking is handled by the deposit reminder and the dashboard instead (FR-116) |
-| FR-64 | The reminder shall confirm participant count, day guest count, meal summary, **the assigned lodging building(s)**, and the booking's **own** check-in and check-out times — not the standard 14:00/12:00, which are only defaults now that guests state their own (§2.8). The buildings are included because the group's leader divides people between rooms themselves and needs that in writing |
+| FR-64 | The reminder shall confirm participant count, day guest count, meal summary, **the assigned lodging building(s)**, and the booking's **own** check-in and check-out times — not the standard 14:00/12:00, which are only defaults now that guests state their own (§2.8). The buildings are included because the group's leader divides people between rooms themselves and needs that in writing. It also reminds the group that **bed linen and towels are not included** (client, 2026-10-09) — this is the email read right before packing |
 | FR-65 | The system shall send a standard fixed thank-you email when the admin marks the booking completed — this message is not customisable per booking |
 | FR-66 | The admin shall receive a warning email 30 days before automatic deletion of any record |
 
@@ -1107,7 +1107,7 @@ All emails sent in Swedish. All include Åkerögården name, contact email, and 
 | Completion link now available | Automated — check-in comes within 40 days, booking still `Approved`, no usable link held (FR-108); **also the admin's manual resend** (FR-49) | Guest | "You can now fill in your details"; **booking reference**; magic link; **exact expiry date**; what to prepare |
 | Admin — details complete | Guest submits completion | Admin | Data ready; **booking reference**; link to booking; reminder to download lists |
 | Guest — details received | Guest submits completion (FR-107) | Guest | Confirmation of what they entered: **booking reference**; participants with allergies; which meals on which days; stated arrival/departure times; **assigned lodging building(s)**; address; and "contact us if anything needs changing" — the link is single-use and is dead once submitted |
-| Pre-arrival reminder | Automated — 14 days before check-in (booking `DetailsComplete` or later); guarded by `ReminderEmailSentAt` | Guest | **Booking reference**; participant count; day guest count; meal summary; **the assigned lodging building(s)**; **the booking's own check-in and check-out times** (not the 14:00/12:00 defaults — FR-64); address |
+| Pre-arrival reminder | Automated — 14 days before check-in (booking `DetailsComplete` or later); guarded by `ReminderEmailSentAt` | Guest | **Booking reference**; participant count; day guest count; meal summary; **the assigned lodging building(s)**; **the booking's own check-in and check-out times** (not the 14:00/12:00 defaults — FR-64); address; that bed linen and towels are not included |
 | Completion nudge | Automated — 14 days before check-in, booking still `Approved`, link sent more than 3 days ago (FR-63); guarded by `CompletionNudgeSentAt` — a **separate** flag, so a guest who is nudged and then submits still receives the pre-arrival reminder above | Guest | "You have not yet completed your booking details"; **booking reference**; **freshly regenerated completion link**; **its exact expiry**; instructions to complete |
 | Admin — guest not completed | Automated — 14 days before check-in, booking still `Approved` (FR-63) | Admin | "Guest has not completed their booking — consider following up directly"; **booking reference**; link to booking; the new completion-link expiry |
 | Thank-you | Admin marks Completed | Guest | Standard fixed message; **booking reference**; invitation to return — not customisable per booking |
@@ -1185,19 +1185,17 @@ The system uses four environments. Production is the table above; the others:
 
 ## 12. Open Questions
 
-Questions waiting on the client. Each names what its answer changes; none blocks anything built today.
-
-| # | Question | Raised | What the answer changes |
-|---|---|---|---|
-| Q1 | What does a group pay on cancelling **8 to 4 weeks** before arrival? The client's terms (§7) cover more than 8 weeks and 4 weeks or closer, but not the time between. Since 2026-10-08 the client holds the 20 % deposit as never refunded, so the deposit is the minimum — the question is only whether more is owed | 2026-08-23, again 2026-10-07; unanswered both times | The published terms (§7) only. The system's cancellation email refers to the terms rather than restating them, so no code depends on it |
-| Q2 | Are **bed linen and towels** included in a stay? The client's terms (§12) say this *"framgår av bokningen"*, but nothing on the site, in the emails or in the system says either way | 2026-10-08 | Public copy only (likely `/mat-och-priser`) |
-| Q3 | **VAT on the published prices.** Are the amounts entered in the admin really excluding VAT, are the 12 % / 25 % rates right (they were seeded as placeholders), and does the organisation charge VAT on room hire at all? Private individuals book, so a consumer-facing price must include VAT (prisinformationslagen) — but showing computed prices on unconfirmed rates is worse than today's "exklusive moms" | 2026-10-09 | `/mat-och-priser`; the VAT-inclusive display is built and waits on this answer (`docs/review/deposit-flow-2026-10-07.md`) |
+No questions are waiting on the client. The last three — cancellation 8 to 4 weeks before arrival,
+bed linen and towels, and the VAT basis of the published prices — were answered on 2026-10-09: the
+deposit only, not included, and excluding VAT at 12 % (lodging and food) / 25 % (cleaning and add-ons).
+They are carried by the booking terms (§7, §12), FR-64 and FR-82.
 
 The decisions behind the deposit-before-confirmation requirement (FR-115/116) and the client's answers
 that settled it are in `docs/review/deposit-flow-2026-10-07.md`. Whether the deposit email should state the
-amount is not a client question — the maintainer decides it, and it is open there (§5 of that record). Feature ideas that would only start on the client's request —
-uploading the participant list, guest reviews, whole-physical-building blocking — are in Section 10,
-not here: nobody is waiting on an answer to them.
+amount is not a client question — the maintainer decides it, and it is open there (§5 of that record).
+Feature ideas that would only start on the client's request — uploading the participant list, guest
+reviews, whole-physical-building blocking — are in Section 10, not here: nobody is waiting on an answer
+to them.
 
 ---
 

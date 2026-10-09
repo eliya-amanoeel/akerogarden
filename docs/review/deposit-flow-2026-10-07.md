@@ -1,12 +1,13 @@
 # Deposit before confirmation — decision record, 2026-10-07
 
 The client asked, on 2026-10-07, that a booking be confirmed only once the 20 % deposit has arrived.
-This document records the design agreed for that, every decision taken and whose it was, what still
-waits on the client, the gaps found while checking it, and everything the change touches.
+This document records the design agreed for that, every decision taken and whose it was, what
+waited on the client, the gaps found while checking it, and everything the change touches.
 
-> **Status (2026-10-09): built on `feat/deposit-before-confirmation`, not yet deployed.** The SRS
-> (FR-115/116), ERD, lifecycle diagram and admin manual now carry it and are the authority; this file
-> is the record of *why*. Two questions about the client's terms remain (§5) and block nothing. Same role as `demo-feedback-2026-08-05.md` had for that work.
+> **Status: live since the 2026-10-09 production deploy** (PRs 98 and 100). The SRS (FR-115/116),
+> ERD, lifecycle diagram and admin manual carry it and are the authority; this file is the record of
+> *why*. No client questions remain (§5). Open, and the maintainer's to decide: the deposit-amount
+> field (§5, smoke-test note 1), together with terms §2's "price in the confirmation". Same role as `demo-feedback-2026-08-05.md` had for that work.
 
 ---
 
@@ -155,7 +156,7 @@ Taken 2026-10-08, after the client's answers (§5):
 | D16 | **7 days** to pay (client), capped per D6 |
 | D17 | Payment details: payee **"Kaldeiska katolska Mar Narsay Missionen i Södertälje"** (the privacy policy's name, not the variant in the client's answer); bankgiro **5713-3399**; Swish **123 583 24 23**; clearing **5364**, account **108 72 28** (SEB — the maintainer confirmed the split of the client's `53641087228`). Kept as a **code default** in `BookingEmailOptions`, like `PropertyAddress`: changed only through a reviewed PR, never from the admin panel |
 | D18 | Retention while waiting: **as `Pending`** — 12 months from submission |
-| D19 | The terms-page changes — §7 rewrite, "gäller", kitchen and common-room rules (client), and **damage claimed within one week of departure** (set by the maintainer; the client left that question unanswered) — are published **together with everything else**, not before. The client is told afterwards, naming the one-week deadline explicitly |
+| D19 | The terms-page changes — §7 rewrite, "gäller", kitchen and common-room rules (client), and **damage claimed within one week of departure** (set by the maintainer; the client left that question unanswered) — are published **together with everything else**, not before. *(Planned: tell the client afterwards, naming the one-week deadline. Dropped by the maintainer on 2026-10-09 — no change note is sent.)* |
 | D20 | A failed deposit-request email is accepted: admin-triggered emails ignore failed sends (out of scope since 2026-10-05) and the nightly reminder at the deadline is the safety net |
 | D21 | Bookings already confirmed before this ships get **no special handling** — they are few and will be treated fairly by hand |
 
@@ -236,7 +237,7 @@ incl-VAT price; C8 forbids stored booking totals, not a per-item display price).
 **Legal text** — `BookingTerms.razor` and `docs/legal/klientsvar.md`: §7 rewritten for D14 and D9,
 the kitchen and common-room rules in §12/§15, the one-week damage deadline in §19, and the *"Senast
 uppdaterad"* date (D19). `docs/legal/Integritetspolicy.md` in step with the policy page,
-`known-conflicts-at-launch.md` (mark §3–§6 done once built).
+`docs/archive/known-conflicts-at-launch.md` (§3–§6 marked done, then archived on 2026-10-09).
 
 **SRS** — §2.1, §2.3, §2.4, §2.5, §2.7, §5.6 note, §8.1, §9; FR-38, 63, 75, 76, 77, 79, 91, 95, 102,
 103, 113; a new FR for the waiting step and one for the deposit emails.
@@ -274,12 +275,10 @@ The maintainer gave the go on 2026-10-08; the work is on `feat/deposit-before-co
    columns), as the two post-launch migrations before it were; the drill remains owed under NFR-29.
 2. **SRS and docs first, then code, on one branch** — the terms-page changes (D19) and the VAT fix
    (D10) ride along. The client's answers to the build parameters are all in.
-3. **Tell the client what changed** once it is live, with the two open questions (§5) in the same
-   message if still unanswered.
+3. ~~Tell the client what changed~~ — dropped by the maintainer, 2026-10-09.
 4. **Full completion gate** before merge — this touches the booking state machine.
 5. **Staging, then production** — never deployed across 03:00. On the day it goes live, bump *"Senast
    uppdaterad"* on `/bokningsvillkor` **and** `/integritetspolicy` (both texts changed with it — page and source
-   `.md` alike), then tell the client what changed —
-   naming the one-week damage deadline explicitly, since it is ours (D19). **After** the production
+   `.md` alike). **After** the production
    deploy, apply `infra/azure/alerts.bicep`: its nightly-jobs threshold rose from 3 to 4, and applied
    before the fourth job exists it fires every night.

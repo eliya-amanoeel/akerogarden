@@ -19,13 +19,13 @@
    From the client's second answers (2026-10-09): §7's 8-to-4-week gap is closed — more than 4 weeks
    out, no fee beyond the deposit — and §12 says linen and towels are not included. "Senast
    uppdaterad" below is the day this went live (2026-10-09).
-   Only mechanical repairs were made: the source numbered several sections "1." (markdown
-   auto-numbering), and stray "**" artifacts were dropped.
+   Beyond those answered changes, only mechanical repairs: the source numbered several sections
+   "1." (markdown auto-numbering), and stray "**" artifacts were dropped.
 
-   §7 also contradicts the deposit clause in the approval and cancellation emails
-   (BookingEmailTemplates.cs:287 and :437-440), which still state the SRS's 20% / two-month rule.
-   That divergence is knowingly carried — see docs/legal/known-conflicts-at-launch.md. Do not
-   "fix" it here in isolation; the rule lives in four places and moving one leaves the rest lying.
+   The emails never restate the cancellation rules — they point to the terms in force when the
+   booking was confirmed (§32, FR-79) — so a change here needs no code change. Until 2026-10-09 they
+   stated a 20 % / two-month rule that contradicted §7; how that was carried and settled is in
+   docs/archive/known-conflicts-at-launch.md.
 
    There is no jurist review and there will not be one, so the .legal-draft banner this page used
    to carry was removed on 2026-09-07 rather than left to sit on a live site forever. *@

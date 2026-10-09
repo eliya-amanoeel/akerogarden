@@ -22,6 +22,9 @@ public class BookingEmailTemplatesTests
         Assert.Contains("Hej Anna", c.HtmlBody);
         Assert.Contains("Åkerögården", c.HtmlBody);
         Assert.Contains(Ref, c.HtmlBody);
+        // "Bekräftat", not "godkänt": on the deposit path a booking is confirmed only once the deposit
+        // is paid and the admin confirms it (FR-115, the client's terms §2).
+        Assert.Contains("förrän vi har bekräftat den", c.HtmlBody);
     }
 
     [Fact]

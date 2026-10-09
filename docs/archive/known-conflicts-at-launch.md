@@ -1,6 +1,18 @@
 # Known legal-text conflicts carried into launch
 
-**Status: accepted, not resolved. Decision taken 2026-09-07 — launch proceeds regardless.**
+> **Archived 2026-10-09 — every item below is resolved.** The cancellation conflict (§3) by the
+> deposit work: the emails now point to the terms in force at confirmation instead of restating a
+> rule. Both defects of the client's document (§4): "rekommenderas" became "gäller", and the
+> 8-to-4-week gap was closed by the client's answer (the deposit only). VAT pricing (§5): the client
+> confirmed the rates and `/mat-och-priser` shows prices including VAT. Check-in times (§6): closed
+> 2026-10-07. All of it went live with the 2026-10-09 production deploy (PRs 98 and 100).
+>
+> For current legal truth read the published texts' sources — `docs/legal/klientsvar.md` and
+> `docs/legal/Integritetspolicy.md` — and the SRS; for why the deposit-era changes were made, read
+> `docs/review/deposit-flow-2026-10-07.md`. The body below is left as written: a point-in-time
+> record of what was knowingly carried across the launch line.
+
+**Status at launch: accepted, not resolved. Decision taken 2026-09-07 — launch proceeds regardless.**
 
 > **Status note, 2026-09-11 — three statements below have since changed; the decisions have not.**
 > (1) The privacy-policy stub described under *"The one thing that is not optional"* was removed the

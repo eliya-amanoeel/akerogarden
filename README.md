@@ -44,7 +44,7 @@ infra/
 docs/
   product/                  SRS, ERD, architecture, lifecycle diagrams — current truth
   ux/                       Design system, logo, imagery
-  legal/                    Privacy policy + booking terms — published and live; no jurist review (cancelled, see known-conflicts-at-launch.md)
+  legal/                    Privacy policy + booking terms — published and live; no jurist review (cancelled, see docs/archive/known-conflicts-at-launch.md)
   review/                   Review artefacts that still carry open items
   archive/                  Closed history — read-only, nothing waiting on it (see docs/archive/README.md)
   handover/                 Admin manual (source of truth is the .html)
@@ -170,7 +170,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | [`docs/product/architecture.md`](docs/product/architecture.md) | App-level architecture — surfaces, hosting, external services |
 | [`docs/archive/implementation-plan.md`](docs/archive/implementation-plan.md) | Closed history: what was built, in what order, satisfying which requirements. **All phases 0–11 are done** and each is one table row. Not a source of truth — the SRS is |
 | [`docs/ux/design.md`](docs/ux/design.md) | Design system — tokens, type scale, components |
-| [`docs/legal/known-conflicts-at-launch.md`](docs/legal/known-conflicts-at-launch.md) | What was knowingly carried across the launch line in the legal texts. **Read before touching anything legal** |
+| [`docs/archive/known-conflicts-at-launch.md`](docs/archive/known-conflicts-at-launch.md) | What was knowingly carried across the launch line in the legal texts, and how each item was settled — all resolved, archived 2026-10-09 |
 | [`docs/review/deposit-flow-2026-10-07.md`](docs/review/deposit-flow-2026-10-07.md) | Decision record for the deposit-before-confirmation requirement (FR-115/116) — the reasoning behind it |
 | [`docs/review/post-launch-security-review.md`](docs/review/post-launch-security-review.md) | Post-launch security & architecture review and its remediation tracker |
 | [`docs/review/demo-feedback-2026-08-05.md`](docs/review/demo-feedback-2026-08-05.md) | Decision record for the 2026-08-05 client demo |

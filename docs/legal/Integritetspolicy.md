@@ -1,6 +1,6 @@
 # Integritetspolicy — Åkerögården
 
-> **PUBLICERAD 2026-09-07.** Denna text är live på `/integritetspolicy`. Den har **inte** granskats av jurist och kommer inte att göra det — beslutet att lansera utan juristgranskning togs 2026-09-07, se `known-conflicts-at-launch.md`. Innehållet är verifierat mot koden (personuppgiftsansvarig, rättsliga grunder, lagringstider, kakor) men är inte juridiskt granskat. Håll denna fil synkroniserad med `PrivacyPolicy.razor` för hand.
+> **PUBLICERAD 2026-09-07, UPPDATERAD 2026-10-09** (betalningsuppgifter med sju års lagring enligt bokföringslagen, och bokningar som väntar på handpenning i lagringstabellen). Denna text är live på `/integritetspolicy`. Den har **inte** granskats av jurist och kommer inte att göra det — beslutet att lansera utan juristgranskning togs 2026-09-07, se `docs/archive/known-conflicts-at-launch.md`. Innehållet är verifierat mot koden (personuppgiftsansvarig, rättsliga grunder, lagringstider, kakor) men är inte juridiskt granskat. Håll denna fil synkroniserad med `PrivacyPolicy.razor` för hand.
 
 *Senast uppdaterad: 9 oktober 2026*
 

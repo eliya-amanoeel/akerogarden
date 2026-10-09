@@ -22,7 +22,7 @@ public static class BookingEmailTemplates
         body.Append(Greeting(contactName));
         body.Append("<p>Tack för din bokningsförfrågan! Vi har tagit emot din förfrågan om att boka en vistelse hos oss på Åkerögården.</p>");
         body.Append(ReferenceLine(bookingReference));
-        body.Append("<p>Vi går igenom din förfrågan och återkommer normalt inom några dagar med besked. Observera att förfrågan inte är en bekräftad bokning förrän vi har godkänt den.</p>");
+        body.Append("<p>Vi går igenom din förfrågan och återkommer normalt inom några dagar med besked. Observera att förfrågan inte är en bekräftad bokning förrän vi har bekräftat den.</p>");
         return new EmailContent(WithReference("Vi har tagit emot din bokningsförfrågan", bookingReference), body.ToString());
     }
 

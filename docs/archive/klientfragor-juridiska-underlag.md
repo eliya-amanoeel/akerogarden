@@ -5,7 +5,7 @@
 > by the plain-language form of 2026-08-23, and that in turn by `docs/legal/klientfragor-2026-10-07.html`.
 > Everything below is answered, decided or superseded — including the "Punkter som går direkt till
 > juristen" list, decided by the maintainer on 2026-10-07. **Outcomes are recorded in
-> `docs/legal/known-conflicts-at-launch.md`, not here.** The body is left as written.
+> `docs/archive/known-conflicts-at-launch.md`, not here.** The body is left as written.
 
 ---
 

@@ -1,9 +1,11 @@
 @page "/integritetspolicy"
 @layout MainLayout
 
-@* The published text is generated from docs/legal/Integritetspolicy.md — the two are kept in
-   sync by hand. If you change wording here, change it there too; a divergence means the
-   documented policy is not the published one.
+@* docs/legal/Integritetspolicy.md holds an exact copy of the published text. If you change wording
+   here, change it there too; a divergence means the documented policy is not the published one.
+   That happened: by 2026-10-10 the file had drifted from this page in some thirty places, and was
+   re-copied word for word from the live page. Since then LegalTextCopyTests (E2E) fails the build
+   on any word that differs.
 
    The .legal-draft banner that stood here was removed on 2026-09-07, together with the one on
    BookingTerms.razor. It said the text awaited a jurist review — and there is no jurist review

@@ -2,9 +2,9 @@
 
 > **⛔ SUPERSEDED 2026-08-23 — DO NOT EDIT, DO NOT PUBLISH.**
 >
-> The client replaced this draft with a complete document of their own: **`klientsvar.md`**, which is now the source of truth and is what `BookingTerms.razor` publishes. This file is kept only as the record of what preceded it — the 20% deposit and two-month cancellation rule below are **no longer the property's terms**, though they are still what the approval and cancellation emails state (see `known-conflicts-at-launch.md`).
+> The client replaced this draft with a complete document of their own — now `docs/legal/Bokningsvillkor.md` (named **`klientsvar.md`** until 2026-10-10), an exact copy of what `BookingTerms.razor` publishes. This file is kept only as the record of what preceded it — the 20% deposit and two-month cancellation rule below are **no longer the property's terms**. Until 2026-10-09 they were still what the approval and cancellation emails stated; since then the emails point to the terms instead (see `known-conflicts-at-launch.md`).
 >
-> If you are looking for the live booking terms, open `docs/legal/klientsvar.md`. *(Moved to
+> If you are looking for the live booking terms, open `docs/legal/Bokningsvillkor.md`. *(Moved to
 > `docs/archive/` on 2026-10-08; the body is left as written.)*
 
 *Senast uppdaterad: [ATT BEKRÄFTA — datum för publicering]*

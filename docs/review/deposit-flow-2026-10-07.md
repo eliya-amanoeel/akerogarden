@@ -164,7 +164,8 @@ Taken 2026-10-08, after the client's answers (§5):
 
 ## 5. Waiting on the client
 
-Form: `docs/legal/klientfragor-2026-10-07.html` (replaces the 2026-08-23 form). **Answered
+Form: `klientfragor-2026-10-07.html` (replaces the 2026-08-23 form; a working copy, never tracked,
+and deleted 2026-10-10 — the questions and the answers are recorded below). **Answered
 2026-10-08** (`Akerogarden_Svar_Betalning_och_Villkor.pdf`, kept outside the repo):
 
 | Form question | Answer |
@@ -234,7 +235,7 @@ Swish or transfer give the client the payer's name and number; the policy names 
 purpose but has neither). `MatOchPriser.razor` (D10 — its code comment cites C8 for not showing an
 incl-VAT price; C8 forbids stored booking totals, not a per-item display price).
 
-**Legal text** — `BookingTerms.razor` and `docs/legal/klientsvar.md`: §7 rewritten for D14 and D9,
+**Legal text** — `BookingTerms.razor` and `docs/legal/klientsvar.md` (now `Bokningsvillkor.md`): §7 rewritten for D14 and D9,
 the kitchen and common-room rules in §12/§15, the one-week damage deadline in §19, and the *"Senast
 uppdaterad"* date (D19). `docs/legal/Integritetspolicy.md` in step with the policy page,
 `docs/archive/known-conflicts-at-launch.md` (§3–§6 marked done, then archived on 2026-10-09).

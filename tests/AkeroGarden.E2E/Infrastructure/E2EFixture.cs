@@ -496,16 +496,21 @@ public sealed class E2EFixture : IAsyncLifetime
         throw new TimeoutException($"The {label} app did not become ready within 120 s.\n--- app log ---\n{RecentLog()}");
     }
 
-    private static string LocateProject(string projectName)
+    /// <summary>The repository root (the folder holding <c>AkeroGarden.slnx</c>). Used to start the
+    /// apps from source, and by tests that compare a rendered page with a file in the repo.</summary>
+    public static string RepositoryRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
         while (dir is not null && !File.Exists(Path.Combine(dir.FullName, "AkeroGarden.slnx")))
             dir = dir.Parent;
 
-        if (dir is null)
-            throw new InvalidOperationException("Could not locate the repository root (AkeroGarden.slnx).");
+        return dir?.FullName
+            ?? throw new InvalidOperationException("Could not locate the repository root (AkeroGarden.slnx).");
+    }
 
-        var csproj = Path.Combine(dir.FullName, "src", projectName, $"{projectName}.csproj");
+    private static string LocateProject(string projectName)
+    {
+        var csproj = Path.Combine(RepositoryRoot(), "src", projectName, $"{projectName}.csproj");
         if (!File.Exists(csproj))
             throw new InvalidOperationException($"Web project not found at {csproj}.");
 

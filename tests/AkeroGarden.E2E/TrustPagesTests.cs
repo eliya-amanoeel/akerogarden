@@ -198,7 +198,7 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         // all three routes to it hold: the page itself, the footer, and the point of acceptance
         // (C1, decided 2026-08-17).
         //
-        // The headings below are the client's own document (docs/legal/klientsvar.md), adopted
+        // The headings below are the client's own document (docs/legal/Bokningsvillkor.md), adopted
         // 2026-08-23, which replaced our draft — hence "vistelsevillkor" rather than the draft's
         // "ordningsvillkor", and §6/§7 rather than the draft's §2/§3. The cancellation rule here is
         // a percentage-of-value scale; since the deposit work the emails no longer restate any rule

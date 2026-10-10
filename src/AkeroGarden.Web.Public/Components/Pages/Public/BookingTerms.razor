@@ -1,9 +1,11 @@
 @page "/bokningsvillkor"
 @layout MainLayout
 
-@* The published text is the client's own "Boknings- och vistelsevillkor", received 2026-08-23 and
-   kept verbatim at docs/legal/klientsvar.md. That file is the source of truth; the two are kept in
-   sync by hand. If you change wording here, change it there too.
+@* The published text is the client's own "Boknings- och vistelsevillkor", received 2026-08-23.
+   docs/legal/Bokningsvillkor.md holds an exact copy of it (named klientsvar.md until 2026-10-10,
+   when it was re-copied word for word from the live page). Change wording here and there together
+   — a divergence means the documented terms are not the published ones, and LegalTextCopyTests
+   (E2E) fails the build on any word that differs.
 
    It REPLACES the earlier draft (docs/archive/Boknings-och-ordningsvillkor.md, now historical). The
    client answered our eight questions by sending a complete document of their own rather than
@@ -19,8 +21,8 @@
    From the client's second answers (2026-10-09): §7's 8-to-4-week gap is closed — more than 4 weeks
    out, no fee beyond the deposit — and §12 says linen and towels are not included. "Senast
    uppdaterad" below is the day this went live (2026-10-09).
-   Beyond those answered changes, only mechanical repairs: the source numbered several sections
-   "1." (markdown auto-numbering), and stray "**" artifacts were dropped.
+   Beyond those answered changes, only mechanical repairs: the client's file numbered several
+   sections "1." (markdown auto-numbering), and stray "**" artifacts were dropped.
 
    The emails never restate the cancellation rules — they point to the terms in force when the
    booking was confirmed (§32, FR-79) — so a change here needs no code change. Until 2026-10-09 they

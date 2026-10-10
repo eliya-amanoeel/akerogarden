@@ -7,7 +7,8 @@
 > confirmed the rates and `/mat-och-priser` shows prices including VAT. Check-in times (§6): closed
 > 2026-10-07. All of it went live with the 2026-10-09 production deploy (PRs 98 and 100).
 >
-> For current legal truth read the published texts' sources — `docs/legal/klientsvar.md` and
+> For current legal truth read the published texts' copies — `docs/legal/Bokningsvillkor.md` (named
+> `klientsvar.md` in the body below, its name until 2026-10-10) and
 > `docs/legal/Integritetspolicy.md` — and the SRS; for why the deposit-era changes were made, read
 > `docs/review/deposit-flow-2026-10-07.md`. The body below is left as written: a point-in-time
 > record of what was knowingly carried across the launch line.

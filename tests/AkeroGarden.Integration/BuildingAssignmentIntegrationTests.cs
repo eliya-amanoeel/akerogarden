@@ -274,7 +274,7 @@ public class BuildingAssignmentIntegrationTests : IClassFixture<DbFixture>
         var bookings = scope.ServiceProvider.GetRequiredService<BookingService>();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
 
-        var result = await bookings.ApproveAsync(s.BookingId);
+        var result = await bookings.ApproveAsync(s.BookingId, DbFixture.EstimatedPrice);
 
         Assert.False(result.Succeeded);
         Assert.Contains("byggnad", result.Error!, StringComparison.OrdinalIgnoreCase);
@@ -299,7 +299,7 @@ public class BuildingAssignmentIntegrationTests : IClassFixture<DbFixture>
             Assert.True(r0.Succeeded, r0.Error);
         }
         {
-            var r1 = await bookings.ApproveAsync(s.BookingId);
+            var r1 = await bookings.ApproveAsync(s.BookingId, DbFixture.EstimatedPrice);
             Assert.True(r1.Succeeded, r1.Error);
         }
     }
@@ -323,7 +323,7 @@ public class BuildingAssignmentIntegrationTests : IClassFixture<DbFixture>
 
         await bookings.SetBuildingAssignmentsAsync(s.BookingId, [s.BuildingId]);
         {
-            var r1 = await bookings.ApproveAsync(s.BookingId);
+            var r1 = await bookings.ApproveAsync(s.BookingId, DbFixture.EstimatedPrice);
             Assert.True(r1.Succeeded, r1.Error);
         }
 

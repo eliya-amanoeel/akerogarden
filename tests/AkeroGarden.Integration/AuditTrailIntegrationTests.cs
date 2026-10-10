@@ -114,7 +114,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         var (id, guestEmail, reference) = await CreatePendingStayAsync(provider);
 
         using (var scope = provider.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice);
 
         var row = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.BookingApproved));
         Assert.Equal(AuditActorType.Admin, row.ActorType);
@@ -134,7 +134,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
             provider, checkIn: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30));
 
         using (var scope = provider.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice);
 
         var row = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.CompletionLinkIssued));
         Assert.Equal(AuditActorType.Admin, row.ActorType);
@@ -161,7 +161,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         var (id, _, _) = await CreatePendingStayAsync(provider); // 180 days out
 
         using (var scope = provider.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice);
 
         Assert.Single(await AuditRowsAsync(provider, id, AuditAction.BookingApproved));
         Assert.Empty(await AuditRowsAsync(provider, id, AuditAction.CompletionLinkIssued));
@@ -190,7 +190,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         using (var scope = provider.CreateScope())
         {
             var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
-            await svc.ApproveAsync(id);
+            await svc.ApproveAsync(id, DbFixture.EstimatedPrice);
             await svc.CancelAsync(id, CancellationInitiator.PropertyInitiated, "internt känsligt skäl", depositPaid: false);
         }
 
@@ -209,13 +209,15 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         using (var scope = provider.CreateScope())
         {
             var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
-            Assert.True((await svc.RequestDepositAsync(id)).Succeeded);
-            Assert.True((await svc.ApproveAsync(id)).Succeeded);
+            Assert.True((await svc.RequestDepositAsync(id, DbFixture.EstimatedPrice)).Succeeded);
+            Assert.True((await svc.ApproveAsync(id, null)).Succeeded);
             Assert.True((await svc.CancelAsync(id, CancellationInitiator.GuestInitiated, null, depositPaid: true)).Succeeded);
         }
 
         var request = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.DepositRequested));
         Assert.Contains("att betalas senast", request.Summary);
+        Assert.Contains("Handpenning på 4\u00A0250\u00A0kr", request.Summary);       // what the guest was asked for
+        Assert.Contains("beräknat pris 21\u00A0250\u00A0kr", request.Summary);
         var confirmed = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.BookingApproved));
         Assert.Contains("bekräftades efter begärd handpenning", confirmed.Summary);
         var cancelled = Assert.Single(await AuditRowsAsync(provider, id, AuditAction.BookingCancelled));
@@ -254,7 +256,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
             }, createdByAdmin: true);
             // Approval requires a lodging assignment (FR-103/D1).
             await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
-            await service.ApproveAsync(booking.Id);
+            await service.ApproveAsync(booking.Id, DbFixture.EstimatedPrice);
             bookingId = booking.Id;
             token = (await db.Bookings.FindAsync(bookingId))!.CompletionToken!;
             occasions = MealOccasionResolver.Resolve((await db.Bookings.FindAsync(bookingId))!);
@@ -294,7 +296,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         var provider = NewProvider();
         var (id, _, _) = await CreatePendingStayAsync(provider);
         using (var scope = provider.CreateScope())
-            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+            await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice);
 
         // Sanity: rows exist before deletion.
         using (var scope = provider.CreateScope())

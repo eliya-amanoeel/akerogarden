@@ -326,6 +326,10 @@ namespace AkeroGarden.Web.Core.Migrations
                     b.Property<DateTime?>("DepositReminderSentAt")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<decimal?>("EstimatedPriceInclVat")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)");
+
                     b.Property<string>("InvoiceAddress")
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");

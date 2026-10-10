@@ -80,7 +80,7 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         // Approval requires a lodging assignment (FR-103/D1).
         await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
-        await service.ApproveAsync(booking.Id);
+        await service.ApproveAsync(booking.Id, DbFixture.EstimatedPrice);
 
         // Asserted, not null-forgiven: a `!` here turns "approval issued no link" into a NotFound
         // three tests down, which is how this helper broke silently once already.

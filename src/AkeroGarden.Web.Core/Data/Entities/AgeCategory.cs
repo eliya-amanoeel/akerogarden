@@ -5,8 +5,9 @@ namespace AkeroGarden.Web.Core.Data.Entities;
 /// admin-managed. Age bands: <see cref="Infant"/> = 0–3 years (free), <see cref="Child"/> = 4–12,
 /// <see cref="Adult"/> = 13+. Pricing tier: <see cref="Adult"/> and <see cref="Child"/> bill at
 /// the standard per-person rate, <see cref="Infant"/> is free (the free/paid line is age 4). The
-/// Child/Adult split is for kitchen portion planning only and does not affect price. No monetary
-/// totals are stored (C8) — the tier is reference data the admin reads off, not a computed amount.
+/// Child/Adult split is for kitchen portion planning only and does not affect price. No price is
+/// computed from it (C8) — the tier is reference data the admin reads off when working out the
+/// price they enter (§5.6), not a computed amount.
 /// Persisted as a string for legibility and stability against reordering.
 /// </summary>
 public enum AgeCategory

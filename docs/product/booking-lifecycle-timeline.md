@@ -47,16 +47,17 @@ stateDiagram-v2
     end note
 
     note right of AwaitingDeposit
-        Guest: deposit request — where to pay,
-        due in 7 days, not refundable once paid
+        Guest: deposit request — estimated price,
+        20 % deposit, where to pay, due in 7 days,
+        not refundable once paid
         Dates held while waiting
         Due date passed: one reminder (FR-116),
         then overdue on the dashboard
     end note
 
     note right of Approved
-        Guest: approval — with the link if
-        check-in is 40 days away or sooner,
+        Guest: approval — states the estimated price;
+        with the link if check-in is 40 days away or sooner,
         otherwise "the link follows later"
         Then, while still Approved:
         the daily jobs below take over

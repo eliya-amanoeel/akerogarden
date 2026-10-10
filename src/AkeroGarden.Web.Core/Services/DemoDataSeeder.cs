@@ -363,6 +363,20 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddFacility(pending, utflykt);
         db.Bookings.Add(pending);
 
+        // 1b. A second Pending stay, building already assigned and inside the 40-day issue window —
+        // ready to approve directly with a price (FR-38), so both ways of saying yes can be tried
+        // in one seeded environment: this one by Godkänn (with a link), Karin's by Begär handpenning.
+        var pendingDirect = StayRequest(
+            "Per Holmgren", "per.holmgren@example.com", "070-767 88 99",
+            today.AddDays(35), today.AddDays(37), overnight: 12, dayGuests: 0,
+            MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-1));
+        pendingDirect.Status = BookingStatus.Pending;
+        pendingDirect.Message = "Församlingens ledarhelg — vi betalar mot faktura.";
+        pendingDirect.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
+            BookingStatus.Pending, today.AddDays(-1), pendingDirect.CheckOut, today);
+        AddBuilding(pendingDirect, blido);
+        db.Bookings.Add(pendingDirect);
+
         // 2. Approved — token issued, guest yet to complete details (valid magic link). Check-in is
         // inside the 40-day issue window, so this is a booking approval would have given a link to.
         var approved = StayRequest(
@@ -370,6 +384,9 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             today.AddDays(30), today.AddDays(33), overnight: 24, dayGuests: 6,
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-6));
         approved.Status = BookingStatus.Approved;
+        // Approved directly with a price (FR-38, §5.6). The other approved and later bookings are left
+        // without one on purpose: that is what every booking said yes to before 2026-10 looks like.
+        approved.EstimatedPriceInclVat = 54_000m;
         approved.CompletionToken = CompletionTokenPolicy.GenerateToken();
         approved.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(nowUtc, approved.CheckIn!.Value);
         // Dated back past the nudge grace (FR-63) so this booking is not sitting inside a grace
@@ -407,6 +424,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             today.AddDays(120), today.AddDays(123), overnight: 16, dayGuests: 0,
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-2));
         farOut.Status = BookingStatus.Approved;
+        farOut.EstimatedPriceInclVat = 38_400m;
         farOut.DeleteAfter = null; // live state
         farOut.Message = "Företagsretreat nästa år.";
         AddBuilding(farOut, vato1);
@@ -420,6 +438,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-3));
         awaitingDeposit.Status = BookingStatus.AwaitingDeposit;
         awaitingDeposit.DepositDueDate = today.AddDays(DepositPolicy.DaysToPay - 1);
+        awaitingDeposit.EstimatedPriceInclVat = 46_000m; // deposit 9 200 kr
         awaitingDeposit.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.AwaitingDeposit, today.AddDays(-3), awaitingDeposit.CheckOut, today);
         awaitingDeposit.Message = "Ungdomsläger för scoutkåren.";
@@ -434,11 +453,27 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             MealPlan.SelfCateringAll, createdAt: nowUtc.AddDays(-12));
         depositOverdue.Status = BookingStatus.AwaitingDeposit;
         depositOverdue.DepositDueDate = today.AddDays(-2);
+        depositOverdue.EstimatedPriceInclVat = 13_500m; // deposit 2 700 kr — restated by the reminder
         depositOverdue.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.AwaitingDeposit, today.AddDays(-12), depositOverdue.CheckOut, today);
         depositOverdue.Message = "Föreningens planeringshelg.";
         AddBuilding(depositOverdue, blido);
         db.Bookings.Add(depositOverdue);
+
+        // 2f. Deposit asked for before prices were entered (§5.6) — no stored price, overdue by a day
+        // and not yet reminded. What every booking waiting on 2026-10-10 looks like: its reminder and
+        // its confirmation must keep the old wording rather than print an empty amount.
+        var depositLegacy = StayRequest(
+            "Lena Forsberg", "lena.forsberg@example.com", "076-212 34 56",
+            today.AddDays(110), today.AddDays(112), overnight: 14, dayGuests: 0,
+            MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-10));
+        depositLegacy.Status = BookingStatus.AwaitingDeposit;
+        depositLegacy.DepositDueDate = today.AddDays(-1);
+        depositLegacy.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
+            BookingStatus.AwaitingDeposit, today.AddDays(-10), depositLegacy.CheckOut, today);
+        depositLegacy.Message = "Körens vinterläger.";
+        AddBuilding(depositLegacy, vato2);
+        db.Bookings.Add(depositLegacy);
 
         // 3. DetailsComplete — guest submitted the completion form (participants + the group's meal
         // choices + cleaning, FR-93). Occupies rooms in both Tjockö and Singö — both map to the same Lilla

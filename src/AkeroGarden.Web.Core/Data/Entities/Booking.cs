@@ -15,12 +15,13 @@ namespace AkeroGarden.Web.Core.Data.Entities;
 /// <see cref="AkeroGarden.Web.Core.Services.BookingStateMachine"/> so illegal transitions are
 /// blocked in code, not just hidden in the UI.</para>
 ///
-/// <para><b>No monetary totals, and payment state only where the system acts on it (C8, FR-42
-/// retired, FR-115/116).</b> No booking total, deposit amount, or balance is stored, and no
-/// invoicing or "paid" flag either — such a flag would track nothing the system could act on. The
-/// one piece of payment state is <see cref="BookingStatus.AwaitingDeposit"/> with
-/// <see cref="DepositDueDate"/> and <see cref="DepositReminderSentAt"/>: it holds the dates and
-/// gates confirmation. Do not add an amount beside it (SRS §5.6).</para>
+/// <para><b>One amount, and payment state only where the system acts on it (C8 as amended, FR-42
+/// retired, FR-115/116).</b> The one amount stored is <see cref="EstimatedPriceInclVat"/>, which the
+/// guest's emails state; the deposit is computed from it, and no balance, invoice or "paid" flag is
+/// stored — such a flag would track nothing the system could act on. The one piece of payment state
+/// is <see cref="BookingStatus.AwaitingDeposit"/> with <see cref="DepositDueDate"/> and
+/// <see cref="DepositReminderSentAt"/>: it holds the dates and gates confirmation. Do not add a
+/// further amount beside them (SRS §5.6).</para>
 /// </summary>
 public class Booking
 {
@@ -319,4 +320,17 @@ public class Booking
     /// <summary>Set when the deposit reminder is sent (FR-116) — only on a confirmed send, so a
     /// failed one is retried the next night, the same rule as <see cref="ReminderEmailSentAt"/>.</summary>
     public DateTime? DepositReminderSentAt { get; set; }
+
+    // ── Price (FR-38/115, §5.6) ──────────────────────────────────────────────────
+    /// <summary>The booking's estimated price <b>including VAT</b>, in whole kronor, entered by the
+    /// admin when saying yes — asking for the deposit or approving directly. The deposit request and
+    /// the approval email state it, because the client's terms (§2) say the confirmation states the
+    /// agreed price, and on the deposit path paying binds the booking before any confirmation.
+    ///
+    /// <para><b>Never changed once the email is sent</b> — the confirmation dialog restates it, and
+    /// that is the guard against a typo. The deposit is computed from it
+    /// (<see cref="AkeroGarden.Web.Core.Services.DepositPolicy.DepositFor"/>), never stored beside it,
+    /// so the two cannot disagree. Null for a booking said yes to before 2026-10, whose emails keep
+    /// the "separat" wording, and for anything not yet said yes to.</para></summary>
+    public decimal? EstimatedPriceInclVat { get; set; }
 }

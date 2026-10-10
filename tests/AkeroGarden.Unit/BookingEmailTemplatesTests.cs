@@ -96,7 +96,7 @@ public class BookingEmailTemplatesTests
         var expiry = new DateTime(2026, 7, 15, 12, 0, 0, DateTimeKind.Utc); // 14:00 Swedish summer time
         var c = BookingEmailTemplates.Approval(
             "Anna", "https://akerogarden.se/slutfor/TOKEN", expiry, Ref, ["Smedjan"],
-            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl, depositRequested: false);
+            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl, depositRequested: false, estimatedPrice: null);
 
         Assert.Contains("https://akerogarden.se/slutfor/TOKEN", c.HtmlBody);
         Assert.Contains("Smedjan", c.HtmlBody);       // assigned lodging stated (FR-103)
@@ -112,7 +112,8 @@ public class BookingEmailTemplatesTests
         Assert.DoesNotContain("80 %", c.HtmlBody);
         Assert.DoesNotContain("före ankomst", c.HtmlBody);
         Assert.Contains("de boknings- och vistelsevillkor som gällde när bokningen bekräftades", c.HtmlBody);
-        Assert.Contains("Pris och betalningsvillkor får ni från oss separat", c.HtmlBody); // direct path
+        // Direct path, no stored price — a booking approved before prices were entered (§5.6).
+        Assert.Contains("Pris och betalningsvillkor får ni från oss separat", c.HtmlBody);
 
         // Under §2 of the client's terms the booking binds when it is confirmed and accepted, so the
         // full terms must be reachable from this email — by their published name.
@@ -129,14 +130,43 @@ public class BookingEmailTemplatesTests
         // never assert what the system cannot know.
         var c = BookingEmailTemplates.Approval(
             "Anna", magicLinkUrl: null, expiryUtc: null, Ref, ["Smedjan"],
-            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl, depositRequested: true);
+            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl, depositRequested: true, estimatedPrice: null);
 
         Assert.Contains("Er bokning är nu bekräftad", c.HtmlBody);
         Assert.Contains("bekräftad", c.Subject);
         Assert.DoesNotContain("godkänd", c.HtmlBody);
         Assert.DoesNotContain("kommit in", c.HtmlBody);
-        Assert.Contains("Resterande belopp faktureras av oss", c.HtmlBody);
+        Assert.Contains("Resterande belopp faktureras av oss", c.HtmlBody); // no stored price (§5.6)
         Assert.Contains(TermsUrl, c.HtmlBody);
+    }
+
+    [Fact]
+    public void Approval_StatesTheEstimatedPrice_InsteadOfSayingItComesSeparately()
+    {
+        // Terms §2: the confirmation states the agreed price (FR-38, §5.6). Including VAT, labelled an
+        // estimate, digits grouped the Swedish way with non-breaking spaces.
+        var c = BookingEmailTemplates.Approval(
+            "Anna", magicLinkUrl: null, expiryUtc: null, Ref, ["Smedjan"],
+            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl, depositRequested: false, estimatedPrice: 21_250m);
+
+        Assert.Contains("Bokningens beräknade pris är <strong>21\u00A0250\u00A0kr</strong> inklusive moms", c.HtmlBody);
+        Assert.Contains("framgår av fakturan", c.HtmlBody);
+        Assert.DoesNotContain("separat", c.HtmlBody);
+        Assert.DoesNotContain("handpenning", c.HtmlBody); // approved directly — none was asked for
+    }
+
+    [Fact]
+    public void Approval_AfterADeposit_WithAPrice_DeductsAPaidDepositWithoutClaimingOneWasPaid()
+    {
+        var c = BookingEmailTemplates.Approval(
+            "Anna", magicLinkUrl: null, expiryUtc: null, Ref, ["Smedjan"],
+            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl, depositRequested: true, estimatedPrice: 21_250m);
+
+        Assert.Contains("21\u00A0250\u00A0kr", c.HtmlBody);
+        // Conditional on payment — the admin may confirm without one (FR-115).
+        Assert.Contains("En inbetald handpenning räknas av på fakturan", c.HtmlBody);
+        Assert.DoesNotContain("kommit in", c.HtmlBody);
+        Assert.DoesNotContain("separat", c.HtmlBody);
     }
 
     [Fact]
@@ -148,7 +178,7 @@ public class BookingEmailTemplatesTests
         var c = BookingEmailTemplates.Approval(
             "Anna", "https://akerogarden.se/slutfor/TOKEN",
             new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc), Ref, [],
-            new TimeOnly(8, 0), new TimeOnly(18, 30), TermsUrl, depositRequested: false);
+            new TimeOnly(8, 0), new TimeOnly(18, 30), TermsUrl, depositRequested: false, estimatedPrice: null);
 
         Assert.Contains("Incheckning sker kl. 08:00", c.HtmlBody);
         Assert.Contains("utcheckning kl. 18:30", c.HtmlBody);
@@ -159,7 +189,7 @@ public class BookingEmailTemplatesTests
     {
         var c = BookingEmailTemplates.Approval(
             "Anna", "https://akerogarden.se/slutfor/TOKEN",
-            new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc), Ref, [], null, null, TermsUrl, depositRequested: false);
+            new DateTime(2026, 7, 15, 14, 0, 0, DateTimeKind.Utc), Ref, [], null, null, TermsUrl, depositRequested: false, estimatedPrice: null);
 
         Assert.Contains("Incheckning sker kl. 14:00", c.HtmlBody);
         Assert.Contains("utcheckning kl. 12:00", c.HtmlBody);
@@ -172,7 +202,7 @@ public class BookingEmailTemplatesTests
         // show a link or an expiry — it tells the guest nothing is required of them yet.
         var c = BookingEmailTemplates.Approval(
             "Anna", magicLinkUrl: null, expiryUtc: null, Ref, ["Smedjan"],
-            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl, depositRequested: false);
+            new TimeOnly(14, 0), new TimeOnly(12, 0), TermsUrl, depositRequested: false, estimatedPrice: null);
 
         Assert.DoesNotContain("/slutfor/", c.HtmlBody);
         Assert.DoesNotContain("Länken är giltig", c.HtmlBody);
@@ -254,13 +284,16 @@ public class BookingEmailTemplatesTests
     {
         var c = BookingEmailTemplates.DepositRequest(
             "Anna", Ref, new DateOnly(2027, 5, 1), new DateOnly(2027, 5, 3), ["Smedjan"],
-            new DateOnly(2026, 10, 16), Payment, TermsUrl);
+            new DateOnly(2026, 10, 16), Payment, TermsUrl, estimatedPrice: 21_250m);
 
         Assert.Contains(Ref, c.Subject);
         Assert.Contains("1 maj 2027 – 3 maj 2027", c.HtmlBody);          // the dates held
         Assert.Contains("Smedjan", c.HtmlBody);
-        Assert.Contains("20 %", c.HtmlBody);
-        Assert.Contains("separat mejl", c.HtmlBody);                     // amount comes from the client (C8)
+        // The price and the deposit computed from it, before the guest pays (terms §2, §5.6) — no
+        // separate email any more.
+        Assert.Contains("Bokningens beräknade pris är <strong>21\u00A0250\u00A0kr</strong> inklusive moms", c.HtmlBody);
+        Assert.Contains("handpenning på 20 % av det beräknade priset: <strong>4\u00A0250\u00A0kr</strong>", c.HtmlBody);
+        Assert.DoesNotContain("separat", c.HtmlBody);
         Assert.Contains("<strong>16 oktober 2026</strong>", c.HtmlBody); // due date
         // Decoded: the body HTML-encodes text, and å/ä/ö come out as numeric entities.
         Assert.Contains("Kaldeiska katolska Mar Narsay Missionen i Södertälje", WebUtility.HtmlDecode(c.HtmlBody));
@@ -277,14 +310,25 @@ public class BookingEmailTemplatesTests
     [Fact]
     public void DepositReminder_RepeatsWhereToPay_AndCitesTheTermsSection()
     {
-        var c = BookingEmailTemplates.DepositReminder("Anna", Ref, new DateOnly(2026, 10, 16), Payment, TermsUrl);
+        var c = BookingEmailTemplates.DepositReminder("Anna", Ref, new DateOnly(2026, 10, 16), Payment, TermsUrl, estimatedPrice: 21_250m);
 
         Assert.Contains(Ref, c.Subject);
+        Assert.Contains("handpenningen på <strong>4\u00A0250\u00A0kr</strong>", c.HtmlBody); // restated (FR-116)
         Assert.Contains("16 oktober 2026", c.HtmlBody);
         Assert.Contains("5713-3399", c.HtmlBody);
         Assert.Contains("punkt 6", c.HtmlBody);
         Assert.Contains(TermsUrl, c.HtmlBody);
         Assert.Contains("redan betalat", c.HtmlBody);
+    }
+
+    [Fact]
+    public void DepositReminder_WithoutAStoredPrice_StillRemindsWithoutAnAmount()
+    {
+        // A deposit asked for before prices were entered (§5.6) has no amount to restate.
+        var c = BookingEmailTemplates.DepositReminder("Anna", Ref, new DateOnly(2026, 10, 16), Payment, TermsUrl, estimatedPrice: null);
+
+        Assert.Contains("Vi har ännu inte fått in handpenningen för er bokning", c.HtmlBody);
+        Assert.DoesNotContain("\u00A0kr", c.HtmlBody); // Kronor() always puts a non-breaking space before "kr"
     }
 
     [Fact]

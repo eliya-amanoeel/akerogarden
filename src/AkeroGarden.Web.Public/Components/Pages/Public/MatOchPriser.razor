@@ -215,8 +215,9 @@
     // Private individuals book as consumers (the client's terms §1/§31), and a price aimed at a
     // consumer must be the price they pay, VAT included (prisinformationslagen 2004:347) — so the
     // VAT-inclusive figure leads and the entered ex-VAT amount stays beside it for organisations.
-    // Computed per item for display only and never stored. C8 forbids stored booking totals, not
-    // this: there is no booking and no sum here, only one reference price at a time.
+    // Computed per item for display only and never stored. C8 forbids computing a booking's price
+    // from these lists, not this: there is no booking and no sum here, only one reference price at
+    // a time. (A booking's price is entered by the admin — §5.6.)
     private static decimal InclVat(decimal amountExVat, decimal vatRate) =>
         Math.Round(amountExVat * (1 + vatRate), 2, MidpointRounding.AwayFromZero);
 

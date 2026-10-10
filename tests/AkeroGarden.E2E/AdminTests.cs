@@ -44,6 +44,15 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
     /// <summary>Logs in as an arbitrary account, without asserting where it lands — the landing page
     /// is role-dependent (FR-104) and is itself the thing under test in the Samordnare journey.</summary>
+    /// <summary>The price an E2E test enters before saying yes (FR-38) — both buttons refuse without
+    /// one. Shown back as <see cref="Price"/> / <see cref="Deposit"/>, formatted as the page formats them.</summary>
+    private const decimal PriceValue = 21_250m;
+    private static readonly string Price = BookingDisplay.Kronor(PriceValue);
+    private static readonly string Deposit = BookingDisplay.Kronor(DepositPolicy.DepositFor(PriceValue));
+
+    private Task EnterPriceAsync() =>
+        Page.GetByLabel("Beräknat pris inkl. moms (kr)").FillAsync(((int)PriceValue).ToString());
+
     private async Task LoginAsAsync(string email, string password)
     {
         await Page.GotoAsync("/login");
@@ -1001,6 +1010,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Assertions.Expect(refusal).ToContainTextAsync("Ingen byggnad är tilldelad ännu");
             await Assertions.Expect(Page.GetByText("Varningarna stoppar inte godkännandet")).ToHaveCountAsync(0);
 
+            // A price, so the click reaches the building refusal this test is about (FR-38).
+            await EnterPriceAsync();
             await Page.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true }).ClickAsync();
             var dialog = Page.GetByRole(AriaRole.Dialog);
             await Assertions.Expect(dialog).ToBeVisibleAsync();
@@ -1443,12 +1454,22 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Assertions.Expect(Page.Locator(".form-status"))
                 .ToContainTextAsync("Byggnadstilldelningen är sparad.");
 
-            await Page.GetByRole(AriaRole.Button, new() { Name = "Begär handpenning", Exact = true }).ClickAsync();
+            // No price, no dialog (FR-38): the email states the price, so it is asked for first.
+            var requestDeposit = Page.GetByRole(AriaRole.Button, new() { Name = "Begär handpenning", Exact = true });
+            await requestDeposit.ClickAsync();
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("Ange bokningens beräknade pris.");
+            await Assertions.Expect(Page.GetByRole(AriaRole.Dialog)).Not.ToBeVisibleAsync();
+
+            await EnterPriceAsync();
+            await requestDeposit.ClickAsync();
             var dialog = Page.GetByRole(AriaRole.Dialog);
             await Assertions.Expect(dialog).ToContainTextAsync("handpenning@example.se"); // FR-38: the address
             await Assertions.Expect(dialog).ToContainTextAsync("ska vara betald senast");
+            // The admin's one look at the price before it is sent and can no longer change.
+            await Assertions.Expect(dialog).ToContainTextAsync($"Beräknat pris: {Price} inkl. moms");
+            await Assertions.Expect(dialog).ToContainTextAsync($"Handpenning (20 %): {Deposit}");
             await dialog.GetByRole(AriaRole.Button, new() { Name = "Begär handpenning", Exact = true }).ClickAsync();
-            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync("Handpenning är begärd");
+            await Assertions.Expect(Page.Locator(".form-status")).ToContainTextAsync($"Handpenning på {Deposit} är begärd");
 
             await using (var db = Fixture.NewDbContext())
             {
@@ -1456,9 +1477,14 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 Assert.Equal(BookingStatus.AwaitingDeposit, booking.Status);
                 Assert.NotNull(booking.DepositDueDate);
                 Assert.Null(booking.CompletionToken); // no link before confirmation
+                Assert.Equal(PriceValue, booking.EstimatedPriceInclVat);
             }
 
             await Assertions.Expect(Page.Locator(".action-note", new() { HasText = "Handpenning senast" })).ToBeVisibleAsync();
+            // The price and the requested deposit stay in view (FR-38) — "begärd", never "betald".
+            await Assertions.Expect(Page.Locator(".action-note", new() { HasText = "Beräknat pris inkl. moms" })).ToContainTextAsync(Price);
+            await Assertions.Expect(Page.Locator(".action-note", new() { HasText = "Begärd handpenning" })).ToContainTextAsync(Deposit);
+            await Assertions.Expect(Page.GetByLabel("Beräknat pris inkl. moms (kr)")).ToHaveCountAsync(0); // nothing to re-enter
 
             // Cancelling without answering the deposit question must not open the dialog (FR-77).
             await Page.GetByRole(AriaRole.Button, new() { Name = "Avboka", Exact = true }).ClickAsync();
@@ -1485,7 +1511,10 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 Assert.Equal(BookingStatus.Approved, booking.Status);
                 Assert.NotNull(booking.DepositDueDate); // kept: the record that a deposit was asked for
                 Assert.NotNull(booking.CompletionToken);
+                Assert.Equal(PriceValue, booking.EstimatedPriceInclVat); // unchanged by confirming
             }
+            // Still shown once confirmed — the final invoice deducts the deposit from it.
+            await Assertions.Expect(Page.Locator(".action-note", new() { HasText = "Begärd handpenning" })).ToContainTextAsync(Deposit);
         }
         finally
         {
@@ -1536,6 +1565,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Assertions.Expect(Page.Locator(".form-status"))
                 .ToContainTextAsync("Byggnadstilldelningen är sparad.");
 
+            await EnterPriceAsync();
             var approve = Page.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true });
             await approve.ClickAsync();
 
@@ -1546,6 +1576,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             // Check-in is 60 days out, so approval issues no link (FR-51/108) and the dialog must not
             // promise one. It still names the address, which is the point of stating it (FR-38).
             await Assertions.Expect(dialog).ToContainTextAsync("godkann@example.se");
+            await Assertions.Expect(dialog).ToContainTextAsync($"Beräknat pris: {Price} inkl. moms");
+            await Assertions.Expect(dialog).Not.ToContainTextAsync("Handpenning"); // none on the direct path
             await Assertions.Expect(dialog).ToContainTextAsync("cirka sex veckor före ankomst");
             await Assertions.Expect(dialog).Not.ToContainTextAsync("med slutförandelänk skickas");
 
@@ -1576,7 +1608,11 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 Assert.Equal(BookingStatus.Approved, booking.Status);
                 Assert.Null(booking.CompletionToken);
                 Assert.Null(booking.CompletionLinkSentAt);
+                Assert.Equal(PriceValue, booking.EstimatedPriceInclVat);
             }
+
+            await Assertions.Expect(Page.Locator(".action-note", new() { HasText = "Beräknat pris inkl. moms" })).ToContainTextAsync(Price);
+            await Assertions.Expect(Page.Locator(".action-note", new() { HasText = "Begärd handpenning" })).ToHaveCountAsync(0);
 
             // The action rail explains the missing link instead of showing an empty "giltig till".
             // Narrowed twice on purpose: the success toast carries the same sentence, and the
@@ -1635,6 +1671,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Page.GotoAsync($"/bokningar/{id}");
             await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
+            await EnterPriceAsync();
             await Page.GetByRole(AriaRole.Button, new() { Name = "Godkänn", Exact = true }).ClickAsync();
 
             var dialog = Page.GetByRole(AriaRole.Dialog);

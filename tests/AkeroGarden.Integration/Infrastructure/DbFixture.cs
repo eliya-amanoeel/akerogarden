@@ -121,6 +121,11 @@ public sealed class DbFixture : IAsyncLifetime
     public static DateOnly StayWindow(IServiceProvider provider, int sequence, int firstDaysOut, int stepDays = 7) =>
         TodayIn(provider).AddDays(firstDaysOut + (sequence * stepDays));
 
+    /// <summary>The estimated price a test enters when it says yes to a booking (FR-38/115) —
+    /// approving directly or asking for the deposit both require one. One value, so a test that
+    /// asserts on the price or the deposit (4 250 kr) can name it rather than repeat the figure.</summary>
+    public const decimal EstimatedPrice = 21_250m;
+
     /// <summary>
     /// Services pointed at a brand-new, freshly migrated database inside the same container.
     /// For tests whose subject is the state of the whole table rather than one row — seeding is the

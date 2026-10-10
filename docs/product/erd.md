@@ -65,6 +65,7 @@ erDiagram
         bool ConferenceCleaningPurchased "completion choice, only if Konferensrum booked"
         date DepositDueDate "set when the deposit is asked for; also marks that it was (FR-115)"
         datetime DepositReminderSentAt "deposit reminder sent, confirmed sends only (FR-116)"
+        decimal EstimatedPriceInclVat "admin-entered when saying yes, incl. VAT; never changed once sent; deposit = 20 % of it (FR-38/115)"
         date DeleteAfter "computed, FR-91"
     }
 
@@ -251,7 +252,7 @@ erDiagram
 
 1. **Snapshot pattern.** `BookingMealSelection`, `BookingCleaningSelection`, `BookingFacilitySelection`, and `BookingBuildingAssignment` each keep a *live FK* **and** a *text/amount snapshot* taken at the time of agreement. The FK powers queries; the snapshot preserves what was agreed if the reference data is later edited (NFR-15/16/33/34). Hard-delete of referenced reference data is blocked (FR-16/20/26/30/88). *Cleaning (FR-93) is chosen at completion, not inquiry, and all three kinds snapshot at submission — the `SleepingBuilding` rows resolve from the booking's assigned buildings, which are already known because assignment precedes approval (FR-103).*
 
-2. **No monetary totals, and payment state only where it drives behaviour.** Per C8, no booking total / deposit / balance is stored. `AmountExVat` on `CleaningZone`/`PriceRule` is reference data only. The four deposit/final-payment booleans were removed from `Booking` in 2026-08 (FR-42): invoicing is manual and entirely outside the system (§5.4), so tracking flags here formed an island of state that drove nothing. The one piece of payment state that exists — the `AwaitingDeposit` status with `DepositDueDate` and `DepositReminderSentAt` (FR-115/116, since 2026-10) — is there because it *does* drive behaviour: it holds the dates, withholds the completion link and gates confirmation. Do not add amounts or a paid flag beside it (§5.6).
+2. **One amount, and payment state only where it drives behaviour.** Per C8 (amended 2026-10), the one amount stored on a booking is `EstimatedPriceInclVat` — entered by the admin when saying yes, stated in the guest's emails, never changed once sent; the deposit is computed from it, never stored, and no balance or paid amount exists. `AmountExVat` on `CleaningZone`/`PriceRule` is reference data only. The four deposit/final-payment booleans were removed from `Booking` in 2026-08 (FR-42): invoicing is manual and entirely outside the system (§5.4), so tracking flags here formed an island of state that drove nothing. The one piece of payment state that exists — the `AwaitingDeposit` status with `DepositDueDate` and `DepositReminderSentAt` (FR-115/116, since 2026-10) — is there because it *does* drive behaviour: it holds the dates, withholds the completion link and gates confirmation. Do not add further amounts or a paid flag beside it (§5.6).
 
 3. **Array columns.** `CleaningZone.IncludesZoneIds` is a PostgreSQL `uuid[]` column (supported by EF Core), used only for the Hela lägret bundle self-reference. Facility and cleaning *selections* are full child entities (with snapshots), not arrays.
 

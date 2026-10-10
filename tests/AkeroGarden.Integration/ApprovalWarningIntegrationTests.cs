@@ -256,7 +256,7 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         // The panel names exactly the refusal the button gives.
         using var approveScope = provider.CreateScope();
-        var result = await approveScope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(seeded.BookingId);
+        var result = await approveScope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(seeded.BookingId, DbFixture.EstimatedPrice);
         Assert.False(result.Succeeded);
         Assert.Equal(warning.AvailabilityConflict, result.Error);
     }
@@ -275,7 +275,7 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         using (var scope = provider.CreateScope())
         {
-            var approved = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(first.BookingId);
+            var approved = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(first.BookingId, DbFixture.EstimatedPrice);
             Assert.True(approved.Succeeded, approved.Error);
         }
 
@@ -287,7 +287,7 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
         Assert.False(warning.HasAdvisory);
 
         using var approveScope = provider.CreateScope();
-        var result = await approveScope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(second.BookingId);
+        var result = await approveScope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(second.BookingId, DbFixture.EstimatedPrice);
         Assert.False(result.Succeeded);
         Assert.Equal(warning.AvailabilityConflict, result.Error);
     }
@@ -325,7 +325,7 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
 
         // Non-blocking: approval still succeeds (same pattern as FR-75).
         using var scope = provider.CreateScope();
-        var result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(seeded.BookingId);
+        var result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(seeded.BookingId, DbFixture.EstimatedPrice);
         Assert.True(result.Succeeded);
     }
 

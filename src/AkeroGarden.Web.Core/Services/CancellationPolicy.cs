@@ -19,7 +19,7 @@ public enum CancellationNotice
 
 /// <summary>
 /// Pure resolution of the cancellation email's money clause (requirements.md §5.6, FR-77/79),
-/// unit-testable (NFR-26). The system stores no amounts (C8) and **never restates the cancellation
+/// unit-testable (NFR-26). The email names no amount and **never restates the cancellation
 /// scale** — the email points to the booking terms instead, so a change to the terms needs no code
 /// change and the two can never contradict each other again (known-conflicts §3, resolved 2026-10).
 ///

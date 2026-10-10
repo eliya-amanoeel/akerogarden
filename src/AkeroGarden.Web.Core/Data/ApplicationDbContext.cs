@@ -133,6 +133,10 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             b.Property(x => x.MealPlan).HasConversion<string>().HasMaxLength(30);
             b.Property(x => x.CancellationInitiator).HasConversion<string>().HasMaxLength(30);
 
+            // The one amount on a booking (C8 as amended, §5.6) — same precision as the reference
+            // amounts, though only whole kronor are accepted (DepositPolicy.ValidatePrice).
+            b.Property(x => x.EstimatedPriceInclVat).HasPrecision(18, 2);
+
             // Global monotonic sequence backing BookingReference (FR-92) — DB-generated so it is
             // race-free under concurrent inserts; the Guid Id stays the primary key.
             b.Property(x => x.SequenceNumber).ValueGeneratedOnAdd().UseIdentityAlwaysColumn();

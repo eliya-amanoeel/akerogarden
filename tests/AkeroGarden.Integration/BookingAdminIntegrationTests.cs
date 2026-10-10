@@ -1,3 +1,4 @@
+using System.Globalization;
 using AkeroGarden.Integration.Infrastructure;
 using AkeroGarden.Web.Core.Data;
 using AkeroGarden.Web.Core.Data.Entities;
@@ -118,7 +119,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         ApproveResult result;
         using (var scope = provider.CreateScope())
-            result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+            result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice);
 
         Assert.True(result.Succeeded);
         Assert.False(result.ShortExpiryWarning);
@@ -145,7 +146,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         ApproveResult result;
         using (var scope = provider.CreateScope())
-            result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+            result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice);
 
         Assert.True(result.Succeeded);
         Assert.Null(result.TokenExpiry);
@@ -169,7 +170,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(5));
 
         using var scope = provider.CreateScope();
-        var result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+        var result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice);
 
         Assert.True(result.Succeeded);
         Assert.True(result.ShortExpiryWarning); // FR-75
@@ -182,7 +183,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         var id = await CreatePendingGeneralAsync(provider);
 
         using var scope = provider.CreateScope();
-        var result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id);
+        var result = await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice);
 
         Assert.False(result.Succeeded);
     }
@@ -249,7 +250,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         var id = await CreatePendingStayAsync(provider, checkIn);
 
         using (var scope = provider.CreateScope())
-            Assert.True((await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id)).Succeeded);
+            Assert.True((await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice)).Succeeded);
 
         var booking = await ReloadAsync(provider, id);
         Assert.False(string.IsNullOrEmpty(booking.CompletionToken));
@@ -266,7 +267,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         using (var scope = provider.CreateScope())
         {
             var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
-            await svc.ApproveAsync(id);
+            await svc.ApproveAsync(id, DbFixture.EstimatedPrice);
             Assert.True((await svc.CancelAsync(id, CancellationInitiator.PropertyInitiated, "Renovering", depositPaid: false)).Succeeded);
         }
 
@@ -302,7 +303,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         DepositRequestResult result;
         using (var scope = provider.CreateScope())
-            result = await scope.ServiceProvider.GetRequiredService<BookingService>().RequestDepositAsync(id);
+            result = await scope.ServiceProvider.GetRequiredService<BookingService>().RequestDepositAsync(id, DbFixture.EstimatedPrice);
         Assert.True(result.Succeeded, result.Error);
 
         var booking = await ReloadAsync(provider, id);
@@ -318,6 +319,12 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         Assert.Contains("5713-3399", mail.HtmlBody);                         // the code-default payment details
         Assert.Contains(booking.BookingReference, mail.HtmlBody);
         Assert.Contains("återbetalas inte vid avbokning", mail.HtmlBody);
+
+        // The price is stored as sent, and the email states it with the deposit (FR-115, §5.6).
+        Assert.Equal(DbFixture.EstimatedPrice, booking.EstimatedPriceInclVat);
+        Assert.Contains("21\u00A0250\u00A0kr", mail.HtmlBody);
+        Assert.Contains("4\u00A0250\u00A0kr", mail.HtmlBody);
+        Assert.DoesNotContain("separat", mail.HtmlBody);
     }
 
     [Fact]
@@ -330,11 +337,11 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         using var scope = provider.CreateScope();
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
-        Assert.True((await svc.RequestDepositAsync(held)).Succeeded);
+        Assert.True((await svc.RequestDepositAsync(held, DbFixture.EstimatedPrice)).Succeeded);
 
         // The waiting booking occupies its nights (FR-10/FR-113): neither path can say yes to the rival.
-        Assert.False((await svc.ApproveAsync(rival)).Succeeded);
-        Assert.False((await svc.RequestDepositAsync(rival)).Succeeded);
+        Assert.False((await svc.ApproveAsync(rival, DbFixture.EstimatedPrice)).Succeeded);
+        Assert.False((await svc.RequestDepositAsync(rival, DbFixture.EstimatedPrice)).Succeeded);
     }
 
     [Fact]
@@ -360,7 +367,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         using (var scope = provider.CreateScope())
         {
-            var result = await scope.ServiceProvider.GetRequiredService<BookingService>().RequestDepositAsync(id);
+            var result = await scope.ServiceProvider.GetRequiredService<BookingService>().RequestDepositAsync(id, DbFixture.EstimatedPrice);
             Assert.False(result.Succeeded);
             Assert.Equal("Tilldela minst en byggnad innan bokningen godkänns.", result.Error);
         }
@@ -378,8 +385,8 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         using (var scope = provider.CreateScope())
         {
             var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
-            Assert.True((await svc.RequestDepositAsync(id)).Succeeded);
-            Assert.True((await svc.ApproveAsync(id)).Succeeded);
+            Assert.True((await svc.RequestDepositAsync(id, DbFixture.EstimatedPrice)).Succeeded);
+            Assert.True((await svc.ApproveAsync(id, null)).Succeeded);
         }
 
         var booking = await ReloadAsync(provider, id);
@@ -388,6 +395,118 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         Assert.NotNull(booking.DepositDueDate);    // kept: the record that a deposit was asked for
         var confirmation = Assert.Single(email.Sent, e => e.Subject.Contains("bekräftad"));
         Assert.Contains("Er bokning är nu bekräftad", confirmation.HtmlBody);
+        Assert.Equal(DbFixture.EstimatedPrice, booking.EstimatedPriceInclVat); // kept as sent
+        Assert.Contains("21\u00A0250\u00A0kr", confirmation.HtmlBody);         // and stated again
+    }
+
+    // ── The estimated price (FR-38, §5.6) ────────────────────────────────────────
+
+    [Fact]
+    public async Task Approve_Directly_StoresThePrice_AndTheEmailStatesIt()
+    {
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider);
+
+        using (var scope = provider.CreateScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice)).Succeeded);
+
+        var booking = await ReloadAsync(provider, id);
+        Assert.Equal(DbFixture.EstimatedPrice, booking.EstimatedPriceInclVat);
+        Assert.Null(booking.DepositDueDate); // no deposit on the direct path
+        var mail = Assert.Single(email.Sent);
+        Assert.Contains("Bokningens beräknade pris är <strong>21\u00A0250\u00A0kr</strong> inklusive moms", mail.HtmlBody);
+        Assert.DoesNotContain("separat", mail.HtmlBody);
+    }
+
+    /// <summary>Saying yes without a valid price is refused on both paths, before anything changes or
+    /// is sent — the email that says yes states the price (FR-38). Values as strings: InlineData
+    /// cannot carry a decimal.</summary>
+    [Theory]
+    [InlineData(null, false)]
+    [InlineData("0", false)]
+    [InlineData("-500", false)]
+    [InlineData("21250.50", false)]
+    [InlineData("5000001", false)]
+    [InlineData(null, true)]
+    [InlineData("0", true)]
+    [InlineData("21250.50", true)]
+    public async Task SayingYes_WithoutAValidPrice_IsRefused_AndNothingIsSent(string? price, bool askForDeposit)
+    {
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider);
+        decimal? entered = price is null ? null : decimal.Parse(price, CultureInfo.InvariantCulture);
+
+        using (var scope = provider.CreateScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+            string? error;
+            if (askForDeposit)
+            {
+                var result = await svc.RequestDepositAsync(id, entered);
+                Assert.False(result.Succeeded);
+                error = result.Error;
+            }
+            else
+            {
+                var result = await svc.ApproveAsync(id, entered);
+                Assert.False(result.Succeeded);
+                error = result.Error;
+            }
+            Assert.NotNull(error);
+            Assert.Equal(DepositPolicy.ValidatePrice(entered), error);
+        }
+
+        var booking = await ReloadAsync(provider, id);
+        Assert.Equal(BookingStatus.Pending, booking.Status);
+        Assert.Null(booking.EstimatedPriceInclVat);
+        Assert.Empty(email.Sent);
+    }
+
+    [Fact]
+    public async Task Confirm_AfterDeposit_RefusesANewPrice_ThePriceSentIsNeverChanged()
+    {
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider);
+
+        using (var scope = provider.CreateScope())
+        {
+            var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+            Assert.True((await svc.RequestDepositAsync(id, DbFixture.EstimatedPrice)).Succeeded);
+            var result = await svc.ApproveAsync(id, 30_000m);
+            Assert.False(result.Succeeded);
+            Assert.Equal("Priset har redan skickats till gästen och kan inte ändras.", result.Error);
+        }
+
+        var booking = await ReloadAsync(provider, id);
+        Assert.Equal(BookingStatus.AwaitingDeposit, booking.Status);
+        Assert.Equal(DbFixture.EstimatedPrice, booking.EstimatedPriceInclVat);
+        Assert.Single(email.Sent); // the deposit request only
+    }
+
+    [Fact]
+    public async Task Confirm_AfterDeposit_WithoutAStoredPrice_StillConfirms_WithTheOldWording()
+    {
+        // A booking asked for its deposit before prices were entered (§5.6) holds none — it must still
+        // be confirmable, and its email keeps the "faktureras" wording rather than an empty price.
+        var provider = NewProvider(out var email);
+        var id = await CreatePendingStayAsync(provider);
+
+        using (var scope = provider.CreateScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<BookingService>().RequestDepositAsync(id, DbFixture.EstimatedPrice)).Succeeded);
+        using (var scope = provider.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            var legacy = (await db.Bookings.FindAsync(id))!;
+            legacy.EstimatedPriceInclVat = null; // as every booking asked before 2026-10
+            await db.SaveChangesAsync();
+        }
+
+        using (var scope = provider.CreateScope())
+            Assert.True((await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, null)).Succeeded);
+
+        var confirmation = Assert.Single(email.Sent, e => e.Subject.Contains("bekräftad"));
+        Assert.Contains("Resterande belopp faktureras av oss", confirmation.HtmlBody);
+        Assert.DoesNotContain("\u00A0kr", confirmation.HtmlBody);
     }
 
     /// <summary>Paying is the binding moment (D15). Cancelling a booking still waiting for its
@@ -403,7 +522,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         using (var scope = provider.CreateScope())
         {
             var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
-            Assert.True((await svc.RequestDepositAsync(id)).Succeeded);
+            Assert.True((await svc.RequestDepositAsync(id, DbFixture.EstimatedPrice)).Succeeded);
             Assert.True((await svc.CancelAsync(id, CancellationInitiator.GuestInitiated, null, depositPaid)).Succeeded);
         }
 
@@ -423,7 +542,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         using (var scope = provider.CreateScope())
         {
             var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
-            Assert.True((await svc.ApproveAsync(id)).Succeeded);
+            Assert.True((await svc.ApproveAsync(id, DbFixture.EstimatedPrice)).Succeeded);
             Assert.True((await svc.CancelAsync(id, CancellationInitiator.GuestInitiated, null, depositPaid: true)).Succeeded);
         }
 
@@ -440,8 +559,8 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         using var scope = provider.CreateScope();
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
-        Assert.True((await svc.ApproveAsync(id)).Succeeded);
-        Assert.False((await svc.ApproveAsync(id)).Succeeded); // Approved -> Approved not allowed
+        Assert.True((await svc.ApproveAsync(id, DbFixture.EstimatedPrice)).Succeeded);
+        Assert.False((await svc.ApproveAsync(id, DbFixture.EstimatedPrice)).Succeeded); // Approved -> Approved not allowed
     }
 
     /// <summary>
@@ -461,9 +580,9 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         using var scope = provider.CreateScope();
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
 
-        Assert.True((await svc.ApproveAsync(first)).Succeeded);
+        Assert.True((await svc.ApproveAsync(first, DbFixture.EstimatedPrice)).Succeeded);
 
-        var result = await svc.ApproveAsync(second);
+        var result = await svc.ApproveAsync(second, DbFixture.EstimatedPrice);
         Assert.False(result.Succeeded);
         Assert.Contains("en grupp i taget", result.Error);
 
@@ -491,8 +610,8 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         using var scope = provider.CreateScope();
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
 
-        Assert.True((await svc.ApproveAsync(first)).Succeeded);
-        Assert.False((await svc.ApproveAsync(second)).Succeeded);
+        Assert.True((await svc.ApproveAsync(first, DbFixture.EstimatedPrice)).Succeeded);
+        Assert.False((await svc.ApproveAsync(second, DbFixture.EstimatedPrice)).Succeeded);
     }
 
     /// <summary>Forces a booking to a given status directly (bypassing the guest completion form)
@@ -575,7 +694,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         Assert.False((await svc.RegenerateCompletionLinkAsync(id)).Succeeded); // not Approved yet
 
-        await svc.ApproveAsync(id);
+        await svc.ApproveAsync(id, DbFixture.EstimatedPrice);
         var first = (await ReloadAsync(provider, id)).CompletionToken;
         Assert.False(string.IsNullOrEmpty(first));
 
@@ -597,7 +716,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         using var scope = provider.CreateScope();
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
-        await svc.ApproveAsync(id);
+        await svc.ApproveAsync(id, DbFixture.EstimatedPrice);
         Assert.Null((await ReloadAsync(provider, id)).CompletionToken); // precondition: no link yet
 
         Assert.True((await svc.RegenerateCompletionLinkAsync(id)).Succeeded);

@@ -166,7 +166,7 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
         // Sleeping-cleaning zones resolve from the assigned buildings (FR-93), and assignment is a
         // precondition of approval (FR-103/D1) — so the buildings are chosen here, before approving.
         await AssignAsync(db, booking.Id, assign);
-        await bookings.ApproveAsync(booking.Id);
+        await bookings.ApproveAsync(booking.Id, DbFixture.EstimatedPrice);
 
         var persisted = await db.Bookings.FindAsync(booking.Id);
         return (booking.Id, persisted!.CompletionToken!);

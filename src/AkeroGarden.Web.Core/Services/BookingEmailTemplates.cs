@@ -268,11 +268,17 @@ public static class BookingEmailTemplates
     /// deviating time at the approve button (FR-101) and can adjust it first (FR-48), so whatever is
     /// stored when this sends is what was agreed. Restating the standard at a guest who asked for
     /// 08:00 would be confusing without correcting anything — they would still expect 08:00 — and
-    /// omitting the line entirely corrects it no better.</para></summary>
+    /// omitting the line entirely corrects it no better.</para>
+    ///
+    /// <para><b>The price (FR-38, §5.6).</b> The client's terms (§2) say the confirmation states the
+    /// agreed price, so the estimated price the admin entered is stated here on both paths. A booking
+    /// said yes to before prices were entered (<paramref name="estimatedPrice"/> null) keeps the old
+    /// wording. After a deposit it says only that a <i>paid</i> deposit is deducted — never that one was
+    /// paid.</para></summary>
     public static EmailContent Approval(
         string contactName, string? magicLinkUrl, DateTime? expiryUtc, string bookingReference,
         IReadOnlyList<string> assignedBuildingNames, TimeOnly? checkInTime, TimeOnly? checkOutTime,
-        string termsUrl, bool depositRequested)
+        string termsUrl, bool depositRequested, decimal? estimatedPrice)
     {
         var body = new StringBuilder();
         body.Append(Greeting(contactName));
@@ -292,9 +298,18 @@ public static class BookingEmailTemplates
         }
 
         body.Append("<h3>Betalning och avbokning</h3>");
-        body.Append(depositRequested
-            ? "<p>Resterande belopp faktureras av oss.</p>"
-            : "<p>Pris och betalningsvillkor får ni från oss separat.</p>");
+        if (estimatedPrice is { } price)
+        {
+            body.Append(PriceLine(price));
+            if (depositRequested)
+                body.Append("<p>En inbetald handpenning räknas av på fakturan.</p>");
+        }
+        else
+        {
+            body.Append(depositRequested
+                ? "<p>Resterande belopp faktureras av oss.</p>"
+                : "<p>Pris och betalningsvillkor får ni från oss separat.</p>");
+        }
         body.Append("<p>Vid avbokning gäller de boknings- och vistelsevillkor som gällde när bokningen bekräftades.</p>");
         // The full terms travel with this email specifically, not with the shared footer: under §2 of
         // the client's terms the booking binds once Åkerögården has confirmed it and the guest has
@@ -316,11 +331,14 @@ public static class BookingEmailTemplates
     /// makes it binding (the client's §2/§6). So it is stated here, before the guest pays, not only in
     /// the terms behind the link.</para>
     ///
-    /// <para>No amount: the system stores none (C8). The client tells the group the amount in a
-    /// separate email (their answer of 2026-10-08).</para></summary>
+    /// <para><b>The price and the deposit (§5.6).</b> Paying binds the booking, so the guest must see
+    /// the price before paying (the client's terms §2): the estimated price the admin entered, and the
+    /// deposit computed from it. Required: the deposit can no longer be asked for without a price
+    /// (<see cref="DepositPolicy.ValidatePrice"/>).</para></summary>
     public static EmailContent DepositRequest(
         string contactName, string bookingReference, DateOnly? checkIn, DateOnly? checkOut,
-        IReadOnlyList<string> assignedBuildingNames, DateOnly dueDate, PaymentDetails payment, string termsUrl)
+        IReadOnlyList<string> assignedBuildingNames, DateOnly dueDate, PaymentDetails payment, string termsUrl,
+        decimal estimatedPrice)
     {
         var body = new StringBuilder();
         body.Append(Greeting(contactName));
@@ -328,7 +346,8 @@ public static class BookingEmailTemplates
         body.Append(ReferenceLine(bookingReference));
         body.Append(LodgingLine(assignedBuildingNames));
         body.Append("<h3>Handpenning</h3>");
-        body.Append("<p>För att bekräfta bokningen betalar ni en handpenning på 20 % av bokningens totala belopp. Beloppet får ni i ett separat mejl från oss.</p>");
+        body.Append(PriceLine(estimatedPrice));
+        body.Append($"<p>För att bekräfta bokningen betalar ni en handpenning på {DepositPolicy.Percent} % av det beräknade priset: <strong>{BookingDisplay.Kronor(DepositPolicy.DepositFor(estimatedPrice))}</strong>.</p>");
         body.Append($"<p>Betala senast <strong>{FormatDate(dueDate)}</strong>. Fram till dess är datumen reserverade för er.</p>");
         body.Append(PaymentBlock(payment, bookingReference));
         body.Append("<p><strong>När handpenningen är betald är bokningen bindande, och handpenningen återbetalas inte vid avbokning.</strong> Vi skickar en bokningsbekräftelse när betalningen har kommit in.</p>");
@@ -338,19 +357,32 @@ public static class BookingEmailTemplates
 
     /// <summary>Deposit reminder (FR-116, §9) — sent once, the night after the due date, while the
     /// booking still waits. The client's terms (§6) allow an unpaid booking to be treated as cancelled
-    /// only <i>after a reminder</i>; this is that reminder. It cancels nothing — the admin decides.</summary>
+    /// only <i>after a reminder</i>; this is that reminder. It cancels nothing — the admin decides.
+    /// It restates the deposit when a price is stored; a booking asked before prices were entered
+    /// (<paramref name="estimatedPrice"/> null) gets the reminder without an amount.</summary>
     public static EmailContent DepositReminder(
-        string contactName, string bookingReference, DateOnly dueDate, PaymentDetails payment, string termsUrl)
+        string contactName, string bookingReference, DateOnly dueDate, PaymentDetails payment, string termsUrl,
+        decimal? estimatedPrice)
     {
         var body = new StringBuilder();
         body.Append(Greeting(contactName));
-        body.Append($"<p>Vi har ännu inte fått in handpenningen för er bokning. Den skulle ha betalats senast {FormatDate(dueDate)}.</p>");
+        var deposit = estimatedPrice is { } price
+            ? $"handpenningen på <strong>{BookingDisplay.Kronor(DepositPolicy.DepositFor(price))}</strong>"
+            : "handpenningen";
+        body.Append($"<p>Vi har ännu inte fått in {deposit} för er bokning. Den skulle ha betalats senast {FormatDate(dueDate)}.</p>");
         body.Append(ReferenceLine(bookingReference));
         body.Append(PaymentBlock(payment, bookingReference));
         body.Append($"<p>Betala så snart som möjligt. Kommer handpenningen inte in kan bokningen avbokas, enligt punkt 6 i våra <a href=\"{Enc(termsUrl)}\">boknings- och vistelsevillkor</a>.</p>");
         body.Append("<p>Har ni redan betalat kan ni bortse från det här mejlet.</p>");
         return new EmailContent(WithReference("Påminnelse: handpenningen har inte kommit in", bookingReference), body.ToString());
     }
+
+    /// <summary>The estimated price as the guest reads it — including VAT, and labelled an estimate,
+    /// because the final headcount and any add-ons are settled later and the invoice is final (§5.6).
+    /// Shared by the deposit request and the approval so the two state it alike.</summary>
+    private static string PriceLine(decimal estimatedPrice) =>
+        $"<p>Bokningens beräknade pris är <strong>{BookingDisplay.Kronor(estimatedPrice)}</strong> inklusive moms. "
+        + "Det slutliga beloppet beror på antal deltagare och eventuella tillägg och framgår av fakturan.</p>";
 
     /// <summary>Where to pay, with the booking reference as the payment message so the client can
     /// tell whose money arrived. Shared by the request and the reminder so the two cannot disagree.</summary>

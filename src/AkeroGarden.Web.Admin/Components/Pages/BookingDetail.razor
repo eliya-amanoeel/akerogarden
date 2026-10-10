@@ -440,6 +440,18 @@ else
             <section class="card">
                 <div class="card__head"><h2>Åtgärder</h2></div>
 
+                @* The price the guest was told (FR-38, §5.6), kept in view for the booking's whole life —
+                   the final invoice deducts the deposit from it. "Begärd", never "betald": the system
+                   cannot see the bank. Absent for a booking said yes to before prices were entered. *@
+                @if (_booking.EstimatedPriceInclVat is { } price)
+                {
+                    <p class="action-note"><strong>Beräknat pris inkl. moms:</strong><br />@BookingDisplay.Kronor(price)</p>
+                    @if (_booking.DepositDueDate is not null)
+                    {
+                        <p class="action-note"><strong>Begärd handpenning:</strong><br />@BookingDisplay.Kronor(DepositPolicy.DepositFor(price))</p>
+                    }
+                }
+
                 @if (_booking.Status == BookingStatus.Pending && _booking.BookingType == BookingType.StayRequest)
                 {
                     @* Pre-approval notices share one shape (.alert, "!" badge, bold lead + body) so the
@@ -513,11 +525,19 @@ else
                             </div>
                         </div>
                     }
-                    @* Two ways to say yes (FR-38/FR-115), both behind the same refusals above. *@
-                    <p class="form-hint">Begär handpenning: datumen reserveras och gästen betalar 20 % inom @DepositPolicy.DaysToPay dagar innan bokningen bekräftas. Godkänn: bekräftas direkt, utan handpenning.</p>
-                    <div class="rail-actions">
-                        <button class="btn" @onclick="() => _pending = PendingBookingAction.RequestDeposit">Begär handpenning</button>
-                        <button class="btn-outline" @onclick="() => _pending = PendingBookingAction.Approve">Godkänn</button>
+                    @* Two ways to say yes (FR-38/FR-115), both behind the same refusals above — and both
+                       need the price, because the email that says yes states it (§5.6). The field is here,
+                       not in the dialog: inputs on this page live in the rail and the dialog only
+                       confirms, restating the price — the one look the admin gets before it is sent and
+                       can no longer be changed. *@
+                    <div class="action-panel">
+                        <label for="estimated-price">Beräknat pris inkl. moms (kr)</label>
+                        <input id="estimated-price" type="number" min="1" step="1" inputmode="numeric" @bind="_estimatedPrice" />
+                        <p class="form-hint form-hint--flush">Begär handpenning: datumen reserveras och gästen betalar @DepositPolicy.Percent % av priset inom @DepositPolicy.DaysToPay dagar innan bokningen bekräftas. Godkänn: bekräftas direkt, utan handpenning. Priset står i mejlet till gästen och kan inte ändras efteråt.</p>
+                        <div class="rail-actions rail-actions--spaced">
+                            <button class="btn" @onclick="() => AskToSayYes(PendingBookingAction.RequestDeposit)">Begär handpenning</button>
+                            <button class="btn-outline" @onclick="() => AskToSayYes(PendingBookingAction.Approve)">Godkänn</button>
+                        </div>
                     </div>
                     <div class="action-panel">
                         <label for="deny-reason">Avslagsmotivering (skickas till gästen)</label>
@@ -716,15 +736,19 @@ else
         //
         // What the email contains depends on how far out check-in is (FR-51/108) — promising a link
         // that approval will not issue would send the admin looking for a mail that never went.
+        //
+        // The price is restated too (FR-38, §5.6): it goes into the email and cannot be changed after,
+        // so this is the admin's one look at it — the guard against a typo.
         PendingBookingAction.Approve when ApprovalWillSendLink =>
-            $"Bokningen godkänns och ett e-postmeddelande med slutförandelänk skickas till {_booking?.ContactEmail}. Vill du fortsätta?",
+            $"{PriceToBeSent}Bokningen godkänns och ett e-postmeddelande med slutförandelänk skickas till {_booking?.ContactEmail}. Vill du fortsätta?",
         PendingBookingAction.Approve =>
-            $"Bokningen godkänns och ett bekräftelsemejl skickas till {_booking?.ContactEmail}. "
+            $"{PriceToBeSent}Bokningen godkänns och ett bekräftelsemejl skickas till {_booking?.ContactEmail}. "
             + "Slutförandelänken skickas automatiskt cirka sex veckor före ankomst. Vill du fortsätta?",
         // Same reason as approval for naming the address (FR-38): for a manually created booking this
         // is the first email the guest ever receives.
         PendingBookingAction.RequestDeposit =>
-            $"Datumen reserveras och ett mejl med betalningsuppgifter skickas till {_booking?.ContactEmail}. "
+            $"{PriceToBeSent}Handpenning ({DepositPolicy.Percent} %): {DepositToBeSent}. "
+            + $"Datumen reserveras och ett mejl med priset, handpenningen och betalningsuppgifter skickas till {_booking?.ContactEmail}. "
             + $"Handpenningen ska vara betald senast {SwedishDate(DepositDueIfRequestedNow)}. Vill du fortsätta?",
         PendingBookingAction.Confirm when ApprovalWillSendLink =>
             $"Bokningen bekräftas och ett bekräftelsemejl med slutförandelänk skickas till {_booking?.ContactEmail}. Vill du fortsätta?",
@@ -781,6 +805,7 @@ else
     private ApprovalWarning _approvalWarning = ApprovalWarning.None;
 
     private string? _notes;
+    private decimal? _estimatedPrice;
     private string? _denyReason;
     private string? _cancelReason;
     private string _cancelDepositAnswer = "";
@@ -1106,9 +1131,13 @@ else
     {
         // Also confirms a booking that waited for its deposit (FR-115) — same service call, so the
         // toast only swaps the verb.
-        var verb = _booking?.Status == BookingStatus.AwaitingDeposit ? "bekräftad" : "godkänd";
-        var result = await BookingService.ApproveAsync(Id);
+        var confirmingAfterDeposit = _booking?.Status == BookingStatus.AwaitingDeposit;
+        var verb = confirmingAfterDeposit ? "bekräftad" : "godkänd";
+        // Confirming keeps the price the deposit request already sent (FR-38) — the service refuses a
+        // new one — so only a direct approval passes the field.
+        var result = await BookingService.ApproveAsync(Id, confirmingAfterDeposit ? null : _estimatedPrice);
         if (!result.Succeeded) { _message = ToastMessage.Error(result.Error); return; }
+        _estimatedPrice = null;
         // Every branch reports a booking that was approved — a shortened or deferred link is a caveat
         // on a completed action, not a failure, so all three stay success toasts. A null TokenExpiry
         // means no link was issued at all (FR-51/108); stating an expiry there would print an empty
@@ -1138,12 +1167,34 @@ else
 
     private async Task RequestDeposit()
     {
-        var result = await BookingService.RequestDepositAsync(Id);
+        var deposit = DepositToBeSent;
+        var result = await BookingService.RequestDepositAsync(Id, _estimatedPrice);
         _message = result.Succeeded
-            ? ToastMessage.Ok($"Handpenning är begärd och gästen har fått betalningsuppgifterna. Den ska vara betald senast {SwedishDate(result.DueDate)}.")
+            ? ToastMessage.Ok($"Handpenning på {deposit} är begärd och gästen har fått priset och betalningsuppgifterna. Den ska vara betald senast {SwedishDate(result.DueDate)}.")
             : ToastMessage.Error(result.Error);
+        if (result.Succeeded) _estimatedPrice = null;
         await Load();
     }
+
+    /// <summary>Opens the dialog for one of the two ways to say yes — unless the price is missing or
+    /// invalid, which the dialog would otherwise restate as nonsense (FR-38). Same rule the service
+    /// applies, so the page cannot let through what the server refuses.</summary>
+    private void AskToSayYes(PendingBookingAction action)
+    {
+        if (DepositPolicy.ValidatePrice(_estimatedPrice) is { } error)
+        {
+            _message = ToastMessage.Error(error);
+            return;
+        }
+        _pending = action;
+    }
+
+    // The price and deposit as the dialog states them — only read once AskToSayYes has validated.
+    private string PriceToBeSent =>
+        _estimatedPrice is { } p ? $"Beräknat pris: {BookingDisplay.Kronor(p)} inkl. moms. " : "";
+
+    private string DepositToBeSent =>
+        _estimatedPrice is { } p ? BookingDisplay.Kronor(DepositPolicy.DepositFor(p)) : "";
 
     /// <summary>Opens the cancel dialog — unless the deposit question is unanswered, which would send
     /// the guest a guess (FR-77).</summary>

@@ -85,7 +85,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         }, createdByAdmin: true);
         // Approval requires a lodging assignment (FR-103/D1).
         await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
-        await service.ApproveAsync(booking.Id);
+        await service.ApproveAsync(booking.Id, DbFixture.EstimatedPrice);
 
         var stored = (await db.Bookings.FindAsync(booking.Id))!;
         // Resolved off the stored booking — which carries the standard-schedule edge defaults

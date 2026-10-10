@@ -83,7 +83,7 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
         }, createdByAdmin: true);
         // Approval requires a lodging assignment (FR-103/D1).
         await BuildingAssignmentSeed.AssignBuildingAsync(db, booking.Id);
-        await bookings.ApproveAsync(booking.Id);
+        await bookings.ApproveAsync(booking.Id, DbFixture.EstimatedPrice);
         var token = (await db.Bookings.FindAsync(booking.Id))!.CompletionToken!;
 
         var occasions = MealOccasionResolver.Resolve((await db.Bookings.FindAsync(booking.Id))!);

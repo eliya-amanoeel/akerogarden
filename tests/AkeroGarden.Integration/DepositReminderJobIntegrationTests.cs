@@ -45,7 +45,8 @@ public class DepositReminderJobIntegrationTests : IClassFixture<DbFixture>
     }
 
     private static async Task<Guid> SeedAsync(
-        IServiceProvider provider, BookingStatus status, DateOnly dueDate, DateTime? reminderSentAt = null)
+        IServiceProvider provider, BookingStatus status, DateOnly dueDate, DateTime? reminderSentAt = null,
+        decimal? estimatedPrice = null)
     {
         using var scope = provider.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -64,6 +65,7 @@ public class DepositReminderJobIntegrationTests : IClassFixture<DbFixture>
             MealPlan = MealPlan.FullBoardAll,
             DepositDueDate = dueDate,
             DepositReminderSentAt = reminderSentAt,
+            EstimatedPriceInclVat = estimatedPrice,
             CreatedAt = now,
             UpdatedAt = now,
         };
@@ -113,6 +115,21 @@ public class DepositReminderJobIntegrationTests : IClassFixture<DbFixture>
         // Once only: the next night sends nothing more.
         Assert.Equal(0, await RunAsync(provider, today.AddDays(1)));
         Assert.Single(email.Sent);
+    }
+
+    [Fact]
+    public async Task TheReminder_RestatesTheDeposit_FromTheStoredPrice()
+    {
+        // The job reaches the template through BookingEmailService — the wiring is what this pins: a
+        // reminder sent without the stored price would silently drop the amount (FR-116, §5.6).
+        var (provider, email) = await NewProviderAsync();
+        var today = DbFixture.TodayIn(provider);
+        await SeedAsync(provider, BookingStatus.AwaitingDeposit, dueDate: today.AddDays(-1), estimatedPrice: 13_500m);
+
+        Assert.Equal(1, await RunAsync(provider, today));
+
+        var mail = Assert.Single(email.Sent);
+        Assert.Contains("handpenningen på <strong>2\u00A0700\u00A0kr</strong>", mail.HtmlBody);
     }
 
     [Fact]

@@ -1,3 +1,4 @@
+using System.Globalization;
 using AkeroGarden.Web.Core.Data.Entities;
 
 namespace AkeroGarden.Web.Core.Services;
@@ -5,6 +6,15 @@ namespace AkeroGarden.Web.Core.Services;
 /// <summary>Swedish display labels for booking and job-run enums (NFR-32), shared across the admin pages.</summary>
 public static class BookingDisplay
 {
+    private static readonly CultureInfo Sv = CultureInfo.GetCultureInfo("sv-SE");
+
+    /// <summary>
+    /// A booking amount the Swedish way — <c>21 250 kr</c>, digits grouped and non-breaking, so the
+    /// number never wraps away from its unit. Shared by the guest's emails and the admin page
+    /// (§5.6), so the price the admin confirmed and the price the guest reads are written alike.
+    /// </summary>
+    public static string Kronor(decimal amount) => $"{amount.ToString("#,0.##", Sv)}\u00A0kr";
+
     public static string StatusLabel(BookingStatus status) => status switch
     {
         BookingStatus.Pending => "Väntar",

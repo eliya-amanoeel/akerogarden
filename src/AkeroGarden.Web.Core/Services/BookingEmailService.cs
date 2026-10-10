@@ -78,7 +78,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             booking.CheckInTime,
             booking.CheckOutTime,
             BuildTermsUrl(),
-            depositRequested: booking.DepositDueDate is not null);
+            depositRequested: booking.DepositDueDate is not null,
+            estimatedPrice: booking.EstimatedPriceInclVat);
         return SendToGuestAsync(booking, content);
     }
 
@@ -179,16 +180,20 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToGuestAsync(booking, content);
     }
 
-    /// <summary>Deposit request (FR-115). Requires <see cref="Booking.DepositDueDate"/> to be set and
-    /// <see cref="Booking.BuildingAssignments"/> loaded (the lodging line names them).</summary>
+    /// <summary>Deposit request (FR-115). Requires <see cref="Booking.DepositDueDate"/> and
+    /// <see cref="Booking.EstimatedPriceInclVat"/> to be set and <see cref="Booking.BuildingAssignments"/>
+    /// loaded (the lodging line names them).</summary>
     public Task<bool> SendDepositRequestAsync(Booking booking)
     {
         if (booking.DepositDueDate is null)
             throw new InvalidOperationException("Begäran om handpenning kräver ett satt förfallodatum.");
+        if (booking.EstimatedPriceInclVat is null)
+            throw new InvalidOperationException("Begäran om handpenning kräver ett beräknat pris.");
 
         var content = BookingEmailTemplates.DepositRequest(
             booking.ContactName, booking.BookingReference, booking.CheckIn, booking.CheckOut,
-            AssignedBuildingNames(booking), booking.DepositDueDate.Value, _opts.Payment, BuildTermsUrl());
+            AssignedBuildingNames(booking), booking.DepositDueDate.Value, _opts.Payment, BuildTermsUrl(),
+            booking.EstimatedPriceInclVat.Value);
         return SendToGuestAsync(booking, content);
     }
 
@@ -199,7 +204,8 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             throw new InvalidOperationException("Påminnelse om handpenning kräver ett satt förfallodatum.");
 
         var content = BookingEmailTemplates.DepositReminder(
-            booking.ContactName, booking.BookingReference, booking.DepositDueDate.Value, _opts.Payment, BuildTermsUrl());
+            booking.ContactName, booking.BookingReference, booking.DepositDueDate.Value, _opts.Payment, BuildTermsUrl(),
+            booking.EstimatedPriceInclVat);
         return SendToGuestAsync(booking, content);
     }
 

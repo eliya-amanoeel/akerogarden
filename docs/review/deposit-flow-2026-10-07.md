@@ -6,8 +6,9 @@ waited on the client, the gaps found while checking it, and everything the chang
 
 > **Status: live since the 2026-10-09 production deploy** (PRs 98 and 100). The SRS (FR-115/116),
 > ERD, lifecycle diagram and admin manual carry it and are the authority; this file is the record of
-> *why*. No client questions remain (§5). Open, and the maintainer's to decide: the deposit-amount
-> field (§5, smoke-test note 1), together with terms §2's "price in the confirmation". Same role as `demo-feedback-2026-08-05.md` had for that work.
+> *why*. No client questions remain (§5). Nothing is open: the deposit-amount question (§5,
+> smoke-test notes 1–2) was settled on 2026-10-10 by D22–D27 — the admin enters the estimated price
+> and the emails state it. Same role as `demo-feedback-2026-08-05.md` had for that work.
 
 ---
 
@@ -18,7 +19,8 @@ per booking. The money moves entirely outside the system: the guest pays Åkerö
 or Swish, and an admin marks it as received.
 
 **The system does not take payments, and does not learn what anything costs.** No amount is stored or
-computed (C8 stands). What changes is that the booking lifecycle gains a step that *waits* for money.
+computed (C8 stands). *(Amended 2026-10-10, D22: the admin now enters the estimated price, which the
+emails state; the system still computes no price.)* What changes is that the booking lifecycle gains a step that *waits* for money.
 
 **The documents already said this; the system did not.** SRS §5.6 lists the deposit as *"due to
 confirm booking"*, and the client's own terms (§6) say Åkerögården *"kan begära förskottsbetalning
@@ -77,7 +79,7 @@ Pending ──► AwaitingDeposit ──► Approved ──► DetailsComplete �
 
 | Email | When | Content |
 |---|---|---|
-| **Deposit request** (new) | `Pending → AwaitingDeposit` | Reference; the dates are reserved until the due date; the deposit is 20 %, the amount comes in a separate email from Åkerögården; where to pay (payee, bankgiro, Swish, clearing + account — D17), with the reference as payment message; the due date; **the deposit is not refunded on cancellation once paid** (D14 — must be shown before the guest pays); **link to the terms** (§2 — paying is the guest's acceptance) |
+| **Deposit request** (new) | `Pending → AwaitingDeposit` | Reference; the dates are reserved until the due date; the deposit is 20 %, the amount comes in a separate email from Åkerögården *(since D22: the estimated price and the deposit amount)*; where to pay (payee, bankgiro, Swish, clearing + account — D17), with the reference as payment message; the due date; **the deposit is not refunded on cancellation once paid** (D14 — must be shown before the guest pays); **link to the terms** (§2 — paying is the guest's acceptance) |
 | **Deposit reminder** (new) | Deadline passed, once | Not yet received; pay as soon as possible or the booking may be cancelled |
 | **Approval — deposit path** | `AwaitingDeposit → Approved` | As today, but worded as a confirmation. *(Planned 2026-10-07 to say the deposit had arrived; changed while building on 2026-10-09 — the admin may confirm without payment, so that sentence could be false.)* |
 | **Approval — direct path** | `Pending → Approved` | As today, but **no sentence saying a deposit confirms the booking** |
@@ -122,7 +124,7 @@ cancellation needs; it stays set after the booking leaves `AwaitingDeposit`.
 | A deadline on `Approved` instead of a new status | Revives FR-42 as a payment flag, and unpaid guests would still be told *"godkänd"*, get completion links and nudges |
 | Don't hold the dates while waiting | Another group can be approved over a week whose group is already paying |
 | Release unpaid bookings automatically | More to build, and a transfer takes 1–2 days — the system would release dates while the money is in flight |
-| The system calculates the amount, or the admin types it in | Calculating is a pricing engine; typing it in means storing an amount. Both amend C8 for no gain: organisations need an invoice to pay anyway |
+| The system calculates the amount, or the admin types it in | Calculating is a pricing engine; typing it in means storing an amount. Both amend C8 for no gain: organisations need an invoice to pay anyway. *(The second half was **reversed on 2026-10-10** — D22: the admin types the estimated price, because without it nothing written told the guest the price before the binding payment. Calculating stays rejected.)* |
 | Bank details editable in the admin panel | Anyone with an admin login could change where guests send money |
 
 ---
@@ -150,7 +152,7 @@ Taken 2026-10-08, after the client's answers (§5):
 
 | # | Decision |
 |---|---|
-| D13 | Amount told to the group **by a separate email** from Åkerögården (client) |
+| D13 | Amount told to the group **by a separate email** from Åkerögården (client). *Superseded 2026-10-10 by D22 (maintainer): the deposit request states the price and the deposit, so no separate email is needed* |
 | D14 | **The deposit is never refunded**, however early the group cancels (client). This overturns our 2026-10-07 reading that §7's *"ingen avbokningsavgift"* more than 8 weeks out implied a full refund; §7 must be rewritten to say so |
 | D15 | **Paying the deposit is the binding moment** — non-refundable once paid, not once the admin confirms. Hence the cancel question in §2 |
 | D16 | **7 days** to pay (client), capped per D6 |
@@ -159,6 +161,17 @@ Taken 2026-10-08, after the client's answers (§5):
 | D19 | The terms-page changes — §7 rewrite, "gäller", kitchen and common-room rules (client), and **damage claimed within one week of departure** (set by the maintainer; the client left that question unanswered) — are published **together with everything else**, not before. *(Planned: tell the client afterwards, naming the one-week deadline. Dropped by the maintainer on 2026-10-09 — no change note is sent.)* |
 | D20 | A failed deposit-request email is accepted: admin-triggered emails ignore failed sends (out of scope since 2026-10-05) and the nightly reminder at the deadline is the safety net |
 | D21 | Bookings already confirmed before this ships get **no special handling** — they are few and will be treated fairly by hand |
+
+Taken 2026-10-10 by the maintainer, settling smoke-test notes 1 and 2 (§5):
+
+| # | Decision |
+|---|---|
+| D22 | **The admin enters the booking's estimated price when saying yes — on both paths** — and the deposit request and the approval email state it. Closes the gap with the client's terms §2 (the confirmation states the agreed price): with the amount in a separate email, nothing the system sent named the price, and on the deposit path the guest pays — and is bound — before any confirmation. Replaces D13. Amends C8 openly (SRS §5.6, CLAUDE.md) |
+| D23 | The admin enters the **total**, not the deposit; the system computes the deposit as **20 %, rounded to whole kronor**. Only the total is stored — the deposit is always derived, so the two cannot disagree |
+| D24 | The total is **including VAT** — what the guest pays — and labelled **"Beräknat pris"**: the final headcount and the cleaning choice come later (terms §4, FR-93) and the invoice is final. **The organisation flag does not change it**: organisations pay VAT too (a VAT-registered one deducts it afterwards), and two VAT rates make one total impossible to split |
+| D25 | The price is **required**, in **whole kronor**, entered in a field beside *Begär handpenning* / *Godkänn* (the confirmation dialog has no input; it restates the price instead) |
+| D26 | The price is **never changed once the email is sent.** Editing was considered and dropped: the dialog shows the price before sending, which is the guard against a typo; a typo past it is corrected by the admin's own email |
+| D27 | The booking page shows **"Beräknat pris · Begärd handpenning"** for the booking's whole life — *begärd*, never *betald*: the system cannot see what was paid. Bookings said yes to before this ships hold no price; their emails keep the "separat" wording and the page shows nothing |
 
 ---
 
@@ -187,9 +200,10 @@ and deleted 2026-10-10 — the questions and the answers are recorded below). **
 
 No client questions remain (SRS §12).
 
-### Raised in the local smoke test, 2026-10-09 — open, to discuss
+### Raised in the local smoke test, 2026-10-09 — all settled
 
-1. **The amount in the deposit email (maintainer's proposal).** The deposit request carries every
+1. **The amount in the deposit email (maintainer's proposal)** — *settled 2026-10-10 by D22–D27; the
+   direction below (the admin types the deposit) was replaced by the admin typing the total.* The deposit request carries every
    payment detail except the amount, so the client must send a separate email just for the number —
    hard to justify for the guest or the client. Putting it in means the admin types the amount when
    asking for the deposit, which **stores an amount and so reopens C8** (§5.6, CLAUDE.md). **The
@@ -197,11 +211,11 @@ No client questions remain (SRS §12).
    field in the *Begär handpenning* dialog that the admin fills in — **no pre-calculated price**. A
    suggested amount was considered and set aside: price rules carry a free-text unit and are linked
    to nothing, facilities have no unit, cleaning and the guests' ages are only known after
-   completion, and VAT is unsettled (Q3) — a pre-filled number would routinely be wrong and get
+   completion, and VAT was then unsettled (since confirmed, note 3) — a pre-filled number would routinely be wrong and get
    accepted anyway. Storing the one admin-entered amount means amending C8 openly when it is built.
 2. **"Pris och betalningsvillkor får ni från oss separat"** in the direct-path approval email. Same
    root as 1: the system knows no prices, so the confirmation cannot state them as the client's §2
-   says it should. Decided together with 1 when it is built.
+   says it should. *Settled 2026-10-10 with 1: direct approval takes the same price field (D22).*
 3. **VAT-inclusive prices (D10)** — *resolved the same day: the client confirmed the rates and that
    the amounts exclude VAT (see the follow-up form above).* The arithmetic is right (550 × 1.12 = 616), but its inputs are
    unconfirmed: the 12 %/25 % rates were seeded as placeholders "to be confirmed with the accountant",

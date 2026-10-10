@@ -579,15 +579,19 @@ public class BookingService(
     /// deposit (FR-115) — sends the approval email (FR-52), and reports whether check-in is close
     /// enough that the link is shortened (FR-75).
     ///
+    /// <para><paramref name="estimatedPrice"/> is required when approving directly — the approval email
+    /// states it (FR-38, §5.6). When confirming after a deposit it must be null: the price was entered
+    /// and sent with the deposit request, and is never changed once sent.</para>
+    ///
     /// <para>A completion token is generated only when check-in is 40 days away or sooner (FR-51/108,
     /// §2.6); approved further ahead, <see cref="ApproveResult.TokenExpiry"/> is null and the guest is
     /// told the link follows later. Callers must not assume an approval produced a link.</para>
     /// </summary>
-    public async Task<ApproveResult> ApproveAsync(Guid id)
+    public async Task<ApproveResult> ApproveAsync(Guid id, decimal? estimatedPrice)
     {
         var booking = await db.Bookings.FindAsync(id);
         if (booking is null) return new ApproveResult(false, "Bokningen kunde inte hittas.", null, false);
-        if (await RefuseConfirmationAsync(booking, BookingStatus.Approved) is { } refusal)
+        if (await RefuseConfirmationAsync(booking, BookingStatus.Approved, estimatedPrice) is { } refusal)
             return new ApproveResult(false, refusal, null, false);
 
         // Reached from Pending (approved directly) or AwaitingDeposit (confirmed once the deposit came,
@@ -605,11 +609,15 @@ public class BookingService(
         if (linkIssued)
             IssueCompletionLink(booking, now);
 
+        if (!afterDeposit)
+            booking.EstimatedPriceInclVat = estimatedPrice; // validated above; kept as sent from here on
         booking.Status = BookingStatus.Approved;
         booking.DeleteAfter = null; // live in-progress state (FR-91)
         booking.UpdatedAt = now;
         await RecordBookingAuditAsync(booking, AuditAction.BookingApproved,
-            afterDeposit ? "Bokningen bekräftades efter begärd handpenning." : "Bokningen godkändes.");
+            afterDeposit
+                ? "Bokningen bekräftades efter begärd handpenning."
+                : $"Bokningen godkändes (beräknat pris {BookingDisplay.Kronor(estimatedPrice!.Value)}).");
 
         // Audited separately from the approval itself, and only when a link was actually issued
         // (FR-95). Since FR-108 made that conditional, "was this guest ever sent a link, and when"
@@ -643,13 +651,15 @@ public class BookingService(
     /// with where to pay. No completion link: that comes with confirmation (<see cref="ApproveAsync"/>).
     ///
     /// <para>It runs <b>every check a direct approval runs</b> — the same method — because this is now
-    /// the moment the dates are held and the guest is told yes.</para>
+    /// the moment the dates are held and the guest is told yes. That includes the required
+    /// <paramref name="estimatedPrice"/>, which the email states with the deposit computed from it
+    /// (FR-115, §5.6).</para>
     /// </summary>
-    public async Task<DepositRequestResult> RequestDepositAsync(Guid id)
+    public async Task<DepositRequestResult> RequestDepositAsync(Guid id, decimal? estimatedPrice)
     {
         var booking = await db.Bookings.FindAsync(id);
         if (booking is null) return new DepositRequestResult(false, "Bokningen kunde inte hittas.", null);
-        if (await RefuseConfirmationAsync(booking, BookingStatus.AwaitingDeposit) is { } refusal)
+        if (await RefuseConfirmationAsync(booking, BookingStatus.AwaitingDeposit, estimatedPrice) is { } refusal)
             return new DepositRequestResult(false, refusal, null);
 
         var now = Now;
@@ -657,12 +667,14 @@ public class BookingService(
         booking.Status = BookingStatus.AwaitingDeposit;
         booking.DepositDueDate = DepositPolicy.DueDate(today, booking.CheckIn!.Value); // refused above when null
         booking.DepositReminderSentAt = null;
+        booking.EstimatedPriceInclVat = estimatedPrice; // validated above; never changed once sent
         // Kept from Pending: a booking nobody pays must not keep guest data indefinitely (FR-91).
         booking.DeleteAfter = RetentionCalculator.ComputeDeleteAfter(
             BookingStatus.AwaitingDeposit, StockholmTime.DateOf(booking.CreatedAt), booking.CheckOut, today);
         booking.UpdatedAt = now;
         await RecordBookingAuditAsync(booking, AuditAction.DepositRequested,
-            $"Handpenning begärdes, att betalas senast {booking.DepositDueDate:yyyy-MM-dd}.");
+            $"Handpenning på {BookingDisplay.Kronor(DepositPolicy.DepositFor(estimatedPrice!.Value))} begärdes "
+            + $"(beräknat pris {BookingDisplay.Kronor(estimatedPrice.Value)}), att betalas senast {booking.DepositDueDate:yyyy-MM-dd}.");
         await db.SaveChangesAsync();
 
         // The deposit request names the assigned buildings, like the approval email (FR-103).
@@ -677,7 +689,7 @@ public class BookingService(
     /// told yes (FR-38, FR-115). Returns the refusal to show the admin, or null when the booking may
     /// move to <paramref name="target"/>. One method, so the two paths cannot drift apart.
     /// </summary>
-    private async Task<string?> RefuseConfirmationAsync(Booking booking, BookingStatus target)
+    private async Task<string?> RefuseConfirmationAsync(Booking booking, BookingStatus target, decimal? estimatedPrice)
     {
         if (booking.BookingType != BookingType.StayRequest)
             return "Endast bokningsförfrågningar kan godkännas.";
@@ -685,6 +697,19 @@ public class BookingService(
             return "Bokningen kan inte godkännas i sitt nuvarande läge.";
         if (booking.CheckIn is null)
             return "Bokningen saknar incheckningsdatum.";
+
+        // The price the email states (FR-38, §5.6): required when saying yes from Pending, and never
+        // changed once sent — a booking confirmed after its deposit keeps the price the deposit request
+        // already gave the guest (and a booking asked before prices existed confirms without one).
+        if (booking.Status == BookingStatus.Pending)
+        {
+            if (DepositPolicy.ValidatePrice(estimatedPrice) is { } priceError)
+                return priceError;
+        }
+        else if (estimatedPrice is not null)
+        {
+            return "Priset har redan skickats till gästen och kan inte ändras.";
+        }
 
         // One group at a time — the property is never let to two groups over the same nights, which
         // is why the public calendar shows an occupied date as unavailable whatever the group's size

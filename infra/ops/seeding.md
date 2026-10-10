@@ -16,10 +16,15 @@ wired into `src/AkeroGarden.Web.Admin/Program.cs` only — the public app never 
    buildings, 8 buildings (Blidö/Ljusterö/Singö/Tjockö/Vätö 1/Vätö 2/Smedjan/Tallstugan) with 28 rooms
    (79 beds total); 10 meal options; 5 price rules; 5 facilities; 7 cleaning zones incl. the "Hela
    lägret" bundle; 3 blocks; and one booking in every lifecycle state (Pending/AwaitingDeposit/
-   Approved/DetailsComplete/Active/Completed/Denied/Cancelled/Closed). Two bookings wait for their
-   deposit (FR-115): one on time, and one **overdue and not yet reminded** — so the next nightly run
-   sends a deposit reminder email (FR-116) to its `example.com` address, the same way the seeded
-   link-issuance booking demonstrates that job.
+   Approved/DetailsComplete/Active/Completed/Denied/Cancelled/Closed). Two stay requests are
+   Pending, so both ways of saying yes can be tried: one with no building yet (for *Begär
+   handpenning*), one with a building assigned and check-in inside 40 days (for *Godkänn*, with a
+   link). Three bookings wait for their deposit (FR-115): one on time, and two **overdue and not yet
+   reminded** — so the next nightly run sends deposit reminder emails (FR-116) to their `example.com`
+   addresses, the same way the seeded link-issuance booking demonstrates that job. Of the waiting
+   bookings, two carry an estimated price and the overdue one without a price shows the wording for a
+   deposit asked before prices were entered (§5.6). One directly approved booking also has a price;
+   the remaining approved and later bookings deliberately have none.
 
 It runs **every time the app starts while the flag is on** — that's why you remove the flag after seeding.
 

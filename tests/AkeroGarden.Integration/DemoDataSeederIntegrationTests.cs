@@ -102,13 +102,24 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         Assert.False(CompletionTokenPolicy.ShouldIssueOn(
             Today, farOut.CheckIn!.Value));
 
-        // Waiting for a deposit (FR-115/116): one on time, one overdue and not yet reminded — the one
-        // DepositReminderJob acts on. Retention is kept, like Pending (FR-91).
+        // Waiting for a deposit (FR-115/116): one on time, two overdue and not yet reminded — the ones
+        // DepositReminderJob acts on, one with a price and one without (asked before prices were
+        // entered, §5.6), so both reminder wordings can be seen. Retention is kept, like Pending (FR-91).
         var waiting = await db.Bookings.Where(b => b.Status == BookingStatus.AwaitingDeposit).ToListAsync();
-        Assert.Equal(2, waiting.Count);
+        Assert.Equal(3, waiting.Count);
         Assert.All(waiting, b => Assert.NotNull(b.DeleteAfter));
         Assert.Single(waiting, b => !DepositPolicy.IsOverdue(b.DepositDueDate, Today));
-        Assert.Single(waiting, b => DepositPolicy.IsReminderDue(b.Status, b.DepositDueDate, b.DepositReminderSentAt, Today));
+        var reminderDue = waiting.Where(b => DepositPolicy.IsReminderDue(b.Status, b.DepositDueDate, b.DepositReminderSentAt, Today)).ToList();
+        Assert.Equal(2, reminderDue.Count);
+        Assert.Single(reminderDue, b => b.EstimatedPriceInclVat is null);
+
+        // Both ways of saying yes can be tried: two Pending stays, one with a building already assigned.
+        var pendingStays = await db.Bookings
+            .Where(b => b.Status == BookingStatus.Pending && b.BookingType == BookingType.StayRequest)
+            .Include(b => b.BuildingAssignments)
+            .ToListAsync();
+        Assert.Equal(2, pendingStays.Count);
+        Assert.Single(pendingStays, b => b.BuildingAssignments.Count > 0);
 
         var completed = await db.Bookings.SingleAsync(b => b.Status == BookingStatus.Completed);
         Assert.NotNull(completed.DeleteAfter);

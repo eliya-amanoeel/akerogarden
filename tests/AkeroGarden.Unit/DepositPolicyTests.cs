@@ -81,4 +81,73 @@ public class DepositPolicyTests
     {
         Assert.False(DepositPolicy.IsReminderDue(status, dueDate: Today.AddDays(-3), reminderSentAt: null, Today));
     }
+
+    // ── The price and the deposit (FR-38/115, §5.6) ─────────────────────────────
+
+    [Theory]
+    [InlineData(21_250, 4_250)]
+    [InlineData(10_000, 2_000)]
+    [InlineData(12_345, 2_469)] // 2 469.0 exactly
+    [InlineData(12_347, 2_469)] // 2 469.4 → down
+    [InlineData(12_348, 2_470)] // 2 469.6 → up
+    [InlineData(12_342, 2_468)] // 2 468.4 → down
+    [InlineData(1, 0)]          // 0.2 → down
+    [InlineData(3, 1)]          // 0.6 → up
+    public void DepositFor_IsTwentyPercent_RoundedToWholeKronor(int price, int expected)
+    {
+        Assert.Equal((decimal)expected, DepositPolicy.DepositFor(price));
+    }
+
+    [Fact]
+    public void DepositFor_RoundsAnExactHalfUp()
+    {
+        // 12 342.5 is not enterable (whole kronor only), but the rounding rule is pinned anyway:
+        // 2 468.5 → 2 469, half away from zero, not banker's rounding to the even 2 468.
+        Assert.Equal(2_469m, DepositPolicy.DepositFor(12_342.5m));
+    }
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(21_250)]
+    [InlineData(5_000_000)] // the bound itself is allowed
+    public void ValidatePrice_AcceptsWholeKronorWithinBounds(int price)
+    {
+        Assert.Null(DepositPolicy.ValidatePrice(price));
+    }
+
+    [Fact]
+    public void ValidatePrice_RequiresAPrice()
+    {
+        Assert.Equal("Ange bokningens beräknade pris.", DepositPolicy.ValidatePrice(null));
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("-100")]
+    public void ValidatePrice_RefusesZeroOrLess(string price)
+    {
+        Assert.Equal("Det beräknade priset måste vara större än noll.", DepositPolicy.ValidatePrice(decimal.Parse(price, System.Globalization.CultureInfo.InvariantCulture)));
+    }
+
+    [Fact]
+    public void ValidatePrice_RefusesAnAbsurdAmount()
+    {
+        Assert.Equal("Det beräknade priset verkar orimligt högt. Kontrollera beloppet.", DepositPolicy.ValidatePrice(5_000_001m));
+    }
+
+    [Fact]
+    public void ValidatePrice_RefusesOre()
+    {
+        Assert.Equal("Ange det beräknade priset i hela kronor.", DepositPolicy.ValidatePrice(21_250.50m));
+    }
+
+    [Theory]
+    [InlineData(21_250, "21\u00A0250\u00A0kr")]
+    [InlineData(950, "950\u00A0kr")]
+    [InlineData(1_250_000, "1\u00A0250\u00A0000\u00A0kr")]
+    public void Kronor_GroupsDigitsTheSwedishWay_WithNonBreakingSpaces(int amount, string expected)
+    {
+        // Non-breaking, so "21 250 kr" never wraps across lines in an email or the admin rail.
+        Assert.Equal(expected, BookingDisplay.Kronor(amount));
+    }
 }

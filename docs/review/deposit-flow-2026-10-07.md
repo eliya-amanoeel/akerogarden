@@ -8,7 +8,7 @@ waited on the client, the gaps found while checking it, and everything the chang
 > ERD, lifecycle diagram and admin manual carry it and are the authority; this file is the record of
 > *why*. No client questions remain (§5). Nothing is open: the deposit-amount question (§5,
 > smoke-test notes 1–2) was settled on 2026-10-10 by D22–D27 — the admin enters the estimated price
-> and the emails state it. Same role as `demo-feedback-2026-08-05.md` had for that work.
+> and the emails state it — and is **live since the 2026-10-11 production deploy** (PR 105). Same role as `demo-feedback-2026-08-05.md` had for that work.
 
 ---
 

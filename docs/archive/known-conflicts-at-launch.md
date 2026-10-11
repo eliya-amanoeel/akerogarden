@@ -10,7 +10,7 @@
 > For current legal truth read the published texts' copies — `docs/legal/Bokningsvillkor.md` (named
 > `klientsvar.md` in the body below, its name until 2026-10-10) and
 > `docs/legal/Integritetspolicy.md` — and the SRS; for why the deposit-era changes were made, read
-> `docs/review/deposit-flow-2026-10-07.md`. The body below is left as written: a point-in-time
+> `docs/archive/deposit-flow-2026-10-07.md`. The body below is left as written: a point-in-time
 > record of what was knowingly carried across the launch line.
 
 **Status at launch: accepted, not resolved. Decision taken 2026-09-07 — launch proceeds regardless.**
@@ -39,7 +39,7 @@
 >   "rekommenderas" becomes "gäller" in §7. *(2026-10-08: the client left the gap unanswered — it
 >   stays open in SRS §12 — and said the deposit is never refunded, so §7 is rewritten, not just
 >   reworded. All terms changes are published together with the deposit work, not before; see
->   `docs/review/deposit-flow-2026-10-07.md` D14/D19.)* *(2026-10-09, later: the client answered —
+>   `docs/archive/deposit-flow-2026-10-07.md` D14/D19.)* *(2026-10-09, later: the client answered —
    more than 4 weeks out, no fee beyond the deposit — so the gap is closed in §7.)*
 > - **§5 — closed.** VAT-inclusive prices were held back on 2026-10-09 while the stored rates were
 >   unconfirmed, then shipped the same evening once the client confirmed them (FR-82).

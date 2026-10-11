@@ -12,7 +12,7 @@ undecided, and where each item lands.
 >    §5a, §6, D7, §8). **That gate is gone.** No jurist review was ever commissioned and none will be;
 >    the client replaced the terms document instead of answering the questions, and the decision to
 >    launch without a review was taken, with the consequences stated and accepted, on 2026-09-07.
->    `docs/legal/known-conflicts-at-launch.md` is the authority. Anywhere below that reasons from
+>    `docs/archive/known-conflicts-at-launch.md` records how it was settled (every item resolved by 2026-10-09). Anywhere below that reasons from
 >    "before the jurist review" or "a second review round", read it as describing a constraint that
 >    was real when written and is now void.
 > 2. **"Launch" is past.** The site went live 2026-09-07. Items triaged here as BLOCKS-LAUNCH all
@@ -20,7 +20,8 @@ undecided, and where each item lands.
 >    `requirements.md` §10 is the current version.
 >
 > Everything else here — the framings, the reasoning, the §7 design corrections, the §8 conflict
-> audit — stands and is still authoritative on this scope.
+> audit — stands as the record of *why* on this scope. The requirements it led to are in the SRS, which
+> is the authority on how the system behaves.
 
 **Status of this document:** all items are captured, triaged (launch-blocking except 1b) and
 **framed** — each under a "Framing" subsection recording the decision *and its reasoning*, so

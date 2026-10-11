@@ -171,9 +171,9 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | [`docs/archive/implementation-plan.md`](docs/archive/implementation-plan.md) | Closed history: what was built, in what order, satisfying which requirements. **All phases 0–11 are done** and each is one table row. Not a source of truth — the SRS is |
 | [`docs/ux/design.md`](docs/ux/design.md) | Design system — tokens, type scale, components |
 | [`docs/archive/known-conflicts-at-launch.md`](docs/archive/known-conflicts-at-launch.md) | What was knowingly carried across the launch line in the legal texts, and how each item was settled — all resolved, archived 2026-10-09 |
-| [`docs/review/deposit-flow-2026-10-07.md`](docs/review/deposit-flow-2026-10-07.md) | Decision record for the deposit-before-confirmation requirement (FR-115/116) — the reasoning behind it |
+| [`docs/archive/deposit-flow-2026-10-07.md`](docs/archive/deposit-flow-2026-10-07.md) | Decision record for the deposit-before-confirmation requirement (FR-115/116) and the estimated price — the reasoning behind it. Closed, archived 2026-10-11 |
 | [`docs/review/post-launch-security-review.md`](docs/review/post-launch-security-review.md) | Post-launch security & architecture review and its remediation tracker |
-| [`docs/review/demo-feedback-2026-08-05.md`](docs/review/demo-feedback-2026-08-05.md) | Decision record for the 2026-08-05 client demo |
+| [`docs/archive/demo-feedback-2026-08-05.md`](docs/archive/demo-feedback-2026-08-05.md) | Decision record for the 2026-08-05 client demo. Closed, archived 2026-10-11 |
 | [`docs/handover/admin-manual.html`](docs/handover/admin-manual.html) | The admin manual (Swedish) — source of truth for the PDF handed to the client |
 | [`infra/ops/`](infra/ops/) | Operational runbooks |
 

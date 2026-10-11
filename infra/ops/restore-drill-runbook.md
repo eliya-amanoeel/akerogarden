@@ -136,10 +136,11 @@ it as structural and weigh a larger tier against the risk (the July sizing decis
 `infra/azure/README.md`, "SKU limitations"). Sweden Central compute, 2026-10-08 list price: B1ms
 ~$14.5/month, B2s ~$29, General Purpose D2ds_v5 ~$137 — and no size has guaranteed capacity.
 
-**A drill that passes is the precondition for deploying the deposit work to production**
-(`docs/review/deposit-flow-2026-10-07.md` §7), since it carries a schema change. Two migrations have already
-reached production since launch without a passing drill (`AddOnBehalfOfBooking`, `AddJobRuns`) — the drill is
-no less owed for that; NFR-29 asks for it quarterly regardless.
+**The deposit work was planned to wait for a passing drill** (`docs/archive/deposit-flow-2026-10-07.md` §7),
+since it carries a schema change. **That was waived by the maintainer on 2026-10-09**, and the work went to
+production without one. Four migrations have now reached production since launch without a passing drill
+(`AddOnBehalfOfBooking`, `AddJobRuns`, `AddBookingDeposit`, `AddBookingEstimatedPrice`), all additive — the
+drill is no less owed for that; NFR-29 asks for it quarterly regardless.
 
 **Next drill: overdue** — the first against a database holding real guests has not yet succeeded.
 

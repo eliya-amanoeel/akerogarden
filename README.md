@@ -6,8 +6,8 @@ them. It replaces a decommissioned Payload CMS.
 
 All guest- and admin-facing UI is **Swedish**. The code, comments, and documentation are English.
 
-**Published for review.** The source is public, with Åkerögården's consent, so it can be read. It
-carries no license: all rights are reserved.
+**Open source, with Åkerögården's consent.** The code is MIT-licensed; the client's content is not —
+see [License](#license).
 
 **🚀 Live since 2026-09-07.** `akerogarden.se` serves real guests, so anything here describes a running
 production system, not a project in build. **All phases are closed** — Phase 11 (post-production
@@ -182,3 +182,19 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 
 If this README and the SRS ever disagree, **the SRS wins** — raise the conflict rather than silently
 picking one.
+
+## License
+
+The code is released under the [MIT License](LICENSE), © 2026 Eliya Amanoeel.
+
+The MIT license does **not** cover Åkerögården's content, which belongs to Åkerögården, all rights
+reserved:
+
+- the Åkerögården name and logo (`src/AkeroGarden.Web.Core/wwwroot/logo/`)
+- the photographs (`src/AkeroGarden.Web.Public/wwwroot/images/`)
+- the booking terms and privacy policy — `docs/legal/`, `docs/archive/Boknings-och-ordningsvillkor.md`,
+  and their text in `BookingTerms.razor` and `PrivacyPolicy.razor`
+- the editorial text on the public pages
+
+The self-hosted fonts in `src/AkeroGarden.Web.Core/wwwroot/fonts/` (Playfair Display, Roboto) are
+open-source fonts distributed under their own licenses, not under MIT.

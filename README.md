@@ -6,6 +6,9 @@ them. It replaces a decommissioned Payload CMS.
 
 All guest- and admin-facing UI is **Swedish**. The code, comments, and documentation are English.
 
+**Published for review.** The source is public, with Åkerögården's consent, so it can be read. It
+carries no license: all rights are reserved.
+
 **🚀 Live since 2026-09-07.** `akerogarden.se` serves real guests, so anything here describes a running
 production system, not a project in build. **All phases are closed** — Phase 11 (post-production
 hardening and handover) closed 2026-09-09. What remains is operational, not engineering.

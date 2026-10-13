@@ -1715,7 +1715,7 @@ fieldset.participant legend {
     .data-table--stack td { display: block; }
     .data-table--stack tr { padding: 0.5rem 0; border-bottom: 1px solid var(--color-line); }
     .data-table--stack tr:last-child { border-bottom: 0; }
-    .data-table--stack td { padding: 0.3rem 0.9rem; border-bottom: 0; }
+    .data-table--stack td { padding: 0.25rem 0.9rem; border-bottom: 0; }
     .data-table--stack td[data-label]::before {
         content: attr(data-label);
         display: block;
@@ -1724,7 +1724,7 @@ fieldset.participant legend {
         letter-spacing: 0.04em;
         text-transform: uppercase;
         color: var(--color-muted);
-        margin-bottom: 0.15rem;
+        margin-bottom: 0.25rem;
     }
 }
 
@@ -2040,16 +2040,18 @@ fieldset.participant legend {
 /* Numbered steps: the reset strips list markers, and .prose styled only bulleted lists. Same
    bottom margin as .prose ul, for the same reason given there. */
 .prose ol { margin: 0 0 1.2rem; padding-left: 1.5rem; list-style: decimal; }
-/* A nested list (the handbook's table of contents) sits tighter than a list in running text. */
-.prose ul ul { margin: 0.5rem 0 0.25rem; list-style: circle; }
-/* One step below .prose h3, in the body face, so the two heading levels differ by family as well
-   as by size — 1rem against 1.0625rem alone would not read as a level. */
+/* Sub-section heading — a small uppercase label in green, the eyebrow treatment at the house
+   small size (0.85rem, design.md type scale) rather than the eyebrow's 12px, which is too small for
+   a heading people scan for. It was a 16px bold heading in the body face, which on the page looked
+   exactly like the bold lead-in at the start of a paragraph ("Hur länge länken gäller:"). */
 .prose h4 {
     font-family: var(--font-body);
-    font-size: 1rem;
+    font-size: 0.85rem;
     font-weight: 700;
-    color: var(--color-heading);
-    margin: 1.25rem 0 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-primary-ink);
+    margin: 1.5rem 0 0.5rem;
 }
 /* A step box or a note inside running text separates like a paragraph, and its own last line
    does not add a second margin inside the box. */
@@ -2057,6 +2059,90 @@ fieldset.participant legend {
 .prose .card > :last-child { margin-bottom: 0; }
 /* The admin topbar is sticky, so an in-page link would land its heading underneath it. */
 .handbook [id] { scroll-margin-top: 5rem; }
+
+/* Handbook heading levels. A how-to page is jumped around in, not read clause by clause like the
+   legal pages whose sizes it borrowed, so its levels must work as landmarks: a part (Del A–D)
+   takes the type scale's H2 at its lower bound, with a rule above it, and a section the scale's
+   H3. The part nearest the top of the page needs no rule — there is nothing above it to divide
+   it from. */
+.handbook .legal-block > .subhead {
+    font-size: 1.75rem;
+    font-weight: 400;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-line);
+    margin-bottom: 1rem;
+}
+.handbook > .legal-block:first-child > .subhead,
+.handbook__body > .legal-block:first-child > .subhead { padding-top: 0; border-top: 0; }
+.handbook .prose h3 { font-size: 1.3125rem; margin: 2rem 0 0.75rem; }
+.handbook .prose > h3:first-child { margin-top: 0; }
+
+/* Fluid width, the same frame as every other admin page. The handbook's text, tables, boxes and
+   contents fill the admin body and follow the window; the only limit is .admin-body's own 1160px
+   frame, which every admin page shares. Deliberately no reading-measure cap of its own (the
+   maintainer's decision, 2026-10-13: the handbook must not be narrower than the pages it explains).
+   It first shipped with every block fixed at 65ch — measured 584px of text at every window from
+   960 to 2560px, so resizing only changed the empty space beside it. Text and tables share the one
+   width, so the page edge does not jump in and out between them. A cell may break a long token (an
+   address) rather than widen its table past the column — `anywhere`, not `break-word`, because
+   only `anywhere` lowers the min-content width a table lays out by. */
+.handbook .prose { max-width: none; }
+.handbook .data-table td { overflow-wrap: anywhere; }
+
+/* Contents list (`nav.card.handbook__toc`, titled by an `.eyebrow`). Narrower than 68.75em it is a
+   .card between the introduction and Del A — where the
+   markup puts it, so keyboard and screen-reader order match what is seen; from 68.75em it moves into
+   its own column beside the text and stays in view while the page scrolls, which is what makes
+   jumping between sections one click from anywhere. It is a menu, not running text, so its links
+   are not underlined (they sit alone in their list items, outside axe's link-in-text-block). */
+.handbook__toc { margin: 2.5rem 0; font-size: 0.85rem; }
+.handbook__toc .eyebrow { margin-bottom: 0.5rem; }
+.handbook__toc ul { list-style: none; margin: 0; padding: 0; }
+.handbook__toc ul ul { margin: 0.25rem 0 0.5rem; }
+.handbook__toc a {
+    display: block;
+    padding: 0.25rem 0 0.25rem 0.75rem;
+    border-left: 2px solid transparent;
+    color: var(--color-text);
+    line-height: 1.35;
+    text-decoration: none;
+}
+.handbook__toc a:hover { color: var(--color-primary-ink); border-left-color: var(--color-primary-ink); }
+.handbook__toc .handbook__toc-part {
+    margin-top: 0.5rem;
+    padding-left: 0;
+    border-left: 0;
+    font-weight: 700;
+    color: var(--color-heading);
+}
+.handbook__toc > ul > li:first-child > .handbook__toc-part { margin-top: 0; }
+
+/* 68.75em is where a 13rem contents column fits beside a text column of about 34rem (both grow
+   from there) inside the sidebar and the page padding. */
+@media (min-width: 68.75em) {
+    .handbook--with-toc {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(13rem, 17rem);
+        grid-template-areas: "intro toc" "body toc";
+        column-gap: 3rem;
+        align-items: start;
+    }
+    .handbook__intro { grid-area: intro; }
+    .handbook__body { grid-area: body; margin-top: 2.5rem; }
+    .handbook__toc {
+        grid-area: toc;
+        position: sticky;
+        top: 5rem;
+        max-height: calc(100vh - 6rem);
+        overflow-y: auto;
+        margin: 0;
+        padding: 0 0 0 1rem;
+        background: none;
+        border: 0;
+        border-left: 1px solid var(--color-line);
+        border-radius: 0;
+    }
+}
 /* An aside that qualifies the table above it (e.g. "the audit log holds no guest data") — set
    apart from the running text so it doesn't read as another body paragraph. */
 .prose p.legal-note {
@@ -2524,6 +2610,10 @@ fieldset.participant legend {
     .admin-nav { display: none !important; }
     .admin-shell { display: block; }
     .admin-topbar { position: static; }
+    /* Paper has no scrolling to stay in view for: the handbook's contents list goes back above
+       the text as a plain list, whatever width the window had when it was printed. */
+    .handbook--with-toc { display: block; }
+    .handbook__toc { position: static; max-height: none; overflow: visible; margin: 0 0 1.5rem; }
 
     /* The space reserved for the docked CTA goes with it, or every printout starts with a band
        of nothing. */

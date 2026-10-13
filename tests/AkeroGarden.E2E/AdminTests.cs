@@ -1893,6 +1893,49 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     }
 
     /// <summary>
+    /// The contents list's two layouts. On a wide screen it sits in its own column to the right of
+    /// the text and is still on screen after scrolling to the last section — the point of moving it
+    /// there, and what a sticky element that silently stopped sticking would fail. On a phone it is
+    /// a box between the introduction and Del A, in the text's own column.
+    /// </summary>
+    [Fact]
+    public async Task Handbook_contents_sit_beside_the_text_on_a_wide_screen_and_above_it_on_a_phone()
+    {
+        await LoginAsync();
+        var toc = Page.GetByRole(AriaRole.Navigation, new() { Name = "Innehåll" });
+
+        await Page.SetViewportSizeAsync(Desktop.Width, Desktop.Height);
+        await Page.GotoAsync("/handbok");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        var tocBox = await toc.BoundingBoxAsync();
+        var textBox = await Page.Locator("#del-a").BoundingBoxAsync();
+        Assert.NotNull(tocBox);
+        Assert.NotNull(textBox);
+        Assert.True(tocBox!.X >= textBox!.X + textBox.Width,
+            $"contents (x={tocBox.X}) should start to the right of the text (ends at {textBox.X + textBox.Width}) at {Desktop.Width}px.");
+
+        await Page.Locator("#villkoren").ScrollIntoViewIfNeededAsync();
+        await Assertions.Expect(Page.Locator("#villkoren")).ToBeInViewportAsync();
+        await Assertions.Expect(toc).ToBeInViewportAsync();
+
+        await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
+        await Page.GotoAsync("/handbok");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        tocBox = await toc.BoundingBoxAsync();
+        textBox = await Page.Locator("#del-a").BoundingBoxAsync();
+        var introBox = await Page.Locator(".handbook__intro").BoundingBoxAsync();
+        Assert.NotNull(tocBox);
+        Assert.NotNull(textBox);
+        Assert.NotNull(introBox);
+        Assert.True(tocBox!.Y >= introBox!.Y + introBox.Height && tocBox.Y + tocBox.Height <= textBox!.Y,
+            $"on a phone the contents should sit between the introduction and Del A (contents y={tocBox.Y}, Del A y={textBox!.Y}).");
+        Assert.True(Math.Abs(tocBox.X - textBox.X) < 1,
+            $"on a phone the contents should share the text's column (x={tocBox.X} vs {textBox.X}).");
+    }
+
+    /// <summary>
     /// FR-117: the handbook prints as a document — it replaced one that was a printed PDF. In print
     /// media the admin sidebar is gone and the content starts at the left edge rather than beside
     /// an empty sidebar column, which is what hiding the nav alone would leave behind.
@@ -1910,8 +1953,9 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await Assertions.Expect(Page.Locator(".admin-nav")).Not.ToBeVisibleAsync();
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Del A · För administratörer" }))
             .ToBeVisibleAsync();
-        var mainLeft = await Page.Locator(".admin-main").EvaluateAsync<double>("e => e.getBoundingClientRect().left");
-        Assert.True(mainLeft < 1, $"printed content starts {mainLeft}px from the left — the sidebar column is still reserved.");
+        // Polled, not read once: media emulation restyles asynchronously, and a one-shot read can
+        // observe the screen layout (design.md, Print). Fails on timeout if the column stays reserved.
+        await Page.WaitForFunctionAsync("() => document.querySelector('.admin-main').getBoundingClientRect().left < 1");
     }
 
     /// <summary>Admin panel mobile polish: below 640px every list page swaps its .admin-table for a

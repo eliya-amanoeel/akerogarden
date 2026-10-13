@@ -150,7 +150,7 @@ production pipeline is manual and gated behind an environment approval. See
 These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` and the SRS.
 
 - **Swedish-only UI**, from day one. No English strings, no i18n framework.
-- **No personal data outside the EU** — all Azure resources in North Europe or Sweden Central.
+- **No personal data outside the EU in the booking system** — all Azure resources in North Europe or Sweden Central. Email to `info@akerogarden.se` (also where the admin notifications go) is forwarded by the client to a Gmail account; the privacy policy says so (§4/§5).
 - **No PII in URLs**; **no Swedish personnummer** collected or stored, ever.
 - **Nothing loads from a third-party host** — no font CDN, analytics, tag manager, embedded map, video or social widget. Fonts are self-hosted. Widened from fonts-only in 2026-08 and **enforced since 2026-09-08 by a `default-src 'self'` Content-Security-Policy on both hosts** (NFR-39), so this is no longer a convention you could breach by accident — the browser blocks it. The same policy forbids inline styling, so `style="…"` attributes in `.razor` markup are dropped; use a modifier class in `site.css`.
 - **No monetary totals stored, and payment state only where the system acts on it** — prices are reference data and no amount is ever stored. The one piece of payment state is a booking waiting for its deposit (FR-115/116), which holds the dates and gates confirmation; invoicing and the money itself stay entirely outside the system (FR-42 retired 2026-08).

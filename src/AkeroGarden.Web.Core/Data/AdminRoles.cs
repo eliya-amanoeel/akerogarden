@@ -22,7 +22,7 @@ public static class AdminRoles
     public const string Administrator = "Administratör";
     public const string Coordinator = "Samordnare";
 
-    /// <summary>Both roles, for the pages either may open (the list views) and for role seeding.</summary>
+    /// <summary>Both roles, for the pages either may open (the list views and the coordinator's handbook page, FR-117) and for role seeding.</summary>
     public const string Both = $"{Administrator},{Coordinator}";
 
     /// <summary>Every role the system defines — the set the seeder guarantees exists.</summary>

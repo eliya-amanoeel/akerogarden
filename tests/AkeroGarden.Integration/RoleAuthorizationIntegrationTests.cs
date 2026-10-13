@@ -122,12 +122,15 @@ public sealed class RoleAuthorizationIntegrationTests : IClassFixture<DbFixture>
         "/priser",
         "/stadszoner",
         "/konton",
+        "/jobbhistorik",                                      // FR-114 — missing from this list until 2026-10-13
+        "/handbok",                                           // FR-117 — the full handbook
     ];
 
     public static TheoryData<string> SharedPages() =>
     [
         "/listor",
         $"/listor/{Guid.NewGuid()}",
+        "/handbok/samordnare",                                // FR-117 — Del B, the coordinator's part
     ];
 
     [Theory]
@@ -142,7 +145,7 @@ public sealed class RoleAuthorizationIntegrationTests : IClassFixture<DbFixture>
 
     [Theory]
     [MemberData(nameof(SharedPages))]
-    public async Task Both_roles_may_open_the_list_pages(string path)
+    public async Task Both_roles_may_open_the_shared_pages(string path)
     {
         Assert.Equal(HttpStatusCode.OK, await GetAsync(path, AdminRoles.Coordinator));
         Assert.Equal(HttpStatusCode.OK, await GetAsync(path, AdminRoles.Administrator));

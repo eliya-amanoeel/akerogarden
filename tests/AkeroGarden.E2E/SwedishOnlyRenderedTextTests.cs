@@ -141,6 +141,8 @@ public class AdminSwedishOnlyTests(E2EFixture fixture)
     [InlineData("/listor")]
     [InlineData("/konton")]
     [InlineData("/jobbhistorik")]
+    [InlineData("/handbok")]
+    [InlineData("/handbok/samordnare")]
     public async Task Admin_pages_render_swedish_only(string route)
     {
         await LoginAsync();

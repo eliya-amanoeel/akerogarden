@@ -1,0 +1,15 @@
+@* The handbook for Samordnare (FR-117): Del B on its own. Its own page rather than a role check
+   inside /handbok, because FR-104 enforces authorisation per page and never by hiding parts of a
+   shared page. Open to both roles, like /listor, so an Administratör can see exactly what a
+   coordinator sees. Static SSR — see Handbook.razor. *@
+@page "/handbok/samordnare"
+@layout AdminLayout
+@attribute [Authorize(Roles = AdminRoles.Both)]
+
+<PageTitle>Handbok — Åkerögården Admin</PageTitle>
+
+<AdminHeader Title="Handbok" />
+
+<div class="handbook">
+    <HandbookCoordinatorPart />
+</div>

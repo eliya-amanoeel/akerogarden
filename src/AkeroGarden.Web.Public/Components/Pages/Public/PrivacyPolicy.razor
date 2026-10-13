@@ -35,7 +35,7 @@
 
         <div class="legal-block">
             <div class="prose">
-                <p>Senast uppdaterad: 9 oktober 2026.</p>
+                <p>Senast uppdaterad: 13 oktober 2026.</p>
             </div>
         </div>
 
@@ -217,9 +217,9 @@
             <h2 class="subhead">4. Vem får ta del av dina uppgifter?</h2>
             <div class="prose">
                 <p>
-                    Vi delar inte dina personuppgifter med tredje part för marknadsföringsändamål.
-                    Uppgifter kan behandlas av följande personuppgiftsbiträden, samtliga med
-                    databehandling förlagd inom EU:
+                    Vi delar inte dina personuppgifter med tredje part för marknadsföringsändamål,
+                    och vi säljer aldrig personuppgifter. Uppgifter kan behandlas av följande
+                    personuppgiftsbiträden, samtliga med databehandling förlagd inom EU:
                 </p>
             </div>
             <div class="data-table-wrap">
@@ -234,19 +234,37 @@
                     <tbody>
                         <tr>
                             <td><span class="data-table__label">Microsoft Azure</span></td>
-                            <td>Drift av webbplats, databas och fillagring</td>
+                            <td>Drift av webbplats, bokningssystem, databas och fillagring</td>
                             <td>Norra Europa / Sweden Central (EU)</td>
                         </tr>
                         <tr>
                             <td><span class="data-table__label">One.com</span></td>
-                            <td>Utskick av e-post (bokningsbekräftelser, påminnelser)</td>
+                            <td>Utskick av e-post (bokningsbekräftelser, påminnelser) och vår e-postlåda info@akerogarden.se</td>
                             <td>EU</td>
+                        </tr>
+                        <tr>
+                            <td><span class="data-table__label">Fortnox</span></td>
+                            <td>Bokföring, inklusive betalningsuppgifter</td>
+                            <td>Sverige (EU)</td>
                         </tr>
                     </tbody>
                 </table>
             </div>
             <div class="prose">
-                <p>Vi säljer aldrig personuppgifter och för aldrig data utanför EU/EES.</p>
+                <p>Bokningssystemets uppgifter lagras och behandlas enbart inom EU/EES.</p>
+
+                @* Google is deliberately NOT a row in the table above: a consumer Gmail account comes
+                   with no processor agreement, so calling Google a personuppgiftsbiträde would be a
+                   second untrue statement. Until 2026-10 this section said "för aldrig data utanför
+                   EU/EES" — untrue from launch, because info@ forwards to Gmail and info@ is also
+                   where the system sends its admin notifications (prod.parameters.json). The client
+                   keeps the forwarding, so the policy now says so instead. *@
+                <p>
+                    <b>E-post till info@akerogarden.se</b> vidarebefordras till ett e-postkonto hos
+                    Google (Gmail). Det gäller även de meddelanden om nya bokningsförfrågningar som
+                    bokningssystemet skickar till oss, med dina kontaktuppgifter och ditt meddelande.
+                    Google kan behandla uppgifterna utanför EU/EES, bland annat i USA.
+                </p>
 
                 <h3>IP-adress vid inskickat formulär</h3>
                 <p>
@@ -312,6 +330,13 @@
                     Bokningar som är under aktiv hantering — godkänd, väntar på komplettering, eller
                     pågående vistelse — raderas inte automatiskt förrän de når ett av ovanstående
                     utfall. Radering sker automatiskt av ett schemalagt systemjobb.
+                </p>
+                <p>
+                    <b>E-post</b> till och från info@akerogarden.se, liksom kopiorna i det Gmail-konto
+                    som e-posten vidarebefordras till (se avsnitt 4), omfattas inte av den automatiska
+                    raderingen. Den sparas tills den raderas manuellt. Vill du att vi raderar e-post
+                    från dig, kontakta oss på
+                    <a href="mailto:dataskydd@akerogarden.se">dataskydd@akerogarden.se</a>.
                 </p>
             </div>
         </div>

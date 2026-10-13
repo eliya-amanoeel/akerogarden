@@ -1702,6 +1702,32 @@ fieldset.participant legend {
     .data-cards { display: flex; }
 }
 
+/* .data-table--stack: the same breakpoint for a table of running text (the handbook). Each row
+   becomes a block and each cell but the first is labelled from its data-label, because a
+   three-column table of sentences cannot be read sideways on a phone. Written once in the markup,
+   unlike the .admin-table + AdminDataCard pair, which suits short values in a list rather than
+   paragraphs that are edited as text. */
+@media (max-width: 40em) {
+    .data-table--stack thead { display: none; }
+    .data-table--stack,
+    .data-table--stack tbody,
+    .data-table--stack tr,
+    .data-table--stack td { display: block; }
+    .data-table--stack tr { padding: 0.5rem 0; border-bottom: 1px solid var(--color-line); }
+    .data-table--stack tr:last-child { border-bottom: 0; }
+    .data-table--stack td { padding: 0.3rem 0.9rem; border-bottom: 0; }
+    .data-table--stack td[data-label]::before {
+        content: attr(data-label);
+        display: block;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        color: var(--color-muted);
+        margin-bottom: 0.15rem;
+    }
+}
+
 /* ============================================================
    Public content pages — generic text defaults
    (Used by the still-functional funnel/completion pages until their
@@ -1791,9 +1817,12 @@ fieldset.participant legend {
    the acknowledgement label on /boka passed only because it is almost entirely link text with
    little prose around it, i.e. the same latent failure one longer sentence away.
    `.findmap-figure__caption a` (2026-08-18) — the OpenStreetMap attribution sits inside a
-   sentence under the map. */
+   sentence under the map.
+   `.data-table td a` (2026-10-13) — the admin handbook's tables are sentences with
+   cross-references ("se Avboka") inside them. */
 .prose a, .section p a, .menu-note a, .contact-dl dd a,
-.form-group--checkbox label a, .findmap-figure__caption a { text-decoration: underline; text-underline-offset: 0.15em; }
+.form-group--checkbox label a, .findmap-figure__caption a,
+.data-table td a { text-decoration: underline; text-underline-offset: 0.15em; }
 
 /* Section eyebrow + subhead on content pages */
 .subhead {
@@ -2003,6 +2032,31 @@ fieldset.participant legend {
 .legal-block .prose + .data-table-wrap,
 .legal-block .data-table-wrap + .prose { margin-top: 1.2rem; }
 .legal-draft { margin-bottom: 2.5rem; }
+
+/* The admin handbook (/handbok, FR-117) is built from the legal pages' document structure above,
+   plus .card for a numbered procedure and .alert for its boxes. Only what that structure lacked
+   for a how-to text is added here — checked first against .alert, .admin-panel, .kv and
+   .data-table-wrap, none of which is a numbered list or a sub-section heading. */
+/* Numbered steps: the reset strips list markers, and .prose styled only bulleted lists. Same
+   bottom margin as .prose ul, for the same reason given there. */
+.prose ol { margin: 0 0 1.2rem; padding-left: 1.5rem; list-style: decimal; }
+/* A nested list (the handbook's table of contents) sits tighter than a list in running text. */
+.prose ul ul { margin: 0.5rem 0 0.25rem; list-style: circle; }
+/* One step below .prose h3, in the body face, so the two heading levels differ by family as well
+   as by size — 1rem against 1.0625rem alone would not read as a level. */
+.prose h4 {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-heading);
+    margin: 1.25rem 0 0.6rem;
+}
+/* A step box or a note inside running text separates like a paragraph, and its own last line
+   does not add a second margin inside the box. */
+.prose .card, .prose .alert { margin: 0 0 1.2rem; }
+.prose .card > :last-child { margin-bottom: 0; }
+/* The admin topbar is sticky, so an in-page link would land its heading underneath it. */
+.handbook [id] { scroll-margin-top: 5rem; }
 /* An aside that qualifies the table above it (e.g. "the audit log holds no guest data") — set
    apart from the running text so it doesn't read as another body paragraph. */
 .prose p.legal-note {
@@ -2465,6 +2519,12 @@ fieldset.participant legend {
         display: none !important;
     }
 
+    /* The admin sidebar likewise, so /handbok prints as a document (it replaced a handbook that
+       was a printed PDF). The topbar stays as the title but stops being sticky. */
+    .admin-nav { display: none !important; }
+    .admin-shell { display: block; }
+    .admin-topbar { position: static; }
+
     /* The space reserved for the docked CTA goes with it, or every printout starts with a band
        of nothing. */
     .has-mobile-cta main { padding-bottom: 0; }
@@ -2475,7 +2535,8 @@ fieldset.participant legend {
     .booking-summary,
     .facts,
     .card,
-    .data-card {
+    .data-card,
+    .alert {
         break-inside: avoid;
     }
 
@@ -2485,7 +2546,7 @@ fieldset.participant legend {
     .contact-dl dd { break-before: avoid; }
 
     /* A heading must not be stranded at the foot of a page with its section overleaf. */
-    h1, h2, h3 { break-after: avoid; }
+    h1, h2, h3, h4 { break-after: avoid; }
 
     /* Section padding is tuned for screen rhythm; on paper it is mostly wasted sheets. */
     .section { padding: 1.25rem 0; }

@@ -1,10 +1,10 @@
 # Boknings- och vistelsevillkor
 
-> **ANTAGEN 2026-08-23, PUBLICERAD 2026-09-07, UPPDATERAD 2026-10-09.** Kundens eget dokument, som ersatte vårt utkast (`docs/archive/Boknings-och-ordningsvillkor.md`). Sedan handpenningsarbetet är det inte längre ordagrant kundens: §6, §7, §12, §15 och §19 är våra formuleringar av kundens svar, se `docs/archive/deposit-flow-2026-10-07.md`. Denna fil är en **exakt kopia av den publicerade texten** på `/bokningsvillkor` (`BookingTerms.razor`), senast kopierad från akerogarden.se den 10 oktober 2026 — fram till dess hette filen `klientsvar.md`, efter hur dokumentet kom in. Ändra aldrig bara den ena — en skillnad betyder att de dokumenterade villkoren inte är de publicerade, och testet `LegalTextCopyTests` stoppar bygget vid minsta ordskillnad. Texten har **inte** granskats av jurist och kommer inte att göra det, se `docs/archive/known-conflicts-at-launch.md`.
+> **ANTAGEN 2026-08-23, PUBLICERAD 2026-09-07, UPPDATERAD 2026-10-13** (§27: när Åkerögården ställer in återbetalas allt, även handpenningen). Kundens eget dokument, som ersatte vårt utkast (`docs/archive/Boknings-och-ordningsvillkor.md`). Sedan handpenningsarbetet är det inte längre ordagrant kundens: §6, §7, §12, §15 och §19 är våra formuleringar av kundens svar, se `docs/archive/deposit-flow-2026-10-07.md`, och §27:s sista stycke är ett förtydligande vi lagt till (2026-10-13). Denna fil är en **exakt kopia av den publicerade texten** på `/bokningsvillkor` (`BookingTerms.razor`), senast kopierad från akerogarden.se den 10 oktober 2026 — fram till dess hette filen `klientsvar.md`, efter hur dokumentet kom in. Ändra aldrig bara den ena — en skillnad betyder att de dokumenterade villkoren inte är de publicerade, och testet `LegalTextCopyTests` stoppar bygget vid minsta ordskillnad. Texten har **inte** granskats av jurist och kommer inte att göra det, se `docs/archive/known-conflicts-at-launch.md`.
 
 Villkoren för att boka och vistas på Åkerögården — bokning, betalning, avbokning, ordningsregler och ansvar. Gäller för läger, reträtter, konferenser, församlingshelger och andra grupparrangemang.
 
-Senast uppdaterad: 9 oktober 2026.
+Senast uppdaterad: 13 oktober 2026.
 
 Välkommen till Åkerögården.
 
@@ -348,6 +348,8 @@ Det kan exempelvis gälla:
 Åkerögården ska i sådana fall informera beställaren så snart som möjligt och försöka erbjuda ombokning eller annan rimlig lösning.
 
 Om Åkerögården inte kan tillhandahålla den bokade tjänsten återbetalas normalt den del som inte har kunnat tillhandahållas, om inte annat följer av lag eller överenskommelse.
+
+Ställer Åkerögården in hela arrangemanget återbetalas allt som beställaren har betalat, även en inbetald handpenning.
 
 ## 28. Rätt att avbryta en vistelse
 

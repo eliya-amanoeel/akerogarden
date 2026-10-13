@@ -283,6 +283,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     [InlineData("/faciliteter")]
     [InlineData("/konton")]
     [InlineData("/jobbhistorik")]
+    [InlineData("/handbok")]
+    [InlineData("/handbok/samordnare")]
     public async Task Admin_pages_have_no_serious_accessibility_violations(string path)
     {
         await LoginAsync();
@@ -600,13 +602,14 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             //    dead end, not a leak — but it is the kind of thing nobody notices until a user clicks.
             var nav = Page.Locator("#admin-nav-links");
             await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Deltagar- och matlistor" })).ToBeVisibleAsync();
+            await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Handbok" })).ToBeVisibleAsync();
             await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Bokningar" })).ToHaveCountAsync(0);
             await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Administratörskonton" })).ToHaveCountAsync(0);
             await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Översikt" })).ToHaveCountAsync(0);
             await Assertions.Expect(nav.GetByRole(AriaRole.Link, new() { Name = "Jobbhistorik" })).ToHaveCountAsync(0);
 
             // 5. Typing the URL is the real test of the boundary — the pages are gated, not the links.
-            foreach (var forbidden in new[] { "/", "/konton", "/jobbhistorik", "/bokningar", $"/bokningar/{bookingId}" })
+            foreach (var forbidden in new[] { "/", "/konton", "/jobbhistorik", "/handbok", "/bokningar", $"/bokningar/{bookingId}" })
             {
                 await Page.GotoAsync(forbidden);
                 await Assertions.Expect(Page).ToHaveURLAsync(
@@ -616,6 +619,17 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Du har inte behörighet" }))
                     .ToBeVisibleAsync();
             }
+
+            // 5b. Their part of the handbook (FR-117), through the menu link — Del B, and none of the
+            //     administrators' parts, which /handbok (forbidden above) carries. Back to /listor
+            //     first: the no-permission page the loop ended on has no sidebar.
+            await Page.GotoAsync("/listor");
+            await nav.GetByRole(AriaRole.Link, new() { Name = "Handbok" }).ClickAsync();
+            await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/handbok/samordnare$"));
+            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Del B · För samordnare och kök" }))
+                .ToBeVisibleAsync();
+            await Assertions.Expect(Page.GetByText("Konton och e-post")).ToHaveCountAsync(0);
+            await Assertions.Expect(Page.GetByText("För administratörer")).ToHaveCountAsync(0);
 
             // 6. What the role is *for*: find the booking and actually get the file out.
             await Page.GotoAsync("/listor");
@@ -1798,6 +1812,106 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         var docScrollWidth = await Page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
         Assert.True(docScrollWidth <= Mobile.Width + 1,
             $"Page overflows horizontally at {Mobile.Width}px: scrollWidth={docScrollWidth}.");
+    }
+
+    /// <summary>
+    /// The handbook (FR-117) for an Administratör: reached from the menu, all four parts present, and
+    /// the table of contents actually takes you to the section — landing it below the sticky topbar,
+    /// not underneath it, which is what <c>scroll-margin-top</c> is for and what a plain "the URL
+    /// has #avboka" check would never notice. Also that the Samordnare page is open to this role, so
+    /// an administrator can see what a coordinator sees.
+    /// </summary>
+    [Fact]
+    public async Task Handbook_shows_every_part_to_an_administrator_and_its_contents_links_land_on_the_section()
+    {
+        await LoginAsync();
+
+        await Page.Locator("#admin-nav-links").GetByRole(AriaRole.Link, new() { Name = "Handbok" }).ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/handbok$"));
+        await Assertions.Expect(Page.Locator(".admin-topbar").GetByRole(AriaRole.Heading, new() { Name = "Handbok" }))
+            .ToBeVisibleAsync();
+
+        foreach (var part in new[] { "Del A · För administratörer", "Del B · För samordnare och kök", "Del C · Konton och e-post", "Del D · Bra att veta" })
+        {
+            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = part, Exact = true })).ToBeVisibleAsync();
+        }
+
+        var toc = Page.GetByRole(AriaRole.Navigation, new() { Name = "Innehåll" });
+        await toc.GetByRole(AriaRole.Link, new() { Name = "Avboka", Exact = true }).ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/handbok#avboka$"));
+
+        // The page scrolls smoothly, so wait for it to settle where it should: the heading in the
+        // upper half of the screen and clear of the topbar.
+        await Page.WaitForFunctionAsync(@"() => {
+            const heading = document.getElementById('avboka').getBoundingClientRect();
+            const bar = document.querySelector('.admin-topbar').getBoundingClientRect();
+            return heading.top >= bar.bottom - 1 && heading.top < window.innerHeight / 2;
+        }");
+
+        await Page.GotoAsync("/handbok/samordnare");
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Del B · För samordnare och kök" }))
+            .ToBeVisibleAsync();
+    }
+
+    /// <summary>
+    /// The handbook's tables are three columns of sentences. On a phone they must turn into stacked,
+    /// labelled blocks (.data-table--stack) rather than scroll sideways — and the page-level check
+    /// the other mobile tests use cannot see that on its own, because a .data-table-wrap scrolls
+    /// inside its own box without widening the page. So each table box is measured too, at all three
+    /// widths, and the stacking itself is asserted at 360px: the header row gone and a cell labelled.
+    /// </summary>
+    [Fact]
+    public async Task Handbook_tables_stack_on_a_phone_and_nothing_scrolls_sideways()
+    {
+        await LoginAsync();
+
+        foreach (var viewport in new[] { Mobile, Tablet, Desktop })
+        {
+            await Page.SetViewportSizeAsync(viewport.Width, viewport.Height);
+            await Page.GotoAsync("/handbok");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var docScrollWidth = await Page.EvaluateAsync<int>("() => document.documentElement.scrollWidth");
+            Assert.True(docScrollWidth <= viewport.Width + 1,
+                $"/handbok overflows horizontally at {viewport.Width}px: scrollWidth={docScrollWidth}.");
+
+            var scrollingTables = await Page.EvaluateAsync<int>(
+                "() => [...document.querySelectorAll('.handbook .data-table-wrap')].filter(w => w.scrollWidth > w.clientWidth + 1).length");
+            Assert.True(scrollingTables == 0,
+                $"{scrollingTables} handbook table(s) scroll sideways inside their box at {viewport.Width}px.");
+        }
+
+        await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
+        await Page.GotoAsync("/handbok");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+        var statusTable = Page.Locator(".data-table--stack", new() { Has = Page.GetByText("Väntar på handpenning") });
+        await Assertions.Expect(statusTable.Locator("thead")).Not.ToBeVisibleAsync();
+        var label = await statusTable.Locator("td[data-label='Betyder']").First.EvaluateAsync<string>(
+            "td => getComputedStyle(td, '::before').content");
+        Assert.Equal("\"Betyder\"", label);
+    }
+
+    /// <summary>
+    /// FR-117: the handbook prints as a document — it replaced one that was a printed PDF. In print
+    /// media the admin sidebar is gone and the content starts at the left edge rather than beside
+    /// an empty sidebar column, which is what hiding the nav alone would leave behind.
+    /// </summary>
+    [Fact]
+    public async Task Handbook_prints_without_the_admin_sidebar()
+    {
+        await LoginAsync();
+        await Page.GotoAsync("/handbok");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+        await Assertions.Expect(Page.Locator(".admin-nav")).ToBeVisibleAsync();
+
+        await Page.EmulateMediaAsync(new() { Media = Media.Print });
+
+        await Assertions.Expect(Page.Locator(".admin-nav")).Not.ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Del A · För administratörer" }))
+            .ToBeVisibleAsync();
+        var mainLeft = await Page.Locator(".admin-main").EvaluateAsync<double>("e => e.getBoundingClientRect().left");
+        Assert.True(mainLeft < 1, $"printed content starts {mainLeft}px from the left — the sidebar column is still reserved.");
     }
 
     /// <summary>Admin panel mobile polish: below 640px every list page swaps its .admin-table for a

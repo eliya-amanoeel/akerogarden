@@ -50,7 +50,6 @@ docs/
   legal/                    Privacy policy + booking terms — published and live; no jurist review (cancelled, see docs/archive/known-conflicts-at-launch.md)
   review/                   Review artefacts that still carry open items
   archive/                  Closed history — read-only, nothing waiting on it (see docs/archive/README.md)
-  handover/                 Admin manual (source of truth is the .html)
 ```
 
 The public/admin split is **structural, not just routing** — the internet-facing public process loads no
@@ -177,7 +176,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | [`docs/archive/deposit-flow-2026-10-07.md`](docs/archive/deposit-flow-2026-10-07.md) | Decision record for the deposit-before-confirmation requirement (FR-115/116) and the estimated price — the reasoning behind it. Closed, archived 2026-10-11 |
 | [`docs/review/post-launch-security-review.md`](docs/review/post-launch-security-review.md) | Post-launch security & architecture review and its remediation tracker |
 | [`docs/archive/demo-feedback-2026-08-05.md`](docs/archive/demo-feedback-2026-08-05.md) | Decision record for the 2026-08-05 client demo. Closed, archived 2026-10-11 |
-| [`docs/handover/admin-manual.html`](docs/handover/admin-manual.html) | The admin manual (Swedish) — source of truth for the PDF handed to the client |
+| [`Handbook.razor`](src/AkeroGarden.Web.Admin/Components/Pages/Handbook.razor) | The admin handbook (Swedish), served at `/handbok` in the admin panel; Samordnare read their part at `/handbok/samordnare` (FR-117). Replaced `docs/handover/admin-manual.html` in 2026-10 — change it in the same PR as the behaviour it describes |
 | [`infra/ops/`](infra/ops/) | Operational runbooks |
 
 If this README and the SRS ever disagree, **the SRS wins** — raise the conflict rather than silently

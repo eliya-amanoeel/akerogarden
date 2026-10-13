@@ -244,6 +244,10 @@ The original risk assessment stands unchanged: **low impact inside a delegated V
 
 **Revisit if:** the rate keeps climbing independently of deploy frequency, it appears on the admin host, or a real incident turns out to have gaps in its logs. The first of those is the signal that matters.
 
+> **Update 2026-10-13 — it now reaches users, briefly, after every deploy.** Across the deploys since this was written the public host logs low-level runtime faults in the few minutes after each production deploy: `BadImageFormatException` again on 2026-09-15, 10-09 and 10-10, and on 2026-10-13 an `IndexOutOfRangeException` in .NET's attribute reading inside `AkeroSecurityHeaders` (9 in 19:13–19:15 UTC), which turned **two home-page requests into 500s** — one visitor, plausibly the maintainer checking the deploy. None outside those windows. The maintainer knows the pattern and accepts it as low severity.
+>
+> **Likely cause, not proven:** both deploy pipelines' `AzureWebApp@1` tasks zip-deploy by overwriting files in `wwwroot` while the old instance is still serving, so it reads half-replaced assemblies — which fits faults that are confined to deploy windows and that hit metadata and JIT paths rather than our logic. **Candidate fix:** `deploymentMethod: runFromPackage` (sets `WEBSITE_RUN_FROM_PACKAGE=1`; the package mounts read-only and swaps in atomically). Before applying it, confirm neither app writes into its own folder at runtime, then prove it on staging across two deploys. Not scheduled.
+
 ---
 
 ## Triage

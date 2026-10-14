@@ -53,6 +53,31 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     private Task EnterPriceAsync() =>
         Page.GetByLabel("Beräknat pris inkl. moms (kr)").FillAsync(((int)PriceValue).ToString());
 
+    /// <summary>
+    /// Drives a filter control until the server has it. A filtered list page loads its data while
+    /// prerendering, so its first HTML already holds the full table — there is no "Laddar…" to wait
+    /// out, and a control filled before the circuit connects is wiped when the circuit re-renders it
+    /// from the server's empty value (green locally, red on a slow CI agent, 2026-10-14). The proof
+    /// must be something only the server renders once the value arrives — "Återställ filter", which
+    /// exists only while a filter is set. Each attempt repeats the same input, so a retry is harmless.
+    /// </summary>
+    private async Task UntilTheServerHasItAsync(Func<Task> act, ILocator proof)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(15);
+        while (true)
+        {
+            await act();
+            try
+            {
+                await Assertions.Expect(proof).ToBeVisibleAsync(new() { Timeout = 1000 });
+                return;
+            }
+            catch (PlaywrightException) when (DateTime.UtcNow < deadline)
+            {
+            }
+        }
+    }
+
     private async Task LoginAsAsync(string email, string password)
     {
         await Page.GotoAsync("/login");
@@ -1421,10 +1446,12 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         {
             await LoginAsync();
             await Page.GotoAsync("/jobbhistorik");
-            await Assertions.Expect(Page.Locator(".admin-empty", new() { HasText = "Laddar…" }))
-                .ToHaveCountAsync(0, new() { Timeout = 15000 });
-            await Page.FillAsync("#f-ref", reference);
-            await Page.PressAsync("#f-ref", "Enter");
+            var clear = Page.GetByRole(AriaRole.Button, new() { Name = "Återställ filter" });
+            await UntilTheServerHasItAsync(async () =>
+            {
+                await Page.FillAsync("#f-ref", reference);
+                await Page.PressAsync("#f-ref", "Enter");
+            }, clear);
 
             var rows = Page.Locator("table.admin-table tbody tr");
             var pager = Page.GetByRole(AriaRole.Navigation, new() { Name = "Sidor" });
@@ -1450,7 +1477,6 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
             // "Återställ filter" empties every filter at once — the date field has no clear button of its
             // own — and the full history, at least these 31 nights, is paged again.
-            var clear = Page.GetByRole(AriaRole.Button, new() { Name = "Återställ filter" });
             await clear.ClickAsync();
             await Assertions.Expect(Page.Locator("#f-date")).ToHaveValueAsync("");
             await Assertions.Expect(Page.Locator("#f-ref")).ToHaveValueAsync("");
@@ -2079,15 +2105,13 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     {
         await LoginAsync();
         await Page.GotoAsync("/bokningar");
-        await Assertions.Expect(Page.Locator(".admin-empty", new() { HasText = "Laddar…" }))
-            .ToHaveCountAsync(0, new() { Timeout = 15000 });
 
         var clear = Page.GetByRole(AriaRole.Button, new() { Name = "Återställ filter" });
         var empty = Page.GetByText("Inga bokningar matchar filtret.");
         await Assertions.Expect(clear).ToHaveCountAsync(0);
 
         var farAway = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(20).ToString("yyyy-MM-dd");
-        await Page.FillAsync("#f-from", farAway);
+        await UntilTheServerHasItAsync(() => Page.FillAsync("#f-from", farAway), clear);
         await Assertions.Expect(empty).ToBeVisibleAsync();
 
         await clear.ClickAsync();

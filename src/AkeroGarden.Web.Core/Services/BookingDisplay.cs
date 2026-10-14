@@ -54,6 +54,14 @@ public static class BookingDisplay
         _ => "Ej avslutad",
     };
 
+    /// <summary>The job history's result filter, worded exactly as the outcome badges it selects.</summary>
+    public static string JobRunResultLabel(JobRunResult result) => result switch
+    {
+        JobRunResult.Succeeded => JobRunOutcomeLabel(JobRunOutcome.Succeeded),
+        JobRunResult.Failed => JobRunOutcomeLabel(JobRunOutcome.Failed),
+        _ => JobRunOutcomeLabel(null),
+    };
+
     /// <summary>The status badge for a job run — green / red reuse the booking status badges
     /// (<see cref="StatusBadgeClass"/>) rather than adding colours, so the label always travels with
     /// the colour and the contrast work done for them applies here too.</summary>

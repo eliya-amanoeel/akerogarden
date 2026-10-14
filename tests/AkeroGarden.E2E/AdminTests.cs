@@ -1270,15 +1270,20 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     }
 
     [Fact]
-    public async Task Job_history_shows_each_run_with_its_outcome_and_what_it_did()
+    public async Task Job_history_shows_a_night_with_its_outcome_and_opens_to_each_job()
     {
-        // FR-114 through the real page: a failed and a succeeded run, filtered to the booking one of
-        // them touched; the run opens to its lines, and a live booking's reference links to it.
+        // FR-114 through the real page: a failed and a succeeded run on the same night, filtered to
+        // the booking both touched. The night is one row that says one of its two jobs failed; it
+        // opens to both jobs with what each did, and a live booking's reference links to it. The
+        // result filter then narrows the night to the failed job alone.
         var failedRun = Guid.NewGuid();
         var cleanRun = Guid.NewGuid();
         var bookingId = Guid.NewGuid();
         var reference = $"AG-E2E-{Guid.NewGuid():N}"[..20];
         var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        // Yesterday at the hour the jobs run, through the one Swedish-time helper: "two hours ago"
+        // and "one hour ago" straddle midnight for part of every night and become two nights.
+        var night = StockholmTime.Today(TimeProvider.System).AddDays(-1);
 
         await using (var db = Fixture.NewDbContext())
         {
@@ -1302,22 +1307,22 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 {
                     Id = failedRun,
                     JobName = "14-dagarspåminnelse",
-                    StartedAt = DateTime.UtcNow.AddHours(-2),
-                    FinishedAt = DateTime.UtcNow.AddHours(-2),
+                    StartedAt = StockholmTime.ToUtc(night, new TimeOnly(3, 0)),
+                    FinishedAt = StockholmTime.ToUtc(night, new TimeOnly(3, 0, 1)),
                     Outcome = JobRunOutcome.Failed,
                     FailureReason = "1 mejl kunde inte skickas.",
                 },
                 new JobRun
                 {
                     Id = cleanRun,
-                    JobName = "14-dagarspåminnelse",
-                    StartedAt = DateTime.UtcNow.AddHours(-1),
-                    FinishedAt = DateTime.UtcNow.AddHours(-1),
+                    JobName = "Utfärdande av slutförandelänk",
+                    StartedAt = StockholmTime.ToUtc(night, new TimeOnly(3, 0, 5)),
+                    FinishedAt = StockholmTime.ToUtc(night, new TimeOnly(3, 0, 6)),
                     Outcome = JobRunOutcome.Succeeded,
                 });
             db.AuditLogs.AddRange(
                 JobEntry(failedRun, AuditAction.EmailSendFailed, bookingId, reference, "Påminnelsen inför ankomst kunde inte skickas."),
-                JobEntry(cleanRun, AuditAction.PreArrivalReminderSent, bookingId, reference, "Påminnelse inför ankomst skickad."));
+                JobEntry(cleanRun, AuditAction.CompletionLinkIssued, bookingId, reference, "Slutförandelänk utfärdad."));
             await db.SaveChangesAsync();
         }
 
@@ -1334,18 +1339,37 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Page.PressAsync("#f-ref", "Enter");
 
             var rows = Page.Locator("table.admin-table tbody tr");
-            await Assertions.Expect(rows).ToHaveCountAsync(2);
-            // Newest first: the clean run above the failed one, each with its coloured outcome badge.
-            await Assertions.Expect(rows.Nth(0).Locator(".badge.badge--approved")).ToHaveTextAsync("Lyckades");
-            await Assertions.Expect(rows.Nth(1).Locator(".badge.badge--denied")).ToHaveTextAsync("Misslyckades");
+            await Assertions.Expect(rows).ToHaveCountAsync(1);
+            var row = rows.First;
+            await Assertions.Expect(row).ToContainTextAsync(night.ToString("yyyy-MM-dd"));
+            await Assertions.Expect(row).ToContainTextAsync("2 jobb");
+            // One failed job makes the night failed, and the row says how many of how many.
+            await Assertions.Expect(row.Locator(".badge.badge--denied")).ToHaveTextAsync("Misslyckades");
+            await Assertions.Expect(row).ToContainTextAsync("1 av 2 misslyckades · 2 händelser");
 
-            await rows.Nth(1).GetByRole(AriaRole.Button, new() { Name = "Visa" }).ClickAsync();
+            await row.GetByRole(AriaRole.Button, new() { Name = "Visa" }).ClickAsync();
             var panel = Page.Locator(".admin-panel");
             await Assertions.Expect(panel).ToHaveClassAsync(new Regex("is-open"));
-            await Assertions.Expect(panel).ToContainTextAsync("1 mejl kunde inte skickas.");
-            await Assertions.Expect(panel).ToContainTextAsync("Påminnelsen inför ankomst kunde inte skickas.");
-            await Assertions.Expect(panel.GetByRole(AriaRole.Link, new() { Name = reference }))
+            // A name in the title, the date in the kicker (design.md: no dates in the heading font).
+            await Assertions.Expect(panel.Locator(".admin-panel__title")).ToHaveTextAsync("Nattens jobb");
+            await Assertions.Expect(panel.Locator(".admin-panel__kicker")).ToHaveTextAsync(night.ToString("yyyy-MM-dd"));
+
+            var cards = panel.Locator(".card");
+            await Assertions.Expect(cards).ToHaveCountAsync(2);
+            var failedCard = cards.Filter(new() { HasText = "14-dagarspåminnelse" });
+            await Assertions.Expect(failedCard.Locator(".badge.badge--denied")).ToHaveTextAsync("Misslyckades");
+            await Assertions.Expect(failedCard).ToContainTextAsync("1 mejl kunde inte skickas.");
+            await Assertions.Expect(failedCard).ToContainTextAsync("Påminnelsen inför ankomst kunde inte skickas.");
+            await Assertions.Expect(failedCard.GetByRole(AriaRole.Link, new() { Name = reference }))
                 .ToHaveAttributeAsync("href", $"/bokningar/{bookingId}");
+            var cleanCard = cards.Filter(new() { HasText = "Utfärdande av slutförandelänk" });
+            await Assertions.Expect(cleanCard.Locator(".badge.badge--approved")).ToHaveTextAsync("Lyckades");
+            await Assertions.Expect(cleanCard).ToContainTextAsync("Slutförandelänk utfärdad.");
+
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Stäng" }).ClickAsync();
+            await Page.SelectOptionAsync("#f-result", new SelectOptionValue { Label = "Misslyckades" });
+            await Assertions.Expect(rows.First).ToContainTextAsync("1 jobb");
+            await Assertions.Expect(rows).ToHaveCountAsync(1);
         }
         finally
         {
@@ -1353,6 +1377,92 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await db.AuditLogs.Where(a => a.JobRunId == failedRun || a.JobRunId == cleanRun).ExecuteDeleteAsync();
             await db.JobRuns.Where(r => r.Id == failedRun || r.Id == cleanRun).ExecuteDeleteAsync();
             await db.Bookings.Where(b => b.Id == bookingId).ExecuteDeleteAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Job_history_pages_ten_nights_at_a_time_and_a_date_shows_that_night_alone()
+    {
+        // 31 nights that touched one reference, so the filter isolates them from every other run in
+        // the shared database: four pages of 10, 10, 10 and 1, page numbers that move between them,
+        // and a date that narrows the list to one night — after which there is nothing to page.
+        var reference = $"AG-E2E-{Guid.NewGuid():N}"[..20];
+        var today = StockholmTime.Today(TimeProvider.System);
+        var runs = Enumerable.Range(1, 31).Select(i => new JobRun
+        {
+            Id = Guid.NewGuid(),
+            JobName = "GDPR-gallring",
+            StartedAt = StockholmTime.ToUtc(today.AddDays(-i), new TimeOnly(3, 0)),
+            FinishedAt = StockholmTime.ToUtc(today.AddDays(-i), new TimeOnly(3, 0, 1)),
+            Outcome = JobRunOutcome.Succeeded,
+        }).ToList();
+        var runIds = runs.Select(r => r.Id).ToList();
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.JobRuns.AddRange(runs);
+            // No BookingId: a deleted booking's entry keeps only the reference, and this needs no booking.
+            db.AuditLogs.AddRange(runs.Select(r => new AuditLog
+            {
+                Id = Guid.NewGuid(),
+                Timestamp = r.StartedAt,
+                ActorType = AuditActorType.System,
+                Action = AuditAction.BookingDeletedByRetention,
+                EntityType = nameof(Booking),
+                EntityId = Guid.NewGuid(),
+                BookingReferenceSnapshot = reference,
+                Summary = "Uppgifterna raderade.",
+                JobRunId = r.Id,
+            }));
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/jobbhistorik");
+            await Assertions.Expect(Page.Locator(".admin-empty", new() { HasText = "Laddar…" }))
+                .ToHaveCountAsync(0, new() { Timeout = 15000 });
+            await Page.FillAsync("#f-ref", reference);
+            await Page.PressAsync("#f-ref", "Enter");
+
+            var rows = Page.Locator("table.admin-table tbody tr");
+            var pager = Page.GetByRole(AriaRole.Navigation, new() { Name = "Sidor" });
+            await Assertions.Expect(rows).ToHaveCountAsync(10);
+            await Assertions.Expect(rows.First).ToContainTextAsync(today.AddDays(-1).ToString("yyyy-MM-dd"));
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Sida 1" })).ToHaveAttributeAsync("aria-current", "page");
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "‹ Föregående" })).ToBeDisabledAsync();
+
+            await pager.GetByRole(AriaRole.Button, new() { Name = "Nästa ›" }).ClickAsync();
+            await Assertions.Expect(rows.First).ToContainTextAsync(today.AddDays(-11).ToString("yyyy-MM-dd"));
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Sida 2" })).ToHaveAttributeAsync("aria-current", "page");
+
+            await pager.GetByRole(AriaRole.Button, new() { Name = "Sida 4" }).ClickAsync();
+            await Assertions.Expect(rows).ToHaveCountAsync(1);
+            await Assertions.Expect(rows.First).ToContainTextAsync(today.AddDays(-31).ToString("yyyy-MM-dd"));
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Nästa ›" })).ToBeDisabledAsync();
+
+            // One date: that night alone, back on a single page, so no page numbers at all.
+            await Page.FillAsync("#f-date", today.AddDays(-5).ToString("yyyy-MM-dd"));
+            await Assertions.Expect(rows).ToHaveCountAsync(1);
+            await Assertions.Expect(rows.First).ToContainTextAsync(today.AddDays(-5).ToString("yyyy-MM-dd"));
+            await Assertions.Expect(pager).ToHaveCountAsync(0);
+
+            // "Återställ filter" empties every filter at once — the date field has no clear button of its
+            // own — and the full history, at least these 31 nights, is paged again.
+            var clear = Page.GetByRole(AriaRole.Button, new() { Name = "Återställ filter" });
+            await clear.ClickAsync();
+            await Assertions.Expect(Page.Locator("#f-date")).ToHaveValueAsync("");
+            await Assertions.Expect(Page.Locator("#f-ref")).ToHaveValueAsync("");
+            await Assertions.Expect(rows).ToHaveCountAsync(10);
+            await Assertions.Expect(pager).ToBeVisibleAsync();
+            await Assertions.Expect(clear).ToHaveCountAsync(0);
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.AuditLogs.Where(a => a.JobRunId != null && runIds.Contains(a.JobRunId.Value)).ExecuteDeleteAsync();
+            await db.JobRuns.Where(r => runIds.Contains(r.Id)).ExecuteDeleteAsync();
         }
     }
 
@@ -1956,6 +2066,35 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         // Polled, not read once: media emulation restyles asynchronously, and a one-shot read can
         // observe the screen layout (design.md, Print). Fails on timeout if the column stays reserved.
         await Page.WaitForFunctionAsync("() => document.querySelector('.admin-main').getBoundingClientRect().left < 1");
+    }
+
+    /// <summary>
+    /// Bokningar's filters reset in one click. A date filter could otherwise only be removed by
+    /// deleting the date part by part — the browser's date field has no clear button. A check-in
+    /// date far beyond every seeded booking empties the list; "Återställ filter" brings it back and
+    /// goes away again once nothing is filtered.
+    /// </summary>
+    [Fact]
+    public async Task Bookings_filters_reset_in_one_click()
+    {
+        await LoginAsync();
+        await Page.GotoAsync("/bokningar");
+        await Assertions.Expect(Page.Locator(".admin-empty", new() { HasText = "Laddar…" }))
+            .ToHaveCountAsync(0, new() { Timeout = 15000 });
+
+        var clear = Page.GetByRole(AriaRole.Button, new() { Name = "Återställ filter" });
+        var empty = Page.GetByText("Inga bokningar matchar filtret.");
+        await Assertions.Expect(clear).ToHaveCountAsync(0);
+
+        var farAway = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(20).ToString("yyyy-MM-dd");
+        await Page.FillAsync("#f-from", farAway);
+        await Assertions.Expect(empty).ToBeVisibleAsync();
+
+        await clear.ClickAsync();
+        await Assertions.Expect(Page.Locator("#f-from")).ToHaveValueAsync("");
+        await Assertions.Expect(empty).ToHaveCountAsync(0);
+        await Assertions.Expect(Page.Locator("table.admin-table tbody tr").First).ToBeVisibleAsync();
+        await Assertions.Expect(clear).ToHaveCountAsync(0);
     }
 
     /// <summary>Admin panel mobile polish: below 640px every list page swaps its .admin-table for a

@@ -137,12 +137,128 @@ public class JobHistoryIntegrationTests : IClassFixture<DbFixture>
 
         using var scope = provider.CreateScope();
         var history = scope.ServiceProvider.GetRequiredService<JobHistoryService>();
-        var runs = await history.GetRunsAsync(bookingReference: reference);
+        var page = await history.GetNightsAsync(bookingReference: reference);
 
-        var found = Assert.Single(runs);
+        // The filter narrows the runs, so the night holds only the run that touched the booking —
+        // not the other run started the same moment.
+        var night = Assert.Single(page.Nights);
+        var found = Assert.Single(night.Runs);
         Assert.Equal(touching, found.Run.Id);
         Assert.Equal(2, found.EntryCount);
-        Assert.DoesNotContain(runs, r => r.Run.Id == notTouching);
-        Assert.Equal(2, (await history.GetEntriesAsync(touching)).Count);
+        Assert.DoesNotContain(page.Nights.SelectMany(n => n.Runs), r => r.Run.Id == notTouching);
+        Assert.Equal(2, (await history.GetEntriesAsync([touching])).Count);
+    }
+
+    // ── Nights (FR-114) — each test on its own database: the subject is how the whole table groups
+    //    and pages, which another class's runs in the shared database would change. ──────────────
+
+    private Task<IServiceProvider> IsolatedProviderAsync() =>
+        _fixture.BuildIsolatedServicesAsync(s => s.AddScoped<JobHistoryService>());
+
+    private static JobRun Run(DateOnly date, TimeOnly time, string job, JobRunOutcome? outcome = JobRunOutcome.Succeeded) => new()
+    {
+        Id = Guid.NewGuid(),
+        JobName = job,
+        StartedAt = StockholmTime.ToUtc(date, time),
+        FinishedAt = outcome is null ? null : StockholmTime.ToUtc(date, time).AddSeconds(5),
+        Outcome = outcome,
+    };
+
+    [Fact]
+    public async Task Runs_are_grouped_by_swedish_night_newest_first_ten_to_a_page()
+    {
+        var provider = await IsolatedProviderAsync();
+        var today = StockholmTime.Today(TimeProvider.System);
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            // 32 nights of two jobs each, at the hour they really run.
+            for (var i = 1; i <= 32; i++)
+            {
+                var night = today.AddDays(-i);
+                db.JobRuns.AddRange(Run(night, new TimeOnly(3, 0), "GDPR-gallring"), Run(night, new TimeOnly(3, 0, 5), "14-dagarspåminnelse"));
+            }
+            // The edges of a Swedish date, which a UTC grouping gets wrong for an hour or two every
+            // day: 00:30 belongs to its own date, 23:30 to the date before.
+            db.JobRuns.Add(Run(today.AddDays(-1), new TimeOnly(0, 30), "Påminnelse om handpenning"));
+            db.JobRuns.Add(Run(today.AddDays(-2), new TimeOnly(23, 30), "Påminnelse om handpenning"));
+            await db.SaveChangesAsync();
+        }
+
+        await using var read = provider.CreateAsyncScope();
+        var history = read.ServiceProvider.GetRequiredService<JobHistoryService>();
+
+        var first = await history.GetNightsAsync();
+        Assert.Equal(1, first.Page);
+        Assert.Equal(4, first.TotalPages);
+        Assert.Equal(Enumerable.Range(1, 10).Select(i => today.AddDays(-i)), first.Nights.Select(n => n.Date));
+        Assert.Equal(3, first.Nights[0].Runs.Count);
+        Assert.Equal(3, first.Nights[1].Runs.Count);
+        Assert.Equal(2, first.Nights[2].Runs.Count);
+        // Newest run first inside a night too.
+        Assert.True(first.Nights[1].Runs[0].Run.StartedAt > first.Nights[1].Runs[1].Run.StartedAt);
+
+        var last = await history.GetNightsAsync(page: 4);
+        Assert.Equal(new[] { today.AddDays(-31), today.AddDays(-32) }, last.Nights.Select(n => n.Date));
+
+        // A page past the end is kept inside the pages that exist, never an empty page.
+        var beyond = await history.GetNightsAsync(page: 9);
+        Assert.Equal(4, beyond.Page);
+        Assert.Equal(last.Nights.Select(n => n.Date), beyond.Nights.Select(n => n.Date));
+
+        // One date is that night alone, by the Swedish clock: the 23:30 run is in, the next
+        // morning's 00:30 run is not.
+        var oneNight = await history.GetNightsAsync(date: today.AddDays(-2));
+        var night2 = Assert.Single(oneNight.Nights);
+        Assert.Equal(today.AddDays(-2), night2.Date);
+        Assert.Equal(3, night2.Runs.Count);
+        Assert.Equal(1, oneNight.TotalPages);
+    }
+
+    [Fact]
+    public async Task A_night_is_as_good_as_its_worst_run_and_the_result_filter_keeps_only_matching_runs()
+    {
+        var provider = await IsolatedProviderAsync();
+        var today = StockholmTime.Today(TimeProvider.System);
+        var bad = today.AddDays(-1);
+        var good = today.AddDays(-2);
+        var unfinished = today.AddDays(-3);
+
+        await using (var scope = provider.CreateAsyncScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            db.JobRuns.AddRange(
+                Run(bad, new TimeOnly(3, 0), "GDPR-gallring"),
+                Run(bad, new TimeOnly(3, 0, 5), "14-dagarspåminnelse", JobRunOutcome.Failed),
+                Run(good, new TimeOnly(3, 0), "GDPR-gallring"),
+                Run(unfinished, new TimeOnly(3, 0), "GDPR-gallring"),
+                Run(unfinished, new TimeOnly(3, 0, 5), "14-dagarspåminnelse", outcome: null));
+            await db.SaveChangesAsync();
+        }
+
+        await using var read = provider.CreateAsyncScope();
+        var history = read.ServiceProvider.GetRequiredService<JobHistoryService>();
+
+        var all = await history.GetNightsAsync();
+        Assert.Equal(JobRunOutcome.Failed, all.Nights.Single(n => n.Date == bad).Outcome);
+        Assert.Equal(1, all.Nights.Single(n => n.Date == bad).NotSucceededCount);
+        Assert.Equal(JobRunOutcome.Succeeded, all.Nights.Single(n => n.Date == good).Outcome);
+        Assert.Null(all.Nights.Single(n => n.Date == unfinished).Outcome);
+
+        var failed = await history.GetNightsAsync(result: JobRunResult.Failed);
+        var failedNight = Assert.Single(failed.Nights);
+        Assert.Equal(bad, failedNight.Date);
+        Assert.Equal(JobRunOutcome.Failed, Assert.Single(failedNight.Runs).Run.Outcome);
+
+        var notFinished = await history.GetNightsAsync(result: JobRunResult.Unfinished);
+        var unfinishedNight = Assert.Single(notFinished.Nights);
+        Assert.Equal(unfinished, unfinishedNight.Date);
+        Assert.Null(Assert.Single(unfinishedNight.Runs).Run.Outcome);
+
+        // Every night had one job that succeeded; filtered to those, each night shows only that job.
+        var succeeded = await history.GetNightsAsync(result: JobRunResult.Succeeded);
+        Assert.Equal(new[] { bad, good, unfinished }, succeeded.Nights.Select(n => n.Date));
+        Assert.All(succeeded.Nights, n => Assert.Equal(JobRunOutcome.Succeeded, Assert.Single(n.Runs).Run.Outcome));
     }
 }

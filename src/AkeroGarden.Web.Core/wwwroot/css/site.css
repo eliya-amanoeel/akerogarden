@@ -274,7 +274,10 @@ img { max-width: 100%; height: auto; display: block; }
     border-color: var(--color-primary-hover);
     color: var(--color-heading);
 }
-.btn:disabled, .btn[aria-disabled="true"] {
+/* One disabled look for every button variant. It covered .btn alone until 2026-10-14, when the
+   pager's disabled "‹ Föregående" on page 1 looked exactly like the clickable "Nästa ›" beside it. */
+.btn:disabled, .btn[aria-disabled="true"],
+.btn-outline:disabled, .btn-ghost:disabled {
     opacity: 0.4;
     cursor: not-allowed;
 }
@@ -1528,6 +1531,18 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
 .admin-filters { display: flex; flex-wrap: wrap; gap: 0.75rem; align-items: end; margin-bottom: 1.1rem; }
 .admin-filters .form-group { margin-bottom: 0; gap: 0.25rem; }
 .admin-filters .form-group label { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-muted); }
+/* "Återställ filter" at the end of the row. The row aligns to the bottom edge, which put the small
+   button's centre 8px under the fields' — measured; 0.5rem lifts it onto their centre line, and
+   both are in rem so they stay aligned at any text size. */
+.admin-filters > .btn-ghost { margin-bottom: 0.5rem; }
+/* Page numbers under an admin list (AdminPager; first on Jobbhistorik, FR-114) — the house button
+   classes do the work: ghost for a page, outlined for the current one. 16px above the list's end
+   and 4px between buttons, on the spacing scale; the "…" between runs of pages is muted text. */
+.admin-pager { display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem; margin-top: 1rem; }
+.admin-pager__gap { color: var(--color-muted); padding: 0 0.25rem; }
+/* Cards stacked inside a slide-in panel (Jobbhistorik: one per job of a night) separate like the
+   booking detail's action rail stacks its cards — 1rem. */
+.admin-panel__body > .card + .card { margin-top: 1rem; }
 
 /* ── Booking detail: main column + sticky action rail ────── */
 .admin-detail-head { display: flex; align-items: center; gap: 0.9rem; flex-wrap: wrap; margin-bottom: 1.3rem; }

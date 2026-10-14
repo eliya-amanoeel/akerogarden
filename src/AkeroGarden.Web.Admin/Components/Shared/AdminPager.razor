@@ -1,0 +1,65 @@
+@* Page numbers under an admin list (first used by /jobbhistorik, FR-114). The one pager for any
+   admin list that grows — design.md, "Pager". The list owns the paging: it fetches one page from
+   its service and re-fetches on OnPageChanged; this only draws the controls.
+
+   Shows the first page, the last, and the current one with its neighbours, with "…" between gaps,
+   so the row stays short however many pages there are. Renders nothing when everything fits on one
+   page. Plain buttons with the house button classes: the current page is the outlined one and
+   carries aria-current, the rest are ghost buttons. *@
+
+@if (TotalPages > 1)
+{
+    <nav class="admin-pager" aria-label="Sidor">
+        <button type="button" class="btn-ghost btn-sm" disabled="@(Page <= 1)" @onclick="() => Go(Page - 1)">‹ Föregående</button>
+        @foreach (var item in Items())
+        {
+            if (item is null)
+            {
+                <span class="admin-pager__gap" aria-hidden="true">…</span>
+            }
+            else if (item == Page)
+            {
+                <button type="button" class="btn-outline btn-sm" aria-current="page" aria-label="Sida @item">@item</button>
+            }
+            else
+            {
+                var target = item.Value;
+                <button type="button" class="btn-ghost btn-sm" aria-label="Sida @target" @onclick="() => Go(target)">@target</button>
+            }
+        }
+        <button type="button" class="btn-ghost btn-sm" disabled="@(Page >= TotalPages)" @onclick="() => Go(Page + 1)">Nästa ›</button>
+    </nav>
+}
+
+@code {
+    /// <summary>The page shown, 1-based.</summary>
+    [Parameter] public int Page { get; set; } = 1;
+
+    [Parameter] public int TotalPages { get; set; } = 1;
+
+    /// <summary>Raised with the 1-based page asked for.</summary>
+    [Parameter] public EventCallback<int> OnPageChanged { get; set; }
+
+    private Task Go(int page) =>
+        page < 1 || page > TotalPages || page == Page ? Task.CompletedTask : OnPageChanged.InvokeAsync(page);
+
+    /// <summary>The page numbers to draw, with null where a run of pages is left out.</summary>
+    private IEnumerable<int?> Items()
+    {
+        var shown = new SortedSet<int> { 1, TotalPages };
+        for (var p = Page - 1; p <= Page + 1; p++)
+        {
+            if (p >= 1 && p <= TotalPages)
+                shown.Add(p);
+        }
+
+        var previous = 0;
+        foreach (var p in shown)
+        {
+            if (p - previous > 1)
+                yield return null;
+            yield return p;
+            previous = p;
+        }
+    }
+}

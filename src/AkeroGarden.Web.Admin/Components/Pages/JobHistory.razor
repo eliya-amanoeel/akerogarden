@@ -1,8 +1,13 @@
-@* Job history (FR-114): one row per nightly job run, newest first, and — in the side panel — what
-   that run did, which is the audit entries it wrote (AuditLog.JobRunId). Built from the parts the
-   other admin lists use: .admin-filters and .admin-table as on /bokningar, AdminDataCard on narrow
-   screens, the booking status badges for the outcome, and AdminPanel for a row's detail as on
-   /blockeringar. *@
+@* Job history (FR-114): one row per night, newest first — the jobs that ran that night, their
+   combined outcome and what they did — and, in the side panel, each of that night's jobs with what
+   it did, which is the audit entries it wrote (AuditLog.JobRunId). It listed one row per job run
+   until 2026-10: four rows a night, ~730 over the six months kept, all loaded at once, and a failed
+   job sat among three "Inget att göra" rows from the same night. Ten nights a page (AdminPager).
+
+   Built from the parts the other admin lists use: .admin-filters and .admin-table as on /bokningar,
+   AdminDataCard on narrow screens, the booking status badges for the outcome, AdminPanel for a row's
+   detail as on /blockeringar, and a .card with a .card__head per job inside it, as the booking
+   detail's action rail stacks its cards. *@
 @page "/jobbhistorik"
 @layout AdminLayout
 @rendermode InteractiveServer
@@ -18,7 +23,7 @@
 
 @* The hour is the runner's own setting (Jobs:DailyRunHourLocal, Swedish time), so the page cannot
    state a time the jobs no longer run at. *@
-<p class="form-hint">De schemalagda jobben körs varje natt kl. @($"{RunOptions.Value.DailyRunHourLocal:00}:00"). Här ser du varje körning de senaste sex månaderna och vad den gjorde. Sök på referensnummer för att se om en viss bokning har fått sitt mejl.</p>
+<p class="form-hint">De schemalagda jobben körs varje natt kl. @($"{RunOptions.Value.DailyRunHourLocal:00}:00"). Varje natt är en rad — klicka på den för att se vad varje jobb gjorde. Sök på referensnummer för att se om en viss bokning har fått sitt mejl.</p>
 
 <div class="admin-filters">
     <div class="form-group">
@@ -32,16 +37,39 @@
         </select>
     </div>
     <div class="form-group">
+        <label for="f-result">Resultat</label>
+        @* Bound to a string holding the enum's name and parsed on load, as /bokningar does its
+           status — not to a bool: Blazor converts a bound bool only from a checkbox, so a select
+           bound to one silently never filtered (caught by the E2E test, 2026-10-14). *@
+        <select id="f-result" @bind="_result" @bind:after="Load">
+            <option value="">Alla</option>
+            @foreach (var r in Enum.GetValues<JobRunResult>())
+            {
+                <option value="@r">@BookingDisplay.JobRunResultLabel(r)</option>
+            }
+        </select>
+    </div>
+    <div class="form-group">
+        <label for="f-date">Datum</label>
+        <input id="f-date" type="date" @bind="_date" @bind:after="Load" />
+    </div>
+    <div class="form-group">
         <label for="f-ref">Referensnummer</label>
         <input id="f-ref" type="search" placeholder="t.ex. AG-2026-0042" @bind="_reference" @bind:after="Load" />
     </div>
+    @* The browser's date field has no clear button, so a chosen date could only be removed by
+       deleting it part by part. Shown only while a filter is active (same on /bokningar). *@
+    @if (HasFilters)
+    {
+        <button type="button" class="btn-ghost btn-sm" @onclick="ClearFilters">Återställ filter</button>
+    }
 </div>
 
-@if (_runs is null)
+@if (_nights is null)
 {
     <p class="admin-empty">Laddar…</p>
 }
-else if (_runs.Count == 0)
+else if (_nights.Count == 0)
 {
     <p class="admin-empty">Inga körningar matchar filtret.</p>
 }
@@ -51,7 +79,7 @@ else
         <table class="admin-table">
             <thead>
                 <tr>
-                    <th>Startad</th>
+                    <th>Natt</th>
                     <th>Jobb</th>
                     <th>Resultat</th>
                     <th>Gjorde</th>
@@ -59,89 +87,104 @@ else
                 </tr>
             </thead>
             <tbody>
-                @foreach (var item in _runs)
+                @foreach (var night in _nights)
                 {
-                    <tr @onclick="() => OpenRun(item)">
-                        <td class="mono">@Started(item.Run)</td>
-                        <td>@item.Run.JobName</td>
-                        <td><span class="@BookingDisplay.JobRunOutcomeBadgeClass(item.Run.Outcome)">@BookingDisplay.JobRunOutcomeLabel(item.Run.Outcome)</span></td>
-                        <td>@Did(item)</td>
+                    <tr @onclick="() => OpenNight(night)">
+                        <td class="mono">@Date(night)</td>
+                        <td>@JobCount(night)</td>
+                        <td><span class="@BookingDisplay.JobRunOutcomeBadgeClass(night.Outcome)">@BookingDisplay.JobRunOutcomeLabel(night.Outcome)</span></td>
+                        <td>@Did(night)</td>
                         <td class="rowactions">
-                            <button class="btn-ghost" @onclick="() => OpenRun(item)" @onclick:stopPropagation="true">Visa</button>
+                            <button class="btn-ghost" @onclick="() => OpenNight(night)" @onclick:stopPropagation="true">Visa</button>
                         </td>
                     </tr>
                 }
             </tbody>
         </table>
     </div>
-
     <div class="data-cards">
-        @foreach (var item in _runs)
+        @foreach (var night in _nights)
         {
-            <AdminDataCard Title="@item.Run.JobName" OnClick="() => OpenRun(item)">
-                <Badge><span class="@BookingDisplay.JobRunOutcomeBadgeClass(item.Run.Outcome)">@BookingDisplay.JobRunOutcomeLabel(item.Run.Outcome)</span></Badge>
-                <Sub>@Started(item.Run)</Sub>
+            <AdminDataCard Title="@Date(night)" OnClick="() => OpenNight(night)">
+                <Badge><span class="@BookingDisplay.JobRunOutcomeBadgeClass(night.Outcome)">@BookingDisplay.JobRunOutcomeLabel(night.Outcome)</span></Badge>
+                <Sub>@JobCount(night)</Sub>
                 <Fields>
-                    <div><dt>Gjorde</dt><dd>@Did(item)</dd></div>
+                    <div><dt>Gjorde</dt><dd>@Did(night)</dd></div>
                 </Fields>
             </AdminDataCard>
         }
     </div>
+    <AdminPager Page="_page" TotalPages="_totalPages" OnPageChanged="GoToPage" />
 }
 
-<AdminPanel Visible="_selected is not null" Title="@(_selected?.Run.JobName)" OnClose="CloseRun">
-    <Kicker>@(_selected is { } s ? Started(s.Run) : null)</Kicker>
+@* A panel title is a name, never a date: it is set in the heading font, whose old-style figures
+   make a date read unevenly (design.md; the Blockeringar panel was fixed for exactly this). The
+   night's date goes in the kicker above it. *@
+<AdminPanel Visible="_selected is not null" Title="Nattens jobb" OnClose="CloseNight">
+    <Kicker>@(_selected is { } n ? Date(n) : null)</Kicker>
     <ChildContent>
-        @if (_selected is { } run)
+        @if (_selected is { } night)
         {
-            <dl class="kv">
-                <dt>Resultat</dt>
-                <dd><span class="@BookingDisplay.JobRunOutcomeBadgeClass(run.Run.Outcome)">@BookingDisplay.JobRunOutcomeLabel(run.Run.Outcome)</span></dd>
-                @if (run.Run.FailureReason is { } reason)
-                {
-                    <dt>Orsak</dt><dd>@reason</dd>
-                }
-            </dl>
+            @foreach (var item in night.Runs)
+            {
+                <div class="card">
+                    <div class="card__head">
+                        <h2>@item.Run.JobName</h2>
+                        <span class="@BookingDisplay.JobRunOutcomeBadgeClass(item.Run.Outcome)">@BookingDisplay.JobRunOutcomeLabel(item.Run.Outcome)</span>
+                    </div>
+                    <dl class="kv">
+                        <dt>Startad</dt><dd>@Started(item.Run)</dd>
+                        @if (item.Run.FailureReason is { } reason)
+                        {
+                            <dt>Orsak</dt><dd>@reason</dd>
+                        }
+                    </dl>
 
-            @if (_entries is null)
-            {
-                <p class="admin-empty">Laddar…</p>
-            }
-            else if (_entries.Count == 0)
-            {
-                <p class="admin-empty">@(run.Run.Outcome == JobRunOutcome.Succeeded ? "Inget att göra den här natten." : "Inga händelser registrerades.")</p>
-            }
-            else
-            {
-                <ul>
-                    @foreach (var entry in _entries)
+                    @if (_entries is null)
                     {
-                        <li>
-                            @* A deleted booking keeps its reference but has no page to link to —
-                               its entry is written without BookingId for exactly that reason. *@
-                            @if (entry.BookingId is { } bookingId)
-                            {
-                                <a href="/bokningar/@bookingId">@entry.BookingReferenceSnapshot</a>
-                            }
-                            else
-                            {
-                                <span class="mono">@entry.BookingReferenceSnapshot</span>
-                            }
-                            — @entry.Summary
-                        </li>
+                        <p class="admin-empty">Laddar…</p>
                     }
-                </ul>
+                    else if (EntriesOf(item.Run) is { Count: 0 })
+                    {
+                        <p class="admin-empty">@(item.Run.Outcome == JobRunOutcome.Succeeded ? "Inget att göra den här natten." : "Inga händelser registrerades.")</p>
+                    }
+                    else
+                    {
+                        <ul>
+                            @foreach (var entry in EntriesOf(item.Run))
+                            {
+                                <li>
+                                    @* A deleted booking keeps its reference but has no page to link to —
+                                       its entry is written without BookingId for exactly that reason. *@
+                                    @if (entry.BookingId is { } bookingId)
+                                    {
+                                        <a href="/bokningar/@bookingId">@entry.BookingReferenceSnapshot</a>
+                                    }
+                                    else
+                                    {
+                                        <span class="mono">@entry.BookingReferenceSnapshot</span>
+                                    }
+                                    — @entry.Summary
+                                </li>
+                            }
+                        </ul>
+                    }
+                </div>
             }
         }
     </ChildContent>
 </AdminPanel>
 
 @code {
-    private List<JobRunListItem>? _runs;
+    private List<JobNight>? _nights;
+    private int _page = 1;
+    private int _totalPages = 1;
     private List<string> _jobNames = [];
     private string _jobName = "";
+    private string _result = "";
+    private DateOnly? _date;
     private string _reference = "";
-    private JobRunListItem? _selected;
+    private JobNight? _selected;
     private List<AuditLog>? _entries;
 
     protected override async Task OnInitializedAsync()
@@ -150,32 +193,68 @@ else
         await Load();
     }
 
-    private async Task Load() =>
-        _runs = await JobHistoryService.GetRunsAsync(_jobName, _reference);
+    // A changed filter starts again from the first page; the service keeps any page inside the
+    // pages that exist.
+    private Task Load() => GoToPage(1);
 
-    private async Task OpenRun(JobRunListItem item)
+    private bool HasFilters =>
+        _jobName != "" || _result != "" || _date is not null || !string.IsNullOrWhiteSpace(_reference);
+
+    private Task ClearFilters()
     {
-        _selected = item;
-        _entries = null;
-        _entries = await JobHistoryService.GetEntriesAsync(item.Run.Id);
+        _jobName = "";
+        _result = "";
+        _date = null;
+        _reference = "";
+        return Load();
     }
 
-    private void CloseRun()
+    private async Task GoToPage(int page)
+    {
+        JobRunResult? result = Enum.TryParse<JobRunResult>(_result, out var r) ? r : null;
+        var nights = await JobHistoryService.GetNightsAsync(_jobName, _reference, result, _date, page);
+        _nights = [.. nights.Nights];
+        _page = nights.Page;
+        _totalPages = nights.TotalPages;
+    }
+
+    private async Task OpenNight(JobNight night)
+    {
+        _selected = night;
+        _entries = null;
+        _entries = await JobHistoryService.GetEntriesAsync([.. night.Runs.Select(r => r.Run.Id)]);
+    }
+
+    private void CloseNight()
     {
         _selected = null;
         _entries = null;
     }
 
+    private List<AuditLog> EntriesOf(JobRun run) =>
+        _entries?.Where(e => e.JobRunId == run.Id).ToList() ?? [];
+
+    private static string Date(JobNight night) => night.Date.ToString("yyyy-MM-dd");
+
     private static string Started(JobRun run) =>
         StockholmTime.ToLocal(run.StartedAt).ToString("yyyy-MM-dd HH:mm");
 
-    // "Inget att göra" only for a run that finished cleanly — a run that stopped before doing
-    // anything did not have nothing to do.
-    private static string Did(JobRunListItem item) => item.EntryCount switch
+    private static string JobCount(JobNight night) => $"{night.Runs.Count} jobb";
+
+    // "Inget att göra" only for a night whose jobs all finished cleanly — a run that stopped before
+    // doing anything did not have nothing to do. A night with failures says how many, first.
+    private static string Did(JobNight night)
     {
-        0 when item.Run.Outcome == JobRunOutcome.Succeeded => "Inget att göra",
-        0 => "—",
-        1 => "1 händelse",
-        var n => $"{n} händelser",
-    };
+        var did = night.EntryCount switch
+        {
+            0 when night.Outcome == JobRunOutcome.Succeeded => "Inget att göra",
+            0 => "—",
+            1 => "1 händelse",
+            var n => $"{n} händelser",
+        };
+
+        return night.NotSucceededCount == 0
+            ? did
+            : $"{night.NotSucceededCount} av {night.Runs.Count} misslyckades · {did}";
+    }
 }

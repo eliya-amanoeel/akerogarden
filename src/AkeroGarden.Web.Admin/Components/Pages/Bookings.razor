@@ -48,6 +48,12 @@
         <label for="f-ref">Referensnummer</label>
         <input id="f-ref" type="search" placeholder="t.ex. AG-2026-0042" @bind="_reference" @bind:after="Load" />
     </div>
+    @* The browser's date field has no clear button, so a chosen date could only be removed by
+       deleting it part by part. Shown only while a filter is active (same on /jobbhistorik). *@
+    @if (HasFilters)
+    {
+        <button type="button" class="btn-ghost btn-sm" @onclick="ClearFilters">Återställ filter</button>
+    }
 </div>
 
 @if (_bookings is null)
@@ -147,6 +153,19 @@ else
     protected override async Task OnInitializedAsync() => await Load();
 
     private void GoToBooking(Guid id) => Nav.NavigateTo($"/bokningar/{id}");
+
+    private bool HasFilters =>
+        _status != "" || _type != "" || _from is not null || _to is not null || !string.IsNullOrWhiteSpace(_reference);
+
+    private Task ClearFilters()
+    {
+        _status = "";
+        _type = "";
+        _from = null;
+        _to = null;
+        _reference = "";
+        return Load();
+    }
 
     private async Task Load()
     {

@@ -406,6 +406,12 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           value: smtpFromAddress
         }
         {
+          // The From display name. Unset until 2026-11, so mail showed "info" (the address's local
+          // part) as the sender. SmtpOptions defaults to the same value; this makes it explicit.
+          name: 'Smtp__FromName'
+          value: 'Åkerögården'
+        }
+        {
           // Read from Key Vault at runtime via managed identity (NFR-30)
           name: 'Smtp__Username'
           value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=smtp-username)'

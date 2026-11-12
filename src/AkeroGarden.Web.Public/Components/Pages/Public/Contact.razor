@@ -1,5 +1,7 @@
 @page "/kontakt"
 @layout MainLayout
+@using Microsoft.Extensions.Options
+@inject IOptions<BookingEmailOptions> EmailOptions
 
 <PageTitle>Kontakt — Åkerögården</PageTitle>
 <SeoMeta Title="Kontakt och vägbeskrivning"
@@ -36,7 +38,7 @@
                         @* tel: uses the full international form so the link works from abroad; the
                            visible text keeps the Swedish grouping a domestic visitor expects. *@
                         <dt>Telefon</dt>
-                        <dd><a href="tel:+46760602035">076-060 20 35</a></dd>
+                        <dd><a href="tel:@EmailOptions.Value.ContactPhoneTel">@EmailOptions.Value.ContactPhone</a></dd>
 
                         <dt>Svarstid</dt>
                         <dd>Vi svarar oftast inom några dagar.</dd>

@@ -1,5 +1,7 @@
 @page "/bokningsvillkor"
 @layout MainLayout
+@using Microsoft.Extensions.Options
+@inject IOptions<BookingEmailOptions> EmailOptions
 
 @* The published text is the client's own "Boknings- och vistelsevillkor", received 2026-08-23.
    docs/legal/Bokningsvillkor.md holds an exact copy of it (named klientsvar.md until 2026-10-10,
@@ -806,7 +808,7 @@
                 <p>
                     Åkerögården — Kaldeiska kyrkans lägergård<br />
                     Åkerövägen 81, 761 94 Norrtälje, Sverige<br />
-                    Telefon: +46 760 602 035<br />
+                    Telefon: @EmailOptions.Value.ContactPhoneInternational<br />
                     E-post: <a href="mailto:info@akerogarden.se">info@akerogarden.se</a><br />
                     Organisationsnummer: 815601-0129
                 </p>

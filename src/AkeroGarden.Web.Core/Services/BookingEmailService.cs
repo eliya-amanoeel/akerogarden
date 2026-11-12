@@ -213,10 +213,12 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     private Task<bool> SendToGuestAsync(Booking booking, EmailContent content) =>
         email.SendAsync(booking.ContactEmail, booking.ContactName, content.Subject, WithFooter(content.HtmlBody));
 
+    // Sent in the guest's name when the email is about a guest's booking, so the info@ inbox lists who
+    // wrote and the sender matches the Reply-To. Without a booking it falls back to "Åkerögården".
     private Task<bool> SendToAdminAsync(EmailContent content, Booking? replyToBooking = null) =>
         email.SendAsync(
             _opts.AdminNotificationEmail, _opts.AdminNotificationName, content.Subject, WithFooter(content.HtmlBody),
-            replyToBooking?.ContactEmail, replyToBooking?.ContactName);
+            replyToBooking?.ContactEmail, replyToBooking?.ContactName, fromName: replyToBooking?.ContactName);
 
     private string BuildCompletionUrl(string token) =>
         $"{_opts.PublicBaseUrl.TrimEnd('/')}/slutfor/{token}";

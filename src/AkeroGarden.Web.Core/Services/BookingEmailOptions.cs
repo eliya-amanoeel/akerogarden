@@ -24,6 +24,25 @@ public class BookingEmailOptions
     /// <summary>Contact email shown in every email footer (§9).</summary>
     public string ContactEmail { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Åkerögården's phone number in the Swedish domestic form, as <c>/kontakt</c> shows it. Held once
+    /// here and read by every place that shows the number — <c>/kontakt</c> and the booking terms'
+    /// contact section — so a new number is one edit. A code default, like the payment details below:
+    /// it changes only through a reviewed PR and a deploy (client review 2026-11-11, item 3).
+    /// </summary>
+    public string ContactPhone { get; set; } = "073-952 78 73";
+
+    /// <summary>The number in E.164 form for a <c>tel:</c> link (<c>+46739527873</c>), so the link
+    /// also works when dialled from abroad.</summary>
+    public string ContactPhoneTel => "+46" + NationalDigits;
+
+    /// <summary>The number in international form grouped in threes (<c>+46 739 527 873</c>), the way
+    /// the booking terms write it.</summary>
+    public string ContactPhoneInternational => "+46 " + string.Join(' ', NationalDigits.Chunk(3).Select(c => new string(c)));
+
+    /// <summary>The digits after the trunk prefix: "073-952 78 73" → "739527873".</summary>
+    private string NationalDigits => new string(ContactPhone.Where(char.IsAsciiDigit).ToArray()).TrimStart('0');
+
     /// <summary>Property address stated in the 14-day reminder (FR-64). Configurable so the
     /// go-live address can be set without a code change.</summary>
     public string PropertyAddress { get; set; } = "Åkerögården, Norrtälje";

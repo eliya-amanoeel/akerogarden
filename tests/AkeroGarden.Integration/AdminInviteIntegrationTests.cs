@@ -403,7 +403,7 @@ public class AdminInviteIntegrationTests : IClassFixture<DbFixture>
     {
         public async Task<bool> SendAsync(
             string toAddress, string toName, string subject, string htmlBody,
-            string? replyToAddress = null, string? replyToName = null)
+            string? replyToAddress = null, string? replyToName = null, string? fromName = null)
         {
             await onSend();
             return true;

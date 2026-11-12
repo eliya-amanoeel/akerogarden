@@ -11,7 +11,7 @@ public sealed class FakeEmailService : IEmailService
 {
     public sealed record SentEmail(
         string ToAddress, string ToName, string Subject, string HtmlBody,
-        string? ReplyToAddress = null, string? ReplyToName = null);
+        string? ReplyToAddress = null, string? ReplyToName = null, string? FromName = null);
 
     public ConcurrentBag<SentEmail> Sent { get; } = [];
 
@@ -32,12 +32,12 @@ public sealed class FakeEmailService : IEmailService
 
     public Task<bool> SendAsync(
         string toAddress, string toName, string subject, string htmlBody,
-        string? replyToAddress = null, string? replyToName = null)
+        string? replyToAddress = null, string? replyToName = null, string? fromName = null)
     {
         if (!Delivers || FailsFor?.Invoke(toAddress) == true)
             return Task.FromResult(false);
 
-        Sent.Add(new SentEmail(toAddress, toName, subject, htmlBody, replyToAddress, replyToName));
+        Sent.Add(new SentEmail(toAddress, toName, subject, htmlBody, replyToAddress, replyToName, fromName));
         return Task.FromResult(true);
     }
 }

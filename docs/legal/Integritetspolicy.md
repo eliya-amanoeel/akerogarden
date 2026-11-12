@@ -1,10 +1,10 @@
 # Integritetspolicy
 
-> **PUBLICERAD 2026-09-07, UPPDATERAD 2026-10-13** (Fortnox som biträde; att e-post till info@ vidarebefordras till Gmail och inte omfattas av den automatiska raderingen. Dessförinnan 2026-10-09: betalningsuppgifter med sju års lagring enligt bokföringslagen, och bokningar som väntar på handpenning i lagringstabellen). Denna fil är en **exakt kopia av den publicerade texten** på `/integritetspolicy` (`PrivacyPolicy.razor`), kopierad ordagrant från akerogarden.se den 10 oktober 2026 och sedan dess ändrad tillsammans med sidan (senast 13 oktober 2026). Ändra aldrig bara den ena — en skillnad betyder att den dokumenterade policyn inte är den publicerade, och testet `LegalTextCopyTests` stoppar bygget vid minsta ordskillnad. Texten har **inte** granskats av jurist och kommer inte att göra det — beslutet att lansera utan juristgranskning togs 2026-09-07, se `docs/archive/known-conflicts-at-launch.md`. Innehållet är verifierat mot koden (personuppgiftsansvarig, rättsliga grunder, lagringstider, kakor) men är inte juridiskt granskat.
+> **PUBLICERAD 2026-09-07, UPPDATERAD 2026-11-12** (avsnitt 4 och 5: e-post till info@akerogarden.se. Dessförinnan 2026-10-13: Fortnox som biträde; att e-post till info@ inte omfattas av den automatiska raderingen. Dessförinnan 2026-10-09: betalningsuppgifter med sju års lagring enligt bokföringslagen, och bokningar som väntar på handpenning i lagringstabellen). Denna fil är en **exakt kopia av den publicerade texten** på `/integritetspolicy` (`PrivacyPolicy.razor`), kopierad ordagrant från akerogarden.se den 10 oktober 2026 och sedan dess ändrad tillsammans med sidan (senast 12 november 2026). Ändra aldrig bara den ena — en skillnad betyder att den dokumenterade policyn inte är den publicerade, och testet `LegalTextCopyTests` stoppar bygget vid minsta ordskillnad. Texten har **inte** granskats av jurist och kommer inte att göra det — beslutet att lansera utan juristgranskning togs 2026-09-07, se `docs/archive/known-conflicts-at-launch.md`. Innehållet är verifierat mot koden (personuppgiftsansvarig, rättsliga grunder, lagringstider, kakor) men är inte juridiskt granskat.
 
 Hur vi behandlar dina personuppgifter när du skickar en förfrågan, bokar eller kompletterar en bokning hos oss.
 
-Senast uppdaterad: 13 oktober 2026.
+Senast uppdaterad: 12 november 2026.
 
 ## 1. Vem är personuppgiftsansvarig?
 
@@ -63,8 +63,6 @@ Vi delar inte dina personuppgifter med tredje part för marknadsföringsändamå
 
 Bokningssystemets uppgifter lagras och behandlas enbart inom EU/EES.
 
-**E-post till info@akerogarden.se** vidarebefordras till ett e-postkonto hos Google (Gmail). Det gäller även de meddelanden om nya bokningsförfrågningar som bokningssystemet skickar till oss, med dina kontaktuppgifter och ditt meddelande. Google kan behandla uppgifterna utanför EU/EES, bland annat i USA.
-
 ### IP-adress vid inskickat formulär
 
 För att skydda webbplatsen mot automatiserad massinskickning av förfrågningar räknar vi antalet inskickade formulär per IP-adress. Din IP-adress används enbart som räknarnyckel i ett tillfälligt cacheminne, raderas automatiskt senast **tio minuter** efter att formuläret skickats, och kopplas aldrig till din bokning eller till någon annan uppgift om dig. Rättslig grund är berättigat intresse av informationssäkerhet (art. 6.1 f). IP-adressen skrivs inte till våra loggar.
@@ -83,7 +81,7 @@ Vi sparar bokningsuppgifter endast så länge det är nödvändigt för respekti
 
 Bokningar som är under aktiv hantering — godkänd, väntar på komplettering, eller pågående vistelse — raderas inte automatiskt förrän de når ett av ovanstående utfall. Radering sker automatiskt av ett schemalagt systemjobb.
 
-**E-post** till och från info@akerogarden.se, liksom kopiorna i det Gmail-konto som e-posten vidarebefordras till (se avsnitt 4), omfattas inte av den automatiska raderingen. Den sparas tills den raderas manuellt. Vill du att vi raderar e-post från dig, kontakta oss på [dataskydd@akerogarden.se](mailto:dataskydd@akerogarden.se).
+**E-post** till och från info@akerogarden.se omfattas inte av den automatiska raderingen. Den sparas tills den raderas manuellt. Vill du att vi raderar e-post från dig, kontakta oss på [dataskydd@akerogarden.se](mailto:dataskydd@akerogarden.se).
 
 ## 6. Dina rättigheter
 

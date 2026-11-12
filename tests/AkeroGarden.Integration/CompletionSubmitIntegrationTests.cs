@@ -328,7 +328,7 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
 
         public Task<bool> SendAsync(
             string toAddress, string toName, string subject, string htmlBody,
-            string? replyToAddress = null, string? replyToName = null) =>
+            string? replyToAddress = null, string? replyToName = null, string? fromName = null) =>
             Armed
                 // Deliberately THROWS rather than returning false. SmtpEmailService swallows its own
                 // failures and reports them via the return value, so a false is the ordinary path; an

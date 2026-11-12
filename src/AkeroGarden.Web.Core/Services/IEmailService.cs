@@ -4,7 +4,13 @@ public interface IEmailService
 {
     /// <summary>Sends an email. When <paramref name="replyToAddress"/> is set, replies route
     /// there instead of the sending mailbox — e.g. an admin notification should reply to the
-    /// guest who submitted the inquiry, not back to the notification address itself.</summary>
+    /// guest who submitted the inquiry, not back to the notification address itself.
+    ///
+    /// <para><paramref name="fromName"/> overrides the sender's display name; the address is always
+    /// the configured sending mailbox. Left null, the name is "Åkerögården" (<see cref="SmtpOptions.FromName"/>)
+    /// — what every guest sees. Only the admin notifications pass one: the guest's own name, so the
+    /// <c>info@</c> inbox lists who wrote and the sender matches the Reply-To (client review
+    /// 2026-11-11, item 4).</para></summary>
     /// <returns>
     /// <c>true</c> if the message was handed to the SMTP server, <c>false</c> if every attempt failed
     /// and the send was abandoned.
@@ -22,5 +28,5 @@ public interface IEmailService
     /// </returns>
     Task<bool> SendAsync(
         string toAddress, string toName, string subject, string htmlBody,
-        string? replyToAddress = null, string? replyToName = null);
+        string? replyToAddress = null, string? replyToName = null, string? fromName = null);
 }

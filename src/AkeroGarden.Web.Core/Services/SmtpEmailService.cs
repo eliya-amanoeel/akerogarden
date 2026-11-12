@@ -11,15 +11,9 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
 
     public async Task<bool> SendAsync(
         string toAddress, string toName, string subject, string htmlBody,
-        string? replyToAddress = null, string? replyToName = null)
+        string? replyToAddress = null, string? replyToName = null, string? fromName = null)
     {
-        var message = new MimeMessage();
-        message.From.Add(new MailboxAddress(_opts.FromName, _opts.FromAddress));
-        message.To.Add(new MailboxAddress(toName, toAddress));
-        if (!string.IsNullOrEmpty(replyToAddress))
-            message.ReplyTo.Add(new MailboxAddress(replyToName, replyToAddress));
-        message.Subject = subject;
-        message.Body = new TextPart("html") { Text = htmlBody };
+        var message = BuildMessage(toAddress, toName, subject, htmlBody, replyToAddress, replyToName, fromName);
 
         var maxAttempts = Math.Max(1, _opts.MaxSendAttempts);
 
@@ -54,6 +48,25 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
         // Every attempt failed. Reported rather than thrown, so a caller that persists "we notified
         // them" can tell the difference — see IEmailService.SendAsync (finding #11).
         return false;
+    }
+
+    /// <summary>
+    /// Builds the message exactly as <see cref="SendAsync"/> sends it. Separate from the send so the
+    /// headers every email carries — the sender name above all — can be asserted without an SMTP server.
+    /// </summary>
+    public MimeMessage BuildMessage(
+        string toAddress, string toName, string subject, string htmlBody,
+        string? replyToAddress = null, string? replyToName = null, string? fromName = null)
+    {
+        var message = new MimeMessage();
+        message.From.Add(new MailboxAddress(
+            string.IsNullOrWhiteSpace(fromName) ? _opts.FromName : fromName, _opts.FromAddress));
+        message.To.Add(new MailboxAddress(toName, toAddress));
+        if (!string.IsNullOrEmpty(replyToAddress))
+            message.ReplyTo.Add(new MailboxAddress(replyToName, replyToAddress));
+        message.Subject = subject;
+        message.Body = new TextPart("html") { Text = htmlBody };
+        return message;
     }
 
     /// <summary>Reduces a recipient address to its domain for logging — enough to diagnose a

@@ -120,7 +120,7 @@ public class StatedTimePolicyTests
     [Fact]
     public void Deviation_AlsoFiresForALaterThanStandardTime()
     {
-        // Not only early arrivals — a 20:00 check-out eats most of the turnover day.
+        // Not only early arrivals — a 20:00 check-out eats most of the cleaning day.
         var warning = StatedTimePolicy.Deviation("Utcheckning", new TimeOnly(20, 0), StandardOut);
 
         Assert.Equal("Utcheckning 20:00 avviker från standard 12:00.", warning);

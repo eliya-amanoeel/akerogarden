@@ -27,7 +27,7 @@ public class AdminInviteIntegrationTests : IClassFixture<DbFixture>
         var services = _fixture.BuildServices(s =>
         {
             s.AddSingleton<IEmailService>(fake);
-            s.Configure<BookingEmailOptions>(o =>
+            s.Configure<SiteOptions>(o =>
             {
                 o.AdminBaseUrl = "https://admin.akerogarden.se";
                 o.PublicBaseUrl = "https://akerogarden.se";
@@ -377,7 +377,7 @@ public class AdminInviteIntegrationTests : IClassFixture<DbFixture>
                 auditVisibleDuringSend = await probeDb.AuditLogs
                     .AnyAsync(a => a.Summary.Contains(email));
             }));
-            s.Configure<BookingEmailOptions>(o =>
+            s.Configure<SiteOptions>(o =>
             {
                 o.AdminBaseUrl = "https://admin.akerogarden.se";
                 o.PublicBaseUrl = "https://akerogarden.se";

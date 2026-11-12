@@ -108,14 +108,14 @@
                 <p>När ni loggat in möts ni av <b>Översikt</b>: förfrågningar som väntar på svar (<b>Väntar på svar</b>), godkända bokningar där gästen ännu inte fyllt i sina uppgifter (<b>Väntar på slutförande</b>), bokningar där ni väntar på handpenningen (<b>Väntar på handpenning</b> — en försenad står överst, i rött) och kommande ankomster (<b>Kommande ankomster</b>). Det är härifrån ni oftast börjar.</p>
 
                 <h3 id="ny-forfragan">När en förfrågan kommer in</h3>
-                <p>En gäst som fyller i formuläret på webbplatsen hamnar direkt i <b>Bokningar</b> med status <b>Väntar</b>. Ni får samtidigt ett mejl till <b>info@akerogarden.se</b>. Gästen får en automatisk bekräftelse på att förfrågan är mottagen — det är inte en bokning, bara en kvittens.</p>
+                <p>En gäst som fyller i formuläret på webbplatsen hamnar direkt i <b>Bokningar</b> med status <b>Väntar</b>. Ni får samtidigt ett mejl till <b>@ContactDetails.Email</b>. Gästen får en automatisk bekräftelse på att förfrågan är mottagen — det är inte en bokning, bara en kvittens.</p>
                 <p>Det finns två sorters förfrågningar: <b>bokningsförfrågan</b> (någon vill boka en vistelse) och <b>allmän förfrågan</b> (någon undrar något). En allmän förfrågan går inte att godkänna — ni svarar gästen på vanligt sätt och klickar sedan <b>Markera som besvarad</b>.</p>
 
                 <h3 id="godkanna">Godkänna en förfrågan</h3>
                 <div class="card">
                     <ol>
                         <li>Öppna förfrågan under <b>Bokningar</b> och läs igenom den.</li>
-                        <li>Kontrollera att datumen är lediga — <b>Kalendervy</b> visar allt som redan är bokat. Systemet kontrollerar detta självt när ni klickar <b>Godkänn</b>: en förfrågan som krockar med en annan grupp, eller med en blockering av hela gården, går inte att godkänna, och ni får ett meddelande om vilka datum som är upptagna. Avresedagen och dagen efter är alltid avsatta för städning och räknas som upptagna — reser en grupp på söndag kan nästa grupp komma tidigast på tisdag.</li>
+                        <li>Kontrollera att datumen är lediga — <b>Kalendervy</b> visar allt som redan är bokat. Systemet kontrollerar detta självt när ni klickar <b>Godkänn</b>: en förfrågan som krockar med en annan grupp, eller med en blockering av hela gården, går inte att godkänna, och ni får ett meddelande om vilka datum som är upptagna. Avresedagen är alltid avsatt för städning och räknas som upptagen — reser en grupp på söndag kan nästa grupp komma tidigast på måndag.</li>
                         <li>Under <b>Byggnadstilldelning</b>: kryssa i den eller de byggnader gruppen ska bo i. Bredvid varje byggnad står hur många bäddar den har. Valet sparas direkt. <b>Minst en byggnad måste vara vald</b> — annars går bokningen inte att godkänna.</li>
                         <li>Läs eventuella meddelanden i rutorna till höger (se <a href="/handbok#meddelanden">Meddelandena före godkännande</a>).</li>
                         <li>Skriv bokningens <b>beräknade pris inklusive moms</b>, i hela kronor, i rutan <b>Beräknat pris inkl. moms (kr)</b>. Det är samma pris som ni annars hade skickat i ett eget mejl — räkna fram det som vanligt med prislistan.</li>
@@ -161,8 +161,8 @@
                     </thead>
                     <tbody>
                         <tr><td><b>Ingen byggnad är tilldelad ännu</b><br><i>Röd ruta — stoppar godkännandet.</i></td><td data-label="Vad ni gör">Kryssa i minst en byggnad under Byggnadstilldelning. Klickar ni Godkänn ändå får ni beskedet <b>Tilldela minst en byggnad innan bokningen godkänns</b>, och inget händer.</td></tr>
-                        <tr><td><b>Datumen … är redan upptagna</b> / <b>Städdagarna efter avresan … är upptagna</b><br><i>Röd ruta — stoppar godkännandet.</i></td><td data-label="Vad ni gör">En annan grupp har datumen, eller kommer så tätt inpå att det inte går att städa emellan. Prata med gästen om andra datum.</td></tr>
-                        <tr><td><b>Hela anläggningen är blockerad …</b><br><i>Röd ruta — stoppar godkännandet.</i></td><td data-label="Vad ni gör">Det finns en blockering av hela gården under vistelsen eller städdagarna efter. Ta bort eller ändra blockeringen under <b>Blockeringar</b> om den inte längre gäller — annars prata med gästen om andra datum.</td></tr>
+                        <tr><td><b>Datumen … är redan upptagna</b><br><i>Röd ruta — stoppar godkännandet.</i></td><td data-label="Vad ni gör">En annan grupp har datumen. Står det också att <b>avresedagen behövs för städning</b> kommer nästa grupp samma dag som den här reser — då hinner gården inte städas emellan. Prata med gästen om andra datum.</td></tr>
+                        <tr><td><b>Hela anläggningen är blockerad …</b><br><i>Röd ruta — stoppar godkännandet.</i></td><td data-label="Vad ni gör">Det finns en blockering av hela gården under vistelsen eller på avresedagen. Ta bort eller ändra blockeringen under <b>Blockeringar</b> om den inte längre gäller — annars prata med gästen om andra datum.</td></tr>
                         <tr><td><b>Datumen överlappar en eller flera blockeringar</b><br><i>Gul ruta.</i></td><td data-label="Vad ni gör">En byggnad eller ett rum är blockerat under vistelsen. En blockerad <b>byggnad</b> är gråmarkerad och går inte att välja — välj en annan byggnad, eller ta bort blockeringen om den inte längre gäller. Ett blockerat <b>rum</b> räknas inte in i bäddarna, men byggnaden går att välja som vanligt.</td></tr>
                         <tr><td><b>Antal övernattande gäster … överstiger tillgängliga bäddar</b><br><i>Gul ruta.</i></td><td data-label="Vad ni gör">De byggnader ni kryssat i har färre bäddar än gruppen har gäster. Tilldela fler byggnader, eller prata med gästen innan ni godkänner.</td></tr>
                         <tr><td><b>En tid som avviker från standard</b> (tidig ankomst eller sen avresa)<br><i>Gul ruta.</i></td><td data-label="Vad ni gör">Gästen kommer att tro att tiden ingår. Kom överens om ett eventuellt tillägg med gästen <b>innan</b> ni godkänner.</td></tr>
@@ -459,12 +459,12 @@
                     </thead>
                     <tbody>
                         <tr>
-                            <td><b>info@akerogarden.se</b></td>
+                            <td><b>@ContactDetails.Email</b></td>
                             <td data-label="Används till">Allmän kontaktadress på webbplatsen. <b>Alla mejl från systemet skickas härifrån</b>, och alla svar från gäster kommer hit. Hit går även aviseringen när en ny förfrågan kommit in. Vidarebefordra inte adressen till en tjänst utanför EU — då måste integritetspolicyn ändras först.</td>
                             <td data-label="Vem sköter den">Åkerögården</td>
                         </tr>
                         <tr>
-                            <td><b>dataskydd@akerogarden.se</b></td>
+                            <td><b>@ContactDetails.PrivacyEmail</b></td>
                             <td data-label="Används till">Dataskyddsfrågor enligt GDPR. Adressen står i integritetspolicyn på webbplatsen som den väg gäster ska använda för att begära registerutdrag eller radering.</td>
                             <td data-label="Vem sköter den">Åkerögården</td>
                         </tr>
@@ -481,7 +481,7 @@
                 <div class="alert alert--warn">
                     <span class="alert__ic" aria-hidden="true">!</span>
                     <div>
-                        <p><b>Byt inte lösenordet till info@akerogarden.se på egen hand.</b> Bokningssystemet loggar in med det för att skicka alla sina mejl. Ändras lösenordet utan att systemet får veta det slutar <b>alla</b> mejl till gäster och till er att gå ut — utan något felmeddelande. Hör av er till förvaltaren först, så byter ni det tillsammans. Det tar några minuter.</p>
+                        <p><b>Byt inte lösenordet till @ContactDetails.Email på egen hand.</b> Bokningssystemet loggar in med det för att skicka alla sina mejl. Ändras lösenordet utan att systemet får veta det slutar <b>alla</b> mejl till gäster och till er att gå ut — utan något felmeddelande. Hör av er till förvaltaren först, så byter ni det tillsammans. Det tar några minuter.</p>
                     </div>
                 </div>
             </div>
@@ -516,7 +516,7 @@
                 </table>
             </div>
             <div class="prose">
-                <h4 id="mejl-till-er">Till er (info@akerogarden.se)</h4>
+                <h4 id="mejl-till-er">Till er (@ContactDetails.Email)</h4>
             </div>
             <div class="data-table-wrap">
                 <table class="data-table data-table--stack">
@@ -548,7 +548,7 @@
                 <div class="alert alert--warn">
                     <span class="alert__ic" aria-hidden="true">!</span>
                     <div>
-                        <p><b>E-posten raderas inte.</b> Mejl i info@akerogarden.se omfattas inte av den automatiska rensningen. Ber en gäst om att bli raderad (via dataskydd@akerogarden.se) behöver ni därför också radera gästens mejl i inkorgen för hand.</p>
+                        <p><b>E-posten raderas inte.</b> Mejl i @ContactDetails.Email omfattas inte av den automatiska rensningen. Ber en gäst om att bli raderad (via @ContactDetails.PrivacyEmail) behöver ni därför också radera gästens mejl i inkorgen för hand.</p>
                     </div>
                 </div>
 

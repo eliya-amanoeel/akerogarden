@@ -50,13 +50,14 @@ public class ReminderJobIntegrationTests : IClassFixture<DbFixture>
         s.AddScoped<BookingService>();
         s.AddScoped<CleaningZoneService>();
         s.AddScoped<ReminderJob>();
-        s.Configure<BookingEmailOptions>(o =>
+        s.Configure<SiteOptions>(o =>
         {
             o.PublicBaseUrl = "https://akerogarden.se";
             o.AdminBaseUrl = "https://admin.akerogarden.se";
+        });
+        s.Configure<BookingEmailOptions>(o =>
+        {
             o.AdminNotificationEmail = "admin@test.se";
-            o.ContactEmail = "info@test.se";
-            o.PropertyAddress = "Åkerögården, Norrtälje";
         });
     }
 

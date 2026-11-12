@@ -37,12 +37,14 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
             // Override the fixture's default System accessor with a known admin (last wins).
             s.AddScoped<IAuditActorAccessor>(_ =>
                 new TestAuditActorAccessor(AuditActor.Admin(AdminId, AdminEmail, AdminName)));
-            s.Configure<BookingEmailOptions>(o =>
+            s.Configure<SiteOptions>(o =>
             {
                 o.PublicBaseUrl = "https://akerogarden.se";
                 o.AdminBaseUrl = "https://admin.akerogarden.se";
+            });
+            s.Configure<BookingEmailOptions>(o =>
+            {
                 o.AdminNotificationEmail = "admin@test.se";
-                o.ContactEmail = "info@test.se";
             });
         });
     }

@@ -105,7 +105,7 @@ public static class BookingEmailTemplates
     /// single-use (FR-62) and is already dead by the time this arrives, so without it the guest is
     /// looking at a list of their own answers with no visible way to correct one.</para></summary>
     public static EmailContent GuestDetailsReceived(
-        Booking booking, IReadOnlyList<string> assignedBuildingNames, string propertyAddress)
+        Booking booking, IReadOnlyList<string> assignedBuildingNames)
     {
         var body = new StringBuilder();
         body.Append(Greeting(booking.ContactName));
@@ -117,7 +117,7 @@ public static class BookingEmailTemplates
             + $"{Enc(StatedTimePolicy.Display(booking.CheckInTime, MealOccasionResolver.StandardCheckInTime))}</li>");
         body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(booking.CheckOut)} kl. "
             + $"{Enc(StatedTimePolicy.Display(booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime))}</li>");
-        body.Append($"<li><strong>Adress:</strong> {Enc(propertyAddress)}</li>");
+        body.Append($"<li><strong>Adress:</strong> {Enc(ContactDetails.Address)}</li>");
         body.Append("</ul>");
         body.Append(LodgingLine(assignedBuildingNames));
 
@@ -433,7 +433,6 @@ public static class BookingEmailTemplates
         DateOnly? checkOut,
         TimeOnly? checkInTime,
         TimeOnly? checkOutTime,
-        string propertyAddress,
         string bookingReference,
         IReadOnlyList<string> assignedBuildingNames)
     {
@@ -451,7 +450,7 @@ public static class BookingEmailTemplates
         body.Append($"<li><strong>Antal måltider för gruppen:</strong> {groupMealCount.ToString(Sv)}</li>");
         if (assignedBuildingNames.Count > 0)
             body.Append($"<li><strong>Ert boende:</strong> {Enc(string.Join(", ", assignedBuildingNames))}</li>");
-        body.Append($"<li><strong>Adress:</strong> {Enc(propertyAddress)}</li>");
+        body.Append($"<li><strong>Adress:</strong> {Enc(ContactDetails.Address)}</li>");
         body.Append("</ul>");
         // The client's answer of 2026-10-09: linen and towels are not included. Said here because this
         // is the email the group leader reads right before packing — the terms (§12) say it too.

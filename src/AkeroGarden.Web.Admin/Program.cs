@@ -141,6 +141,7 @@ builder.Services.ConfigureApplicationCookie(options =>
 // ── Shared services (data-adjacent — also composed by the public host) ─────────
 builder.Services.AddAkeroReferenceDataServices();
 builder.Services.AddAkeroBookingEngine();
+builder.Services.AddAkeroSite(builder.Configuration);
 builder.Services.AddAkeroEmail(builder.Configuration);
 builder.Services.AddAkeroAudit();
 // Admin resolves the acting admin from the Blazor circuit's auth state for audit attribution.

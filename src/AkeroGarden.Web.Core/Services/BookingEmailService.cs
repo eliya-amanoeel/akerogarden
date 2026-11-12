@@ -9,9 +9,10 @@ namespace AkeroGarden.Web.Core.Services;
 /// the signature every email carries, and whose failures are logged and never propagate (NFR-13),
 /// so no email failure blocks a booking operation.
 /// </summary>
-public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptions> options)
+public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptions> options, IOptions<SiteOptions> site)
 {
     private readonly BookingEmailOptions _opts = options.Value;
+    private readonly SiteOptions _site = site.Value;
 
     /// <summary>Guest acknowledgement immediately after an inquiry is submitted (FR-05).
     /// Content differs by booking type.</summary>
@@ -107,7 +108,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     public Task<bool> SendGuestDetailsReceivedAsync(Booking booking)
     {
         var content = BookingEmailTemplates.GuestDetailsReceived(
-            booking, AssignedBuildingNames(booking), _opts.PropertyAddress);
+            booking, AssignedBuildingNames(booking));
         return SendToGuestAsync(booking, content);
     }
 
@@ -121,7 +122,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         var content = BookingEmailTemplates.TwoWeekReminder(
             booking.ContactName, overnight, dayGuests, meals, booking.CheckIn, booking.CheckOut,
             booking.CheckInTime, booking.CheckOutTime,
-            _opts.PropertyAddress, booking.BookingReference, AssignedBuildingNames(booking));
+            booking.BookingReference, AssignedBuildingNames(booking));
         return SendToGuestAsync(booking, content);
     }
 
@@ -219,12 +220,9 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             _opts.AdminNotificationEmail, _opts.AdminNotificationName, content.Subject, content.HtmlBody,
             replyToBooking?.ContactEmail, replyToBooking?.ContactName, fromName: replyToBooking?.ContactName);
 
-    private string BuildCompletionUrl(string token) =>
-        $"{_opts.PublicBaseUrl.TrimEnd('/')}/slutfor/{token}";
+    private string BuildCompletionUrl(string token) => _site.PublicUrl($"/slutfor/{token}");
 
-    private string BuildTermsUrl() =>
-        $"{_opts.PublicBaseUrl.TrimEnd('/')}/bokningsvillkor";
+    private string BuildTermsUrl() => _site.PublicUrl("/bokningsvillkor");
 
-    private string BuildAdminBookingUrl(Guid bookingId) =>
-        $"{_opts.AdminBaseUrl.TrimEnd('/')}/bokningar/{bookingId}";
+    private string BuildAdminBookingUrl(Guid bookingId) => _site.AdminUrl($"/bokningar/{bookingId}");
 }

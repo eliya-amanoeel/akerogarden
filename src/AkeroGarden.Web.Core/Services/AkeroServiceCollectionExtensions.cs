@@ -78,6 +78,13 @@ public static class AkeroServiceCollectionExtensions
         return services;
     }
 
+    /// <summary>Where this environment's public site and admin panel live — every absolute link is built from it.</summary>
+    public static IServiceCollection AddAkeroSite(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<SiteOptions>(configuration.GetSection("Site"));
+        return services;
+    }
+
     /// <summary>SMTP + the Swedish booking-lifecycle email templates (§9). Guest mail on public, admin mail on admin.</summary>
     public static IServiceCollection AddAkeroEmail(this IServiceCollection services, IConfiguration configuration)
     {

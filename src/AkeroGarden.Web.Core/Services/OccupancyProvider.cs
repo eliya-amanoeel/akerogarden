@@ -10,10 +10,11 @@ namespace AkeroGarden.Web.Core.Services;
 /// is free reads it from here — the public calendar, the inquiry form and the approval path — so
 /// the rule exists once (see <see cref="AvailabilityService"/> for the range-level question).
 ///
-/// <para>Occupancy uses nightly semantics: a stay occupies the nights from check-in up to, but not
-/// including, check-out. The check-out date holds no guests — but it is not bookable, because it
-/// opens the booking's turnover window (<see cref="TurnoverWindow"/>, FR-106). Blocks are
-/// inclusive of both their start and end dates.</para>
+/// <para>A booking holds every date from check-in <b>through</b> check-out, both inclusive. The
+/// check-out day sleeps nobody, but it is held for cleaning between groups (FR-106) — so the next
+/// group can arrive the day after at the earliest, never on the same day. Computed from the
+/// booking's own dates, never stored. Blocks are likewise inclusive of both their start and end
+/// dates.</para>
 ///
 /// <para><b>Only whole-property blocks reach the public calendar.</b> A Building- or Room-scoped
 /// block takes lodging out of service without closing the property, and its real effect is the
@@ -53,15 +54,11 @@ public class OccupancyProvider(ApplicationDbContext db)
         DateOnly to,
         Guid? excludeBookingId = null)
     {
-        // Reach back past `from`: a stay that ended just before the window still holds turnover
-        // days inside it (FR-106). Loading only the stays overlapping [from, to] — the old
-        // `CheckOut > from` — would silently free the window's first days.
-        var earliestCheckOut = TurnoverWindow.EarliestCheckOutAffecting(from);
-
+        // `CheckOut >= from`, not `>`: a stay checking out on `from` still holds that day (FR-106).
         var occupying = await db.Bookings
             .Where(b => OccupyingStatuses.Contains(b.Status)
                 && b.CheckIn != null && b.CheckOut != null
-                && b.CheckIn <= to && b.CheckOut >= earliestCheckOut
+                && b.CheckIn <= to && b.CheckOut >= from
                 && (excludeBookingId == null || b.Id != excludeBookingId))
             .ToListAsync();
 
@@ -102,12 +99,9 @@ public class OccupancyProvider(ApplicationDbContext db)
             if (blocks.Any(b => b.Scope == BlockScope.WholeProperty && b.StartDate <= date && b.EndDate >= date))
                 reason |= UnavailableReason.WholePropertyBlock;
 
-            if (occupyingBookings.Any(b => b.CheckOut is { } checkOut && TurnoverWindow.Covers(checkOut, date)))
-                reason |= UnavailableReason.Turnover;
-
-            // Nightly occupancy: check-in inclusive, check-out exclusive. The guest count is not
-            // consulted — one group holds the property (see UnavailableReason).
-            if (occupyingBookings.Any(b => b.CheckIn <= date && b.CheckOut > date))
+            // Check-in through check-out, both inclusive (FR-106). The guest count is not consulted —
+            // one group holds the property (see UnavailableReason).
+            if (occupyingBookings.Any(b => b.CheckIn <= date && b.CheckOut >= date))
                 reason |= UnavailableReason.Occupied;
 
             reasons[date] = reason;

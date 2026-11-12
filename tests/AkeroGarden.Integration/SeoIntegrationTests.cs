@@ -49,7 +49,7 @@ public sealed class SeoIntegrationTests : IClassFixture<DbFixture>, IDisposable
         {
             b.UseEnvironment(environment);
             b.UseSetting("ConnectionStrings:Postgres", db.ConnectionString);
-            b.UseSetting("BookingEmail:PublicBaseUrl", BaseUrl);
+            b.UseSetting("Site:PublicBaseUrl", BaseUrl);
         });
 
     /// <summary>The nine public pages. Written out rather than derived, so that a page silently

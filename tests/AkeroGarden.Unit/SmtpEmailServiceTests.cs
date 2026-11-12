@@ -7,10 +7,9 @@ namespace AkeroGarden.Unit;
 
 public class SmtpEmailServiceTests
 {
-    // The contact details as production configures them; the phone number is the code default.
-    private static readonly IOptions<BookingEmailOptions> Contact = Options.Create(new BookingEmailOptions
+    // The signature's links are built from the environment's public site URL.
+    private static readonly IOptions<SiteOptions> Site = Options.Create(new SiteOptions
     {
-        ContactEmail = "info@akerogarden.se",
         PublicBaseUrl = "https://akerogarden.se",
     });
 
@@ -23,10 +22,9 @@ public class SmtpEmailServiceTests
             Host = "localhost",
             Port = 19999, // nothing listening here
             FromAddress = "noreply@akerogarden.se",
-            FromName = "Åkerögården",
             RetryDelayMs = 0 // retry immediately so the test stays fast (NFR-13 retry path)
         });
-        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
+        var svc = new SmtpEmailService(opts, Site, NullLogger<SmtpEmailService>.Instance);
 
         var ex = await Record.ExceptionAsync(() =>
             svc.SendAsync("mottagare@test.se", "Mottagare", "Ämne", "<p>Brödtext</p>"));
@@ -44,12 +42,11 @@ public class SmtpEmailServiceTests
             Host = "localhost",
             Port = 19999, // nothing listening here
             FromAddress = "noreply@akerogarden.se",
-            FromName = "Åkerögården",
             MaxSendAttempts = 1,
             RetryDelayMs = 0
         });
         var capturingLogger = new CapturingLogger<SmtpEmailService>();
-        var svc = new SmtpEmailService(opts, Contact, capturingLogger);
+        var svc = new SmtpEmailService(opts, Site, capturingLogger);
 
         await svc.SendAsync("gast.namn@example.se", "Gäst Namn", "Ämne", "<p>Brödtext</p>");
 
@@ -59,14 +56,13 @@ public class SmtpEmailServiceTests
         Assert.Contains("***@example.se", logged);
     }
 
-    // Client review 2026-11-11, item 4: production never set Smtp__FromName, so every email went out
-    // with an empty display name and mail clients showed "info". Built from options that set only
-    // the address — exactly production's configuration before the fix.
+    // Every email a guest receives is from "Åkerögården" — a fact, not a setting, so no environment
+    // can send one with a missing or different name (client review 2026-11-11, item 4).
     [Fact]
-    public void BuildMessage_SignsAsAkerogarden_WhenNoSenderNameIsConfigured()
+    public void BuildMessage_SendsAsAkerogarden_ByDefault()
     {
         var opts = Options.Create(new SmtpOptions { FromAddress = "info@akerogarden.se" });
-        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
+        var svc = new SmtpEmailService(opts, Site, NullLogger<SmtpEmailService>.Instance);
 
         var message = svc.BuildMessage("gast@example.se", "Gäst", "Ämne", "<p>Brödtext</p>");
 
@@ -80,7 +76,7 @@ public class SmtpEmailServiceTests
     public void BuildMessage_UsesGivenSenderName_WithTheConfiguredAddress()
     {
         var opts = Options.Create(new SmtpOptions { FromAddress = "info@akerogarden.se" });
-        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
+        var svc = new SmtpEmailService(opts, Site, NullLogger<SmtpEmailService>.Instance);
 
         var message = svc.BuildMessage(
             "info@akerogarden.se", "Åkerögården Admin", "Ämne", "<p>Brödtext</p>",
@@ -98,14 +94,16 @@ public class SmtpEmailServiceTests
     public void BuildMessage_AppendsTheSignature_ToABodyWithoutOne()
     {
         var opts = Options.Create(new SmtpOptions { FromAddress = "info@akerogarden.se" });
-        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
+        var svc = new SmtpEmailService(opts, Site, NullLogger<SmtpEmailService>.Instance);
 
         var html = svc.BuildMessage("ny.admin@example.se", "Ny Admin", "Ämne", "<p>Brödtext</p>").HtmlBody;
 
         Assert.StartsWith("<p>Brödtext</p><hr>", html);
         Assert.Equal(html.IndexOf("<p>Brödtext</p>", StringComparison.Ordinal),
             html.LastIndexOf("<p>Brödtext</p>", StringComparison.Ordinal));
-        Assert.Contains("Åkerögården<br>", html);
+        // The name is HTML-encoded like every other value the emails print (ö becomes an entity), so
+        // the visible text is asserted on the decoded markup.
+        Assert.Contains("Åkerögården<br>", System.Net.WebUtility.HtmlDecode(html));
         Assert.Contains("Telefon: <a href=\"tel:+46739527873\">073-952 78 73</a>", html);
         Assert.Contains("E-post: <a href=\"mailto:info@akerogarden.se\">info@akerogarden.se</a>", html);
         Assert.Contains("<a href=\"https://akerogarden.se\">akerogarden.se</a>", html);
@@ -119,7 +117,7 @@ public class SmtpEmailServiceTests
     public void BuildMessage_EmbedsTheLogoInline_ReferencedFromTheSignature()
     {
         var opts = Options.Create(new SmtpOptions { FromAddress = "info@akerogarden.se" });
-        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
+        var svc = new SmtpEmailService(opts, Site, NullLogger<SmtpEmailService>.Instance);
 
         var message = svc.BuildMessage("gast@example.se", "Gäst", "Ämne", "<p>Brödtext</p>");
 

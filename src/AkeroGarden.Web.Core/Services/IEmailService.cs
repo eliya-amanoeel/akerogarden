@@ -11,7 +11,7 @@ public interface IEmailService
     /// carries it and no caller can leave it off (§9; client review 2026-11-11, item 9).</para>
     ///
     /// <para><paramref name="fromName"/> overrides the sender's display name; the address is always
-    /// the configured sending mailbox. Left null, the name is "Åkerögården" (<see cref="SmtpOptions.FromName"/>)
+    /// the configured sending mailbox. Left null, the name is "Åkerögården" (<see cref="ContactDetails.Name"/>)
     /// — what every guest sees. Only the admin notifications pass one: the guest's own name, so the
     /// <c>info@</c> inbox lists who wrote and the sender matches the Reply-To (client review
     /// 2026-11-11, item 4).</para></summary>

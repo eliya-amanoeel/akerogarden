@@ -33,12 +33,14 @@ public class DepositReminderJobIntegrationTests : IClassFixture<DbFixture>
             DbFixture.PinClock(s, DbFixture.FixedNow);
             s.AddScoped<BookingEmailService>();
             s.AddScoped<DepositReminderJob>();
-            s.Configure<BookingEmailOptions>(o =>
+            s.Configure<SiteOptions>(o =>
             {
                 o.PublicBaseUrl = "https://akerogarden.se";
                 o.AdminBaseUrl = "https://admin.akerogarden.se";
+            });
+            s.Configure<BookingEmailOptions>(o =>
+            {
                 o.AdminNotificationEmail = "admin@test.se";
-                o.ContactEmail = "info@test.se";
             });
         });
         return (provider, fake);

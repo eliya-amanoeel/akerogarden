@@ -28,12 +28,14 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<BuildingService>();
             s.AddScoped<RoomService>();
             s.AddScoped<MealOptionService>();
-            s.Configure<BookingEmailOptions>(o =>
+            s.Configure<SiteOptions>(o =>
             {
                 o.PublicBaseUrl = "https://akerogarden.se";
                 o.AdminBaseUrl = "https://admin.akerogarden.se";
+            });
+            s.Configure<BookingEmailOptions>(o =>
+            {
                 o.AdminNotificationEmail = "admin@test.se";
-                o.ContactEmail = "info@test.se";
             });
         });
 

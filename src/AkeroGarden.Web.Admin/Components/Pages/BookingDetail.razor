@@ -7,7 +7,7 @@
 @inject BookingService BookingService
 @inject MealOptionService MealOptionService
 @inject TimeProvider Clock
-@inject Microsoft.Extensions.Options.IOptions<BookingEmailOptions> EmailOptions
+@inject Microsoft.Extensions.Options.IOptions<SiteOptions> Site
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Bokning — Åkerögården Admin</PageTitle>
@@ -703,7 +703,7 @@ else
     private string? CompletionLink() =>
         string.IsNullOrEmpty(_booking?.CompletionToken)
             ? null
-            : $"{EmailOptions.Value.PublicBaseUrl.TrimEnd('/')}/slutfor/{_booking.CompletionToken}";
+            : Site.Value.PublicUrl($"/slutfor/{_booking.CompletionToken}");
 
 
     [Parameter] public Guid Id { get; set; }

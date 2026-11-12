@@ -1,54 +1,21 @@
 namespace AkeroGarden.Web.Core.Services;
 
 /// <summary>
-/// Configuration for booking-related emails (§9): the links they contain and the contact details
-/// the signature on every email carries (phone, contact email, site and privacy-policy links — added
-/// by <see cref="SmtpEmailService"/>). Bound from the "BookingEmail" configuration section.
+/// Configuration for booking-related emails (§9): where admin notifications go, and where guests
+/// pay. Bound from the "BookingEmail" configuration section. The links the emails contain are built
+/// from <see cref="SiteOptions"/>; Åkerögården's own contact details are not configuration — see
+/// <see cref="ContactDetails"/>.
 /// </summary>
 public class BookingEmailOptions
 {
-    /// <summary>Public site base URL, e.g. <c>https://akerogarden.se</c> — used to build the
-    /// completion magic link, and the site and privacy-policy links in the signature.</summary>
-    public string PublicBaseUrl { get; set; } = string.Empty;
-
-    /// <summary>Admin panel base URL, e.g. <c>https://admin.akerogarden.se</c> — used to build
-    /// the direct booking link in the admin notification email (FR-06).</summary>
-    public string AdminBaseUrl { get; set; } = string.Empty;
-
     /// <summary>Address that receives admin notification emails (new inquiry, etc.).</summary>
     public string AdminNotificationEmail { get; set; } = string.Empty;
 
     /// <summary>Display name for the admin notification recipient.</summary>
     public string AdminNotificationName { get; set; } = "Åkerögården Admin";
 
-    /// <summary>Contact email shown in every email's signature (§9).</summary>
-    public string ContactEmail { get; set; } = string.Empty;
-
-    /// <summary>
-    /// Åkerögården's phone number in the Swedish domestic form, as <c>/kontakt</c> shows it. Held once
-    /// here and read by every place that shows the number — <c>/kontakt</c>, the booking terms'
-    /// contact section and every email's signature (item 9) — so a new number is one edit. A code default, like the payment details below:
-    /// it changes only through a reviewed PR and a deploy (client review 2026-11-11, item 3).
-    /// </summary>
-    public string ContactPhone { get; set; } = "073-952 78 73";
-
-    /// <summary>The number in E.164 form for a <c>tel:</c> link (<c>+46739527873</c>), so the link
-    /// also works when dialled from abroad.</summary>
-    public string ContactPhoneTel => "+46" + NationalDigits;
-
-    /// <summary>The number in international form grouped in threes (<c>+46 739 527 873</c>), the way
-    /// the booking terms write it.</summary>
-    public string ContactPhoneInternational => "+46 " + string.Join(' ', NationalDigits.Chunk(3).Select(c => new string(c)));
-
-    /// <summary>The digits after the trunk prefix: "073-952 78 73" → "739527873".</summary>
-    private string NationalDigits => new string(ContactPhone.Where(char.IsAsciiDigit).ToArray()).TrimStart('0');
-
-    /// <summary>Property address stated in the 14-day reminder (FR-64). Configurable so the
-    /// go-live address can be set without a code change.</summary>
-    public string PropertyAddress { get; set; } = "Åkerögården, Norrtälje";
-
     // ── Where guests pay the deposit (FR-115) ───────────────────────────────────
-    // The client's answers of 2026-10-08. Code defaults on purpose, like PropertyAddress: they change
+    // The client's answers of 2026-10-08. Code defaults on purpose: they change
     // only through a reviewed PR and a deploy, and never from the admin panel — anyone with an admin
     // login could otherwise change where guests send money. Not secrets (they are printed in every
     // deposit email), so no Key Vault.

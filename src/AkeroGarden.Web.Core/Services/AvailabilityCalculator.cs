@@ -5,7 +5,7 @@ public enum AvailabilityState
 {
     Free,
 
-    /// <summary>Held by a booking, its turnover window, or a whole-property block.</summary>
+    /// <summary>Held by a booking (check-in through check-out) or a whole-property block.</summary>
     Unavailable
 }
 
@@ -33,15 +33,13 @@ public enum UnavailableReason
     /// <summary>A <c>WholeProperty</c> block covers the date (FR-21).</summary>
     WholePropertyBlock = 1,
 
-    /// <summary>The date falls in an occupying booking's cleaning/turnover window (FR-106).</summary>
-    Turnover = 2,
-
     /// <summary>
-    /// An occupying booking (<c>Approved</c> / <c>DetailsComplete</c> / <c>Active</c>) holds this
-    /// night — check-in inclusive, check-out exclusive. <c>Pending</c> inquiries never set this:
-    /// availability is subject to admin confirmation (FR-10).
+    /// An occupying booking (<see cref="OccupancyProvider.OccupyingStatuses"/>) holds this date —
+    /// every day from check-in through check-out, <b>both inclusive</b>. The check-out day sleeps
+    /// nobody but is held for cleaning (FR-106), so no group can arrive on the day another leaves.
+    /// <c>Pending</c> inquiries never set this: availability is subject to admin confirmation (FR-10).
     /// </summary>
-    Occupied = 4
+    Occupied = 2
 }
 
 /// <summary>

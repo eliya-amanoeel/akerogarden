@@ -87,6 +87,7 @@ builder.Services.AddAntiforgery(options =>
 // ── Shared services (reference data, booking engine, guest email, audit writer) ─
 builder.Services.AddAkeroReferenceDataServices();
 builder.Services.AddAkeroBookingEngine();
+builder.Services.AddAkeroSite(builder.Configuration);
 builder.Services.AddAkeroEmail(builder.Configuration);
 builder.Services.AddAkeroAudit();
 // The public host has no Identity/auth state. Its only audited path (completion) supplies
@@ -151,13 +152,13 @@ app.MapStaticAssets();
 // error anywhere), and robots.txt has to differ by environment. Only Production invites crawlers;
 // staging.akerogarden.se is publicly reachable and serves the same pages, so anywhere else answers
 // "Disallow: /" rather than competing with the real site as duplicate content.
-app.MapGet("/robots.txt", (IOptions<BookingEmailOptions> emailOptions, IWebHostEnvironment env) =>
+app.MapGet("/robots.txt", (IOptions<SiteOptions> site, IWebHostEnvironment env) =>
     Results.Text(
-        SitemapBuilder.BuildRobots(emailOptions.Value.PublicBaseUrl, allowIndexing: env.IsProduction()),
+        SitemapBuilder.BuildRobots(site.Value.PublicBaseUrl, allowIndexing: env.IsProduction()),
         "text/plain"));
 
 app.MapGet("/sitemap.xml", (
-    IOptions<BookingEmailOptions> emailOptions, EndpointDataSource endpoints) =>
+    IOptions<SiteOptions> site, EndpointDataSource endpoints) =>
 {
     var patterns = endpoints.Endpoints
         .OfType<RouteEndpoint>()
@@ -165,7 +166,7 @@ app.MapGet("/sitemap.xml", (
 
     return Results.Text(
         SitemapBuilder.BuildSitemap(
-            emailOptions.Value.PublicBaseUrl, SitemapBuilder.SelectIndexablePaths(patterns)),
+            site.Value.PublicBaseUrl, SitemapBuilder.SelectIndexablePaths(patterns)),
         "application/xml");
 });
 

@@ -5,7 +5,7 @@ namespace AkeroGarden.Unit;
 
 /// <summary>
 /// Unit coverage for the pure per-date occupancy aggregation (NFR-26, FR-10): which reasons hold a
-/// date, nightly (check-out-exclusive) semantics, the turnover window, whole-property blocks, and
+/// date, check-in through check-out inclusive (FR-106), whole-property blocks, and
 /// the deliberate silence of building/room blocks. Collapsing reasons to a state is
 /// AvailabilityCalculatorTests; whether a whole requested stay fits is AvailabilityServiceTests.
 /// </summary>
@@ -65,55 +65,49 @@ public class OccupancyProviderTests
     }
 
     [Fact]
-    public void CheckOutDay_HoldsNoGuests_ButIsHeldForTurnover()
+    public void CheckOutDay_IsHeld_AndTheDayAfterIsFree()
     {
-        // Nightly semantics: the check-out day counts no guests, so Occupied is absent — and the
-        // day is still unavailable, because it opens the turnover window (FR-106).
-        var bookings = new[] { Occupying(new(2026, 6, 8), new(2026, 6, 10), 2) };
-
-        Assert.Equal(UnavailableReason.Occupied, ReasonOn(new(2026, 6, 9), bookings, []));
-        Assert.Equal(UnavailableReason.Turnover, ReasonOn(new(2026, 6, 10), bookings, []));
-    }
-
-    [Fact]
-    public void TurnoverExtendsOneDayBeyondCheckOut_ThenTheDateIsFreeAgain()
-    {
+        // A booking holds check-in through check-out, both inclusive (FR-106): the check-out day
+        // sleeps nobody but is held for cleaning; the next day is free for the next group.
         var bookings = new[] { Occupying(new(2026, 6, 8), new(2026, 6, 10), 6) };
 
-        Assert.Equal(AvailabilityState.Unavailable, StateOn(new(2026, 6, 11), bookings, []));
-        Assert.Equal(AvailabilityState.Free, StateOn(new(2026, 6, 12), bookings, []));
+        Assert.Equal(UnavailableReason.Occupied, ReasonOn(new(2026, 6, 8), bookings, []));
+        Assert.Equal(UnavailableReason.Occupied, ReasonOn(new(2026, 6, 10), bookings, []));
+        Assert.Equal(UnavailableReason.None, ReasonOn(new(2026, 6, 11), bookings, []));
     }
 
     [Fact]
-    public void StayEndingBeforeTheRange_StillHoldsTheRangesFirstDay()
+    public void StayCheckingOutOnTheRangesFirstDay_StillHoldsIt()
     {
-        // The stay ends the day before the window opens; its turnover still reaches inside.
-        var bookings = new[] { Occupying(new(2026, 6, 5), new(2026, 6, 9), 6) };
+        var bookings = new[] { Occupying(new(2026, 6, 5), new(2026, 6, 10), 6) };
         var states = OccupancyProvider.ComputeStates(new(2026, 6, 10), new(2026, 6, 11), bookings, []);
 
         Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 10)]);
         Assert.Equal(AvailabilityState.Free, states[new(2026, 6, 11)]);
     }
 
+    /// <summary>
+    /// The client's example (2026-11-11): a group leaving on Sunday, the next arriving on Monday —
+    /// back to back, with no free day between them.
+    /// </summary>
     [Fact]
-    public void TurnoverWindowsOfAdjacentBookings_DoNotFreeEachOther()
+    public void NextGroupArrivingTheDayAfterCheckOut_LeavesNoFreeDayBetween()
     {
         var bookings = new[]
         {
-            Occupying(new(2026, 6, 1), new(2026, 6, 5), 10),
-            Occupying(new(2026, 6, 7), new(2026, 6, 10), 10)
+            Occupying(new(2026, 6, 5), new(2026, 6, 7), 10), // leaves Sunday 7 June
+            Occupying(new(2026, 6, 8), new(2026, 6, 10), 10) // arrives Monday 8 June
         };
-        var states = OccupancyProvider.ComputeStates(new(2026, 6, 5), new(2026, 6, 7), bookings, []);
+        var states = OccupancyProvider.ComputeStates(new(2026, 6, 7), new(2026, 6, 8), bookings, []);
 
-        Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 5)]); // first booking's turnover
-        Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 6)]); // its second turnover day
-        Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 7)]); // second booking's first night
+        Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 7)]);
+        Assert.Equal(AvailabilityState.Unavailable, states[new(2026, 6, 8)]);
     }
 
     /// <summary>
     /// The status filter lives in <c>GetReasonsAsync</c>, not in the pure function — so the honest
     /// unit-level claim is only that these statuses are absent from the occupying set. That the
-    /// filter is actually applied (a Pending booking creating no turnover window, in particular) is
+    /// filter is actually applied (a Pending booking holding not even its check-out day) is
     /// pinned end to end by OccupancyProviderIntegrationTests against a real database.
     /// </summary>
     [Theory]

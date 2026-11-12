@@ -8,7 +8,7 @@
 @inject FacilityService FacilityService
 @inject NavigationManager Nav
 @inject IAuditActorAccessor ActorAccessor
-@inject Microsoft.Extensions.Options.IOptions<BookingEmailOptions> EmailOptions
+@inject Microsoft.Extensions.Options.IOptions<SiteOptions> Site
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Skapa bokning — Åkerögården Admin</PageTitle>
@@ -180,8 +180,7 @@ else
     private string? _adminEmail;
     /// <summary>The public booking form, per environment — hardcoding the production URL here
     /// would have pointed staging's admin at the live site.</summary>
-    private string PublicBookingUrl =>
-        $"{EmailOptions.Value.PublicBaseUrl.TrimEnd('/')}/boka";
+    private string PublicBookingUrl => Site.Value.PublicUrl("/boka");
 
     private string? _guestEmailBeforeOnBehalfOf;
 

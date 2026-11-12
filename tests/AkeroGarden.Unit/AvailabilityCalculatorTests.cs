@@ -18,7 +18,6 @@ public class AvailabilityCalculatorTests
 
     [Theory]
     [InlineData(UnavailableReason.Occupied)]
-    [InlineData(UnavailableReason.Turnover)]
     [InlineData(UnavailableReason.WholePropertyBlock)]
     public void AnySingleReason_IsUnavailable(UnavailableReason reason)
     {
@@ -28,9 +27,7 @@ public class AvailabilityCalculatorTests
     [Fact]
     public void SeveralReasonsTogether_AreStillJustUnavailable()
     {
-        var reasons = UnavailableReason.Occupied
-            | UnavailableReason.Turnover
-            | UnavailableReason.WholePropertyBlock;
+        var reasons = UnavailableReason.Occupied | UnavailableReason.WholePropertyBlock;
 
         Assert.Equal(AvailabilityState.Unavailable, AvailabilityCalculator.Evaluate(reasons));
     }

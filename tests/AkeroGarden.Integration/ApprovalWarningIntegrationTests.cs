@@ -30,12 +30,14 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<CleaningZoneService>();
             s.AddScoped<BuildingService>();
             s.AddScoped<RoomService>();
-            s.Configure<BookingEmailOptions>(o =>
+            s.Configure<SiteOptions>(o =>
             {
                 o.PublicBaseUrl = "https://akerogarden.se";
                 o.AdminBaseUrl = "https://admin.akerogarden.se";
+            });
+            s.Configure<BookingEmailOptions>(o =>
+            {
                 o.AdminNotificationEmail = "admin@test.se";
-                o.ContactEmail = "info@test.se";
             });
         });
 
@@ -266,7 +268,7 @@ public class ApprovalWarningIntegrationTests : IClassFixture<DbFixture>
     {
         // One group at a time (FR-10/FR-113): the second request is refused at approval. The panel
         // must say so before the click, in the refusal's own words.
-        // Clear of the whole-property test's window (and its turnover days) by a month.
+        // Clear of the whole-property test's window (and its check-out day) by a month.
         var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(5).AddDays(30);
         var checkOut = checkIn.AddDays(2);
         var provider = NewProvider();

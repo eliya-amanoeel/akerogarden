@@ -2292,7 +2292,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
     /// <summary>
     /// The first two-night window inside the 40-day completion-link window (FR-108) that no
-    /// occupying booking or its turnover days hold. Derived through <see cref="OccupancyProvider"/>
+    /// occupying booking holds (check-in through check-out). Derived through <see cref="OccupancyProvider"/>
     /// rather than re-implemented, so a test can never believe a date is free that the application
     /// considers taken.
     /// </summary>
@@ -2307,11 +2307,11 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
         var reasons = OccupancyProvider.ComputeReasons(today, today.AddDays(50), occupying, blocks);
 
-        // A two-night stay needs four clear days: both nights, the check-out day, and the day after.
+        // A two-night stay needs three clear days: both nights and the check-out day (FR-106).
         for (var offset = 5; offset <= 34; offset++)
         {
             var candidate = today.AddDays(offset);
-            if (Enumerable.Range(0, 4).All(i => reasons[candidate.AddDays(i)] == UnavailableReason.None))
+            if (Enumerable.Range(0, 3).All(i => reasons[candidate.AddDays(i)] == UnavailableReason.None))
                 return candidate;
         }
 

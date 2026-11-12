@@ -115,7 +115,7 @@ public sealed class DbFixture : IAsyncLifetime
     /// class can reason about how far out its last stay lands. That matters wherever the distance
     /// itself carries meaning — a completion link is only issued within 40 days of check-in
     /// (FR-108), so a class relying on one must keep every window inside that. <paramref
-    /// name="stepDays"/> must clear a stay and its two turnover days (FR-106); it may be negative to
+    /// name="stepDays"/> must clear a stay and its check-out day (FR-106); it may be negative to
     /// walk backwards for stays in the past.</para>
     /// </summary>
     public static DateOnly StayWindow(IServiceProvider provider, int sequence, int firstDaysOut, int stepDays = 7) =>

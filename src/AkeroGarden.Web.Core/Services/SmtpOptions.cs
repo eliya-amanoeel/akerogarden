@@ -8,14 +8,6 @@ public class SmtpOptions
     public string? Password { get; set; }
     public string FromAddress { get; set; } = string.Empty;
 
-    /// <summary>
-    /// Display name on every email's From line. Defaults to "Åkerögården" rather than empty: production
-    /// once ran without <c>Smtp__FromName</c> set, so mail went out with no name and clients showed the
-    /// address's local part, "info" (client review 2026-11-11, item 4). Bicep now sets it too; the
-    /// default means a missing setting can never send a nameless email again.
-    /// </summary>
-    public string FromName { get; set; } = "Åkerögården";
-
     /// <summary>How many times to attempt a send before giving up (NFR-13). Must be ≥ 1.</summary>
     public int MaxSendAttempts { get; set; } = 3;
 

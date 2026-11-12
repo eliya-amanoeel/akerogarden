@@ -1,6 +1,6 @@
 @using AkeroGarden.Web.Core.Services
 @using Microsoft.Extensions.Options
-@inject IOptions<BookingEmailOptions> EmailOptions
+@inject IOptions<SiteOptions> Site
 
 @* Per-page metadata: the description search results show, the canonical URL, and the Open Graph /
    Twitter tags that decide what a shared link looks like in a message (Phase 11).
@@ -8,8 +8,8 @@
    One component rather than nine copies of eight tags — the copies would drift, and the drift would
    be invisible, since nothing on the page changes when a meta tag is wrong.
 
-   The absolute URL comes from BookingEmailOptions.PublicBaseUrl, which already has to be right in
-   every environment (the completion magic link is built from it) and is verified end to end at every
+   The absolute URL comes from SiteOptions — the same setting every other absolute link is built
+   from, so it already has to be right in every environment and is verified end to end at every
    cutover. A second base-URL setting would be a second thing to get wrong.
 
    og:image is one site-wide image, the home hero photo, cut to the 1200×630 large-card shape. It is a
@@ -53,7 +53,7 @@
     /// <summary>Served from <c>wwwroot/images/</c>.</summary>
     private const string ImagePath = "/images/og-image.jpg";
 
-    private string Root => EmailOptions.Value.PublicBaseUrl.TrimEnd('/');
+    private string Root => Site.Value.PublicBaseUrl.TrimEnd('/');
 
     private string AbsoluteUrl => Path == "/" ? Root + "/" : Root + Path;
 }

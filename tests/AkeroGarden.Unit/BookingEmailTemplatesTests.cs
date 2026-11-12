@@ -337,15 +337,15 @@ public class BookingEmailTemplatesTests
         var c = BookingEmailTemplates.TwoWeekReminder(
             "Anna", overnightCount: 8, dayGuestCount: 3, groupMealCount: 5,
             new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
-            new TimeOnly(14, 0), new TimeOnly(12, 0), "Åkerögården, Norrtälje", Ref,
+            new TimeOnly(14, 0), new TimeOnly(12, 0), Ref,
             assignedBuildingNames: ["Smedjan", "Tallstugan"]);
         Assert.Contains("Hej Anna", c.HtmlBody);
         Assert.Contains("14:00", c.HtmlBody);
         Assert.Contains("12:00", c.HtmlBody);
         Assert.Contains("övernattning):</strong> 8", c.HtmlBody);  // overnight count
         Assert.Contains("dagsgäster:</strong> 3", c.HtmlBody);     // day guest count
-        Assert.Contains("Adress:", c.HtmlBody);
-        Assert.Contains("Norrt", c.HtmlBody);                       // address (ä is HTML-encoded)
+        // The street address the group drives to — not just the town.
+        Assert.Contains("Adress:</strong> Åkerövägen 81, 761 94 Norrtälje", WebUtility.HtmlDecode(c.HtmlBody));
         Assert.Contains(Ref, c.HtmlBody);
         // The assigned lodging the group needs in writing to divide itself up (FR-64/FR-103).
         Assert.Contains("Ert boende:", c.HtmlBody);
@@ -362,7 +362,7 @@ public class BookingEmailTemplatesTests
         var c = BookingEmailTemplates.TwoWeekReminder(
             "Anna", overnightCount: 8, dayGuestCount: 0, groupMealCount: 5,
             new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
-            new TimeOnly(8, 30), new TimeOnly(18, 0), "Åkerögården, Norrtälje", Ref,
+            new TimeOnly(8, 30), new TimeOnly(18, 0), Ref,
             assignedBuildingNames: []);
 
         Assert.Contains("kl. 08:30", c.HtmlBody);
@@ -377,7 +377,7 @@ public class BookingEmailTemplatesTests
         var c = BookingEmailTemplates.TwoWeekReminder(
             "Anna", overnightCount: 8, dayGuestCount: 0, groupMealCount: 5,
             new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
-            null, null, "Åkerögården, Norrtälje", Ref,
+            null, null, Ref,
             assignedBuildingNames: []);
 
         Assert.Contains("kl. 14:00", c.HtmlBody);
@@ -392,7 +392,7 @@ public class BookingEmailTemplatesTests
         var c = BookingEmailTemplates.TwoWeekReminder(
             "Anna", overnightCount: 24, dayGuestCount: 0, groupMealCount: 5,
             new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
-            null, null, "Åkerögården, Norrtälje", Ref,
+            null, null, Ref,
             assignedBuildingNames: []);
 
         Assert.Contains("Antal måltider för gruppen:</strong> 5", c.HtmlBody);
@@ -405,7 +405,7 @@ public class BookingEmailTemplatesTests
         var c = BookingEmailTemplates.TwoWeekReminder(
             "Anna", overnightCount: 8, dayGuestCount: 3, groupMealCount: 5,
             new DateOnly(2026, 8, 1), new DateOnly(2026, 8, 4),
-            new TimeOnly(14, 0), new TimeOnly(12, 0), "Åkerögården, Norrtälje", Ref,
+            new TimeOnly(14, 0), new TimeOnly(12, 0), Ref,
             assignedBuildingNames: []);
         Assert.DoesNotContain("Ert boende", c.HtmlBody);
     }
@@ -542,7 +542,7 @@ public class BookingEmailTemplatesTests
     public void GuestDetailsReceived_RepeatsTheStayTheParticipantsAndTheMealsBack()
     {
         var c = BookingEmailTemplates.GuestDetailsReceived(
-            CateredBooking(), ["Smedjan"], "Åkerögården, Norrtälje");
+            CateredBooking(), ["Smedjan"]);
 
         Assert.Contains("Hej Anna", c.HtmlBody);
         Assert.Contains(Ref, c.HtmlBody);
@@ -555,7 +555,7 @@ public class BookingEmailTemplatesTests
 
         Assert.Contains("Ert boende:", c.HtmlBody);
         Assert.Contains("Smedjan", c.HtmlBody);
-        Assert.Contains(Enc("Norrtälje"), c.HtmlBody);
+        Assert.Contains("Adress:</strong> Åkerövägen 81, 761 94 Norrtälje", WebUtility.HtmlDecode(c.HtmlBody));
 
         // Every participant, with their own allergies — including the free-text note behind "Annat".
         Assert.Contains(Enc("Bengt Bok"), c.HtmlBody);
@@ -582,7 +582,7 @@ public class BookingEmailTemplatesTests
         // departure day. A grid that printed every possible sitting would tell the guest they had
         // ordered meals they did not.
         var c = BookingEmailTemplates.GuestDetailsReceived(
-            CateredBooking(), ["Smedjan"], "Åkerögården, Norrtälje");
+            CateredBooking(), ["Smedjan"]);
 
         var arrivalDay = SectionForDay(c.HtmlBody, "10 augusti 2026");
         Assert.Contains("Middag", arrivalDay);
@@ -620,7 +620,7 @@ public class BookingEmailTemplatesTests
         booking.DepartureBreakfast = false;
         booking.MealSelections.Clear();
 
-        var c = BookingEmailTemplates.GuestDetailsReceived(booking, ["Smedjan"], "Åkerögården, Norrtälje");
+        var c = BookingEmailTemplates.GuestDetailsReceived(booking, ["Smedjan"]);
 
         Assert.Contains("självhushåll", c.HtmlBody);
         Assert.DoesNotContain("Middag", c.HtmlBody);
@@ -632,7 +632,7 @@ public class BookingEmailTemplatesTests
         // FR-107 exists because the admin notification (FR-61) is not a copy of the guest's choices.
         // Sending the guest an admin-panel URL would be the shortcut this requirement rules out.
         var c = BookingEmailTemplates.GuestDetailsReceived(
-            CateredBooking(), ["Smedjan"], "Åkerögården, Norrtälje");
+            CateredBooking(), ["Smedjan"]);
 
         Assert.DoesNotContain("admin", c.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("adminpanelen", c.HtmlBody);
@@ -645,7 +645,7 @@ public class BookingEmailTemplatesTests
         booking.Participants[0].FullName = "<b>Bengt</b>";
         booking.Participants[1].AllergyNotes = "selleri & nötter";
 
-        var c = BookingEmailTemplates.GuestDetailsReceived(booking, [], "Åkerögården");
+        var c = BookingEmailTemplates.GuestDetailsReceived(booking, []);
 
         Assert.DoesNotContain("<b>Bengt</b>", c.HtmlBody);
         Assert.Contains("&lt;b&gt;Bengt&lt;/b&gt;", c.HtmlBody);

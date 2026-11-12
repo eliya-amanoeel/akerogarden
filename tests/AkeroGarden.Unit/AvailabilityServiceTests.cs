@@ -34,8 +34,7 @@ public class AvailabilityServiceTests
         var result = AvailabilityService.Evaluate(checkIn, checkOut, Free(checkIn, 10));
 
         Assert.True(result.IsAvailable);
-        Assert.Empty(result.ConflictingStayDates);
-        Assert.Empty(result.ConflictingTurnoverDates);
+        Assert.Empty(result.ConflictingDates);
     }
 
     [Fact]
@@ -48,15 +47,14 @@ public class AvailabilityServiceTests
         var result = AvailabilityService.Evaluate(checkIn, checkOut, reasons);
 
         Assert.False(result.IsAvailable);
-        Assert.Equal(new[] { new DateOnly(2026, 10, 12) }, result.ConflictingStayDates);
-        Assert.Empty(result.ConflictingTurnoverDates);
+        Assert.Equal(new[] { new DateOnly(2026, 10, 12) }, result.ConflictingDates);
+        Assert.False(result.CheckOutDayConflicts);
     }
 
     /// <summary>
-    /// The check-out date is not a night the group sleeps, so it is not a stay conflict — but the
-    /// stay's own turnover window holds it, and something else holding it is still a conflict. This
-    /// is the case a nights-only check would wave through, letting one group's departure land on
-    /// the next group's arrival.
+    /// The check-out date is not a night the group sleeps, but the stay holds it for cleaning
+    /// (FR-106), so something else holding it is a conflict. This is the case a nights-only check
+    /// would wave through, letting one group's departure land on the next group's arrival.
     /// </summary>
     [Fact]
     public void ADepartureCollidingWithTheNextArrival_IsCaught()
@@ -69,32 +67,36 @@ public class AvailabilityServiceTests
         var result = AvailabilityService.Evaluate(checkIn, checkOut, reasons);
 
         Assert.False(result.IsAvailable);
-        Assert.Empty(result.ConflictingStayDates);
-        Assert.Equal(new[] { new DateOnly(2026, 10, 15) }, result.ConflictingTurnoverDates);
+        Assert.Equal(new[] { new DateOnly(2026, 10, 15) }, result.ConflictingDates);
+        Assert.True(result.CheckOutDayConflicts);
     }
 
+    /// <summary>
+    /// The client's rule (2026-11-11): only the check-out day is held. A group arriving the day
+    /// after — Sunday out, Monday in — does not stop the stay.
+    /// </summary>
     [Fact]
-    public void TheSecondTurnoverDay_IsAlsoRequired()
+    public void TheDayAfterCheckOut_IsNotRequired()
     {
         var checkIn = new DateOnly(2026, 10, 10);
         var checkOut = new DateOnly(2026, 10, 15);
         var reasons = With(Free(checkIn, 10), UnavailableReason.Occupied, new DateOnly(2026, 10, 16));
 
-        var result = AvailabilityService.Evaluate(checkIn, checkOut, reasons);
-
-        Assert.False(result.IsAvailable);
-        Assert.Equal(new[] { new DateOnly(2026, 10, 16) }, result.ConflictingTurnoverDates);
+        Assert.True(AvailabilityService.Evaluate(checkIn, checkOut, reasons).IsAvailable);
     }
 
+    /// <summary>The mirror case: a group checking out on this stay's check-in day holds it.</summary>
     [Fact]
-    public void NothingBeyondTheTurnoverWindow_IsRequired()
+    public void ArrivingOnTheDayAnotherGroupLeaves_IsCaught()
     {
         var checkIn = new DateOnly(2026, 10, 10);
         var checkOut = new DateOnly(2026, 10, 15);
-        // A group arriving on the 17th leaves the 15th and 16th clear for cleaning.
-        var reasons = With(Free(checkIn, 12), UnavailableReason.Occupied, new DateOnly(2026, 10, 17));
+        var reasons = With(Free(checkIn, 10), UnavailableReason.Occupied, new DateOnly(2026, 10, 10));
 
-        Assert.True(AvailabilityService.Evaluate(checkIn, checkOut, reasons).IsAvailable);
+        var result = AvailabilityService.Evaluate(checkIn, checkOut, reasons);
+
+        Assert.Equal(new[] { new DateOnly(2026, 10, 10) }, result.ConflictingDates);
+        Assert.False(result.CheckOutDayConflicts);
     }
 
     [Fact]
@@ -147,7 +149,7 @@ public class AvailabilityServiceTests
     }
 
     [Fact]
-    public void Describe_TurnoverConflict_ExplainsTheDaysAfterDeparture_WithoutTheMechanism()
+    public void Describe_CheckOutDayConflict_NamesItAsTheDepartureDay_WithoutTheMechanism()
     {
         var checkIn = new DateOnly(2026, 10, 10);
         var checkOut = new DateOnly(2026, 10, 15);
@@ -155,9 +157,39 @@ public class AvailabilityServiceTests
 
         var message = AvailabilityService.Describe(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
 
-        Assert.Contains("tid att göra i ordning gården mellan två grupper", message);
-        Assert.DoesNotContain("städning", message);
-        Assert.Contains("15 oktober", message);
+        Assert.Equal(
+            "Datumet 15 oktober är tyvärr upptaget. Den 15 oktober är er avresedag, och den behöver också"
+                + " vara ledig eftersom vi gör i ordning gården mellan grupperna."
+                + " Välj gärna en tidigare avresa eller andra datum.",
+            message);
+        Assert.DoesNotContain("städ", message);
+    }
+
+    [Fact]
+    public void Describe_NoCheckOutDayConflict_DoesNotMentionTheDeparture()
+    {
+        var checkIn = new DateOnly(2026, 10, 10);
+        var checkOut = new DateOnly(2026, 10, 15);
+        var reasons = With(Free(checkIn, 10), UnavailableReason.Occupied, new DateOnly(2026, 10, 12));
+
+        var message = AvailabilityService.Describe(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
+
+        Assert.Equal("Datumet 12 oktober är tyvärr upptaget. Välj gärna andra datum.", message);
+    }
+
+    [Fact]
+    public void DescribeForAdmin_CheckOutDayHeldByAGroup_SaysItIsNeededForCleaning()
+    {
+        var checkIn = new DateOnly(2026, 10, 10);
+        var checkOut = new DateOnly(2026, 10, 15);
+        var reasons = With(Free(checkIn, 10), UnavailableReason.Occupied, new DateOnly(2026, 10, 15));
+
+        var message = AvailabilityService.DescribeForAdmin(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
+
+        Assert.Equal(
+            "Datumet 15 oktober är redan upptaget. Gården hyrs ut till en grupp i taget och avresedagen"
+                + " behövs för städning, så bokningen kan inte godkännas över de datumen.",
+            message);
     }
 
     [Fact]
@@ -207,18 +239,19 @@ public class AvailabilityServiceTests
     }
 
     [Fact]
-    public void DescribeForAdmin_BlockOnTheCleaningDays_SaysTheyMustBeFree()
+    public void DescribeForAdmin_BlockOnTheCheckOutDay_SaysItMustBeFree()
     {
         var checkIn = new DateOnly(2026, 10, 10);
         var checkOut = new DateOnly(2026, 10, 15);
-        // The nights are free; the block starts on check-out day, inside the stay's turnover window.
+        // The nights are free; the block starts on check-out day, which the stay holds for cleaning.
+        // The 16th is blocked too but is not the stay's to need, so it is not named.
         var reasons = With(Free(checkIn, 10), UnavailableReason.WholePropertyBlock,
             new DateOnly(2026, 10, 15), new DateOnly(2026, 10, 16));
 
         var message = AvailabilityService.DescribeForAdmin(AvailabilityService.Evaluate(checkIn, checkOut, reasons));
 
         Assert.Equal(
-            "Hela anläggningen är blockerad 15–16 oktober, och städdagarna efter avresan behöver vara fria. "
+            "Hela anläggningen är blockerad 15 oktober, och avresedagen behöver vara fri för städning. "
                 + "Bokningen kan inte godkännas förrän blockeringen tas bort eller ändras.",
             message);
     }

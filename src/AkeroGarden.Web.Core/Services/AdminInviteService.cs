@@ -18,7 +18,7 @@ namespace AkeroGarden.Web.Core.Services;
 public class AdminInviteService(
     UserManager<ApplicationUser> userManager,
     IEmailService emailService,
-    IOptions<BookingEmailOptions> emailOptions,
+    IOptions<SiteOptions> site,
     IDataProtectionProvider dataProtectionProvider,
     IAuditWriter audit,
     ApplicationDbContext db)
@@ -217,7 +217,7 @@ public class AdminInviteService(
         var token = await userManager.GeneratePasswordResetTokenAsync(user);
         var protector = dataProtectionProvider.CreateProtector("PasswordReset");
         var code = Uri.EscapeDataString(protector.Protect($"{user.Email}|{token}"));
-        return $"{emailOptions.Value.AdminBaseUrl.TrimEnd('/')}/aterstall-losenord?code={code}";
+        return site.Value.AdminUrl($"/aterstall-losenord?code={code}");
     }
 
     /// <summary>

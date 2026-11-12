@@ -20,7 +20,6 @@
     "adminHostnames": { "value": ["admin.akerogarden.se"] },
     "publicBaseUrl": { "value": "https://akerogarden.se" },
     "adminBaseUrl": { "value": "https://admin.akerogarden.se" },
-    "adminNotificationEmail": { "value": "info@akerogarden.se" },
-    "contactEmail": { "value": "info@akerogarden.se" }
+    "adminNotificationEmail": { "value": "info@akerogarden.se" }
   }
 }

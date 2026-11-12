@@ -21,8 +21,8 @@ brackets is the client's original numbering.
 | 1 | [4] One.com access for the client | Recorded — maintainer does it, no code | none |
 | 2 | [6] "Husvagn" is a powered caravan pitch | Locked — client renames in admin; SRS wording only | none |
 | 3 | [3] New phone number | ✅ **Done** 2026-11-12 — awaiting deploy | XS |
-| 4 | [14] Sender shows as "Info" | ✅ **Done** 2026-11-12 — awaiting deploy + Bicep apply | S (+ Bicep deploy) |
-| 5 | [8] Remove the extra cleaning day | Locked | S |
+| 4 | [14] Sender shows as "Info" | ✅ **Done** 2026-11-12 — awaiting deploy | S |
+| 5 | [8] Remove the extra cleaning day | 🔨 **Built** 2026-11-12 — awaiting tests + deploy | S |
 | 6 | [1] Vegan as a dish label | Locked | S (migration) |
 | 7 | [7] Completion link 3 weeks before the stay | **Open — client** | S code, M docs |
 | 8 | [10] Admin gets the guest's full summary email | Locked | M |
@@ -62,6 +62,8 @@ brackets is the client's original numbering.
 
 **Decision.** New number **073-952 78 73**, in each place's existing format: `/kontakt` `073-952 78 73` with `tel:+46739527873`; terms `+46 739 527 873`. **Held once in code**, read by every place that shows it — including the email signature (item 9).
 
+**Built as the whole class, not the one number.** Every contact detail — name, phone, both email addresses, street address, organisation number — now lives once, as constants in `ContactDetails`, read by every page, the legal pages, the handbook, the signature and the emails. Found while doing it: the guest emails' "Adress" line (details received, 14-day reminder) had only ever said "Åkerögården, Norrtälje", a placeholder never replaced; it now gives the street address.
+
 **Terms.** Yes — the contact line in the booking terms (page + `.md`, kept identical). The terms date stays 13 oktober 2026: a contact detail is not a term (maintainer, 2026-11-12). **Privacy / Azure cost.** None.
 
 ## 4. [14] Sender shows as "Info" instead of "Åkerögården"
@@ -69,12 +71,11 @@ brackets is the client's original numbering.
 **Cause (found 2026-11-12).** The code sends `From: <FromName> <FromAddress>`, but production never sets `Smtp__FromName`: Bicep sets host, port, address and credentials (`infra/azure/main.bicep`) but not the name, and the base `appsettings.json` has no `Smtp` block — only local dev sets "Åkerögården". Production sends with an empty name, so mail clients show the local part, "info".
 
 **Decision.**
-1. Add `Smtp__FromName = 'Åkerögården'` to Bicep (staging and production).
-2. Default `SmtpOptions.FromName` to "Åkerögården" in code, so an empty name can never go out again.
-3. A test that the sender name is set.
-4. **Only what guests receive says "Åkerögården"** (maintainer, 2026-11-12, after local testing). The admin notifications to `info@` about a booking or question carry the **guest's name** as sender, matching their Reply-To, so the inbox lists who wrote; one with no guest behind it (the pre-deletion warning) falls back to "Åkerögården". Admin invitations keep "Åkerögården".
+1. The sender name is **not a setting**: it is the business's name, the same everywhere, so it is a constant (`ContactDetails.Name`). The `FromName` setting is gone, and with it the gap a missing value fell through.
+2. A test that every email is sent as "Åkerögården" unless a sender name is given.
+3. **Only what guests receive says "Åkerögården"** (maintainer, 2026-11-12, after local testing). The admin notifications to `info@` about a booking or question carry the **guest's name** as sender, matching their Reply-To, so the inbox lists who wrote; one with no guest behind it (the pre-deletion warning) falls back to "Åkerögården". Admin invitations keep "Åkerögården".
 
-**Maintainer to-do.** Bicep deploy alongside the app deploy. **Terms / privacy / Azure cost.** None.
+**Terms / privacy / Azure cost.** None.
 
 ## 5. [8] Remove the extra cleaning day
 
@@ -82,7 +83,9 @@ brackets is the client's original numbering.
 
 **Decision.** Only the **check-out day** stays blocked: a group leaving Sunday → the next group can arrive Monday at the earliest. Existing bookings are unaffected; days blocked only for turnover open up. Exceptional cases (very late departure) are still handled by an admin block (FR-21).
 
-**Docs.** FR-106, FR-113, FR-37, FR-10 wording, `booking-lifecycle-timeline.md` if it draws the window, the admin handbook. **Terms / privacy / Azure cost.** None.
+**Built (2026-11-12) — from the new rule, not by shortening the old window.** A booking now holds every date from check-in **through** check-out, both inclusive; that is the whole rule. The separate "turnover window" (`TurnoverWindow`, the `Turnover` unavailability reason, the split between conflicting nights and turnover days, the Kalendervy **Städdagar** column) existed only to carry a buffer reaching past the stay, and is gone. When the check-out day is the conflict, both the guest's and the admin's message say so — the group does not sleep that night, so nobody expects it to need to be free. The public calendar's intro, which said *"Dagen efter en avresa är alltid avsatt för städning"*, now says the departure day is held and the next group can arrive the day after.
+
+**Docs.** SRS FR-10, FR-37, FR-106 (with the why), FR-113 and the §2.3 diagram; the admin handbook (three places). `booking-lifecycle-timeline.md`, `erd.md`, `architecture.md` and `design.md` do not draw the window — checked. **Terms / privacy / Azure cost.** None — the terms never mention the cleaning days; no schema change.
 
 ## 6. [1] Vegan as a dish label
 
@@ -203,8 +206,51 @@ brackets is the client's original numbering.
 
 ---
 
+## Manual test before the prod deploy
+
+What has changed since the code production runs (`a903db5`) and has not yet been tested by hand. **Every built item adds its block here, in the same commit as the code**, scoped to what that commit changed — nothing older, which was tested before it went live. Tick a box when it passes; a failure is fixed and the box retested. After the prod deploy, delete the blocks that shipped.
+
+Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Dates are chosen clear of the demo seed, which places its bookings within ~4 months of the reseed day.
+
+**Item 5 — one cleaning day** (`5261ee4`)
+- [ ] `/boka`: request a stay **2027-06-02 → 2027-06-05**. Admin → Bokningar → open it, tick a building, **Godkänn** with any price.
+- [ ] `/kalender`, June 2027: **5 juni** is Upptaget, **6 juni** is Ledigt.
+- [ ] `/boka`: request **2027-06-06 → 2027-06-08** → accepted. Admin → open it, tick a building, **Godkänn** → succeeds (arrive the day after the previous group leaves).
+- [ ] `/boka`: request **2027-05-30 → 2027-06-02** → refused: *"Datumet 2 juni är tyvärr upptaget. Den 2 juni är er avresedag, och den behöver också vara ledig eftersom vi gör i ordning gården mellan grupperna. Välj gärna en tidigare avresa eller andra datum."*
+- [ ] `/kalender` intro says *"Avresedagen är alltid avsatt för städning, så nästa grupp kan komma tidigast dagen efter."*
+- [ ] Admin → **Kalendervy**: no **Städdagar** column, on desktop and at phone width; intro says the check-out day is held automatically.
+- [ ] Admin → **Handbok** → *Godkänna en förfrågan*: "…kan nästa grupp komma tidigast på **måndag**."
+
+**Items 3 + 4 — contact details and sender** (`093a4f5`)
+- [ ] `/kontakt`: E-post **info@akerogarden.se**; Telefon **073-952 78 73** (on a phone, tapping it dials +46 73 952 78 73); Adress *Åkerögården / Åkerövägen 81 / 761 94 Norrtälje*; the map's link opens Google Maps on Åkerögården.
+- [ ] Footer of any public page: **info@akerogarden.se**.
+- [ ] `/bokningsvillkor` → Kontakt: *Åkerövägen 81, 761 94 Norrtälje, Sverige*, *+46 739 527 873*, *info@akerogarden.se*, *Organisationsnummer: 815601-0129*.
+- [ ] `/integritetspolicy`: §1 organisationsnummer 815601-0129, the address, info@ and dataskydd@ links; §4 One.com row; §5 email paragraph.
+- [ ] Admin → **Handbok** → *Del C · Konton och e-post*: info@ and dataskydd@ in the table.
+- [ ] Mailpit, after a `/boka` request: the guest's receipt is from **Åkerögården**; the notification to admin is from **the guest's name** and Reply-To is the guest.
+- [ ] Mailpit, after Admin → Administratörskonton → **+ Bjud in användare**: the invitation is from **Åkerögården**.
+
+**Item 9 — signature, and the address in guest emails** (PR 117 `93cd0e4`; address `093a4f5`)
+- [ ] In Mailpit, these end in the signature (logo, Åkerögården, Telefon link, E-post link, akerogarden.se, Integritetspolicy): guest receipt, admin notification, approval email, admin invitation, and the reset from `/glomt-losenord`.
+- [ ] Complete a booking through its completion link → the *details received* email's **Adress** reads **Åkerövägen 81, 761 94 Norrtälje**.
+- [ ] Start admin with `DemoSeed__Reset=true` and `Jobs__RunOnStartup=true` → the 14-day reminder to *ingrid.paminnelse@example.com* has **Adress: Åkerövägen 81, 761 94 Norrtälje**.
+- [ ] **Staging**, real inboxes: the signature in **Gmail** and **Outlook** shows the logo without "load images", and stays readable in **dark mode**.
+
+**Site addresses in one `Site` section** (this branch, after `767365b`) — every absolute link is now built from `Site:PublicBaseUrl` / `Site:AdminBaseUrl`, so check each kind of link once:
+- [ ] Mailpit: the approval email's completion link opens `/slutfor/…` on the public site; the terms link opens `/bokningsvillkor`.
+- [ ] Mailpit: the admin notification's booking link opens that booking in the admin panel.
+- [ ] Mailpit: an invitation's and a `/glomt-losenord` reset's link opens `/aterstall-losenord` on the admin panel.
+- [ ] Admin → open a booking with an issued link: the completion link shown there opens the same page. Admin → **Skapa bokning**: the link to the public form opens `/boka`.
+- [ ] Public: `/robots.txt` and `/sitemap.xml` name the public site's own address; a page's source has `<link rel="canonical" href="…">` on it.
+- [ ] **Staging, after the Bicep apply**: one approval email's completion link and `/robots.txt` point at `staging.akerogarden.se`.
+
 ## To-do lists
 
 **Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed; optionally a photo of the caravan pitch; answer item 7's question and item 11's four questions; reword terms §6 if needed (item 10).
 
-**Maintainer:** one.com access for the client, with the DNS warning (item 1); Bicep deploy for the sender name (item 4).
+**Maintainer:** one.com access for the client, with the DNS warning (item 1).
+
+**Deploy order for this branch (site addresses).** The app now reads `Site__PublicBaseUrl` / `Site__AdminBaseUrl`; the App Service settings are still named `BookingEmail__…` until `main.bicep` is applied. Whichever lands first, the other half runs for a few minutes with an empty site address — links in any email sent in that window are broken. So apply the Bicep and the app deploy back to back, per environment:
+- **Staging:** the merge auto-deploys staging — apply `main.bicep` to staging right after that deploy finishes.
+- **Production:** apply `main.bicep` to production immediately before approving the production deploy, at ~22:00 and well clear of 03:00. Run what-if against production first.
+- The same apply also drops the unused `BookingEmail__ContactEmail` setting.

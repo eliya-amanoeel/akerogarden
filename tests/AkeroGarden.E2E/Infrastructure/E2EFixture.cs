@@ -412,7 +412,6 @@ public sealed class E2EFixture : IAsyncLifetime
         psi.Environment["Smtp__Host"] = "127.0.0.1";
         psi.Environment["Smtp__Port"] = "587";
         psi.Environment["Smtp__FromAddress"] = "noreply@akerogarden.test";
-        psi.Environment["Smtp__FromName"] = "Åkerögården";
         psi.Environment["Smtp__MaxSendAttempts"] = "1";
         psi.Environment["Smtp__RetryDelayMs"] = "0";
 

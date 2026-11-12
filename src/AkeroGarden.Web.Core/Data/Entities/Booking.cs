@@ -65,7 +65,7 @@ public class Booking
     ///
     /// <para><b>Deliberately a separate <see cref="TimeOnly"/> rather than folding time into
     /// <see cref="CheckIn"/>.</b> The date values are load-bearing for availability computation,
-    /// retention arithmetic, blocked periods and the turnover window; turning them into timestamps
+    /// retention arithmetic, blocked periods and the cleaning-held check-out day; turning them into timestamps
     /// would ripple through all of it for no benefit.</para></summary>
     public TimeOnly? CheckInTime { get; set; }
 

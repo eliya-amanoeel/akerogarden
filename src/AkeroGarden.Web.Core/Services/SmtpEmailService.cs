@@ -7,11 +7,11 @@ using MimeKit;
 namespace AkeroGarden.Web.Core.Services;
 
 public class SmtpEmailService(
-    IOptions<SmtpOptions> options, IOptions<BookingEmailOptions> emailOptions, ILogger<SmtpEmailService> logger)
+    IOptions<SmtpOptions> options, IOptions<SiteOptions> site, ILogger<SmtpEmailService> logger)
     : IEmailService
 {
     private readonly SmtpOptions _opts = options.Value;
-    private readonly BookingEmailOptions _contact = emailOptions.Value;
+    private readonly SiteOptions _site = site.Value;
 
     private const string LogoResourceName = "AkeroGarden.email-signature.png";
 
@@ -78,7 +78,7 @@ public class SmtpEmailService(
     {
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(
-            string.IsNullOrWhiteSpace(fromName) ? _opts.FromName : fromName, _opts.FromAddress));
+            string.IsNullOrWhiteSpace(fromName) ? ContactDetails.Name : fromName, _opts.FromAddress));
         message.To.Add(new MailboxAddress(toName, toAddress));
         if (!string.IsNullOrEmpty(replyToAddress))
             message.ReplyTo.Add(new MailboxAddress(replyToName, replyToAddress));
@@ -106,18 +106,19 @@ public class SmtpEmailService(
     /// </summary>
     private string AppendSignature(string htmlBody, string logoContentId)
     {
-        var phone = WebUtility.HtmlEncode(_contact.ContactPhone);
-        var phoneTel = WebUtility.HtmlEncode(_contact.ContactPhoneTel);
-        var contactEmail = WebUtility.HtmlEncode(_contact.ContactEmail);
-        var siteUrl = _contact.PublicBaseUrl.TrimEnd('/');
+        var name = WebUtility.HtmlEncode(ContactDetails.Name);
+        var phone = WebUtility.HtmlEncode(ContactDetails.Phone);
+        var phoneTel = WebUtility.HtmlEncode(ContactDetails.PhoneTel);
+        var contactEmail = WebUtility.HtmlEncode(ContactDetails.Email);
+        var siteUrl = _site.PublicBaseUrl.TrimEnd('/');
         var siteName = WebUtility.HtmlEncode(Uri.TryCreate(siteUrl, UriKind.Absolute, out var site) ? site.Host : siteUrl);
         var privacyUrl = WebUtility.HtmlEncode($"{siteUrl}/integritetspolicy");
         siteUrl = WebUtility.HtmlEncode(siteUrl);
 
         return htmlBody +
             "<hr>" +
-            $"<p><img src=\"cid:{logoContentId}\" alt=\"Åkerögården\" width=\"192\" height=\"52\"></p>" +
-            "<p style=\"font-size:12px;color:#666\">Åkerögården<br>" +
+            $"<p><img src=\"cid:{logoContentId}\" alt=\"{name}\" width=\"192\" height=\"52\"></p>" +
+            $"<p style=\"font-size:12px;color:#666\">{name}<br>" +
             $"Telefon: <a href=\"tel:{phoneTel}\">{phone}</a><br>" +
             $"E-post: <a href=\"mailto:{contactEmail}\">{contactEmail}</a><br>" +
             $"<a href=\"{siteUrl}\">{siteName}</a><br>" +

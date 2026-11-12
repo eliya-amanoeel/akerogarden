@@ -38,12 +38,14 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<BookingEmailService>();
             s.AddScoped<BookingService>();
             s.AddScoped<CleaningZoneService>();
-            s.Configure<BookingEmailOptions>(o =>
+            s.Configure<SiteOptions>(o =>
             {
                 o.PublicBaseUrl = "https://akerogarden.se";
                 o.AdminBaseUrl = "https://admin.akerogarden.se";
+            });
+            s.Configure<BookingEmailOptions>(o =>
+            {
                 o.AdminNotificationEmail = "admin@test.se";
-                o.ContactEmail = "info@test.se";
             });
         });
     }
@@ -592,9 +594,8 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     }
 
     /// <summary>
-    /// A stay whose departure lands on the next group's arrival is refused too: the two turnover
-    /// days after check-out are part of what a stay needs (FR-106). Judged on nights alone this
-    /// pair does not overlap at all.
+    /// A stay whose departure lands on the next group's arrival is refused too: the check-out day is
+    /// held for cleaning (FR-106). Judged on nights alone this pair does not overlap at all.
     /// </summary>
     [Fact]
     public async Task Approve_WhenDepartureCollidesWithTheNextArrival_IsBlocked()
@@ -603,8 +604,8 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         var firstCheckIn = DbFixture.TodayIn(provider).AddDays(400);
         var first = await CreatePendingStayAsync(provider, checkIn: firstCheckIn);
 
-        // CreatePendingStayAsync books three nights, so the first stay checks out on +3 — the day
-        // cleaning starts. A group arriving that day leaves no turnover window.
+        // CreatePendingStayAsync books three nights, so the first stay checks out on +3 — the
+        // cleaning day. A group arriving that day leaves no time to clean.
         var second = await CreatePendingStayAsync(provider, checkIn: firstCheckIn.AddDays(3));
 
         using var scope = provider.CreateScope();
@@ -612,6 +613,49 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
 
         Assert.True((await svc.ApproveAsync(first, DbFixture.EstimatedPrice)).Succeeded);
         Assert.False((await svc.ApproveAsync(second, DbFixture.EstimatedPrice)).Succeeded);
+    }
+
+    /// <summary>
+    /// The same pair approved in the other order: the later group is already in, so it is the
+    /// earlier group's <em>check-out day</em> that collides — every one of its nights is free. The
+    /// admin is told the departure day is the problem, or the refusal would look baseless.
+    /// </summary>
+    [Fact]
+    public async Task Approve_WhenOnlyTheCheckOutDayIsTaken_IsBlocked_AndSaysWhy()
+    {
+        var provider = NewProvider(out _);
+        var firstCheckIn = DbFixture.TodayIn(provider).AddDays(450);
+        var first = await CreatePendingStayAsync(provider, checkIn: firstCheckIn);
+        var second = await CreatePendingStayAsync(provider, checkIn: firstCheckIn.AddDays(3));
+
+        using var scope = provider.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+
+        Assert.True((await svc.ApproveAsync(second, DbFixture.EstimatedPrice)).Succeeded);
+        var refused = await svc.ApproveAsync(first, DbFixture.EstimatedPrice);
+        Assert.False(refused.Succeeded);
+        Assert.Contains("avresedagen behövs för städning", refused.Error);
+    }
+
+    /// <summary>
+    /// The client's rule (2026-11-11): only the check-out day is held. A group leaving on Sunday
+    /// and the next arriving on Monday are both approved — there is no second cleaning day.
+    /// </summary>
+    [Fact]
+    public async Task Approve_WhenTheNextGroupArrivesTheDayAfterCheckOut_Succeeds()
+    {
+        var provider = NewProvider(out _);
+        var firstCheckIn = DbFixture.TodayIn(provider).AddDays(500);
+        var first = await CreatePendingStayAsync(provider, checkIn: firstCheckIn);
+
+        // Three nights: checks out on +3, so the next group arrives on +4.
+        var second = await CreatePendingStayAsync(provider, checkIn: firstCheckIn.AddDays(4));
+
+        using var scope = provider.CreateScope();
+        var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
+
+        Assert.True((await svc.ApproveAsync(first, DbFixture.EstimatedPrice)).Succeeded);
+        Assert.True((await svc.ApproveAsync(second, DbFixture.EstimatedPrice)).Succeeded);
     }
 
     /// <summary>Forces a booking to a given status directly (bypassing the guest completion form)

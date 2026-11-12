@@ -155,17 +155,14 @@ live admin password sitting readable in App Service configuration (post-launch s
 finding #3). When empty, the app setting is not emitted at all.''')
 param seedAdminPassword string = ''
 
-@description('Public site base URL used in booking emails (magic link, privacy link) — §9')
+@description('Public site base URL — every absolute link to the public site (emails, SEO, robots, sitemap)')
 param publicBaseUrl string
 
-@description('Admin panel base URL used in the admin notification email — FR-06')
+@description('Admin panel base URL — every absolute link to the admin panel (notifications, password setup)')
 param adminBaseUrl string
 
 @description('Address that receives admin notification emails (new inquiry, etc.)')
 param adminNotificationEmail string
-
-@description('Contact email shown in every email signature — §9')
-param contactEmail string
 
 // ── Naming ────────────────────────────────────────────────────────────────────
 var prefix = 'jmk-ag-${environmentName}'
@@ -406,12 +403,6 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           value: smtpFromAddress
         }
         {
-          // The From display name. Unset until 2026-11, so mail showed "info" (the address's local
-          // part) as the sender. SmtpOptions defaults to the same value; this makes it explicit.
-          name: 'Smtp__FromName'
-          value: 'Åkerögården'
-        }
-        {
           // Read from Key Vault at runtime via managed identity (NFR-30)
           name: 'Smtp__Username'
           value: '@Microsoft.KeyVault(VaultName=${keyVault.name};SecretName=smtp-username)'
@@ -452,20 +443,16 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           value: appIdentities[i].properties.clientId
         }
         {
-          name: 'BookingEmail__PublicBaseUrl'
+          name: 'Site__PublicBaseUrl'
           value: publicBaseUrl
         }
         {
-          name: 'BookingEmail__AdminBaseUrl'
+          name: 'Site__AdminBaseUrl'
           value: adminBaseUrl
         }
         {
           name: 'BookingEmail__AdminNotificationEmail'
           value: adminNotificationEmail
-        }
-        {
-          name: 'BookingEmail__ContactEmail'
-          value: contactEmail
         }
         {
           // Structured logging / correlation IDs (Phase 11). Not a secret (write-only telemetry

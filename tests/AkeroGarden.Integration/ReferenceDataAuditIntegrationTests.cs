@@ -36,7 +36,7 @@ public class ReferenceDataAuditIntegrationTests : IClassFixture<DbFixture>
             s.AddScoped<AdminInviteService>();
             s.AddScoped<IAuditActorAccessor>(_ =>
                 new TestAuditActorAccessor(AuditActor.Admin(AdminId, AdminEmail, "Test Admin")));
-            s.Configure<BookingEmailOptions>(o =>
+            s.Configure<SiteOptions>(o =>
             {
                 o.AdminBaseUrl = "https://admin.akerogarden.se";
                 o.PublicBaseUrl = "https://akerogarden.se";

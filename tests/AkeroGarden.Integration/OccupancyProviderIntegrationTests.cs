@@ -9,7 +9,7 @@ namespace AkeroGarden.Integration;
 /// <summary>
 /// Integration coverage for the public calendar's occupancy provider against real PostgreSQL
 /// (FR-10, NFR-07): only occupying-status bookings hold a date, only whole-property blocks reach
-/// the calendar, the turnover window is honoured, and the result is the aggregate state — no
+/// the calendar, a booking holds its check-out day (FR-106), and the result is the aggregate state — no
 /// personal data. Each test uses its own building so the shared database doesn't cross-contaminate.
 /// </summary>
 public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
@@ -108,42 +108,40 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task TurnoverWindow_MakesCheckOutDayAndTheDayAfter_Unavailable()
+    public async Task Booking_HoldsCheckInThroughCheckOut_AndTheDayAfterIsFree()
     {
         var provider = NewProvider(out var scope, out var db);
         using var _s = scope;
         await SeedBuildingWithBedsAsync(db, 5, 5);
 
         // Two guests against a property with beds to spare. Group size does not enter the
-        // calculation — the nights are held because a group is here, and the two days after
-        // check-out are held for turnover (FR-106).
+        // calculation — the nights are held because a group is here, and the check-out day is held
+        // for cleaning (FR-106). The next group can arrive the day after.
         var checkIn = new DateOnly(2027, 7, 5);
         var checkOut = new DateOnly(2027, 7, 8);
         await AddBookingAsync(db, Booking(BookingStatus.Approved, checkIn, checkOut, 2));
 
-        var states = await provider.GetStatesAsync(checkIn, checkOut.AddDays(2));
+        var states = await provider.GetStatesAsync(checkIn, checkOut.AddDays(1));
 
         Assert.Equal(AvailabilityState.Unavailable, states[checkIn]);
         Assert.Equal(AvailabilityState.Unavailable, states[checkOut]);
-        Assert.Equal(AvailabilityState.Unavailable, states[checkOut.AddDays(1)]);
-        Assert.Equal(AvailabilityState.Free, states[checkOut.AddDays(2)]);
+        Assert.Equal(AvailabilityState.Free, states[checkOut.AddDays(1)]);
     }
 
     [Fact]
-    public async Task StayEndingBeforeTheRange_IsStillLoaded_AndHoldsTheRangesFirstDay()
+    public async Task StayCheckingOutOnTheRangesFirstDay_IsStillLoaded_AndHoldsIt()
     {
         var provider = NewProvider(out var scope, out var db);
         using var _s = scope;
         await SeedBuildingWithBedsAsync(db, 5, 5);
 
-        // The booking's whole stay — and its check-out — sit before the requested window. Its
-        // turnover window still reaches the window's first day. A query loading only the stays
-        // overlapping [from, to] drops this booking entirely and reports the day Free, which is
-        // exactly the silent failure this test exists to catch.
+        // Every night of the stay sits before the requested window; only its check-out day falls
+        // inside. A query loading by nights (`CheckOut > from`) drops this booking entirely and
+        // reports the day Free, which is exactly the silent failure this test exists to catch.
         var checkOut = new DateOnly(2027, 8, 12);
         await AddBookingAsync(db, Booking(BookingStatus.Approved, new DateOnly(2027, 8, 9), checkOut, 2));
 
-        var from = checkOut.AddDays(1);
+        var from = checkOut;
         var states = await provider.GetStatesAsync(from, from.AddDays(1));
 
         Assert.Equal(AvailabilityState.Unavailable, states[from]);
@@ -151,13 +149,13 @@ public class OccupancyProviderIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task PendingBooking_CreatesNoTurnoverWindow()
+    public async Task PendingBooking_HoldsNotEvenItsCheckOutDay()
     {
         var provider = NewProvider(out var scope, out var db);
         using var _s = scope;
         await SeedBuildingWithBedsAsync(db, 5, 5);
 
-        // Turnover follows occupancy: an inquiry nobody has approved reserves no cleaning days.
+        // An inquiry nobody has approved reserves nothing — its check-out day included.
         var checkOut = new DateOnly(2027, 9, 14);
         await AddBookingAsync(db, Booking(BookingStatus.Pending, new DateOnly(2027, 9, 11), checkOut, 2));
 

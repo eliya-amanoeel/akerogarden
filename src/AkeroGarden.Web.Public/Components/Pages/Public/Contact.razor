@@ -1,7 +1,5 @@
 @page "/kontakt"
 @layout MainLayout
-@using Microsoft.Extensions.Options
-@inject IOptions<BookingEmailOptions> EmailOptions
 
 <PageTitle>Kontakt — Åkerögården</PageTitle>
 <SeoMeta Title="Kontakt och vägbeskrivning"
@@ -33,12 +31,12 @@
                     <div class="contact-group__head"><h2>Kontakta oss</h2></div>
                     <dl class="contact-dl">
                         <dt>E-post</dt>
-                        <dd><a href="mailto:info@akerogarden.se">info@akerogarden.se</a></dd>
+                        <dd><a href="mailto:@ContactDetails.Email">@ContactDetails.Email</a></dd>
 
                         @* tel: uses the full international form so the link works from abroad; the
                            visible text keeps the Swedish grouping a domestic visitor expects. *@
                         <dt>Telefon</dt>
-                        <dd><a href="tel:@EmailOptions.Value.ContactPhoneTel">@EmailOptions.Value.ContactPhone</a></dd>
+                        <dd><a href="tel:@ContactDetails.PhoneTel">@ContactDetails.Phone</a></dd>
 
                         <dt>Svarstid</dt>
                         <dd>Vi svarar oftast inom några dagar.</dd>
@@ -72,7 +70,7 @@
                             @* Plain text, not a link: the map above is the way to a route, so a
                                second link to the same place was one target too many. What the
                                address is for here is reading and copying. *@
-                            Åkerögården<br />Åkerövägen 81<br />761 94 Norrtälje
+                            @ContactDetails.Name<br />@ContactDetails.Street<br />@ContactDetails.PostalCode @ContactDetails.City
                         </dd>
 
                         <dt>Med bil</dt>
@@ -115,5 +113,5 @@
     // Universal Google Maps search URL — no API key needed, works cross-platform (opens the
     // app on mobile, maps.google.com on desktop).
     private static readonly string MapsUrl =
-        $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString("Åkerögården, Åkerövägen 81, 761 94 Norrtälje")}";
+        $"https://www.google.com/maps/search/?api=1&query={Uri.EscapeDataString($"{ContactDetails.Name}, {ContactDetails.Address}")}";
 }

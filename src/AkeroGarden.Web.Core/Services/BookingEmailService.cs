@@ -1,4 +1,3 @@
-using System.Net;
 using AkeroGarden.Web.Core.Data.Entities;
 using Microsoft.Extensions.Options;
 
@@ -6,9 +5,9 @@ namespace AkeroGarden.Web.Core.Services;
 
 /// <summary>
 /// Sends the booking-lifecycle emails of §9. Builds each body from the pure
-/// <see cref="BookingEmailTemplates"/>, appends the shared footer (Åkerögården name, contact
-/// email, privacy-policy link), and dispatches via <see cref="IEmailService"/> — whose failures
-/// are logged and never propagate (NFR-13), so no email failure blocks a booking operation.
+/// <see cref="BookingEmailTemplates"/> and dispatches via <see cref="IEmailService"/> — which adds
+/// the signature every email carries, and whose failures are logged and never propagate (NFR-13),
+/// so no email failure blocks a booking operation.
 /// </summary>
 public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptions> options)
 {
@@ -211,13 +210,13 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
     // ── Dispatch ────────────────────────────────────────────────────────────────
     private Task<bool> SendToGuestAsync(Booking booking, EmailContent content) =>
-        email.SendAsync(booking.ContactEmail, booking.ContactName, content.Subject, WithFooter(content.HtmlBody));
+        email.SendAsync(booking.ContactEmail, booking.ContactName, content.Subject, content.HtmlBody);
 
     // Sent in the guest's name when the email is about a guest's booking, so the info@ inbox lists who
     // wrote and the sender matches the Reply-To. Without a booking it falls back to "Åkerögården".
     private Task<bool> SendToAdminAsync(EmailContent content, Booking? replyToBooking = null) =>
         email.SendAsync(
-            _opts.AdminNotificationEmail, _opts.AdminNotificationName, content.Subject, WithFooter(content.HtmlBody),
+            _opts.AdminNotificationEmail, _opts.AdminNotificationName, content.Subject, content.HtmlBody,
             replyToBooking?.ContactEmail, replyToBooking?.ContactName, fromName: replyToBooking?.ContactName);
 
     private string BuildCompletionUrl(string token) =>
@@ -228,16 +227,4 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
 
     private string BuildAdminBookingUrl(Guid bookingId) =>
         $"{_opts.AdminBaseUrl.TrimEnd('/')}/bokningar/{bookingId}";
-
-    /// <summary>Appends the footer every email must carry (§9): name, contact email, privacy link.</summary>
-    private string WithFooter(string body)
-    {
-        var contactEmail = WebUtility.HtmlEncode(_opts.ContactEmail);
-        var privacyUrl = WebUtility.HtmlEncode($"{_opts.PublicBaseUrl.TrimEnd('/')}/integritetspolicy");
-        return body +
-            "<hr>" +
-            "<p style=\"font-size:12px;color:#666\">Åkerögården<br>" +
-            $"Kontakt: <a href=\"mailto:{contactEmail}\">{contactEmail}</a><br>" +
-            $"<a href=\"{privacyUrl}\">Integritetspolicy</a></p>";
-    }
 }

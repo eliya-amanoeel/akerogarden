@@ -1,14 +1,14 @@
 namespace AkeroGarden.Web.Core.Services;
 
 /// <summary>
-/// Configuration for booking-related emails (§9): the links they contain and the footer
-/// details every email must carry (Åkerögården name, contact email, privacy-policy link).
-/// Bound from the "BookingEmail" configuration section.
+/// Configuration for booking-related emails (§9): the links they contain and the contact details
+/// the signature on every email carries (phone, contact email, site and privacy-policy links — added
+/// by <see cref="SmtpEmailService"/>). Bound from the "BookingEmail" configuration section.
 /// </summary>
 public class BookingEmailOptions
 {
     /// <summary>Public site base URL, e.g. <c>https://akerogarden.se</c> — used to build the
-    /// completion magic link and the privacy-policy link in the footer.</summary>
+    /// completion magic link, and the site and privacy-policy links in the signature.</summary>
     public string PublicBaseUrl { get; set; } = string.Empty;
 
     /// <summary>Admin panel base URL, e.g. <c>https://admin.akerogarden.se</c> — used to build
@@ -21,13 +21,13 @@ public class BookingEmailOptions
     /// <summary>Display name for the admin notification recipient.</summary>
     public string AdminNotificationName { get; set; } = "Åkerögården Admin";
 
-    /// <summary>Contact email shown in every email footer (§9).</summary>
+    /// <summary>Contact email shown in every email's signature (§9).</summary>
     public string ContactEmail { get; set; } = string.Empty;
 
     /// <summary>
     /// Åkerögården's phone number in the Swedish domestic form, as <c>/kontakt</c> shows it. Held once
-    /// here and read by every place that shows the number — <c>/kontakt</c> and the booking terms'
-    /// contact section — so a new number is one edit. A code default, like the payment details below:
+    /// here and read by every place that shows the number — <c>/kontakt</c>, the booking terms'
+    /// contact section and every email's signature (item 9) — so a new number is one edit. A code default, like the payment details below:
     /// it changes only through a reviewed PR and a deploy (client review 2026-11-11, item 3).
     /// </summary>
     public string ContactPhone { get; set; } = "073-952 78 73";

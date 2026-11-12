@@ -164,7 +164,7 @@ param adminBaseUrl string
 @description('Address that receives admin notification emails (new inquiry, etc.)')
 param adminNotificationEmail string
 
-@description('Contact email shown in every booking email footer — §9')
+@description('Contact email shown in every email signature — §9')
 param contactEmail string
 
 // ── Naming ────────────────────────────────────────────────────────────────────

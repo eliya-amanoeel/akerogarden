@@ -26,7 +26,7 @@ brackets is the client's original numbering.
 | 6 | [1] Vegan as a dish label | Locked | S (migration) |
 | 7 | [7] Completion link 3 weeks before the stay | **Open — client** | S code, M docs |
 | 8 | [10] Admin gets the guest's full summary email | Locked | M |
-| 9 | [11] One signature with logo and phone in all emails | Locked | M |
+| 9 | [11] One signature with logo and phone in all emails | ✅ **Done** 2026-11-12 — awaiting deploy | M |
 | 10 | [13] Deposit: 14 days, reminder inside the period, admin notified | Locked (terms question open) | M |
 | 11 | [12] New cancellation terms | Locked rule — **3+1 questions open with client** | M–L |
 | 12 | [5] One menu — any dish at any sitting | Locked | L (migration) |
@@ -116,7 +116,7 @@ brackets is the client's original numbering.
 
 ## 9. [11] One signature with logo and phone in all emails
 
-**Today.** Booking emails (`BookingEmailService.WithFooter`) carry a text-only footer: "Åkerögården / Kontakt: info@… / Integritetspolicy". Admin invitations (`AdminInviteService`) carry **none**.
+**Today.** Booking emails (`BookingEmailService.WithFooter`) carry a text-only footer: "Åkerögården / Kontakt: info@… / Integritetspolicy". Admin invitations (`AdminInviteService`) carry **none** — and neither does the password reset (`ForgotPassword.razor`), found while building this.
 
 **Decision.**
 - The signature moves to the one place every email passes through (`SmtpEmailService`), so no email — present or future — can go out without it.

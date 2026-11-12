@@ -7,6 +7,13 @@ namespace AkeroGarden.Unit;
 
 public class SmtpEmailServiceTests
 {
+    // The contact details as production configures them; the phone number is the code default.
+    private static readonly IOptions<BookingEmailOptions> Contact = Options.Create(new BookingEmailOptions
+    {
+        ContactEmail = "info@akerogarden.se",
+        PublicBaseUrl = "https://akerogarden.se",
+    });
+
     // NFR-13: email failures must never propagate — log and swallow only.
     [Fact]
     public async Task SendAsync_DoesNotThrow_WhenSmtpUnreachable()
@@ -19,7 +26,7 @@ public class SmtpEmailServiceTests
             FromName = "Åkerögården",
             RetryDelayMs = 0 // retry immediately so the test stays fast (NFR-13 retry path)
         });
-        var svc = new SmtpEmailService(opts, NullLogger<SmtpEmailService>.Instance);
+        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
 
         var ex = await Record.ExceptionAsync(() =>
             svc.SendAsync("mottagare@test.se", "Mottagare", "Ämne", "<p>Brödtext</p>"));
@@ -42,7 +49,7 @@ public class SmtpEmailServiceTests
             RetryDelayMs = 0
         });
         var capturingLogger = new CapturingLogger<SmtpEmailService>();
-        var svc = new SmtpEmailService(opts, capturingLogger);
+        var svc = new SmtpEmailService(opts, Contact, capturingLogger);
 
         await svc.SendAsync("gast.namn@example.se", "Gäst Namn", "Ämne", "<p>Brödtext</p>");
 
@@ -59,7 +66,7 @@ public class SmtpEmailServiceTests
     public void BuildMessage_SignsAsAkerogarden_WhenNoSenderNameIsConfigured()
     {
         var opts = Options.Create(new SmtpOptions { FromAddress = "info@akerogarden.se" });
-        var svc = new SmtpEmailService(opts, NullLogger<SmtpEmailService>.Instance);
+        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
 
         var message = svc.BuildMessage("gast@example.se", "Gäst", "Ämne", "<p>Brödtext</p>");
 
@@ -73,7 +80,7 @@ public class SmtpEmailServiceTests
     public void BuildMessage_UsesGivenSenderName_WithTheConfiguredAddress()
     {
         var opts = Options.Create(new SmtpOptions { FromAddress = "info@akerogarden.se" });
-        var svc = new SmtpEmailService(opts, NullLogger<SmtpEmailService>.Instance);
+        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
 
         var message = svc.BuildMessage(
             "info@akerogarden.se", "Åkerögården Admin", "Ämne", "<p>Brödtext</p>",
@@ -82,6 +89,49 @@ public class SmtpEmailServiceTests
         var from = Assert.IsType<MimeKit.MailboxAddress>(Assert.Single(message.From));
         Assert.Equal("Anna Andersson", from.Name);
         Assert.Equal("info@akerogarden.se", from.Address);
+    }
+
+    // Client review 2026-11-11, item 9: the signature is added here, where every email passes, so a
+    // body that brings none of its own — the admin invite and the password reset did not — still
+    // goes out signed. The body is kept as given, once, ahead of the signature.
+    [Fact]
+    public void BuildMessage_AppendsTheSignature_ToABodyWithoutOne()
+    {
+        var opts = Options.Create(new SmtpOptions { FromAddress = "info@akerogarden.se" });
+        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
+
+        var html = svc.BuildMessage("ny.admin@example.se", "Ny Admin", "Ämne", "<p>Brödtext</p>").HtmlBody;
+
+        Assert.StartsWith("<p>Brödtext</p><hr>", html);
+        Assert.Equal(html.IndexOf("<p>Brödtext</p>", StringComparison.Ordinal),
+            html.LastIndexOf("<p>Brödtext</p>", StringComparison.Ordinal));
+        Assert.Contains("Åkerögården<br>", html);
+        Assert.Contains("Telefon: <a href=\"tel:+46739527873\">073-952 78 73</a>", html);
+        Assert.Contains("E-post: <a href=\"mailto:info@akerogarden.se\">info@akerogarden.se</a>", html);
+        Assert.Contains("<a href=\"https://akerogarden.se\">akerogarden.se</a>", html);
+        Assert.Contains("<a href=\"https://akerogarden.se/integritetspolicy\">Integritetspolicy</a>", html);
+    }
+
+    // The logo travels inside the message as an inline PNG, not as a link (Outlook hides linked
+    // images, Gmail/Outlook don't render SVG) and not as an attachment the reader sees listed. The
+    // signature's <img> must point at that exact part, or clients show a broken image.
+    [Fact]
+    public void BuildMessage_EmbedsTheLogoInline_ReferencedFromTheSignature()
+    {
+        var opts = Options.Create(new SmtpOptions { FromAddress = "info@akerogarden.se" });
+        var svc = new SmtpEmailService(opts, Contact, NullLogger<SmtpEmailService>.Instance);
+
+        var message = svc.BuildMessage("gast@example.se", "Gäst", "Ämne", "<p>Brödtext</p>");
+
+        Assert.Empty(message.Attachments);
+        var logo = Assert.Single(message.BodyParts.OfType<MimeKit.MimePart>(), p => p.ContentType.MimeType == "image/png");
+        Assert.False(logo.IsAttachment);
+        Assert.False(string.IsNullOrEmpty(logo.ContentId));
+        Assert.Contains($"<img src=\"cid:{logo.ContentId}\"", message.HtmlBody);
+
+        using var bytes = new MemoryStream();
+        logo.Content.DecodeTo(bytes);
+        Assert.Equal(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, bytes.ToArray()[..8]);
     }
 
     private sealed class CapturingLogger<T> : ILogger<T>

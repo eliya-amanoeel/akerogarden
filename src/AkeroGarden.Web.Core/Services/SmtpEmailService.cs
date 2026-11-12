@@ -1,3 +1,4 @@
+using System.Net;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
@@ -5,9 +6,25 @@ using MimeKit;
 
 namespace AkeroGarden.Web.Core.Services;
 
-public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailService> logger) : IEmailService
+public class SmtpEmailService(
+    IOptions<SmtpOptions> options, IOptions<BookingEmailOptions> emailOptions, ILogger<SmtpEmailService> logger)
+    : IEmailService
 {
     private readonly SmtpOptions _opts = options.Value;
+    private readonly BookingEmailOptions _contact = emailOptions.Value;
+
+    private const string LogoResourceName = "AkeroGarden.email-signature.png";
+
+    /// <summary>The signature logo, read once from the assembly. A PNG rendered at 2× from
+    /// <c>wwwroot/logo/lockup-transparent.svg</c> on a white ground — see <see cref="AppendSignature"/>.</summary>
+    private static readonly Lazy<byte[]> Logo = new(() =>
+    {
+        using var stream = typeof(SmtpEmailService).Assembly.GetManifestResourceStream(LogoResourceName)
+            ?? throw new InvalidOperationException($"Embedded resource {LogoResourceName} is missing.");
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
+    });
 
     public async Task<bool> SendAsync(
         string toAddress, string toName, string subject, string htmlBody,
@@ -51,8 +68,9 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
     }
 
     /// <summary>
-    /// Builds the message exactly as <see cref="SendAsync"/> sends it. Separate from the send so the
-    /// headers every email carries — the sender name above all — can be asserted without an SMTP server.
+    /// Builds the message exactly as <see cref="SendAsync"/> sends it, signature and logo included.
+    /// Separate from the send so what every email carries — the sender name, the signature — can be
+    /// asserted without an SMTP server.
     /// </summary>
     public MimeMessage BuildMessage(
         string toAddress, string toName, string subject, string htmlBody,
@@ -65,8 +83,45 @@ public class SmtpEmailService(IOptions<SmtpOptions> options, ILogger<SmtpEmailSe
         if (!string.IsNullOrEmpty(replyToAddress))
             message.ReplyTo.Add(new MailboxAddress(replyToName, replyToAddress));
         message.Subject = subject;
-        message.Body = new TextPart("html") { Text = htmlBody };
+
+        var body = new BodyBuilder();
+        var logo = body.LinkedResources.Add("akerogarden.png", Logo.Value, new ContentType("image", "png"));
+        logo.ContentId = MimeKit.Utils.MimeUtils.GenerateMessageId();
+        body.HtmlBody = AppendSignature(htmlBody, logo.ContentId);
+        message.Body = body.ToMessageBody();
         return message;
+    }
+
+    /// <summary>
+    /// Appends the signature every email carries (§9; client review 2026-11-11, item 9). It lives here,
+    /// in the one place every email passes through, so no sender — present or future — can leave it
+    /// off; callers pass only their own body.
+    ///
+    /// <para><strong>Why the logo is an embedded PNG.</strong> Gmail and Outlook don't render SVG, and
+    /// Outlook hides linked images until the reader clicks to load them. A linked image would also be
+    /// fetched from our server each time the email is opened — a tracking pixel in all but intent. So
+    /// it travels inside the message as an inline part, referenced by <c>cid:</c>. Its ground is
+    /// white, not transparent: a mail client in dark mode would otherwise put the green wordmark on
+    /// a dark background, where it can't be read.</para>
+    /// </summary>
+    private string AppendSignature(string htmlBody, string logoContentId)
+    {
+        var phone = WebUtility.HtmlEncode(_contact.ContactPhone);
+        var phoneTel = WebUtility.HtmlEncode(_contact.ContactPhoneTel);
+        var contactEmail = WebUtility.HtmlEncode(_contact.ContactEmail);
+        var siteUrl = _contact.PublicBaseUrl.TrimEnd('/');
+        var siteName = WebUtility.HtmlEncode(Uri.TryCreate(siteUrl, UriKind.Absolute, out var site) ? site.Host : siteUrl);
+        var privacyUrl = WebUtility.HtmlEncode($"{siteUrl}/integritetspolicy");
+        siteUrl = WebUtility.HtmlEncode(siteUrl);
+
+        return htmlBody +
+            "<hr>" +
+            $"<p><img src=\"cid:{logoContentId}\" alt=\"Åkerögården\" width=\"192\" height=\"52\"></p>" +
+            "<p style=\"font-size:12px;color:#666\">Åkerögården<br>" +
+            $"Telefon: <a href=\"tel:{phoneTel}\">{phone}</a><br>" +
+            $"E-post: <a href=\"mailto:{contactEmail}\">{contactEmail}</a><br>" +
+            $"<a href=\"{siteUrl}\">{siteName}</a><br>" +
+            $"<a href=\"{privacyUrl}\">Integritetspolicy</a></p>";
     }
 
     /// <summary>Reduces a recipient address to its domain for logging — enough to diagnose a

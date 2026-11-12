@@ -534,6 +534,9 @@ The client's artwork is a single **square, stacked** composition. That cannot go
 | `lockup-stacked.svg` | Centred, 250×156 — the client's own composition | Login / glömt- / återställ-lösenord (`Stacked`) |
 | `mark-light.svg` / `mark-dark.svg` | Icon only | Tight spots |
 | `mark-favicon.svg` → `favicon.png` | Icon, simplified | Browser tab |
+| `lockup-transparent.svg` → `email-signature.png` | Horizontal lockup at 2× (384×104), shown at 192×52, **on white** | Every email's signature (embedded in the message, never linked — SRS §9) |
+
+> **The email logo is a PNG, not the SVG, and its ground is white.** Gmail and Outlook don't render SVG, so it is a raster — rendered at 2× for sharpness on high-density screens. A transparent ground would leave the green wordmark on a dark background when the reader's mail client is in dark mode. It lives here with the other logos, but the email never loads it from the site: it is also an embedded resource in Web.Core (see the `.csproj`), attached to each message by `SmtpEmailService`. That it is reachable at `/logo/email-signature.png` is a side effect, and harmless — it is the public logo. **If the lockup changes, re-render it** — open the SVG at 384×104 on white (macOS Quick Look, `qlmanage -t`, works) and replace the file.
 
 **Both wordmarks are baked to outlines, not `<text>`.** The lockups load through `<img>`, which renders SVG sandboxed — no page CSS, no webfonts, no external anything. A `font-family` in there resolves against whatever the viewer's OS happens to have, so the pre-2026-08 lockup asked for Cormorant Garamond and silently got Georgia on macOS and something generic on Linux. Outlines render identically everywhere and add no font dependency. **Do not "fix" this back to a `<text>` element.**
 

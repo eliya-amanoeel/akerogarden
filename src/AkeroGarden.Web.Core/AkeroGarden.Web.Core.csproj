@@ -27,6 +27,14 @@
     <Using Include="Microsoft.Extensions.Logging" />
   </ItemGroup>
 
+  <!-- The logo in every email's signature (client review 2026-11-11, item 9). Kept beside the other
+       logos in wwwroot/logo, but embedded in the assembly rather than read from disk: Core's wwwroot
+       ships as static web assets, whose path on disk depends on how each host is published, and
+       SmtpEmailService runs in both hosts. -->
+  <ItemGroup>
+    <EmbeddedResource Include="wwwroot\logo\email-signature.png" LogicalName="AkeroGarden.email-signature.png" />
+  </ItemGroup>
+
   <ItemGroup>
     <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Blobs" Version="1.5.3" />
     <PackageReference Include="Azure.Extensions.AspNetCore.DataProtection.Keys" Version="1.6.3" />

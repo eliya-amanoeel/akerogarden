@@ -6,6 +6,10 @@ public interface IEmailService
     /// there instead of the sending mailbox — e.g. an admin notification should reply to the
     /// guest who submitted the inquiry, not back to the notification address itself.
     ///
+    /// <para><paramref name="htmlBody"/> is the caller's own content only. The signature — logo, name,
+    /// phone, email, site and privacy-policy link — is added by the implementation, so every email
+    /// carries it and no caller can leave it off (§9; client review 2026-11-11, item 9).</para>
+    ///
     /// <para><paramref name="fromName"/> overrides the sender's display name; the address is always
     /// the configured sending mailbox. Left null, the name is "Åkerögården" (<see cref="SmtpOptions.FromName"/>)
     /// — what every guest sees. Only the admin notifications pass one: the guest's own name, so the

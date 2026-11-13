@@ -7,8 +7,9 @@ namespace AkeroGarden.Unit;
 /// <summary>
 /// Unit coverage for the pure completion-form normaliser (NFR-26, §6.6): validation (names, the
 /// meals-required rule, allergy "Annat" notes, preference-count and org guards) and the
-/// server-authoritative build — the group's one choice per sitting (FR-105), wrong-type/inactive
-/// options dropped, snapshots captured, and a roster carrying nothing but name, age and allergies.
+/// server-authoritative build — the group's one choice per sitting (FR-105), any dish at any
+/// sitting (§4.5), inactive options dropped, snapshots captured, and a roster carrying nothing but
+/// name, age and allergies.
 /// </summary>
 public class CompletionNormalizerTests
 {
@@ -16,11 +17,11 @@ public class CompletionNormalizerTests
     private static readonly DateOnly Day2 = new(2026, 8, 11);
     private static readonly DateOnly Day3 = new(2026, 8, 12); // 2 nights
 
-    private static readonly MealOption Lunch1 = new() { Id = Guid.NewGuid(), Name = "Fisk", MealType = MealType.Lunch, IsActive = true };
-    private static readonly MealOption Dinner1 = new() { Id = Guid.NewGuid(), Name = "Kyckling", MealType = MealType.Dinner, IsActive = true };
+    private static readonly MealOption Fish = new() { Id = Guid.NewGuid(), Name = "Fisk", IsActive = true };
+    private static readonly MealOption Chicken = new() { Id = Guid.NewGuid(), Name = "Kyckling", IsActive = true };
 
     private static Dictionary<Guid, MealOption> Options() =>
-        new() { [Lunch1.Id] = Lunch1, [Dinner1.Id] = Dinner1 };
+        new() { [Fish.Id] = Fish, [Chicken.Id] = Chicken };
 
     /// <summary>The standard-schedule resolution for the 2-night stay used throughout.
     /// Grid (AllSittings): 0=D1 lunch, 1=D1 dinner, 2=D2 lunch, 3=D2 dinner, 4=D3 lunch, 5=D3 dinner.
@@ -37,7 +38,7 @@ public class CompletionNormalizerTests
 
     /// <summary>A meal grid with the three standard-schedule sittings chosen and the rest blank.</summary>
     private static List<string?> StandardChoices() =>
-        [null, Dinner1.Id.ToString(), Lunch1.Id.ToString(), Dinner1.Id.ToString(), null, null];
+        [null, Chicken.Id.ToString(), Fish.Id.ToString(), Chicken.Id.ToString(), null, null];
 
     private static CompletionFormModel FormWith(params string[] names)
     {
@@ -301,7 +302,7 @@ public class CompletionNormalizerTests
         var selections = CompletionNormalizer.BuildMealSelections(FormWith("Anna"), Occasions(), Options());
 
         var lunch = selections.Single(s => s.MealType == MealType.Lunch);
-        Assert.Equal(Lunch1.Id, lunch.MealOptionId);
+        Assert.Equal(Fish.Id, lunch.MealOptionId);
         Assert.Equal("Fisk", lunch.MealOptionSnapshot);
     }
 
@@ -311,7 +312,7 @@ public class CompletionNormalizerTests
         // A leftover value at the arrival-day lunch index must be discarded, not shifted onto a
         // different day — that is what indexing by the full grid protects against.
         var form = FormWith("Anna");
-        form.MealChoices[0] = Lunch1.Id.ToString();
+        form.MealChoices[0] = Fish.Id.ToString();
 
         var selections = CompletionNormalizer.BuildMealSelections(form, Occasions(), Options());
 
@@ -323,7 +324,7 @@ public class CompletionNormalizerTests
     public void BuildMealSelections_KeepsAnEdgeDayMealTheGroupAdded()
     {
         var form = FormWith("Anna");
-        form.MealChoices[4] = Lunch1.Id.ToString(); // departure-day lunch
+        form.MealChoices[4] = Fish.Id.ToString(); // departure-day lunch
 
         var selections = CompletionNormalizer.BuildMealSelections(form, Occasions(departureLunch: true), Options());
 
@@ -331,15 +332,21 @@ public class CompletionNormalizerTests
     }
 
     [Fact]
-    public void BuildMealSelections_DropsWrongTypeOption()
+    public void BuildMealSelections_AcceptsAnyDishAtAnySitting()
     {
+        // One menu (§4.5): a dish has no lunch/dinner type, so the same dish is valid at a lunch
+        // and at a dinner sitting alike — nothing is dropped for being "the wrong kind" of dish.
         var form = FormWith("Anna");
-        form.MealChoices[2] = Dinner1.Id.ToString(); // a dinner option posted for a lunch sitting
+        form.MealChoices[1] = Fish.Id.ToString(); // D1 dinner
+        form.MealChoices[2] = Fish.Id.ToString(); // D2 lunch
+        form.MealChoices[3] = Fish.Id.ToString(); // D2 dinner
 
         var selections = CompletionNormalizer.BuildMealSelections(form, Occasions(), Options());
 
-        Assert.DoesNotContain(selections, s => s.MealType == MealType.Lunch);
-        Assert.Equal(2, selections.Count);
+        Assert.Equal(3, selections.Count);
+        Assert.All(selections, s => Assert.Equal(Fish.Id, s.MealOptionId));
+        Assert.Contains(selections, s => s.MealType == MealType.Lunch);
+        Assert.Contains(selections, s => s.MealType == MealType.Dinner);
     }
 
     [Fact]

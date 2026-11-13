@@ -54,6 +54,46 @@ public class TrustPagesTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     /// <summary>
+    /// One menu (§4.5, FR-83): every dish in one list with no Lunch/Middag headings, a diet label
+    /// that names one diet only, and the list flowing into two columns on a wide screen but one on a
+    /// phone — measured from where the dishes actually land, not read off the stylesheet.
+    /// </summary>
+    [Fact]
+    public async Task Mat_och_priser_shows_one_menu_with_one_diet_label_per_dish()
+    {
+        await Page.SetViewportSizeAsync(Desktop.Width, Desktop.Height);
+        await Page.GotoAsync("/mat-och-priser");
+
+        var list = Page.Locator(".menu-list");
+        await Assertions.Expect(list.GetByRole(AriaRole.Heading, new() { Name = "Kycklinggryta" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Lunch", Exact = true })).ToHaveCountAsync(0);
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Middag", Exact = true })).ToHaveCountAsync(0);
+
+        ILocator Dish(string name) => list.Locator(".dish").Filter(new() { Has = Page.GetByRole(AriaRole.Heading, new() { Name = name }) });
+        await Assertions.Expect(Dish("Rotfruktssoppa").Locator(".meal-diet")).ToHaveTextAsync("Veganskt");
+        await Assertions.Expect(Dish("Grönsakslasagne").Locator(".meal-diet")).ToHaveTextAsync("Vegetariskt");
+        await Assertions.Expect(Dish("Ugnsbakad lax").Locator(".meal-diet")).ToHaveCountAsync(0);
+
+        // Each width is measured on a page loaded at that width, as the other responsive tests here
+        // do. Resizing a loaded page and measuring at once raced the reflow on CI (2026-11-13: the
+        // phone measurement still saw the desktop's two columns).
+        async Task<int> ColumnsAtAsync(ViewportSize vp)
+        {
+            await Page.SetViewportSizeAsync(vp.Width, vp.Height);
+            await Page.GotoAsync("/mat-och-priser");
+            await Assertions.Expect(list.Locator(".dish").First).ToBeVisibleAsync();
+
+            var lefts = new HashSet<int>();
+            foreach (var dish in await list.Locator(".dish").AllAsync())
+                lefts.Add((int)Math.Round((await dish.BoundingBoxAsync())!.X));
+            return lefts.Count;
+        }
+
+        Assert.Equal(2, await ColumnsAtAsync(Desktop));
+        Assert.Equal(1, await ColumnsAtAsync(Mobile));
+    }
+
+    /// <summary>
     /// Consumers book (the client's terms §1/§31), so a price shown to them must include VAT
     /// (prisinformationslagen). Asserts the arithmetic, not just the label: the leading figure in a
     /// real row equals its ex-VAT line plus the row's own VAT rate.

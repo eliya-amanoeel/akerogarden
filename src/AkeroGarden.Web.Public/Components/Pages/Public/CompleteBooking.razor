@@ -137,7 +137,6 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                     @foreach (var item in dateGroup)
                                     {
                                         var sittingIndex = item.SittingIndex;
-                                        var options = item.Slot.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
                                         var mealLabel = item.Slot.MealType == MealType.Lunch ? "Lunch" : "Middag";
                                         var chosen = _form.MealChoices.ElementAtOrDefault(sittingIndex);
                                         var edge = isArrival ? "arrival" : isDeparture ? "departure" : null;
@@ -148,7 +147,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                             <select class="inp" id="m@(sittingIndex)" name="Form.MealChoices[@sittingIndex]"
                                                     data-meal-select="@item.Slot.MealType">
                                                 <option value="">– välj –</option>
-                                                @foreach (var o in options)
+                                                @foreach (var o in _menu)
                                                 {
                                                     <option value="@o.Id" selected="@(chosen == o.Id.ToString())">@o.Name</option>
                                                 }
@@ -469,8 +468,8 @@ else
     // matches what they just ticked rather than what was stored before the postback.
     private ResolvedMealOccasions _occasions = ResolvedMealOccasions.Empty;
     private IReadOnlyList<(MealSlot Slot, int SittingIndex)> _sittings = [];
-    private List<MealOption> _lunchOptions = [];
-    private List<MealOption> _dinnerOptions = [];
+    // One menu: every lunch and dinner dropdown offers every active dish (§4.5).
+    private List<MealOption> _menu = [];
     private bool _catered;
     private bool _dayGuestsApplicable;
     private DateOnly _stayCheckIn;
@@ -501,9 +500,7 @@ else
             _stayCheckOut = _booking.CheckOut.Value;
             _catered = _booking.MealPlan == MealPlan.FullBoardAll;
 
-            var options = await MealOptionService.GetActiveAsync();
-            _lunchOptions = options.Where(o => o.MealType == MealType.Lunch).ToList();
-            _dinnerOptions = options.Where(o => o.MealType == MealType.Dinner).ToList();
+            _menu = await MealOptionService.GetActiveAsync();
 
             // Day guests apply only for a catered plan (§4.2); the section is hidden otherwise.
             _dayGuestsApplicable = InquiryNormalizer.DayGuestsApplicable(_booking.MealPlan);

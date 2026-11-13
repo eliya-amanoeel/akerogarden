@@ -240,8 +240,8 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         {
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var service = scope.ServiceProvider.GetRequiredService<BookingService>();
-            var lunch = new MealOption { Id = Guid.NewGuid(), Name = $"L-{Guid.NewGuid():N}", MealType = MealType.Lunch, IsActive = true };
-            var dinner = new MealOption { Id = Guid.NewGuid(), Name = $"D-{Guid.NewGuid():N}", MealType = MealType.Dinner, IsActive = true };
+            var lunch = new MealOption { Id = Guid.NewGuid(), Name = $"L-{Guid.NewGuid():N}", IsActive = true };
+            var dinner = new MealOption { Id = Guid.NewGuid(), Name = $"D-{Guid.NewGuid():N}", IsActive = true };
             db.MealOptions.AddRange(lunch, dinner);
             await db.SaveChangesAsync();
             lunchId = lunch.Id; dinnerId = dinner.Id;

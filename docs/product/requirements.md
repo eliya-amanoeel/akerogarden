@@ -354,7 +354,7 @@ Full-board accommodation includes per day: breakfast (buffet, no selection requi
 
 > **The edge days are deliberately not derived from the check-in and check-out times.** They used to be: fixed 14:00/12:00 implied dinner only on arrival and breakfast only on departure. Once guests state their own times (§2.8) that derivation stops being safe — and constraining the choice by the stated time would require a cutoff rule that is wrong often enough to be worse than trusting the group. A party arriving at 11:00 may perfectly reasonably want breakfast.
 
-A lunch or dinner option is chosen for every sitting the group has said it will take, so a one-night stay with dinner on arrival and breakfast on departure collects exactly one dinner selection.
+A dish from the menu (§4.4) is chosen for every lunch and dinner sitting the group has said it will take, so a one-night stay with dinner on arrival and breakfast on departure collects exactly one dinner selection.
 
 ### 4.2 Day Guests
 
@@ -374,25 +374,27 @@ A booking may include day guests in addition to overnight guests. Day guests do 
 
 Standard buffet. No per-person selection required.
 
-### 4.4 Current Lunch Options
+### 4.4 Current Menu
 
-| Key | Description |
-|---|---|
-| `LUNCH_FISH` | Breaded fish with Danish remoulade, boiled vegetables, boiled potatoes |
-| `LUNCH_CHICKEN` | Oven-roasted chicken drumstick with tzatziki and bulgur |
-| `LUNCH_PASTA` | Spaghetti bolognese |
-| `LUNCH_MEATBALLS` | Meatballs with mashed potatoes and cream sauce |
-| `LUNCH_VEGETARIAN` | Stir-fried vegetables with noodles |
+One menu for lunch and dinner alike (§4.5). The label is the dish's diet (§8.7), shown on the public menu.
 
-### 4.5 Current Dinner Options
+| Key | Description | Diet |
+|---|---|---|
+| `FISH` | Breaded fish with Danish remoulade, boiled vegetables, boiled potatoes | — |
+| `CHICKEN_DRUMSTICK` | Oven-roasted chicken drumstick with tzatziki and bulgur | — |
+| `PASTA` | Spaghetti bolognese | — |
+| `MEATBALLS` | Meatballs with mashed potatoes and cream sauce | — |
+| `STIR_FRY` | Stir-fried vegetables with noodles | Vegetarian |
+| `CHICKEN_FILLET` | Grilled chicken fillet with mushroom sauce, sautéed vegetables, wedge potatoes | — |
+| `BURGER` | Burger with fries | — |
+| `HOTDOG` | Hot dog with bread or mashed potatoes | — |
+| `PANCAKES` | Pancakes with jam and cream | — |
 
-| Key | Description |
-|---|---|
-| `DINNER_CHICKEN` | Grilled chicken fillet with mushroom sauce, sautéed vegetables, wedge potatoes |
-| `DINNER_BURGER` | Burger with fries |
-| `DINNER_HOTDOG` | Hot dog with bread or mashed potatoes |
-| `DINNER_PANCAKES` | Pancakes with jam and cream |
-| `DINNER_VEGETARIAN` | Stir-fried vegetables with noodles |
+### 4.5 One Menu — Any Dish at Any Sitting
+
+A dish belongs to no sitting: **every dish on the menu can be chosen for any lunch and any dinner**. The only lunch/dinner distinction in the system is the sitting itself — the date and meal the group's choice applies to (§4.1, §8.6) — which the kitchen list, the emails and the arrival/departure-day meals rest on. Breakfast is unchanged (buffet, no selection).
+
+> **Why there is no lunch or dinner dish (client, 2026-11-11).** Dishes used to carry a meal type, and each dropdown offered only the dishes of its own kind. The client cooks any dish at either meal, so the split only kept groups from choosing what the kitchen would happily serve — and it forced a dish served at both, such as the stir-fried vegetables, to exist twice. Do not reintroduce a per-dish meal type: if a dish must be kept off one sitting, that is a new rule to be designed, not the old split restored. Choices submitted before the change keep exactly the dish they named (NFR-15).
 
 ### 4.6 Allergies and Dietary Preferences
 
@@ -417,7 +419,7 @@ Individual dietary needs are captured in **two separate ways**, because they are
 
 > **Why the split.** These were previously one list, so a nut allergy and vegetarianism were stored identically. They are not alike: an allergy carries a safety consequence and is special-category health data under GDPR art. 9, whereas a preference is an ordinary choice. Separating them lets the kitchen read "2 nut allergies (safety)" differently from "3 vegetarian portions (preference)", and lets preferences be stored as a count — **strictly less personal data than before**, since nobody needs to know which individuals are vegetarian.
 >
-> **The vegetarian preference must remain recordable.** With group-level meal selection (§4.1) an individual can no longer quietly pick the vegetarian dish for themselves, so this flag is the only remaining way to record a vegetarian in a group eating something else. The vegetarian *menu options* also stay available (§4.4, §4.5) so a group may choose an all-vegetarian meal for everyone — the two mechanisms serve different cases and do not conflict.
+> **The vegetarian preference must remain recordable.** With group-level meal selection (§4.1) an individual can no longer quietly pick the vegetarian dish for themselves, so this flag is the only remaining way to record a vegetarian in a group eating something else. Vegetarian and vegan *dishes* also stay on the menu (§4.4, labelled by their diet, §8.7) so a group may choose an all-vegetarian or all-vegan meal for everyone — the two mechanisms serve different cases and do not conflict.
 
 ---
 
@@ -543,7 +545,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | FR-07 | The public website shall display the privacy policy and link to it from the booking form and the site footer |
 | FR-81 | The public facilities page shall display active facility records in their configured display order, drawn dynamically from the admin-managed facility list (name, description, image) |
 | FR-82 | The public website shall display current active price rules and active cleaning zones, drawn dynamically from the admin-managed price and cleaning-zone lists, on a combined **Mat & priser** page (shown together with the menu, FR-83). **Each price is shown including VAT**, with the stored ex-VAT amount beneath it: private individuals book as consumers, and a price aimed at a consumer must be the price they pay (prisinformationslagen 2004:347). The VAT-inclusive figure is computed per item for display and never stored (C8). The page also states that bed linen and towels are not included (client, 2026-10-09) |
-| FR-83 | The public website shall display current active meal options (lunch and dinner), drawn dynamically from the admin-managed meal list, on the combined **Mat & priser** page (shown together with prices, FR-82) |
+| FR-83 | The public website shall display current active meal options as **one menu** in display order — no lunch and dinner lists, since any dish can be served at either (§4.5) — each labelled "Vegetariskt" or "Veganskt" by its diet, drawn dynamically from the admin-managed meal list, on the combined **Mat & priser** page (shown together with prices, FR-82) |
 
 > **Why menu and prices are one page.** FR-82 and FR-83 were originally two separate public pages. They were merged during the Phase 6 UI/UX pass because a group organiser weighs food and cost together — reading them apart forced a comparison the site should have made for them. Both requirements keep their numbers and describe content served on the single `/mat-och-priser` page. Meal options and price rules/cleaning zones remain separately admin-managed; this is a presentation decision only.
 
@@ -585,7 +587,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 
 | ID | Requirement |
 |---|---|
-| FR-22 | The admin shall be able to create a meal option with: name, description, meal type (Lunch or Dinner), vegetarian flag, and active/inactive status |
+| FR-22 | The admin shall be able to create a meal option with: name, description, diet (none, vegetarian or vegan — one value, so a vegan dish is never also labelled vegetarian), display order, and active/inactive status. A meal option has **no meal type**: any dish can be chosen at any lunch or dinner sitting (§4.5) |
 | FR-23 | The admin shall be able to edit any meal option |
 | FR-24 | The admin shall be able to deactivate a meal option — it will no longer appear on the completion form |
 | FR-25 | Deactivating a meal option shall not alter existing selections already saved on bookings |
@@ -715,7 +717,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | FR-102 | The system shall prevent a lodging building from being assigned to a booking when a `BlockedPeriod` at that building's scope — or a `WholeProperty` block — overlaps the booking's stay dates (§3.3, FR-21). Previously this protection existed only as a side effect of blocked rooms being filtered out of the completion form's room picker; with that picker retired (FR-56) it is stated as a rule in its own right. **The rule also holds in reverse:** a `Building`-scoped block shall be refused while a booking in `Pending`, `AwaitingDeposit`, `Approved`, `DetailsComplete` or `Active` has that building assigned over overlapping stay dates, and a `WholeProperty` block while any such booking has any building assigned; the refusal names the bookings, so the admin can unassign the building first. `Pending` is included because assignment precedes approval (FR-103). *Why:* with only the forward half, a block created after the assignment left the building assigned — shown ticked and greyed out at once — and approval went through, the guest's email naming a building closed for their whole stay. `Room`-scoped blocks are not refused: they only reduce beds, which the approval capacity warning reports (FR-103) |
 | FR-103 | The admin shall assign one or more lodging **buildings** to a stay request, recording which buildings the group will sleep in. Assignment is **required before the booking can be approved or the deposit asked for** (FR-38, FR-115) — unconditionally for stay requests, since a stay request always has at least one overnight guest (§4, the guest count is a required field with a minimum of one), and general inquiries are never approved at all. It remains editable afterwards for the life of the booking — groups grow and buildings break. Where the assigned buildings' total bed count is below the booking's overnight guest count the panel shall **warn without blocking** (the admin knows things the system does not, matching FR-75's pattern). Each assignment snapshots the building and physical-building name at the time it is made (NFR-16). Assigned buildings drive sleeping-cleaning zone resolution (FR-93) and are stated in the two-week reminder (FR-64) |
 | FR-104 | The system shall support two admin roles: **`Administratör`**, with full access as described throughout this document, and **`Samordnare`**, restricted to reading and downloading the two per-booking lists (FR-44/45) for bookings in status `DetailsComplete`, `Active` or `Completed`, and to reading the handbook's part written for that role (FR-117). `Samordnare` shall have **no access to the booking detail page**, and shall not see guest contact details, admin notes, reference data, accounts, or the dashboard; its landing page is its own list view. Authorisation is enforced per page, never by conditionally hiding parts of a shared page. `Samordnare` is **kept away from `/` rather than redirected off it**: the post-login redirect, the logo link in the admin header and the "back" link on the no-permission page all resolve the landing page from the signed-in user's role, so an ordinary click never lands this role on the dashboard route at all. (Redirecting *at* `/` would have been one line instead of three, and was rejected — `/` is the dashboard, and a page that authorises everyone and then decides what to do is the shared-page pattern this requirement exists to avoid.) A signed-in user who is denied a page shall see a **dedicated no-permission page**, never the login form — being asked to log in while already logged in reads as a broken session rather than a permission boundary. Any `Administratör` may assign or change a role through the existing invite lifecycle (FR-74); role assignment and change are audited (FR-96). This role formalises the external coordinator and kitchen-manager access described in §1.4 |
-| FR-105 | Meal selection shall be made **once for the whole booking**, not per participant: one lunch option and one dinner option for each sitting the group takes (§4.1 — the "same for all days" shortcut this once required was retired 2026-08-07; group-level selection achieves its purpose by construction). The completion form shall additionally collect **which meals the group takes on the arrival day and on the departure day** — any combination of breakfast, lunch and dinner — as stored data rather than derived from the check-in/check-out times, and **which meals day guests attend** as a single setting applying to all day guests on the booking (§4.2) |
+| FR-105 | Meal selection shall be made **once for the whole booking**, not per participant: one dish from the menu for each lunch and each dinner sitting the group takes (any dish at any sitting, §4.5) (§4.1 — the "same for all days" shortcut this once required was retired 2026-08-07; group-level selection achieves its purpose by construction). The completion form shall additionally collect **which meals the group takes on the arrival day and on the departure day** — any combination of breakfast, lunch and dinner — as stored data rather than derived from the check-in/check-out times, and **which meals day guests attend** as a single setting applying to all day guests on the booking (§4.2) |
 | FR-108 | Where a booking is approved **more than 40 days before check-in**, the system shall not issue a completion link at approval (FR-51/52). A daily job shall issue and email one to the guest once check-in comes within 40 days — booking still `Approved`, **holding no usable link** (no token, or a token whose expiry has already passed). **Not "never sent":** an admin may send the link early on request (FR-49), and on a far-out booking that link dies at its 30-day ceiling; a job keyed on "never sent" would treat the booking as already served and never replace it, leaving the guest holding a dead URL for months — the exact gap this requirement exists to close. Keyed on the live expiry, the job restores the §2.6 invariant whatever broke it, and a booking holding a valid link is skipped so a live URL is never invalidated under a guest who is using it. The email states that the details form is now open and gives the link and its exact expiry. **Why deferred rather than issued at approval:** a group booking six months or a year ahead cannot name its participants or choose its meals yet, so an approval email instructing them to do so within 30 days asks for something they cannot give — and the link then expired unused, leaving the guest holding a dead URL with no contact until FR-63. Issuing it when it is usable fixes both, and is why FR-99's warning email was retired rather than built. **Not** a guest-triggered "request a link" button: that would add a second public unauthenticated endpoint that sends mail to a third party (an abuse surface needing its own rate limiting and its own expiry) for the sole gain of early self-service, which FR-49's admin resend already covers. **If the email fails, the link is taken back** — the booking's previous link fields restored — so it still holds no usable link and the next nightly run issues it again (NFR-13). Keeping an undelivered link made the booking look served, and the guest waited for the 14-day nudge |
 | FR-106 | A booking shall hold its **check-out date** as well as its nights: on the public calendar, at inquiry and at approval the check-out day is unavailable, reserving it for cleaning between groups, irrespective of the stated check-out time and of whether the group purchased cleaning (FR-10). The **day after check-out is free** — a group leaving on Sunday can be followed by one arriving on Monday, never by one arriving on Sunday. **Why only one day:** the client's decision (review of 2026-11-11) — a late departure is the exception, handled by an admin block, not a reason to hold a second day after every stay. Do not reintroduce one without the client asking. The held day shall be **computed from the booking's dates, not stored** as `BlockedPeriod` rows — stored rows would duplicate information the booking already holds and would need maintaining whenever a booking's dates change or it is cancelled, where a single missed update silently costs a bookable day. It is not expressed as guest count, so a small group leaving a large property still yields *fully* booked. Additional cleaning days for exceptional cases (e.g. a very late departure) are created by the admin as ordinary blocks (FR-21) |
 | FR-109 | The **booking terms** (`Boknings- och vistelsevillkor` — the client's own document, adopted 2026-08-23 in place of our draft *Boknings- och ordningsvillkor*; source `docs/legal/Bokningsvillkor.md`) shall be published as a public page, linked from the site footer, and linked from the **approval email**. The stay-request form shall carry a **single combined acknowledgement** — *"Jag godkänner integritetspolicyn och bokningsvillkoren"*, linking both documents — required before submission, replacing the privacy-only checkbox rather than adding a second control. **Why one box and not two:** the terms must be accepted before the booking becomes binding, but a second checkbox is friction on the funnel and buys only marginal evidential strength; one control covering both documents costs nothing against what preceded it. The **general-inquiry** track keeps a privacy-only acknowledgement — a question is not a booking, so no terms apply to it. **Why the approval email specifically** (and, since FR-115, the deposit request): under §2 of the client's terms the booking binds once Åkerögården has confirmed it and the guest has accepted — on the deposit path, by paying — so these are the emails sent at the binding moment; they no longer summarise the cancellation rules (FR-79), and the link is what evidences that the guest was shown the whole document at that moment. The terms are **not** acknowledged on the completion form: that is reached by magic link *after* the booking is confirmed — after any deposit has been paid — so acceptance there would come too late to be acceptance at all. This requirement follows the NFR-20/21 pattern for the privacy policy and had no FR of its own until 2026-08-17 — the terms existed as a drafted document that no requirement obliged anyone to publish |
@@ -941,10 +943,11 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | `Id` | GUID | Primary key |
 | `Name` | string | |
 | `Description` | string | |
-| `MealType` | Enum | `Lunch` \| `Dinner` |
-| `IsVegetarian` | bool | |
+| `Diet` | Enum | `None` \| `Vegetarian` \| `Vegan` — one value, shown on the public menu as "Vegetariskt" / "Veganskt" (FR-83). Not the booking's vegetarian/vegan portion counts (§4.6), which count guests, not dishes |
 | `IsActive` | bool | |
-| `DisplayOrder` | int | |
+| `DisplayOrder` | int | One sequence across the whole menu |
+
+> **No meal type.** A dish is not a lunch or a dinner dish — any dish can be chosen at any sitting (§4.5). `MealType` lives only on the sitting (`BookingMealSelection`, §8.6).
 
 ### 8.8 Facility
 

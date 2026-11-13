@@ -62,9 +62,9 @@ public class AdminParticipantEditIntegrationTests : IClassFixture<DbFixture>
         var room = new Room { Name = "Rum 1", BedCount = 1, BuildingId = building.Id, DisplayOrder = 1 };
         await roomsSvc.CreateAsync(room);
 
-        var lunch = new MealOption { Id = Guid.NewGuid(), Name = "Fisk", MealType = MealType.Lunch, IsActive = true };
-        var dinner = new MealOption { Id = Guid.NewGuid(), Name = "Kyckling", MealType = MealType.Dinner, IsActive = true };
-        var dinner2 = new MealOption { Id = Guid.NewGuid(), Name = "Burgare", MealType = MealType.Dinner, IsActive = true };
+        var lunch = new MealOption { Id = Guid.NewGuid(), Name = "Fisk", IsActive = true };
+        var dinner = new MealOption { Id = Guid.NewGuid(), Name = "Kyckling", IsActive = true };
+        var dinner2 = new MealOption { Id = Guid.NewGuid(), Name = "Burgare", IsActive = true };
         db.MealOptions.AddRange(lunch, dinner, dinner2);
         await db.SaveChangesAsync();
 

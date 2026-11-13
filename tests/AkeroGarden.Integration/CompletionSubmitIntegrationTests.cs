@@ -62,8 +62,8 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
 
-        var lunch = new MealOption { Id = Guid.NewGuid(), Name = $"Fisk-{Guid.NewGuid():N}", MealType = MealType.Lunch, IsActive = true };
-        var dinner = new MealOption { Id = Guid.NewGuid(), Name = $"Kyckling-{Guid.NewGuid():N}", MealType = MealType.Dinner, IsActive = true };
+        var lunch = new MealOption { Id = Guid.NewGuid(), Name = $"Fisk-{Guid.NewGuid():N}", IsActive = true };
+        var dinner = new MealOption { Id = Guid.NewGuid(), Name = $"Kyckling-{Guid.NewGuid():N}", IsActive = true };
         db.MealOptions.AddRange(lunch, dinner);
         await db.SaveChangesAsync();
 

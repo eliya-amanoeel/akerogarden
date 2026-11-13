@@ -79,28 +79,25 @@ public class PublicReadQueriesIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task Meals_GetActive_ExcludesInactive_AndOrdersByTypeThenDisplayOrder()
+    public async Task Meals_GetActive_ExcludesInactive_AndOrdersAsOneMenu()
     {
         var service = NewService<MealOptionService>(out var scope);
         using var _s = scope;
         var prefix = $"Meal-{Guid.NewGuid():N}-";
 
-        await service.CreateAsync(new MealOption { Name = $"{prefix}Dinner1", MealType = MealType.Dinner, DisplayOrder = 1 });
-        await service.CreateAsync(new MealOption { Name = $"{prefix}Lunch2", MealType = MealType.Lunch, DisplayOrder = 2 });
-        await service.CreateAsync(new MealOption { Name = $"{prefix}Lunch1", MealType = MealType.Lunch, DisplayOrder = 1 });
-        var inactive = new MealOption { Name = $"{prefix}LunchX", MealType = MealType.Lunch, DisplayOrder = 0 };
+        // One menu (§4.5): display order is one sequence across every dish, then name breaks ties.
+        await service.CreateAsync(new MealOption { Name = $"{prefix}C", DisplayOrder = 2 });
+        await service.CreateAsync(new MealOption { Name = $"{prefix}B", DisplayOrder = 1 });
+        await service.CreateAsync(new MealOption { Name = $"{prefix}A", DisplayOrder = 1 });
+        var inactive = new MealOption { Name = $"{prefix}X", DisplayOrder = 0 };
         await service.CreateAsync(inactive);
         await service.SetActiveAsync(inactive.Id, false);
 
         var mine = (await service.GetActiveAsync())
             .Where(m => m.Name.StartsWith(prefix)).ToList();
 
-        // MealType is persisted as a string, so OrderBy(MealType) sorts lexically:
-        // "Dinner" < "Lunch". Within a type, display order then applies. The menu page
-        // renders Lunch/Dinner in explicit sections, so this cross-type order is
-        // presentation-irrelevant; the guarantees under test are active-only + within-type order.
-        Assert.Equal([$"{prefix}Dinner1", $"{prefix}Lunch1", $"{prefix}Lunch2"], mine.Select(m => m.Name));
-        Assert.DoesNotContain(mine, m => m.Name == $"{prefix}LunchX");
+        Assert.Equal([$"{prefix}A", $"{prefix}B", $"{prefix}C"], mine.Select(m => m.Name));
+        Assert.DoesNotContain(mine, m => m.Name == $"{prefix}X");
     }
 
     [Fact]

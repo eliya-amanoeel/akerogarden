@@ -22,14 +22,14 @@ brackets is the client's original numbering.
 | 2 | [6] "Husvagn" is a powered caravan pitch | Locked — client renames in admin; SRS wording only | none |
 | 3 | [3] New phone number | ✅ **Done** 2026-11-12 — awaiting deploy | XS |
 | 4 | [14] Sender shows as "Info" | ✅ **Done** 2026-11-12 — awaiting deploy | S |
-| 5 | [8] Remove the extra cleaning day | 🔨 **Built** 2026-11-12 — awaiting tests + deploy | S |
-| 6 | [1] Vegan as a dish label | Locked | S (migration) |
+| 5 | [8] Remove the extra cleaning day | ✅ **Done** 2026-11-12 — awaiting deploy | S |
+| 6 | [1] Vegan as a dish label | ✅ **Done** 2026-11-13 (with 12) — awaiting deploy | S (migration) |
 | 7 | [7] Completion link 3 weeks before the stay | **Open — client** | S code, M docs |
 | 8 | [10] Admin gets the guest's full summary email | Locked | M |
 | 9 | [11] One signature with logo and phone in all emails | ✅ **Done** 2026-11-12 — awaiting deploy | M |
 | 10 | [13] Deposit: 14 days, reminder inside the period, admin notified | Locked (terms question open) | M |
 | 11 | [12] New cancellation terms | Locked rule — **3+1 questions open with client** | M–L |
-| 12 | [5] One menu — any dish at any sitting | Locked | L (migration) |
+| 12 | [5] One menu — any dish at any sitting | ✅ **Done** 2026-11-13 (with 6) — awaiting deploy | L (migration) |
 | 13 | [2] One image per building and per room | Locked — layout by HTML mockup first | L (migration) |
 | 14 | [9] Participants via Excel upload | Locked | L |
 | 15 | [15] Image gallery | Future — not designed | — |
@@ -93,7 +93,9 @@ brackets is the client's original numbering.
 
 **Decision.** Replace the checkbox with one choice: **Ingen / Vegetarisk / Vegansk**. A vegan dish shows "Veganskt" (not both). Migration maps `IsVegetarian = true` → Vegetarisk, everything else → Ingen.
 
-**Docs.** FR-22, §8.7, `erd.md`. **Built with item 12** (same entity, one migration). **Terms / privacy / Azure cost.** None.
+**Built (2026-11-13), with item 12 in one migration (`OneMenuWithDishDiet`).** `MealOption.IsVegetarian` is gone; `Diet` (`DishDiet`: None / Vegetarian / Vegan) replaces it — one value, so the "not both" rule is the model's shape, not a check. Admin `/matalternativ`: a **Kost** select in the panel and a **Kost** column (Vegetarisk / Vegansk / –). Public menu label `.meal-diet` (was `.meal-veg`, which stopped being true).
+
+**Docs.** FR-22, §8.7, `erd.md`, handbook (Matalternativ row). **Terms / privacy / Azure cost.** None — a dish label is not personal data, and the policy's "gruppens gemensamma val av måltidsalternativ" stays true.
 
 ## 7. [7] Completion link 3 weeks before the stay — **OPEN**
 
@@ -173,7 +175,9 @@ brackets is the client's original numbering.
 
 **Client to-do after deploy.** Dishes that exist twice (e.g. "Wokade grönsaker med nudlar" as lunch and dinner) will appear twice — **deactivate the duplicate** in admin. Not merged automatically, since bookings reference both.
 
-**Docs.** FR-22, §4.4/4.5, §8.7, `erd.md`, handbook. **Built with item 6.** **Terms / privacy / Azure cost.** None.
+**Built (2026-11-13), with item 6.** `MealOption.MealType` is dropped — the `MealType` enum now means only the sitting. Both "dish must match the sitting" checks are deleted (the completion form's normaliser and the admin's meal edit); both forms build one menu list. `/mat-och-priser` shows **one list, flowing into two columns from 48em** (read down then across; maintainer picked this from an HTML mockup, 2026-11-12). **Display order:** it used to restart per type (lunch 1–5, dinner 1–5), so the migration moves dinners after the last lunch — the menu reads as it did. Demo seed: the stir-fried vegetables are one dish.
+
+**Docs.** FR-22, FR-83, FR-105, §4.1, §4.4 (one menu), §4.5 (the rule and its why), §4.6, §8.7, `erd.md`, `design.md`, handbook. **Terms / privacy / Azure cost.** None.
 
 ## 13. [2] One image per building and per room
 
@@ -236,6 +240,14 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] Start admin with `DemoSeed__Reset=true` and `Jobs__RunOnStartup=true` → the 14-day reminder to *ingrid.paminnelse@example.com* has **Adress: Åkerövägen 81, 761 94 Norrtälje**.
 - [ ] **Staging**, real inboxes: the signature in **Gmail** and **Outlook** shows the logo without "load images", and stays readable in **dark mode**.
 
+**Items 6 + 12 — one menu, dish diet** (branch `feat/one-menu-diet-label`)
+- [ ] **Migration, before reseeding.** Start admin locally on the existing database (no `DemoSeed__Reset`) → Admin → **Matalternativ**: no Måltid column; a **Kost** column; the lunch dishes keep 1–5 and the dinners now read **6–10** in the old order; both *Wokade grönsaker med nudlar* rows show **Vegetarisk**, every other dish **–**.
+- [ ] Same page: **Redigera** a dish → panel has **Kost** (Ingen / Vegetarisk / Vegansk), no Måltid. Set *Pannkakor med sylt och grädde* to **Vegansk** → **Spara** → the row shows **Vegansk**.
+- [ ] `/mat-och-priser`: one list with no Lunch/Middag headings; at a wide window two columns reading down then across, at phone width one; *Pannkakor* labelled **Veganskt** (only), the noodles **Vegetariskt**. Set Pannkakor back to **Ingen** afterwards.
+- [ ] `/boka`: request **2027-07-05 → 2027-07-08**, full board. Admin → open it, tick a building, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit: the **tisdag 6 juli** Lunch dropdown lists *Grillad kycklingfilé med champinjonsås* (a former dinner) and the Middag dropdown lists *Panerad fisk med dansk remouladsås* (a former lunch). Choose those two, fill the rest, submit → acknowledgement.
+- [ ] Admin → that booking → **Gruppens rätter**: *2027-07-06 lunch* shows the chicken fillet and *2027-07-06 middag* the fish; change one to another dish → saved. **Deltagar- och matlistor**: the 6 juli lunch and dinner show those dishes.
+- [ ] **Staging, after the deploy** (temporary IP rule): Matalternativ as in the first check — staging's migrated data, not a fresh seed.
+
 **Site addresses in one `Site` section** (this branch, after `767365b`) — every absolute link is now built from `Site:PublicBaseUrl` / `Site:AdminBaseUrl`, so check each kind of link once:
 - [ ] Mailpit: the approval email's completion link opens `/slutfor/…` on the public site; the terms link opens `/bokningsvillkor`.
 - [ ] Mailpit: the admin notification's booking link opens that booking in the admin panel.
@@ -246,11 +258,11 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 
 ## To-do lists
 
-**Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed; optionally a photo of the caravan pitch; answer item 7's question and item 11's four questions; reword terms §6 if needed (item 10).
+**Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed (e.g. the second *Wokade grönsaker med nudlar*), and renumber Visningsordning if wanted; optionally a photo of the caravan pitch; answer item 7's question and item 11's four questions; reword terms §6 if needed (item 10).
 
 **Maintainer:** one.com access for the client, with the DNS warning (item 1).
 
 **Deploy order for this branch (site addresses).** The app now reads `Site__PublicBaseUrl` / `Site__AdminBaseUrl`; the App Service settings are still named `BookingEmail__…` until `main.bicep` is applied. Whichever lands first, the other half runs for a few minutes with an empty site address — links in any email sent in that window are broken. So apply the Bicep and the app deploy back to back, per environment:
-- **Staging:** the merge auto-deploys staging — apply `main.bicep` to staging right after that deploy finishes.
+- ✅ **Staging:** done 2026-11-12 — `main.bicep` applied right after the staging deploy (Succeeded, settings verified).
 - **Production:** apply `main.bicep` to production immediately before approving the production deploy, at ~22:00 and well clear of 03:00. Run what-if against production first.
 - The same apply also drops the unused `BookingEmail__ContactEmail` setting.

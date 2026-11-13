@@ -79,8 +79,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         List<PhysicalBuilding> PhysicalBuildings,
         List<Building> Buildings,
         List<Room> Rooms,
-        List<MealOption> Lunches,
-        List<MealOption> Dinners,
+        List<MealOption> Menu,
         List<Facility> Facilities,
         List<CleaningZone> Zones);
 
@@ -164,33 +163,28 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         foreach (var b in buildings)
             b.Rooms = rooms.Where(r => r.BuildingId == b.Id).ToList();
 
-        // Real Åkerögården menu (client-provided). "Vegetarisk meny" is a single standing
-        // alternative offered alongside every lunch/dinner, so it's seeded once per meal type.
-        var lunches = new List<MealOption>
+        // Real Åkerögården menu (client-provided). One menu — any dish at any lunch or dinner
+        // (§4.5) — so the stir-fried vegetables, once seeded twice as a lunch and a dinner, are one dish.
+        var menu = new List<MealOption>
         {
-            Meal("Panerad fisk med dansk remouladsås", MealType.Lunch, false, 1,
+            Meal("Panerad fisk med dansk remouladsås", DishDiet.None, 1,
                 "Panerad fisk med dansk remouladsås, kokta grönsaker och kokt potatis."),
-            Meal("Ugnsstekt kycklingklubba", MealType.Lunch, false, 2,
+            Meal("Ugnsstekt kycklingklubba", DishDiet.None, 2,
                 "Ugnsstekt kycklingklubba med tzatziki och bulgur."),
-            Meal("Spaghetti bolognese", MealType.Lunch, false, 3,
+            Meal("Spaghetti bolognese", DishDiet.None, 3,
                 "Spaghetti bolognese."),
-            Meal("Köttbullar med potatismos och gräddsås", MealType.Lunch, false, 4,
+            Meal("Köttbullar med potatismos och gräddsås", DishDiet.None, 4,
                 "Köttbullar med potatismos och gräddsås."),
-            Meal("Wokade grönsaker med nudlar", MealType.Lunch, true, 5,
+            Meal("Wokade grönsaker med nudlar", DishDiet.Vegetarian, 5,
                 "Vegetarisk meny: wokade grönsaker med nudlar."),
-        };
-        var dinners = new List<MealOption>
-        {
-            Meal("Grillad kycklingfilé med champinjonsås", MealType.Dinner, false, 1,
+            Meal("Grillad kycklingfilé med champinjonsås", DishDiet.None, 6,
                 "Grillad kycklingfilé med champinjonsås, stekta grönsaker och klyftpotatis."),
-            Meal("Hamburgare med pommes", MealType.Dinner, false, 2,
+            Meal("Hamburgare med pommes", DishDiet.None, 7,
                 "Hamburgare med pommes."),
-            Meal("Korv med bröd eller potatismos", MealType.Dinner, false, 3,
+            Meal("Korv med bröd eller potatismos", DishDiet.None, 8,
                 "Korv med bröd eller potatismos."),
-            Meal("Pannkakor med sylt och grädde", MealType.Dinner, false, 4,
+            Meal("Pannkakor med sylt och grädde", DishDiet.None, 9,
                 "Pannkakor med sylt och grädde."),
-            Meal("Wokade grönsaker med nudlar", MealType.Dinner, true, 5,
-                "Vegetarisk meny: wokade grönsaker med nudlar."),
         };
 
         // Facilities — the client's actual "Lokaler" price list. Only Konferensrum carries a
@@ -238,13 +232,12 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
 
         db.PhysicalBuildings.AddRange(physicalBuildings);
         db.Buildings.AddRange(buildings);
-        db.MealOptions.AddRange(lunches);
-        db.MealOptions.AddRange(dinners);
+        db.MealOptions.AddRange(menu);
         db.Facilities.AddRange(facilities);
         db.CleaningZones.AddRange(zones);
         db.PriceRules.AddRange(prices);
 
-        return new RefData(physicalBuildings, buildings, rooms, lunches, dinners, facilities, zones);
+        return new RefData(physicalBuildings, buildings, rooms, menu, facilities, zones);
 
         PhysicalBuilding PhysicalBuilding(string name, string desc, int order) => new()
         {
@@ -275,13 +268,12 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             IsActive = true,
             DisplayOrder = order,
         };
-        MealOption Meal(string name, MealType type, bool veg, int order, string desc) => new()
+        MealOption Meal(string name, DishDiet diet, int order, string desc) => new()
         {
             Id = Guid.NewGuid(),
             Name = name,
             Description = desc,
-            MealType = type,
-            IsVegetarian = veg,
+            Diet = diet,
             IsActive = true,
             DisplayOrder = order,
         };
@@ -781,11 +773,12 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
     }
 
     // Pick a plausible dish for the whole group, varying it across the stay so a seeded Matlista
-    // shows several dishes rather than the same one every day. The vegetarian option is reached by
-    // the group choosing it, not through anyone's individual preference (FR-105).
-    private static MealOption PickMeal(MealType type, DateOnly date, RefData r)
+    // shows several dishes rather than the same one every day, and lunch and dinner on one day
+    // differ. Drawn from the one menu (§4.5). The vegetarian option is reached by the group choosing
+    // it, not through anyone's individual preference (FR-105).
+    private static MealOption PickMeal(MealType sitting, DateOnly date, RefData r)
     {
-        var options = type == MealType.Lunch ? r.Lunches : r.Dinners;
-        return options[date.DayNumber % options.Count];
+        var index = date.DayNumber * 2 + (sitting == MealType.Lunch ? 0 : 1);
+        return r.Menu[index % r.Menu.Count];
     }
 }

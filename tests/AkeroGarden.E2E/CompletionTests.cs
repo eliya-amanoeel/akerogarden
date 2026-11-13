@@ -130,6 +130,23 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Every_lunch_and_dinner_dropdown_offers_the_whole_menu()
+    {
+        // One menu (§4.5): a dish has no lunch/dinner type, so both kinds of sitting list every
+        // active dish. Contains rather than equals — the E2E database is shared, and another test
+        // may briefly have its own dish on the menu.
+        await Page.GotoAsync(CompletionUrl);
+
+        string[] menu = ["Rotfruktssoppa", "Ugnsbakad lax", "Grönsakslasagne", "Kycklinggryta"];
+        foreach (var sitting in new[] { "Lunch", "Dinner" })
+        {
+            var offered = await Page.Locator($"[data-sitting][data-meal='{sitting}']:visible select").First
+                .Locator("option").AllInnerTextsAsync();
+            Assert.All(menu, dish => Assert.Contains(dish, offered));
+        }
+    }
+
+    [Fact]
     public async Task Completion_submits_successfully_to_the_acknowledgement()
     {
         await Page.GotoAsync(Url(E2EFixture.CompletionSubmitToken));

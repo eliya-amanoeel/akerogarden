@@ -13,17 +13,16 @@ public class MealOptionService(ApplicationDbContext db, IAuditWriter audit)
     /// <summary>All meal options, active and inactive, in admin display order.</summary>
     public async Task<List<MealOption>> GetAllAsync() =>
         await db.MealOptions
-            .OrderBy(m => m.MealType)
-            .ThenBy(m => m.DisplayOrder)
+            .OrderBy(m => m.DisplayOrder)
             .ThenBy(m => m.Name)
             .ToListAsync();
 
-    /// <summary>Active meal options only, grouped by meal type in display order — for the public menu page (FR-83).</summary>
+    /// <summary>Active meal options only, as one menu in display order — for the public menu page
+    /// (FR-83) and every lunch and dinner dropdown (§4.5).</summary>
     public async Task<List<MealOption>> GetActiveAsync() =>
         await db.MealOptions
             .Where(m => m.IsActive)
-            .OrderBy(m => m.MealType)
-            .ThenBy(m => m.DisplayOrder)
+            .OrderBy(m => m.DisplayOrder)
             .ThenBy(m => m.Name)
             .ToListAsync();
 
@@ -47,8 +46,7 @@ public class MealOptionService(ApplicationDbContext db, IAuditWriter audit)
 
         existing.Name = input.Name;
         existing.Description = input.Description;
-        existing.MealType = input.MealType;
-        existing.IsVegetarian = input.IsVegetarian;
+        existing.Diet = input.Diet;
         existing.DisplayOrder = input.DisplayOrder;
         await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(MealOption), existing.Id,
             $"Matalternativ uppdaterades: \"{existing.Name}\".");

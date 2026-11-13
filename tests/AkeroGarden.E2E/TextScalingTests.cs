@@ -198,7 +198,7 @@ public class TextScalingTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     [InlineData("/boka", 32)]
     [InlineData("/integritetspolicy", 32)]
     [InlineData("/kalender", 32)]
-    // These three carry grids (.fac-grid, .lodging-list, .menu-cols) that render empty against a
+    // These three carry grids (.fac-grid, .lodging-list, .menu-list) that render empty against a
     // dev database, so they could only be measured here, where the fixture seeds reference data.
     [InlineData("/faciliteter", 32)]
     [InlineData("/mat-och-priser", 32)]

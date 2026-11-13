@@ -718,19 +718,16 @@ namespace AkeroGarden.Web.Core.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("character varying(2000)");
 
+                    b.Property<string>("Diet")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
                     b.Property<int>("DisplayOrder")
                         .HasColumnType("integer");
 
                     b.Property<bool>("IsActive")
                         .HasColumnType("boolean");
-
-                    b.Property<bool>("IsVegetarian")
-                        .HasColumnType("boolean");
-
-                    b.Property<string>("MealType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
 
                     b.Property<string>("Name")
                         .IsRequired()

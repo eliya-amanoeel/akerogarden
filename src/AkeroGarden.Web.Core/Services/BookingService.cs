@@ -1270,7 +1270,7 @@ public class BookingService(
             // Not decided yet — a legitimate in-between state for the admin (unlike the guest's
             // submission, which must be complete). Any dish previously agreed for this meal is left
             // alone rather than cleared, so an unfilled dropdown cannot wipe a real choice.
-            if (chosen is not { } id || !optionsById.TryGetValue(id, out var option) || option.MealType != slot.MealType)
+            if (chosen is not { } id || !optionsById.TryGetValue(id, out var option))
                 continue;
 
             if (existing is null)

@@ -353,7 +353,7 @@ visitor**. At larger settings the layout steps down a column instead of overflow
 
 Converted on 2026-08-19: the header's inline-nav/hamburger switch, `.hero__grid`,
 `.trust-strip__grid`, `.usecards`, `.teaser`, `.steps`, `.site-footer__grid` (both the 2- and
-4-column rules), `.dash-grid`, `.about-grid`, `.fac-grid`, `.lodging-list`, `.menu-cols`,
+4-column rules), `.dash-grid`, `.about-grid`, `.fac-grid`, `.lodging-list`, `.menu-cols` (one flowing `.menu-list` since 2026-11),
 `.contact-grid`, `.cal-months`, `.form-row`, `.day__meals`, `.facts`.
 
 Two findings worth keeping, because both cost a re-measure to discover:

@@ -75,7 +75,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
         builder.Entity<MealOption>(m =>
         {
             // Persist enums as strings: legible in the DB and stable against reordering.
-            m.Property(x => x.MealType)
+            m.Property(x => x.Diet)
                 .HasConversion<string>()
                 .HasMaxLength(20);
         });

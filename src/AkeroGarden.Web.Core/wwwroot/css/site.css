@@ -1979,24 +1979,19 @@ fieldset.participant legend {
 }
 
 /* Menu (part of Mat & priser) — sits below a lead .teaser (shared component, reused from
-   Home/Facilities), which is the page's only visual anchor; everything from .menu-body down
-   is otherwise unchanged. */
+   Home/Facilities), which is the page's only visual anchor. One menu — any dish at lunch or
+   dinner (SRS §4.5) — so one list with no Lunch/Middag headings. From 48em it flows into two
+   columns, read down then across; a dish never splits across them, and every dish keeps its
+   rule so the two columns end alike. */
 .menu-body { margin-top: 2.5rem; }
-.menu-cols { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2.5rem; }
-@media (min-width: 48em) { .menu-cols { grid-template-columns: 1fr 1fr; gap: 3rem; } }
-.menu-col h2 {
-    font-weight: 700;
-    font-size: 1.25rem;
-    margin: 0 0 1rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 2px solid var(--color-primary);
-}
-.dish { padding: 0.9rem 0; border-bottom: 1px solid var(--color-line); }
-.dish:last-child { border-bottom: 0; }
+.menu-list { column-gap: 3rem; }
+@media (min-width: 48em) { .menu-list { columns: 2; } }
+.dish { padding: 0.9rem 0; border-bottom: 1px solid var(--color-line); break-inside: avoid; }
 .dish__top { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .dish h3 { font-family: var(--font-heading); font-weight: 700; font-size: 1rem; margin: 0; }
 .dish p { margin: 0.3rem 0 0; font-size: 0.9rem; color: var(--color-muted); }
-.meal-veg {
+/* The dish's diet label on the menu: "Vegetariskt" or "Veganskt", never both (FR-83). */
+.meal-diet {
     font-size: 0.66rem;
     font-weight: 700;
     letter-spacing: 0.04em;

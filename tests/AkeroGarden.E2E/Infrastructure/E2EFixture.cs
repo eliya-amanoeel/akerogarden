@@ -161,13 +161,13 @@ public sealed class E2EFixture : IAsyncLifetime
         building.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = building.Id, Name = "Sovsal", BedCount = 40, IsActive = true });
         ctx.Buildings.Add(building);
 
-        // Two lunch options (a real choice, so the "samma rätt alla dagar" shortcut has something to
-        // copy) and a single dinner option. Every sitting renders the same way now — one dropdown for
-        // the whole group (FR-105) — so a one-option meal is simply a dropdown with one entry.
+        // One menu (§4.5): every lunch and dinner dropdown offers all of these. One dish of each diet,
+        // so the public menu's "Vegetariskt" and "Veganskt" labels both have something to label.
         ctx.MealOptions.AddRange(
-            new MealOption { Id = Guid.NewGuid(), Name = "Rotfruktssoppa", MealType = MealType.Lunch, IsActive = true },
-            new MealOption { Id = Guid.NewGuid(), Name = "Ugnsbakad lax", MealType = MealType.Lunch, IsActive = true },
-            new MealOption { Id = Guid.NewGuid(), Name = "Kycklinggryta", MealType = MealType.Dinner, IsActive = true });
+            new MealOption { Id = Guid.NewGuid(), Name = "Rotfruktssoppa", Diet = DishDiet.Vegan, DisplayOrder = 1, IsActive = true },
+            new MealOption { Id = Guid.NewGuid(), Name = "Ugnsbakad lax", DisplayOrder = 2, IsActive = true },
+            new MealOption { Id = Guid.NewGuid(), Name = "Grönsakslasagne", Diet = DishDiet.Vegetarian, DisplayOrder = 3, IsActive = true },
+            new MealOption { Id = Guid.NewGuid(), Name = "Kycklinggryta", DisplayOrder = 4, IsActive = true });
 
         var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30);
         // BookingReference (FR-92) carries a unique index — these 3 rows insert in one batch, so

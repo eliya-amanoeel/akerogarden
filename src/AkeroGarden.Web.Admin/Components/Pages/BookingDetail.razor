@@ -269,12 +269,11 @@ else
                                 <legend>Gruppens rätter</legend>
                                 @foreach (var mealEdit in _mealEdit.Meals)
                                 {
-                                    var options = mealEdit.MealType == MealType.Lunch ? _lunchOptions : _dinnerOptions;
                                     <div class="form-row">
                                         <label>@mealEdit.Date.ToString("yyyy-MM-dd") @(mealEdit.MealType == MealType.Lunch ? "lunch" : "middag")</label>
                                         <select @bind="mealEdit.MealOptionId" @bind:after="SaveGroupMeals">
                                             <option value="">– ej vald –</option>
-                                            @foreach (var o in options)
+                                            @foreach (var o in _menu)
                                             {
                                                 <option value="@o.Id">@o.Name</option>
                                             }
@@ -829,8 +828,8 @@ else
     private IReadOnlyList<BuildingAvailability> _assignable = [];
     private readonly HashSet<Guid> _selectedBuildingIds = [];
     private string? _assignmentError;
-    private List<MealOption> _lunchOptions = [];
-    private List<MealOption> _dinnerOptions = [];
+    // One menu: every lunch and dinner dropdown offers every active dish (§4.5).
+    private List<MealOption> _menu = [];
     private readonly HashSet<Guid> _editingParticipants = [];
 
     private int AllergyCount => _participantEdits.Count(e => e.Allergies.Count > 0);
@@ -999,9 +998,7 @@ else
 
         if (_participants.Count > 0)
         {
-            var options = await MealOptionService.GetActiveAsync();
-            _lunchOptions = options.Where(o => o.MealType == MealType.Lunch).ToList();
-            _dinnerOptions = options.Where(o => o.MealType == MealType.Dinner).ToList();
+            _menu = await MealOptionService.GetActiveAsync();
             _participantEdits = ToParticipantEdits(_participants);
             _mealEdit = ToMealEdit(_booking, _mealSelections);
         }

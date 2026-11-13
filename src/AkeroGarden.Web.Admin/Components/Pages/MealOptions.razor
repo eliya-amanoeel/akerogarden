@@ -29,8 +29,7 @@ else
                 <tr>
                     <th class="num">Ordning</th>
                     <th>Namn</th>
-                    <th>Måltid</th>
-                    <th>Vegetariskt</th>
+                    <th>Kost</th>
                     <th>Status</th>
                     <th></th>
                 </tr>
@@ -41,8 +40,7 @@ else
                     <tr @onclick="() => OpenEdit(m)">
                         <td class="num mono">@m.DisplayOrder</td>
                         <td><span class="rowlink">@m.Name</span></td>
-                        <td>@MealTypeLabel(m.MealType)</td>
-                        <td>@(m.IsVegetarian ? "Ja" : "Nej")</td>
+                        <td>@DietCell(m.Diet)</td>
                         <td>
                             @if (m.IsActive)
                             {
@@ -78,8 +76,7 @@ else
                 </Badge>
                 <Fields>
                     <div><dt>Ordning</dt><dd>@m.DisplayOrder</dd></div>
-                    <div><dt>Måltid</dt><dd>@MealTypeLabel(m.MealType)</dd></div>
-                    <div><dt>Vegetariskt</dt><dd>@(m.IsVegetarian ? "Ja" : "Nej")</dd></div>
+                    <div><dt>Kost</dt><dd>@DietCell(m.Diet)</dd></div>
                 </Fields>
             </AdminDataCard>
         }
@@ -104,19 +101,14 @@ else
             </div>
 
             <div class="form-group">
-                <label for="m-type">Måltid</label>
-                <InputSelect id="m-type" @bind-Value="_form.MealType">
-                    <option value="@MealType.Lunch">@MealTypeLabel(MealType.Lunch)</option>
-                    <option value="@MealType.Dinner">@MealTypeLabel(MealType.Dinner)</option>
+                <label for="m-diet">Kost</label>
+                <InputSelect id="m-diet" @bind-Value="_form.Diet">
+                    @foreach (var diet in Enum.GetValues<DishDiet>())
+                    {
+                        <option value="@diet">@BookingDisplay.DishDietLabel(diet)</option>
+                    }
                 </InputSelect>
-                <ValidationMessage For="() => _form.MealType" />
-            </div>
-
-            <div class="form-group">
-                <label>
-                    <InputCheckbox @bind-Value="_form.IsVegetarian" />
-                    Vegetariskt
-                </label>
+                <ValidationMessage For="() => _form.Diet" />
             </div>
 
             <div class="form-group">
@@ -157,12 +149,9 @@ else
 
     private async Task Load() => _mealOptions = await MealOptionService.GetAllAsync();
 
-    private static string MealTypeLabel(MealType type) => type switch
-    {
-        MealType.Lunch => "Lunch",
-        MealType.Dinner => "Middag",
-        _ => type.ToString()
-    };
+    // A dish with no diet shows a dash, so the column only draws the eye where there is a label.
+    private static string DietCell(DishDiet diet) =>
+        diet == DishDiet.None ? "–" : BookingDisplay.DishDietLabel(diet);
 
     private void OpenCreate()
     {
@@ -184,8 +173,7 @@ else
             Id = m.Id,
             Name = m.Name,
             Description = m.Description,
-            MealType = m.MealType,
-            IsVegetarian = m.IsVegetarian,
+            Diet = m.Diet,
             DisplayOrder = m.DisplayOrder
         };
     }

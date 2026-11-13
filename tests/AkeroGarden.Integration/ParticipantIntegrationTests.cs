@@ -134,7 +134,7 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
 
         var booking = NewStayBooking();
         db.Bookings.Add(booking);
-        var option = new MealOption { Name = $"Fisk-{Guid.NewGuid():N}", MealType = MealType.Lunch };
+        var option = new MealOption { Name = $"Fisk-{Guid.NewGuid():N}" };
         await meals.CreateAsync(option);
 
         booking.MealSelections.Add(new BookingMealSelection
@@ -161,7 +161,7 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
 
         var booking = NewStayBooking();
         db.Bookings.Add(booking);
-        var option = new MealOption { Name = $"Fisk-{Guid.NewGuid():N}", MealType = MealType.Lunch };
+        var option = new MealOption { Name = $"Fisk-{Guid.NewGuid():N}" };
         await meals.CreateAsync(option);
 
         var date = new DateOnly(2026, 8, 11);
@@ -187,7 +187,7 @@ public class ParticipantIntegrationTests : IClassFixture<DbFixture>
 
         var booking = NewStayBooking();
         db.Bookings.Add(booking);
-        var option = new MealOption { Name = $"Korv-{Guid.NewGuid():N}", MealType = MealType.Dinner };
+        var option = new MealOption { Name = $"Korv-{Guid.NewGuid():N}" };
         await meals.CreateAsync(option);
 
         booking.MealSelections.Add(new BookingMealSelection

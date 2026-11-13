@@ -742,6 +742,49 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         }
     }
 
+    /// <summary>A dish carries one diet and no meal type (FR-22, §4.5): the panel offers Kost and no
+    /// Måltid, and a changed diet is saved and shown in the row. The dish is seeded inactive so it
+    /// never appears on the shared public menu or in another test's dropdowns.</summary>
+    [Fact]
+    public async Task Meal_option_diet_is_edited_in_the_panel_and_shown_in_the_row()
+    {
+        var name = $"E2E Kost {Guid.NewGuid():N}";
+        var id = Guid.NewGuid();
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.MealOptions.Add(new MealOption { Id = id, Name = name, Diet = DishDiet.Vegetarian, IsActive = false });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/matalternativ");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
+
+            var row = Page.Locator("tr", new() { HasText = name });
+            await Assertions.Expect(row).ToContainTextAsync("Vegetarisk");
+
+            await row.GetByRole(AriaRole.Button, new() { Name = "Redigera" }).ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("is-open"));
+            await Assertions.Expect(panel.GetByLabel("Måltid")).ToHaveCountAsync(0);
+
+            await panel.GetByLabel("Kost").SelectOptionAsync(new SelectOptionValue { Label = "Vegansk" });
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Spara" }).ClickAsync();
+
+            await Assertions.Expect(Page.Locator("tr", new() { HasText = name })).ToContainTextAsync("Vegansk");
+            await using var check = Fixture.NewDbContext();
+            Assert.Equal(DishDiet.Vegan, (await check.MealOptions.SingleAsync(m => m.Id == id)).Diet);
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.MealOptions.Where(m => m.Id == id).ExecuteDeleteAsync();
+        }
+    }
+
     /// <summary>Phase 11: the Byggnader tree rework (PhysicalBuilding → Building → Room in one
     /// page instead of two disconnected flat-table pages). Drives the real hierarchy end to end
     /// through the UI: expand an empty physical building, add a building under it via the

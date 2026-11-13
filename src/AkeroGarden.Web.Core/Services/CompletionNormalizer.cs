@@ -161,9 +161,9 @@ public static class CompletionNormalizer
     /// sitting, with the option-name snapshot (NFR-15). Reads the posted grid by
     /// <see cref="ResolvedMealOccasions.AllSittings"/> index and keeps only the sittings the group
     /// actually takes, so a choice left over for a meal the group dropped is discarded rather than
-    /// silently reassigned to a different day. A choice that does not parse, is not an active
-    /// option, or is of the wrong meal type is dropped; a self-catering booking resolves to no
-    /// sittings at all and therefore yields nothing.
+    /// silently reassigned to a different day. A choice that does not parse or is not an active
+    /// option is dropped; any active dish is valid at any sitting (one menu, §4.5). A self-catering
+    /// booking resolves to no sittings at all and therefore yields nothing.
     /// </summary>
     public static List<BookingMealSelection> BuildMealSelections(
         CompletionFormModel form,
@@ -179,7 +179,6 @@ public static class CompletionNormalizer
             var choice = j < choices.Count ? choices[j] : null;
             if (!Guid.TryParse(choice, out var optionId)) continue;          // unselected / unparseable
             if (!activeOptionsById.TryGetValue(optionId, out var option)) continue;
-            if (option.MealType != occasions.AllSittings[j].MealType) continue; // wrong-type → drop
 
             selections.Add(new BookingMealSelection
             {

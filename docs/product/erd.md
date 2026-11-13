@@ -110,7 +110,7 @@ erDiagram
         guid BookingId FK "re-parented from Participant (FR-105)"
         guid MealOptionId FK
         date Date
-        enum MealType "Lunch | Dinner"
+        enum MealType "Lunch | Dinner — the sitting"
         string MealOptionSnapshot "history (NFR-15)"
     }
 
@@ -126,8 +126,7 @@ erDiagram
     MEALOPTION {
         guid Id PK
         string Name
-        enum MealType "Lunch | Dinner"
-        bool IsVegetarian
+        enum Diet "None | Vegetarian | Vegan — one menu, no meal type"
         bool IsActive
         int DisplayOrder
     }

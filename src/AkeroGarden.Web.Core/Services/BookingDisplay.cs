@@ -116,6 +116,16 @@ public static class BookingDisplay
         _ => meal.ToString()
     };
 
+    /// <summary>The dish's diet as the admin chooses it (FR-22). The public menu says it as a label
+    /// on the dish instead — "Vegetariskt" / "Veganskt" (FR-83).</summary>
+    public static string DishDietLabel(DishDiet diet) => diet switch
+    {
+        DishDiet.None => "Ingen",
+        DishDiet.Vegetarian => "Vegetarisk",
+        DishDiet.Vegan => "Vegansk",
+        _ => diet.ToString()
+    };
+
     public static string AllergyLabel(Allergy allergy) => allergy switch
     {
         Allergy.None => "Inga allergier",

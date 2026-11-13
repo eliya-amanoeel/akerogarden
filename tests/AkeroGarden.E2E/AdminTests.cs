@@ -1716,6 +1716,79 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         }
     }
 
+    /// <summary>
+    /// An overdue deposit shows wherever the booking's status shows (FR-116): the red "Handpenning
+    /// förfallen" badge on Bokningar, Kalendervy, the dashboard and the booking page, and the page's
+    /// alert names the dates the booking holds. Before, only the dashboard card showed it, and the
+    /// screens one checks for why dates are taken showed an ordinary wait. Due two days ago, so the
+    /// one-day gap between UTC and Swedish midnight cannot flip it back to "on time".
+    /// </summary>
+    [Fact]
+    public async Task Overdue_deposit_shows_on_every_screen_and_names_the_dates_it_holds()
+    {
+        var id = Guid.NewGuid();
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var checkIn = await FreeCheckInWithinIssueWindowAsync(today);
+        const string name = "Förfallen Testsson";
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Bookings.Add(new Booking
+            {
+                Id = id,
+                BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
+                BookingType = BookingType.StayRequest,
+                Status = BookingStatus.AwaitingDeposit,
+                DepositDueDate = today.AddDays(-2),
+                EstimatedPriceInclVat = 10_000m,
+                ContactName = name,
+                ContactEmail = "forfallen@example.se",
+                CheckIn = checkIn,
+                CheckOut = checkIn.AddDays(2),
+                OvernightGuestCount = 6,
+                MealPlan = MealPlan.SelfCateringAll,
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                DeleteAfter = today.AddYears(1),
+            });
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+
+            await Page.GotoAsync("/bokningar");
+            var listRow = Page.Locator("table.admin-table tr", new() { HasText = name });
+            await Assertions.Expect(listRow.Locator(".badge")).ToHaveTextAsync("Handpenning förfallen");
+            await Assertions.Expect(listRow.Locator(".badge")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("badge--denied"));
+
+            await Page.GotoAsync("/kalender");
+            var calendarRow = Page.Locator("table.admin-table tr", new() { HasText = name });
+            await Assertions.Expect(calendarRow.Locator(".badge")).ToHaveTextAsync("Handpenning förfallen");
+            await Assertions.Expect(calendarRow.Locator(".badge")).ToHaveClassAsync(new System.Text.RegularExpressions.Regex("badge--denied"));
+
+            await Page.GotoAsync("/");
+            var card = Page.Locator("section.card", new() { Has = Page.GetByRole(AriaRole.Heading, new() { Name = "Väntar på handpenning" }) });
+            await Assertions.Expect(card.GetByText("Förfallna bokningar håller sina datum tills ni bekräftar eller avbokar dem.")).ToBeVisibleAsync();
+            await Assertions.Expect(card.Locator("table.admin-table tr", new() { HasText = name }).Locator(".badge"))
+                .ToContainTextAsync("Handpenning förfallen");
+
+            await Page.GotoAsync($"/bokningar/{id}");
+            await Assertions.Expect(Page.Locator(".admin-detail-head .badge")).ToHaveTextAsync("Handpenning förfallen");
+            var sv = System.Globalization.CultureInfo.GetCultureInfo("sv-SE");
+            var held = $"{checkIn.ToString("d MMMM yyyy", sv)} – {checkIn.AddDays(2).ToString("d MMMM yyyy", sv)}";
+            var alert = Page.Locator(".alert--error", new() { HasText = "Handpenningen är försenad" });
+            await Assertions.Expect(alert).ToContainTextAsync($"Bokningen håller fortfarande {held} — ingen annan kan boka de datumen.");
+            await Assertions.Expect(alert).ToContainTextAsync("annars avboka den för att frigöra datumen.");
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Bookings.Where(b => b.Id == id).ExecuteDeleteAsync();
+        }
+    }
+
     [Fact]
     public async Task Approve_gates_behind_confirmation_and_only_fires_on_confirm()
     {

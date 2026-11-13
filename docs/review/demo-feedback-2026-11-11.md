@@ -27,12 +27,13 @@ brackets is the client's original numbering.
 | 7 | [7] Completion link 3 weeks before the stay | **Open — client** | S code, M docs |
 | 8 | [10] Admin gets the guest's full summary email | ✅ **Done** 2026-11-13 — awaiting deploy | M |
 | 9 | [11] One signature with logo and phone in all emails | ✅ **Done** 2026-11-12 — awaiting deploy | M |
-| 10 | [13] Deposit: 14 days, reminder inside the period, admin notified | Locked (terms question open) | M |
+| 10 | [13] Deposit: 14 days, reminder inside the period, admin notified | **Dropped** 2026-11-13 — overdue deposit made visible instead; ✅ built, awaiting deploy | S |
 | 11 | [12] New cancellation terms | Locked rule — **3+1 questions open with client** | M–L |
 | 12 | [5] One menu — any dish at any sitting | ✅ **Done** 2026-11-13 (with 6) — awaiting deploy | L (migration) |
 | 13 | [2] One image per building and per room | Locked — layout by HTML mockup first | L (migration) |
 | 14 | [9] Participants via Excel upload | Locked | L |
 | 15 | [15] Image gallery | Future — not designed | — |
+| 16 | "Anländ" status | Recorded only — added 2026-11-13, not yet discussed | — |
 
 ---
 
@@ -105,7 +106,7 @@ brackets is the client's original numbering.
 
 **Open question for the client.** Why 3 weeks? If guests get the link too early to know who's coming, one week is intended and fine; if not, they may not realise it means one week.
 
-**To be discussed further when it is time.** Also note: the deposit cap in item 10 is tied to this date, and the link only goes out once the deposit is paid. Changing 40 → 21 also requires rewriting the §2.6 reasoning (why 40, the 30-day ceiling, the admin-resend invariant).
+**To be discussed further when it is time.** Changing 40 → 21 also requires rewriting the §2.6 reasoning (why 40, the 30-day ceiling, the admin-resend invariant).
 
 **Terms.** None if the 14-day deadline stays. **Privacy / Azure cost.** None.
 
@@ -136,20 +137,14 @@ brackets is the client's original numbering.
 
 **Today (FR-115/116, `DepositPolicy.DaysToPay = 7`).** Due date 7 days ahead, never later than the day before check-in. The night after the due date passes, one reminder goes to the guest. After that nothing happens by itself: the booking is shown red on the dashboard, no admin email, and the dates stay held **until the admin acts — with no end**.
 
-**Decision (maintainer's own change).**
-- **Payment period 14 days**, never later than **21 days before arrival** (tied to item 7). If that cap leaves less than 7 days: 7 days, never later than the day before arrival. **The due date is the final date**, stated so in the deposit request.
-- **Reminder inside the period:** 4 days before the due date (day 10 of 14); for a short period, halfway. It restates the amount and that the booking will be cancelled if payment hasn't arrived by the due date.
-- **The night after the due date, if no payment is recorded, the admin is emailed automatically:**
-  > **Handpenningen har inte kommit in (AG-…)**
-  > Förfallodagen för handpenningen var [datum] och ingen betalning är registrerad. Kontrollera bankkontot. Har betalningen inte kommit in, avboka bokningen i adminpanelen för att frigöra datumen.
-  > *Öppna bokningen i adminpanelen*
+**Dropped 2026-11-13 (maintainer).** A change was drafted — 14 days to pay capped at 21 days before arrival, the reminder moved inside the period, an automatic admin email the night after the due date. It was the maintainer's change, not the client's, and it would have replaced the client's own 7 days (their answer of 2026-10-08), tied the due date to item 7's open question, and needed terms §6 reworded: §6 lets an unpaid booking be treated as cancelled only "**efter påminnelse**", which today's reminder *after* the due date satisfies and a reminder before it may not. **FR-115/116 stay as they are** — 7 days, one reminder after the due date, nothing released automatically, no admin email.
 
-  Plus red on the dashboard, as today.
-- **Nothing is released automatically.** The admin cancels manually — a transfer sent on the last day can take 1–2 days to land.
+**What is built instead — the overdue booking is made visible.** The real weakness was that an overdue booking holds dates nobody else can book, and the admin screens did not say so. Now:
+- **One display rule:** wherever a booking's status badge is shown — Bokningar, Kalendervy, Översikt, the booking page — a booking still waiting past its due date shows the red **Handpenning förfallen** badge instead of *Väntar på handpenning*. Before, only the dashboard card showed it.
+- **The booking page's alert names the dates it holds:** *"Bokningen håller fortfarande [incheckning] – [utcheckning] — ingen annan kan boka de datumen. … annars avboka den för att frigöra datumen."*
+- **The dashboard card** shows *"Förfallna bokningar håller sina datum tills ni bekräftar eller avbokar dem."* while one is overdue.
 
-**Terms — open.** §6 lets an unpaid booking be treated as cancelled "**efter påminnelse**". A reminder sent *before* the payment is late may not count as that reminder. The §6 sentence likely needs rewording (client's text) to match — e.g. that the due date is final and a reminder is sent before it.
-
-**Docs.** FR-115, FR-116 (both reverse current decisions: reminder after due date, "no admin email"), `booking-lifecycle-timeline.md`, handbook. **Azure cost.** None.
+Agreed from an HTML mockup. **Docs.** FR-116, handbook. **Terms / privacy.** None — §6 unchanged. **Azure cost.** None.
 
 ## 11. [12] New cancellation terms
 
@@ -163,7 +158,7 @@ brackets is the client's original numbering.
 1. **Late cancellations:** today 2 days before arrival costs 100 %; under the new rule at most the deposit (20 %). Intended?
 2. **No-show:** what applies?
 3. **Existing bookings:** old or new terms? (§32: the terms in force at confirmation apply.)
-4. **Åkerögården cancels for a missing deposit** (item 10): does the 20 % apply, or does today's "the booking was never confirmed, nothing is owed" stand?
+4. **Åkerögården cancels for a missing deposit** (FR-116): does the 20 % apply, or does today's "the booking was never confirmed, nothing is owed" stand?
 
 **Terms.** Yes — §7 and the "never refunded" line (page + `.md`). **Emails.** Deposit request ("återbetalas inte vid avbokning"), guest cancellation, admin-cancellation variant. **Docs.** FR-79, FR-115, §5.6. **Azure cost.** None.
 
@@ -209,6 +204,10 @@ brackets is the client's original numbering.
 ## 15. [15] Image gallery — future
 
 **Recorded only, not designed.** When it comes up: it builds on item 13's upload and Blob storage (item 13 deliberately stays at one image per object so it doesn't become the gallery). Open then: where it lives, who curates it, how many images.
+
+## 16. "Anländ" status
+
+**Recorded only, not yet discussed** — added by the maintainer on 2026-11-13. Today a group on site has the status `Active`, shown as **"På plats"** (§2.5).
 
 ---
 
@@ -266,9 +265,17 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] Public: `/robots.txt` and `/sitemap.xml` name the public site's own address; a page's source has `<link rel="canonical" href="…">` on it.
 - [ ] **Staging, after the Bicep apply**: one approval email's completion link and `/robots.txt` point at `staging.akerogarden.se`.
 
+**Item 10 replaced — overdue deposit made visible** (branch `feat/overdue-deposit-visibility`). Start admin with `DemoSeed__Reset=true`: the seed has two overdue deposits, **Mikael Ström** (due 2 days before the reseed day) and **Lena Forsberg** (1 day), and one still within its time, **Sara Lindqvist**.
+- [ ] Admin → **Bokningar**: Mikael Ström and Lena Forsberg show a red **Handpenning förfallen** badge; Sara Lindqvist shows *Väntar på handpenning*. Same at phone width (cards).
+- [ ] Admin → **Kalendervy**: the same three badges.
+- [ ] Admin → **Översikt** → *Väntar på handpenning*: under the heading *"Förfallna bokningar håller sina datum tills ni bekräftar eller avbokar dem."*; Mikael Ström and Lena Forsberg show **Handpenning förfallen [datum]**, Sara Lindqvist **Senast [datum]**.
+- [ ] Open **Mikael Ström**: the header badge reads **Handpenning förfallen**; the red alert reads *"Bokningen håller fortfarande [incheckning] – [utcheckning] — ingen annan kan boka de datumen. En påminnelse skickas till gästen i natt. Bekräfta bokningen om pengarna har kommit in, annars avboka den för att frigöra datumen."* with the booking's own dates.
+- [ ] Open **Sara Lindqvist**: blue *Väntar på handpenning* badge, no alert. Admin → Översikt: with only Sara left waiting (confirm the two overdue ones), the hint line is gone.
+- [ ] Admin → **Handbok** → *Begära handpenning*: the "Kommer pengarna inte?" paragraph names the red badge on Bokningar and Kalendervy too.
+
 ## To-do lists
 
-**Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed (e.g. the second *Wokade grönsaker med nudlar*), and renumber Visningsordning if wanted; optionally a photo of the caravan pitch; answer item 7's question and item 11's four questions; reword terms §6 if needed (item 10); be told that the admin's summary email shows participants and allergies as counts, not names (item 8).
+**Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed (e.g. the second *Wokade grönsaker med nudlar*), and renumber Visningsordning if wanted; optionally a photo of the caravan pitch; answer item 7's question and item 11's four questions; be told that the admin's summary email shows participants and allergies as counts, not names (item 8).
 
 **Maintainer:** one.com access for the client, with the DNS warning (item 1).
 

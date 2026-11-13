@@ -5,6 +5,7 @@
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject NavigationManager Nav
+@inject TimeProvider Clock
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Bokningar — Åkerögården Admin</PageTitle>
@@ -104,7 +105,7 @@ else
                             }
                         </td>
                         <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
-                        <td><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></td>
+                        <td><span class="@BookingDisplay.StatusBadgeClass(b, _today)">@BookingDisplay.StatusLabel(b, _today)</span></td>
                         <td class="rowactions"><a class="btn-ghost" href="/bokningar/@b.Id">Öppna →</a></td>
                     </tr>
                 }
@@ -116,7 +117,7 @@ else
         @foreach (var b in _bookings)
         {
             <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
-                <Badge><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></Badge>
+                <Badge><span class="@BookingDisplay.StatusBadgeClass(b, _today)">@BookingDisplay.StatusLabel(b, _today)</span></Badge>
                 <Sub>@b.ContactEmail@(b.OnBehalfOfAdminId is null ? "" : " · via admin")</Sub>
                 <Fields>
                     <div><dt>Referens</dt><dd>@b.BookingReference</dd></div>
@@ -149,6 +150,7 @@ else
     private DateOnly? _from;
     private DateOnly? _to;
     private string _reference = "";
+    private DateOnly _today;
 
     protected override async Task OnInitializedAsync() => await Load();
 
@@ -171,6 +173,7 @@ else
     {
         BookingStatus? status = Enum.TryParse<BookingStatus>(_status, out var s) ? s : null;
         BookingType? type = Enum.TryParse<BookingType>(_type, out var t) ? t : null;
-        _bookings = await BookingService.GetBookingsAsync(status, type, _from, _to, _reference);
+        _today = StockholmTime.Today(Clock);
+        _bookings =await BookingService.GetBookingsAsync(status, type, _from, _to, _reference);
     }
 }

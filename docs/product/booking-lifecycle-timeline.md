@@ -52,7 +52,7 @@ stateDiagram-v2
         not refundable once paid
         Dates held while waiting
         Due date passed: one reminder (FR-116),
-        then overdue on the dashboard
+        then shown overdue on every admin screen
     end note
 
     note right of Approved

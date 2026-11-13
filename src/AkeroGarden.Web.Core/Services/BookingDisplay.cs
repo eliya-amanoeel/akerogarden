@@ -45,6 +45,22 @@ public static class BookingDisplay
         _ => "badge badge--neutral"
     };
 
+    /// <summary>Label for a booking's status badge on any admin screen. A booking waiting for its
+    /// deposit past the due date reads <c>Handpenning förfallen</c> rather than its plain status
+    /// (FR-116): it holds dates nobody else can book, and that must show wherever the status shows,
+    /// not only on the dashboard. Not a status of its own — the filter still lists statuses.</summary>
+    public static string StatusLabel(Booking booking, DateOnly today) =>
+        DepositPolicy.IsDepositOverdue(booking.Status, booking.DepositDueDate, today)
+            ? "Handpenning förfallen"
+            : StatusLabel(booking.Status);
+
+    /// <summary>Badge class pairing with <see cref="StatusLabel(Booking, DateOnly)"/>. Overdue reuses
+    /// the red badge, and the word travels with it, so colour is never the only signal.</summary>
+    public static string StatusBadgeClass(Booking booking, DateOnly today) =>
+        DepositPolicy.IsDepositOverdue(booking.Status, booking.DepositDueDate, today)
+            ? "badge badge--denied"
+            : StatusBadgeClass(booking.Status);
+
     /// <summary>Outcome label for a nightly job run (FR-114). Null = not finished: still running,
     /// or the process stopped mid-run.</summary>
     public static string JobRunOutcomeLabel(JobRunOutcome? outcome) => outcome switch

@@ -41,7 +41,7 @@ else
                         <td class="mono">@b.CheckOut?.ToString("yyyy-MM-dd")</td>
                         <td><a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a></td>
                         <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
-                        <td><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></td>
+                        <td><span class="@BookingDisplay.StatusBadgeClass(b, _today)">@BookingDisplay.StatusLabel(b, _today)</span></td>
                         <td class="rowactions"><a class="btn-ghost" href="/bokningar/@b.Id">Öppna →</a></td>
                     </tr>
                 }
@@ -53,7 +53,7 @@ else
         @foreach (var b in _bookings)
         {
             <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
-                <Badge><span class="@BookingDisplay.StatusBadgeClass(b.Status)">@BookingDisplay.StatusLabel(b.Status)</span></Badge>
+                <Badge><span class="@BookingDisplay.StatusBadgeClass(b, _today)">@BookingDisplay.StatusLabel(b, _today)</span></Badge>
                 <Fields>
                     <div><dt>Incheckning</dt><dd>@b.CheckIn?.ToString("yyyy-MM-dd")</dd></div>
                     <div><dt>Utcheckning</dt><dd>@b.CheckOut?.ToString("yyyy-MM-dd")</dd></div>
@@ -110,12 +110,14 @@ else
 @code {
     private List<Booking>? _bookings;
     private List<BlockedPeriod>? _blocks;
+    private DateOnly _today;
 
     private void GoToBooking(Guid id) => Nav.NavigateTo($"/bokningar/{id}");
 
     protected override async Task OnInitializedAsync()
     {
-        var today = StockholmTime.Today(Clock);
+        _today = StockholmTime.Today(Clock);
+        var today = _today;
         var horizon = today.AddMonths(12);
 
         // Upcoming stay bookings (those whose stay has not ended), newest-checkin first.

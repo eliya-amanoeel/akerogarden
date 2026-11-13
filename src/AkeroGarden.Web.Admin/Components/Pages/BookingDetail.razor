@@ -28,7 +28,7 @@ else
     <div class="admin-detail-head">
         <h1>@_booking.ContactName</h1>
         <span class="chip mono">@_booking.BookingReference</span>
-        <span class="@BookingDisplay.StatusBadgeClass(_booking.Status)">@BookingDisplay.StatusLabel(_booking.Status)</span>
+        <span class="@BookingDisplay.StatusBadgeClass(_booking, StockholmTime.Today(Clock))">@BookingDisplay.StatusLabel(_booking, StockholmTime.Today(Clock))</span>
         <span class="chip">@BookingDisplay.TypeLabel(_booking.BookingType)</span>
     </div>
 
@@ -554,15 +554,16 @@ else
                 @if (_booking.Status == BookingStatus.AwaitingDeposit)
                 {
                     @* FR-115/116. Nothing is released automatically: an overdue deposit is the admin's
-                       call, so it is stated here in red rather than acted on. *@
+                       call, so it is stated here in red rather than acted on — naming the dates it
+                       holds, because what an overdue booking costs is that nobody else can book them. *@
                     <p class="action-note"><strong>Handpenning senast:</strong><br />@SwedishDate(_booking.DepositDueDate)</p>
-                    @if (DepositPolicy.IsOverdue(_booking.DepositDueDate, StockholmTime.Today(Clock)))
+                    @if (DepositPolicy.IsDepositOverdue(_booking.Status, _booking.DepositDueDate, StockholmTime.Today(Clock)))
                     {
                         <div class="alert alert--error" role="alert">
                             <span class="alert__ic" aria-hidden="true">!</span>
                             <div>
                                 <b>Handpenningen är försenad</b>
-                                <div>@(_booking.DepositReminderSentAt is null ? "En påminnelse skickas till gästen i natt." : "Gästen har fått en påminnelse.") Bekräfta bokningen om pengarna har kommit in, eller avboka den.</div>
+                                <div>Bokningen håller fortfarande <b>@SwedishDate(_booking.CheckIn) – @SwedishDate(_booking.CheckOut)</b> — ingen annan kan boka de datumen. @(_booking.DepositReminderSentAt is null ? "En påminnelse skickas till gästen i natt." : "Gästen har fått en påminnelse.") Bekräfta bokningen om pengarna har kommit in, annars avboka den för att frigöra datumen.</div>
                             </div>
                         </div>
                     }

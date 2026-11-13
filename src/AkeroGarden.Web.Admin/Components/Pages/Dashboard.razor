@@ -49,7 +49,7 @@ else
                                         <span class="sub">@BookingDisplay.TypeLabel(b.BookingType)@GuestSuffix(b)</span>
                                     </td>
                                     <td class="num mono">@DateRange(b)</td>
-                                    <td class="cell-end">@Badge(b.Status)</td>
+                                    <td class="cell-end">@Badge(b)</td>
                                 </tr>
                             }
                         </tbody>
@@ -59,7 +59,7 @@ else
                     @foreach (var b in _pending.Take(6))
                     {
                         <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
-                            <Badge>@Badge(b.Status)</Badge>
+                            <Badge>@Badge(b)</Badge>
                             <Sub>@BookingDisplay.TypeLabel(b.BookingType)@GuestSuffix(b)</Sub>
                             <Fields>
                                 <div><dt>Datum</dt><dd>@DateRange(b)</dd></div>
@@ -113,10 +113,10 @@ else
 
     @* ── Väntar på handpenning (FR-116) ──────────────────────────
        Full width below the grid rather than a third grid card, which would leave one card alone on
-       its row. Sorted by due date, so an overdue booking is always at the top — this card is the
-       only safety net for a deposit nobody paid: there is no admin email and nothing is released
-       automatically (FR-116). Overdue reuses the red badge with the word "Förfallen", so colour is
-       never the only signal. *@
+       its row. Sorted by due date, so an overdue booking is always at the top. There is no admin
+       email and nothing is released automatically (FR-116), so an overdue booking is shown, not
+       acted on: the same red "Handpenning förfallen" badge as on every other admin screen, plus the
+       due date here. *@
     <section class="card dash-full">
         <div class="card__head">
             <h2>Väntar på handpenning</h2>
@@ -126,6 +126,12 @@ else
             }
             <a class="link" href="/bokningar">Alla bokningar →</a>
         </div>
+        @* Says what an overdue row costs, and only while there is one — a standing line would be
+           read past within a week. *@
+        @if (_awaitingDeposit.Any(IsDepositOverdue))
+        {
+            <p class="form-hint">Förfallna bokningar håller sina datum tills ni bekräftar eller avbokar dem.</p>
+        }
         @if (_awaitingDeposit.Count == 0)
         {
             <p class="admin-empty">Inga bokningar väntar på handpenning.</p>
@@ -195,7 +201,7 @@ else
                                 <td><a class="rowlink" href="/bokningar/@b.Id">@b.ContactName</a></td>
                                 <td class="num mono">@(b.OvernightGuestCount?.ToString() ?? "—")</td>
                                 <td>@BookingDisplay.MealPlanLabel(b.MealPlan)</td>
-                                <td>@Badge(b.Status)</td>
+                                <td>@Badge(b)</td>
                             </tr>
                         }
                     </tbody>
@@ -205,7 +211,7 @@ else
                 @foreach (var b in _upcoming.Take(12))
                 {
                     <AdminDataCard Title="@b.ContactName" OnClick="() => GoToBooking(b.Id)">
-                        <Badge>@Badge(b.Status)</Badge>
+                        <Badge>@Badge(b)</Badge>
                         <Fields>
                             <div><dt>Datum</dt><dd>@b.CheckIn?.ToString("d MMM", Sv)</dd></div>
                             <div><dt>Gäster</dt><dd>@(b.OvernightGuestCount?.ToString() ?? "—")</dd></div>
@@ -261,21 +267,27 @@ else
             ? $"{b.CheckIn.Value.ToString("d MMM", Sv)}–{b.CheckOut.Value.ToString("d MMM", Sv)}"
             : "—";
 
-    private static RenderFragment Badge(BookingStatus s) => builder =>
+    private bool IsDepositOverdue(Booking b) =>
+        DepositPolicy.IsDepositOverdue(b.Status, b.DepositDueDate, StockholmTime.Today(Clock));
+
+    private RenderFragment Badge(Booking b) => builder =>
     {
+        var today = StockholmTime.Today(Clock);
         builder.OpenElement(0, "span");
-        builder.AddAttribute(1, "class", BookingDisplay.StatusBadgeClass(s));
-        builder.AddContent(2, BookingDisplay.StatusLabel(s));
+        builder.AddAttribute(1, "class", BookingDisplay.StatusBadgeClass(b, today));
+        builder.AddContent(2, BookingDisplay.StatusLabel(b, today));
         builder.CloseElement();
     };
 
+    /// <summary>The status badge with the due date added — the one place the date is the point.
+    /// Same rule and same words as every other screen's badge (FR-116).</summary>
     private RenderFragment DepositBadge(Booking b) => builder =>
     {
-        var overdue = DepositPolicy.IsOverdue(b.DepositDueDate, StockholmTime.Today(Clock));
+        var today = StockholmTime.Today(Clock);
         var due = b.DepositDueDate?.ToString("d MMM", Sv) ?? "—";
         builder.OpenElement(0, "span");
-        builder.AddAttribute(1, "class", overdue ? "badge badge--denied" : "badge badge--deposit");
-        builder.AddContent(2, overdue ? $"Förfallen {due}" : $"Senast {due}");
+        builder.AddAttribute(1, "class", BookingDisplay.StatusBadgeClass(b, today));
+        builder.AddContent(2, IsDepositOverdue(b) ? $"{BookingDisplay.StatusLabel(b, today)} {due}" : $"Senast {due}");
         builder.CloseElement();
     };
 

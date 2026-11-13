@@ -54,10 +54,16 @@ public static class DepositPolicy
         return due < today ? today : due;
     }
 
-    /// <summary>True once the due date has passed — the due date itself is still a day to pay on.
-    /// Drives the overdue state on the dashboard (FR-116).</summary>
-    public static bool IsOverdue(DateOnly? dueDate, DateOnly today) =>
-        dueDate is { } due && due < today;
+    /// <summary>
+    /// True for a booking still waiting for its deposit after the due date (FR-116) — one that holds
+    /// dates nobody else can book until the admin confirms or cancels it. The due date itself is still
+    /// a day to pay on. The one rule behind the overdue badge on every admin screen
+    /// (<see cref="BookingDisplay.StatusLabel(Booking, DateOnly)"/>), the booking page's alert and the
+    /// reminder. Status is part of the rule, not left to callers: the due date stays on a booking once
+    /// confirmed, so a date-only check would show a confirmed booking as overdue.
+    /// </summary>
+    public static bool IsDepositOverdue(BookingStatus status, DateOnly? dueDate, DateOnly today) =>
+        status == BookingStatus.AwaitingDeposit && dueDate is { } due && due < today;
 
     /// <summary>
     /// True when the one deposit reminder is due (FR-116): still waiting, past the due date, and not
@@ -66,7 +72,5 @@ public static class DepositPolicy
     /// </summary>
     public static bool IsReminderDue(
         BookingStatus status, DateOnly? dueDate, DateTime? reminderSentAt, DateOnly today) =>
-        status == BookingStatus.AwaitingDeposit
-        && reminderSentAt is null
-        && IsOverdue(dueDate, today);
+        reminderSentAt is null && IsDepositOverdue(status, dueDate, today);
 }

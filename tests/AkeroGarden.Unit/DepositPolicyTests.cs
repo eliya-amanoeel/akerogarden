@@ -40,13 +40,48 @@ public class DepositPolicyTests
     }
 
     [Fact]
-    public void IsOverdue_OnlyAfterTheDueDate_TheDueDateItselfIsStillADayToPay()
+    public void IsDepositOverdue_OnlyAfterTheDueDate_TheDueDateItselfIsStillADayToPay()
     {
         var due = new DateOnly(2026, 10, 16);
-        Assert.False(DepositPolicy.IsOverdue(due, today: due.AddDays(-1)));
-        Assert.False(DepositPolicy.IsOverdue(due, today: due));
-        Assert.True(DepositPolicy.IsOverdue(due, today: due.AddDays(1)));
-        Assert.False(DepositPolicy.IsOverdue(null, Today));
+        Assert.False(DepositPolicy.IsDepositOverdue(BookingStatus.AwaitingDeposit, due, today: due.AddDays(-1)));
+        Assert.False(DepositPolicy.IsDepositOverdue(BookingStatus.AwaitingDeposit, due, today: due));
+        Assert.True(DepositPolicy.IsDepositOverdue(BookingStatus.AwaitingDeposit, due, today: due.AddDays(1)));
+        Assert.False(DepositPolicy.IsDepositOverdue(BookingStatus.AwaitingDeposit, null, Today));
+    }
+
+    /// <summary>The due date stays on a booking once confirmed or cancelled, so a date-only check would
+    /// show it as overdue on every admin screen — the status is part of the rule.</summary>
+    [Theory]
+    [InlineData(BookingStatus.Approved)]
+    [InlineData(BookingStatus.Cancelled)]
+    [InlineData(BookingStatus.DetailsComplete)]
+    public void IsDepositOverdue_NeverOnceTheBookingHasLeftTheWaitingStatus(BookingStatus status)
+    {
+        Assert.False(DepositPolicy.IsDepositOverdue(status, dueDate: Today.AddDays(-3), Today));
+    }
+
+    // ── The status badge every admin screen shows (FR-116) ─────────────────────
+
+    [Fact]
+    public void StatusBadge_ReadsHandpenningForfallen_OnlyOncePastTheDueDate()
+    {
+        var booking = new Booking { Status = BookingStatus.AwaitingDeposit, DepositDueDate = Today };
+
+        Assert.Equal("Väntar på handpenning", BookingDisplay.StatusLabel(booking, Today.AddDays(-1)));
+        Assert.Equal("badge badge--deposit", BookingDisplay.StatusBadgeClass(booking, Today.AddDays(-1)));
+        Assert.Equal("Väntar på handpenning", BookingDisplay.StatusLabel(booking, Today));
+        Assert.Equal("badge badge--deposit", BookingDisplay.StatusBadgeClass(booking, Today));
+        Assert.Equal("Handpenning förfallen", BookingDisplay.StatusLabel(booking, Today.AddDays(1)));
+        Assert.Equal("badge badge--denied", BookingDisplay.StatusBadgeClass(booking, Today.AddDays(1)));
+    }
+
+    [Fact]
+    public void StatusBadge_IsThePlainStatus_ForAConfirmedBookingWithAnOldDueDate()
+    {
+        var booking = new Booking { Status = BookingStatus.Approved, DepositDueDate = Today.AddDays(-10) };
+
+        Assert.Equal("Godkänd", BookingDisplay.StatusLabel(booking, Today));
+        Assert.Equal("badge badge--approved", BookingDisplay.StatusBadgeClass(booking, Today));
     }
 
     [Fact]

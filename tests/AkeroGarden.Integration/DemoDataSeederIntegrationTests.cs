@@ -108,7 +108,7 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         var waiting = await db.Bookings.Where(b => b.Status == BookingStatus.AwaitingDeposit).ToListAsync();
         Assert.Equal(3, waiting.Count);
         Assert.All(waiting, b => Assert.NotNull(b.DeleteAfter));
-        Assert.Single(waiting, b => !DepositPolicy.IsOverdue(b.DepositDueDate, Today));
+        Assert.Single(waiting, b => !DepositPolicy.IsDepositOverdue(b.Status, b.DepositDueDate, Today));
         var reminderDue = waiting.Where(b => DepositPolicy.IsReminderDue(b.Status, b.DepositDueDate, b.DepositReminderSentAt, Today)).ToList();
         Assert.Equal(2, reminderDue.Count);
         Assert.Single(reminderDue, b => b.EstimatedPriceInclVat is null);

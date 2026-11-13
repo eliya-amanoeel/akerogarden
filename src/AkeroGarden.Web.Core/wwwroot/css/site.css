@@ -1025,7 +1025,8 @@ select.inp {
 
 /* ---- Completion at scale: group defaults + collapsible participant rows ---- */
 
-/* "Standard för hela gruppen" panel */
+/* The completion form's highlighted panel — the arrival/departure-day meals and the Excel
+   participant upload (FR-118). Named for the retired "Standard för hela gruppen" default. */
 .group-default { background: rgba(113, 176, 2, 0.09); border: 1.5px solid rgba(113, 176, 2, 0.4); border-radius: var(--radius-card); padding: 1.1rem 1.25rem; margin: 0.5rem 0 1.5rem; }
 .group-default h3 { font-family: var(--font-heading); font-weight: 700; font-size: 1.05rem; margin: 0 0 0.25rem; color: var(--color-heading); }
 .group-default > p { font-size: 0.8rem; color: var(--color-muted); margin: 0 0 0.9rem; }

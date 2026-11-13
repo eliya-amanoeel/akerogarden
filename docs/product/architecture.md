@@ -17,7 +17,7 @@ This is a system/component view — how the public site, admin panel, background
 | Auth | ASP.NET Core Identity (email + password, admin panel only) — two roles: `Administratör` (full) and `Samordnare` (list download and its part of the handbook only, FR-104/117) |
 | App hosting | Azure App Service, Basic B1 (Linux) |
 | Rate limiting | Azure Managed Redis (Balanced B0) |
-| File/image storage | Azure Blob Storage (Hot tier, LRS) — facility images only; the public pages' fixed photos are static files in the public app |
+| File/image storage | Azure Blob Storage (Hot tier, LRS) — facility images only; the public pages' fixed photos are static files in the public app. The guest's participant Excel upload (FR-118) is held in memory for the request and dropped — never written to disk or stored (a file over the 1 MB limit may be buffered to a temporary file until the request ends, then refused) |
 | Email | MailKit over One.com SMTP |
 | CI/CD | Azure DevOps Pipelines (migrated from GitHub Actions, Phase 10a) |
 | Infra-as-code | Bicep (prod + staging from the same templates, different parameter files) |
@@ -36,7 +36,7 @@ flowchart TB
     subgraph Plan["Azure App Service Plan (Linux, B1) — one plan, two sites"]
         direction TB
         subgraph PublicSite["Public site — akerogarden.se"]
-            Public["Blazor Static SSR\n(home, priser, calendar, inquiry form,\nmagic-link completion)\nno Identity · no SignalR · no admin code"]
+            Public["Blazor Static SSR\n(home, priser, calendar, inquiry form,\nmagic-link completion + Excel\nparticipant template, FR-118)\nno Identity · no SignalR · no admin code"]
         end
         subgraph AdminSite["Admin site — admin.akerogarden.se"]
             AdminApp["Admin panel\nBlazor Interactive Server\nIdentity login · roles:\nAdministratör / Samordnare"]

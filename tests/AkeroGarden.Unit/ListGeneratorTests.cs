@@ -143,6 +143,44 @@ public class ListGeneratorTests
         Assert.Contains("Nötallergi", diets);
     }
 
+    [Fact]
+    public void Excel_list_writes_a_formula_shaped_name_as_text_never_as_a_formula()
+    {
+        // A guest's name reaches this list whether typed or uploaded (FR-118), and either way it can
+        // begin with "=". If it were written as a formula, opening the list would run it — a
+        // HYPERLINK to anywhere in the admin's own Excel. ClosedXML writes a string value as text;
+        // this proves that rather than trusting it.
+        const string hostile = "=HYPERLINK(\"https://example.invalid\",\"Klicka\")";
+        var booking = new Booking
+        {
+            BookingReference = "AG-2026-0044",
+            ContactName = "Förening Y",
+            CheckIn = new DateOnly(2026, 8, 1),
+            CheckOut = new DateOnly(2026, 8, 2),
+            MealPlan = MealPlan.FullBoardAll,
+        };
+        booking.Participants.Add(new Participant
+        {
+            FullName = hostile,
+            ParticipantType = ParticipantType.Overnight,
+            AgeCategory = AgeCategory.Adult,
+            Allergies = [Allergy.Nut],
+        });
+        var data = ListShaper.Shape(booking);
+
+        foreach (var (xlsx, sheet) in new[]
+        {
+            (ListExcelGenerator.ParticipantList(data), "Deltagarlista"),
+            (ListExcelGenerator.FoodPreferenceList(data), "Kostbehov"),
+        })
+        {
+            using var workbook = new XLWorkbook(new MemoryStream(xlsx));
+            var cell = workbook.Worksheet(sheet).CellsUsed().Single(c => c.GetString() == hostile);
+            Assert.False(cell.HasFormula);
+            Assert.True(cell.Value.IsText);
+        }
+    }
+
     /// <summary>Re-opens a produced workbook and returns every used cell's string value on the named
     /// sheet, so a test can assert the shaped data survived into the actual file.</summary>
     private static List<string> SheetStrings(byte[] xlsx, string sheet)

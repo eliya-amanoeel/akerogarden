@@ -936,8 +936,7 @@ else
     }
 
     // Allergies only — vegetarian/vegan are booking-level portion counts now, not per-person (§4.6).
-    private static readonly Allergy[] AllergyOptions =
-        [Allergy.Gluten, Allergy.Lactose, Allergy.Nut, Allergy.Other];
+    private static IReadOnlyList<Allergy> AllergyOptions => BookingDisplay.SelectableAllergies;
 
     private int DaysToCheckIn =>
         _booking?.CheckIn is null ? int.MaxValue

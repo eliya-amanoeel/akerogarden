@@ -151,6 +151,22 @@ public static class BookingDisplay
         _ => allergy.ToString()
     };
 
+    /// <summary>The allergies a guest or the admin can declare per participant, in the order every
+    /// form and the participant template (FR-118) offer them. <see cref="Allergy.None"/> is not one
+    /// — "no allergy" is the absence of a choice. Vegetarian/vegan are booking-level portion counts,
+    /// not per-person allergies (§4.6).</summary>
+    public static readonly IReadOnlyList<Allergy> SelectableAllergies =
+        [Allergy.Gluten, Allergy.Lactose, Allergy.Nut, Allergy.Other];
+
+    /// <summary>A stay day the way the completion form and the participant template (FR-118) name
+    /// it — "Fredag 11 juni". One rendering, so a day a guest picks in the template is the same
+    /// words as the day they would pick on the form.</summary>
+    public static string DayLabel(DateOnly date)
+    {
+        var text = date.ToString("dddd d MMMM", Sv);
+        return char.ToUpper(text[0], Sv) + text[1..];
+    }
+
     /// <summary>Joined Swedish allergy summary for a participant — the one rendering every screen,
     /// list and email uses. Returns "—" only when nothing is declared.
     ///

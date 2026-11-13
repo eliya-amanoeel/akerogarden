@@ -114,6 +114,10 @@ public sealed class E2EFixture : IAsyncLifetime
     /// order.</summary>
     public const string CompletionResubmitToken = "e2e-completion-resubmit-token-mno345";
 
+    /// <summary>Single-use, for the participant-upload journey (FR-118): download the template, fill
+    /// it, upload it, submit. Its own booking because the submit consumes it.</summary>
+    public const string CompletionUploadToken = "e2e-completion-upload-token-pqr678";
+
     /// <summary>A SelfCateringAll booking — read-only, for the group-default meal-gating regression
     /// test (Phase 8 bug: the per-day pickers rendered regardless of "Helpension för alla").</summary>
     public const string SelfCateringCompletionToken = "e2e-completion-selfcatering-token-jkl012";
@@ -224,6 +228,10 @@ public sealed class E2EFixture : IAsyncLifetime
         var resubmitBooking = CompletionBooking(CompletionResubmitToken);
         resubmitBooking.BuildingAssignments.Add(Assignment());
         ctx.Bookings.Add(resubmitBooking);
+
+        var uploadBooking = CompletionBooking(CompletionUploadToken);
+        uploadBooking.BuildingAssignments.Add(Assignment());
+        ctx.Bookings.Add(uploadBooking);
 
         var selfCateringBooking = CompletionBooking(SelfCateringCompletionToken);
         selfCateringBooking.MealPlan = MealPlan.SelfCateringAll;

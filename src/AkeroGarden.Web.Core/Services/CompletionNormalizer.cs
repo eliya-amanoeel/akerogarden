@@ -21,6 +21,13 @@ namespace AkeroGarden.Web.Core.Services;
 /// </summary>
 public static class CompletionNormalizer
 {
+    /// <summary>The longest name a participant may have — the form's <c>maxlength</c> and the
+    /// participant template's text rule (FR-118) say the same.</summary>
+    public const int NameMaxLength = 200;
+
+    /// <summary>The longest allergy note a participant may have.</summary>
+    public const int NoteMaxLength = 200;
+
     /// <summary>
     /// Validates the submitted form against the booking's expected overnight count and the resolved
     /// meal occasions. Returns Swedish error messages (empty ⇒ valid). Kept separate from the
@@ -42,17 +49,7 @@ public static class CompletionNormalizer
         }
 
         for (var i = 0; i < form.Overnight.Count; i++)
-        {
-            var entry = form.Overnight[i];
-            var label = $"Deltagare {i + 1}";
-
-            if (string.IsNullOrWhiteSpace(entry.FullName))
-                errors.Add($"{label}: namn krävs.");
-            else if (entry.FullName.Trim().Length > 200)
-                errors.Add($"{label}: namnet får vara högst 200 tecken.");
-
-            errors.AddRange(ValidateAllergies(entry, label));
-        }
+            errors.AddRange(ValidateOvernightEntry(form.Overnight[i], $"Deltagare {i + 1}"));
 
         // Every sitting the group said it would take needs a dish chosen for it (§4.1). The posted
         // grid covers every possible sitting; only the selectable ones are required.
@@ -204,23 +201,42 @@ public static class CompletionNormalizer
         var errors = new List<string>();
         for (var i = 0; i < dayGuests.Count; i++)
         {
-            var entry = dayGuests[i];
-            if (IsBlank(entry)) continue; // ignore an empty row rather than block submission
-
-            var label = $"Dagsgäst {i + 1}";
-            if (string.IsNullOrWhiteSpace(entry.FullName))
-                errors.Add($"{label}: namn krävs.");
-            else if (entry.FullName.Trim().Length > 200)
-                errors.Add($"{label}: namnet får vara högst 200 tecken.");
-
-            if (!TryParseDate(entry.AttendanceDate, out var date))
-                errors.Add($"{label}: välj vilken dag gästen deltar.");
-            else if (date < checkIn || date > checkOut)
-                errors.Add($"{label}: dagen måste ligga inom vistelsen.");
-
-            errors.AddRange(ValidateAllergies(entry, label));
+            if (IsBlank(dayGuests[i])) continue; // ignore an empty row rather than block submission
+            errors.AddRange(ValidateDayGuestEntry(dayGuests[i], $"Dagsgäst {i + 1}", checkIn, checkOut));
         }
         return errors;
+    }
+
+    /// <summary>One overnight participant's rules (FR-57) under the caller's label. Public so the
+    /// participant upload (FR-118) applies the same rules under the file's own row numbers.</summary>
+    public static IEnumerable<string> ValidateOvernightEntry(OvernightParticipantEntry entry, string label)
+    {
+        if (string.IsNullOrWhiteSpace(entry.FullName))
+            yield return $"{label}: namn krävs.";
+        else if (entry.FullName.Trim().Length > NameMaxLength)
+            yield return $"{label}: namnet får vara högst {NameMaxLength} tecken.";
+
+        foreach (var error in ValidateAllergies(entry, label))
+            yield return error;
+    }
+
+    /// <summary>One non-blank day guest's rules (FR-58) under the caller's label — see
+    /// <see cref="ValidateOvernightEntry"/> for why it is public.</summary>
+    public static IEnumerable<string> ValidateDayGuestEntry(
+        DayGuestEntry entry, string label, DateOnly checkIn, DateOnly checkOut)
+    {
+        if (string.IsNullOrWhiteSpace(entry.FullName))
+            yield return $"{label}: namn krävs.";
+        else if (entry.FullName.Trim().Length > NameMaxLength)
+            yield return $"{label}: namnet får vara högst {NameMaxLength} tecken.";
+
+        if (!TryParseDate(entry.AttendanceDate, out var date))
+            yield return $"{label}: välj vilken dag gästen deltar.";
+        else if (date < checkIn || date > checkOut)
+            yield return $"{label}: dagen måste ligga inom vistelsen.";
+
+        foreach (var error in ValidateAllergies(entry, label))
+            yield return error;
     }
 
     /// <summary>
@@ -259,8 +275,8 @@ public static class CompletionNormalizer
         if (entry.Allergies?.Contains(Allergy.Other) == true && string.IsNullOrWhiteSpace(entry.AllergyNotes))
             yield return $"{label}: beskriv allergin i fältet för 'Annat'.";
 
-        if (!string.IsNullOrEmpty(entry.AllergyNotes) && entry.AllergyNotes.Length > 200)
-            yield return $"{label}: allergianteckningen får vara högst 200 tecken.";
+        if (!string.IsNullOrEmpty(entry.AllergyNotes) && entry.AllergyNotes.Length > NoteMaxLength)
+            yield return $"{label}: allergianteckningen får vara högst {NoteMaxLength} tecken.";
     }
 
     /// <summary>A day-guest row with neither a name nor a date is treated as not filled in.</summary>

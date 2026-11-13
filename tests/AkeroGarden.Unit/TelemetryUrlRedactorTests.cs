@@ -37,6 +37,14 @@ public class TelemetryUrlRedactorTests
     }
 
     [Fact]
+    public void Completion_token_is_removed_from_the_participant_template_download()
+    {
+        // FR-118: the template is served under the same token, so its URL is as much a credential
+        // as the form's.
+        Assert.Equal("/slutfor/redacted/mall.xlsx", TelemetryUrlRedactor.Redact("/slutfor/abc123/mall.xlsx"));
+    }
+
+    [Fact]
     public void Completion_token_is_removed_but_a_following_query_is_kept()
     {
         Assert.Equal(

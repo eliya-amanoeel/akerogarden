@@ -13,6 +13,28 @@ namespace AkeroGarden.Web.Core.Models;
 /// </summary>
 public class CompletionFormModel
 {
+    /// <summary>
+    /// The most participants one booking's completion form takes — overnight and day guests
+    /// together, typed or filled from a file (§4.2, FR-118).
+    ///
+    /// <para><b>Why there is a number at all.</b> A form post is always bounded somewhere: until this
+    /// existed the bound was the framework's default of 1,024 posted values, which a group reached at
+    /// about 200 day guests while the requirements called day guests unbounded. The host's form limits
+    /// are derived from this number (public <c>Program.cs</c>) and the upload reads no more rows than
+    /// it (<c>ParticipantImport.MaxRows</c>), so the stated bound and the real one are the same.</para>
+    /// </summary>
+    public const int MaxParticipants = 1000;
+
+    /// <summary>The most values one participant row can post: name, age, day, note, and one per
+    /// allergy box. With headroom for the rest of the form, the host's value limit is
+    /// <see cref="MaxParticipants"/> times this, plus <see cref="FormValueHeadroom"/>.</summary>
+    public const int MaxValuesPerParticipant = 8;
+
+    /// <summary>The posted values that are not participant rows — meal choices, edge-day and
+    /// day-guest meal flags (each with its hidden companion), cleaning, invoice, consent, antiforgery.
+    /// Generous: a two-week stay has under 100.</summary>
+    public const int FormValueHeadroom = 1000;
+
     /// <summary>One entry per overnight participant. The count must equal the booking's
     /// <c>OvernightGuestCount</c> — the rows are server-pre-rendered, not client-added.</summary>
     public List<OvernightParticipantEntry> Overnight { get; set; } = [];

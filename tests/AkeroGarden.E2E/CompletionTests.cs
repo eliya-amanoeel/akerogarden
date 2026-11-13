@@ -1,5 +1,7 @@
 using System.Text.RegularExpressions;
 using AkeroGarden.E2E.Infrastructure;
+using AkeroGarden.Web.Core.Services;
+using ClosedXML.Excel;
 using Deque.AxeCore.Playwright;
 using Microsoft.Playwright;
 
@@ -21,7 +23,8 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         await Page.GotoAsync(CompletionUrl);
 
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Nästan klart!" })).ToBeVisibleAsync();
-        await Assertions.Expect(Page.Locator(".group-default")).ToBeVisibleAsync();
+        // The edge-day panel specifically — the Excel upload (FR-118) uses the same box.
+        await Assertions.Expect(Page.Locator(".group-default", new() { HasText = "Ankomst- och avresedagen" })).ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1']")).ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 2']")).ToBeVisibleAsync();
 
@@ -220,6 +223,96 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         await Assertions.Expect(Page.Locator(".alert--error")).ToBeVisibleAsync();
         await Assertions.Expect(Page.Locator(".alert--error").GetByText("Deltagare 1: namn krävs.")).ToBeVisibleAsync();
         await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).Not.ToBeVisibleAsync();
+    }
+
+    [Fact]
+    public async Task Uploading_the_filled_template_fills_the_form_and_the_form_then_submits()
+    {
+        // FR-118, the whole journey: the guest downloads this booking's template from the form, fills
+        // it in, uploads it, sees the rows filled, and submits through the ordinary validation. The
+        // upload itself submits nothing — asserted by the form still being there afterwards.
+        await Page.GotoAsync(Url(E2EFixture.CompletionUploadToken));
+
+        var download = await Page.RunAndWaitForDownloadAsync(() =>
+            Page.GetByRole(AriaRole.Link, new() { Name = "Ladda ner mall (Excel)" }).ClickAsync());
+        var template = await File.ReadAllBytesAsync(await download.PathAsync());
+
+        var filled = Path.Combine(Path.GetTempPath(), $"deltagare-{Guid.NewGuid():N}.xlsx");
+        using (var workbook = new XLWorkbook(new MemoryStream(template)))
+        {
+            var overnight = workbook.Worksheet(ParticipantTemplate.OvernightSheet);
+            var first = ParticipantTemplate.HeaderRow + 1;
+            overnight.Cell(first, ParticipantTemplate.NameColumn).Value = "Anna Andersson";
+            overnight.Cell(first, ParticipantTemplate.AgeColumn).Value = "Vuxen (4+)";
+            overnight.Cell(first + 1, ParticipantTemplate.NameColumn).Value = "Bengt Berg";
+            overnight.Cell(first + 1, ParticipantTemplate.AgeColumn).Value = "Barn (0–3)";
+            overnight.Cell(first + 1, ParticipantTemplate.FirstAllergyColumn(false) + 2).Value = "Ja"; // Nötallergi
+
+            // The day dropdown's first value — whatever the seeded stay's first day is called.
+            var firstDay = workbook.Worksheet(ParticipantTemplate.ListsSheet).Cell(1, 2).GetString();
+            var dayGuests = workbook.Worksheet(ParticipantTemplate.DayGuestSheet);
+            dayGuests.Cell(first, ParticipantTemplate.NameColumn).Value = "Dag Dagsson";
+            dayGuests.Cell(first, ParticipantTemplate.AgeColumn).Value = "Vuxen (4+)";
+            dayGuests.Cell(first, ParticipantTemplate.DayColumn).Value = firstDay;
+            workbook.SaveAs(filled);
+        }
+
+        try
+        {
+            await Page.Locator("#participant-file").SetInputFilesAsync(filled);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Fyll i från filen" }).ClickAsync();
+
+            await Assertions.Expect(Page.Locator(".alert--info"))
+                .ToContainTextAsync("2 deltagare och 1 dagsgäst har fyllts i från filen");
+            await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name")).ToHaveValueAsync("Anna Andersson");
+            await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 2'] .prow__name")).ToHaveValueAsync("Bengt Berg");
+            await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 2'] .prow__age")).ToHaveValueAsync("Child");
+            await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 2'] input[value='Nut']")).ToBeCheckedAsync();
+            await Assertions.Expect(Page.Locator("#d0-name")).ToHaveValueAsync("Dag Dagsson");
+
+            await ChooseEveryVisibleSittingAsync();
+            // Bengt's nut allergy needs the consent (FR-110) — the upload changes none of the rules.
+            await Page.Locator("input[name='Form.AllergyConsent'][type='checkbox']").CheckAsync();
+            await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka in uppgifter" }).ClickAsync();
+
+            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).ToBeVisibleAsync();
+        }
+        finally
+        {
+            File.Delete(filled);
+        }
+    }
+
+    [Fact]
+    public async Task A_file_that_is_not_the_template_fills_nothing_and_keeps_what_was_typed()
+    {
+        // All or nothing (FR-118): a wrong file changes nothing on the form, and the guest's own
+        // typing survives the round trip. Importing never consumes the link, so this shares the
+        // read-only token.
+        await Page.GotoAsync(CompletionUrl);
+        await Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name").FillAsync("Redan Skriven");
+
+        await Page.Locator("#participant-file").SetInputFilesAsync(new FilePayload
+        {
+            Name = "deltagare.xlsx",
+            MimeType = ParticipantTemplate.ContentType,
+            Buffer = System.Text.Encoding.UTF8.GetBytes("Namn;Ålder\nAnna;Vuxen\n"),
+        });
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Fyll i från filen" }).ClickAsync();
+
+        await Assertions.Expect(Page.Locator(".alert--error")).ToContainTextAsync("Inget har fyllts i.");
+        await Assertions.Expect(Page.Locator(".alert--error")).ToContainTextAsync(ParticipantImport.NotExcel);
+        await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name")).ToHaveValueAsync("Redan Skriven");
+    }
+
+    [Fact]
+    public async Task Pressing_upload_without_a_file_asks_for_one()
+    {
+        await Page.GotoAsync(CompletionUrl);
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Fyll i från filen" }).ClickAsync();
+
+        await Assertions.Expect(Page.Locator(".alert--error")).ToContainTextAsync(ParticipantImport.NoFile);
     }
 
     [Fact]

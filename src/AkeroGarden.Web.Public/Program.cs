@@ -1,7 +1,9 @@
 using AkeroGarden.Web.Public.Components;
+using AkeroGarden.Web.Core.Models;
 using AkeroGarden.Web.Core.Security;
 using AkeroGarden.Web.Core.Services;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.Extensions.Options;
 using OpenTelemetry;
@@ -104,8 +106,28 @@ builder.Services.AddAkeroImageStorage(builder.Configuration);
 // ── Public-only concern: distributed inquiry rate limiting (NFR-04) ───────────────────────────
 builder.Services.AddAkeroInquiryRateLimiting(builder.Configuration);
 
+// ── Uploaded files stay in memory (FR-118) ────────────────────────────────────
+// The participant file holds allergies (health data). ASP.NET's default writes any uploaded file
+// over 64 KB to a temporary file on disk for the length of the request, and a filled template for
+// a large group can exceed that — so "the file is never stored" would have been true only for
+// small groups. Up to the upload limit, a file is now held in memory only. A larger file is refused
+// unread, but the framework may still buffer it to a temporary file that is deleted when the
+// request ends; that is the one case in which part of a file touches disk.
+//
+// The completion form's size (§4.2): the framework caps a post at 1,024 values and a bound list at
+// 1,024 items by default, which stopped a group at about 200 day guests while the requirements
+// called day guests unbounded. Both are now derived from the one stated bound,
+// CompletionFormModel.MaxParticipants, so the form takes exactly what the requirements say.
+builder.Services.Configure<FormOptions>(options =>
+{
+    options.MemoryBufferThreshold = (int)ParticipantImport.MaxFileBytes;
+    options.ValueCountLimit = CompletionFormModel.MaxParticipants * CompletionFormModel.MaxValuesPerParticipant
+        + CompletionFormModel.FormValueHeadroom;
+});
+
 // ── Blazor (pure Static SSR — no Interactive Server, no Identity, no SignalR) ───
-builder.Services.AddRazorComponents();
+builder.Services.AddRazorComponents(options =>
+    options.MaxFormMappingCollectionSize = CompletionFormModel.MaxParticipants);
 
 // ── Health probe (Phase 11 — post-launch security review, finding #20) ────────
 // Liveness ONLY: no database or dependency checks are registered, deliberately. App Service removes a
@@ -198,6 +220,26 @@ app.MapGet($"{FacilityImagePath.Prefix}/{{blobName}}", async (
     http.Response.Headers.CacheControl = "public, max-age=31536000, immutable";
     return Results.Stream(image.Content, image.ContentType, enableRangeProcessing: true,
         entityTag: image.ETag is null ? null : new Microsoft.Net.Http.Headers.EntityTagHeaderValue(image.ETag));
+});
+
+// ── Participant template (FR-118) ─────────────────────────────────────────────────────────────
+// The Excel file a guest downloads from the completion form, generated for their booking. Gated by
+// the same token check as the form itself: only a link the form would open gets a template. The
+// path carries the token, so it is covered by TelemetryUrlRedactor like /slutfor/{token}. The file
+// names nobody — it holds the booking's guest count and stay days, never a guest's details — and is
+// not cached anywhere, since a later edit to the booking changes it.
+app.MapGet("/slutfor/{token}/mall.xlsx", async (
+    string token, BookingService bookings, TimeProvider clock, HttpContext http) =>
+{
+    var (access, booking) = await bookings.EvaluateCompletionAccessAsync(token, clock.GetUtcNow().UtcDateTime);
+    if (access != CompletionAccess.Valid || booking is null)
+        return Results.NotFound();
+
+    http.Response.Headers.CacheControl = "no-store";
+    return Results.File(
+        ParticipantTemplate.Build(ParticipantTemplateShape.For(booking)),
+        ParticipantTemplate.ContentType,
+        ParticipantTemplate.FileName);
 });
 
 app.MapRazorComponents<App>();

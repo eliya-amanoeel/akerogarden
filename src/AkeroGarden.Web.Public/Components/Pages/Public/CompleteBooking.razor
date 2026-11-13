@@ -91,7 +91,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                 <span data-progress-text></span>
             </div>
 
-            <EditForm Model="_form" FormName="completion" OnSubmit="HandleSubmit" method="post">
+            <EditForm Model="_form" FormName="completion" OnSubmit="HandleSubmit" method="post" enctype="multipart/form-data">
                 @* ── The group's meals (§4.1, FR-105) ────────────────────────────
                    One choice per sitting for everybody. Nobody picks individually, so this sits
                    above the roster rather than inside each participant row. *@
@@ -105,7 +105,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                         <p>Välj vilka måltider ni vill ha den dag ni kommer och den dag ni åker. Ni väljer fritt — tiderna ni angett styr inte det här.</p>
 
                         <div class="form-group">
-                            <span class="field-label">Ankomstdagen @Capitalize(_stayCheckIn.ToString("dddd d MMMM", Sv)) (ankomst @TimeText(_booking.CheckInTime, MealOccasionResolver.StandardCheckInTime))</span>
+                            <span class="field-label">Ankomstdagen @BookingDisplay.DayLabel(_stayCheckIn) (ankomst @TimeText(_booking.CheckInTime, MealOccasionResolver.StandardCheckInTime))</span>
                             <div class="diet">
                                 <label><input type="checkbox" name="Form.ArrivalBreakfast" value="true" checked="@_form.ArrivalBreakfast" data-edge-meal /><input type="hidden" name="Form.ArrivalBreakfast" value="false" /> Frukost</label>
                                 <label><input type="checkbox" name="Form.ArrivalLunch" value="true" checked="@_form.ArrivalLunch" data-edge-meal /><input type="hidden" name="Form.ArrivalLunch" value="false" /> Lunch</label>
@@ -114,7 +114,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                         </div>
 
                         <div class="form-group">
-                            <span class="field-label">Avresedagen @Capitalize(_stayCheckOut.ToString("dddd d MMMM", Sv)) (avresa @TimeText(_booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime))</span>
+                            <span class="field-label">Avresedagen @BookingDisplay.DayLabel(_stayCheckOut) (avresa @TimeText(_booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime))</span>
                             <div class="diet">
                                 <label><input type="checkbox" name="Form.DepartureBreakfast" value="true" checked="@_form.DepartureBreakfast" data-edge-meal /><input type="hidden" name="Form.DepartureBreakfast" value="false" /> Frukost</label>
                                 <label><input type="checkbox" name="Form.DepartureLunch" value="true" checked="@_form.DepartureLunch" data-edge-meal /><input type="hidden" name="Form.DepartureLunch" value="false" /> Lunch</label>
@@ -132,7 +132,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                             var isArrival = dateGroup.Key == _stayCheckIn;
                             var isDeparture = dateGroup.Key == _stayCheckOut;
                             <div class="day">
-                                <p class="day__date">@Capitalize(dateGroup.Key.ToString("dddd d MMMM", Sv))</p>
+                                <p class="day__date">@BookingDisplay.DayLabel(dateGroup.Key)</p>
                                 <div class="day__meals">
                                     @foreach (var item in dateGroup)
                                     {
@@ -175,8 +175,50 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                     </div>
                 }
 
-                <h2>Deltagare med övernattning</h2>
+                <h2 id="deltagare">Deltagare med övernattning</h2>
                 <p class="sec-note">Namn krävs för alla deltagare. Fäll ut en person bara om hen har en allergi att anmäla.</p>
+
+                @* Participants by Excel (FR-118). The upload is one more round trip of this same form,
+                   like adding a day guest: it fills the rows below and never submits. Everything else
+                   the guest has entered posts with it and comes back unchanged. *@
+                <div class="group-default">
+                    <h3>Många deltagare? Fyll i en Excel-fil</h3>
+                    <p>
+                        Ladda ner mallen, fyll i alla deltagare@(_dayGuestsApplicable ? " och dagsgäster" : "")
+                        och ladda upp den här. Uppgifterna fylls i formuläret nedan — inget skickas förrän du
+                        trycker på <b>Skicka in uppgifter</b>. En uppladdning ersätter alla deltagare@(_dayGuestsApplicable ? " och dagsgäster" : "")
+                        som redan står i formuläret.
+                    </p>
+                    <p><a href="@($"/slutfor/{Token}/mall.xlsx")" download>Ladda ner mall (Excel)</a></p>
+
+                    @if (_importErrors.Count > 0)
+                    {
+                        <div class="alert alert--error alert--stacked" role="alert">
+                            <strong>Inget har fyllts i. Rätta följande i filen och ladda upp den igen:</strong>
+                            <ul class="alert__list">
+                                @foreach (var error in _importErrors)
+                                {
+                                    <li>@error</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                    else if (_importNotice is not null)
+                    {
+                        <div class="alert alert--info" role="status">
+                            <span class="alert__ic" aria-hidden="true">i</span>
+                            <span>@_importNotice</span>
+                        </div>
+                    }
+
+                    <div class="form-group">
+                        <label for="participant-file">Ifylld mall</label>
+                        <input id="participant-file" type="file" name="Upload"
+                               accept=".xlsx,@ParticipantTemplate.ContentType" />
+                    </div>
+                    <button type="submit" name="Action" value="import"
+                            formaction="@($"/slutfor/{Token}#deltagare")" class="btn-outline" formnovalidate>Fyll i från filen</button>
+                </div>
 
                 <p class="completion-rowcount">@_form.Overnight.Count deltagare</p>
 
@@ -285,7 +327,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                         @foreach (var date in _stayDates)
                                         {
                                             var iso = date.ToString("yyyy-MM-dd");
-                                            <option value="@iso" selected="@(dg.AttendanceDate == iso)">@Capitalize(date.ToString("dddd d MMMM", Sv))</option>
+                                            <option value="@iso" selected="@(dg.AttendanceDate == iso)">@BookingDisplay.DayLabel(date)</option>
                                         }
                                     </select>
                                 </div>
@@ -454,9 +496,15 @@ else
     [SupplyParameterFromForm(FormName = "completion")]
     private CompletionFormModel? Form { get; set; }
 
-    // Which submit button was pressed: "complete", "add-dayguest", or "remove-dayguest:{index}".
+    // Which submit button was pressed: "complete", "import", "add-dayguest", or
+    // "remove-dayguest:{index}".
     [SupplyParameterFromForm(FormName = "completion")]
     private string? Action { get; set; }
+
+    // The filled-in participant template (FR-118). Read only when the "import" button was pressed;
+    // every other button posts the file input too, and it is ignored.
+    [SupplyParameterFromForm(FormName = "completion")]
+    private IFormFile? Upload { get; set; }
 
     private static readonly CultureInfo Sv = CultureInfo.GetCultureInfo("sv-SE");
 
@@ -477,12 +525,13 @@ else
     private IReadOnlyList<DateOnly> _stayDates = [];
     private IReadOnlyList<AssignedLodging> _assignedBuildings = [];
     private IReadOnlyList<string> _errors = [];
+    private IReadOnlyList<string> _importErrors = [];
+    private string? _importNotice;
     private bool _conferenceCleaningApplicable;
 
     // Allergies only. Vegetarian/vegan are portion counts on the booking now (§4.6) — a preference
     // is not a medical constraint and does not belong on a named person.
-    private static readonly Allergy[] AllergyOptions =
-        [Allergy.Gluten, Allergy.Lactose, Allergy.Nut, Allergy.Other];
+    private static IReadOnlyList<Allergy> AllergyOptions => BookingDisplay.SelectableAllergies;
 
     // _form is the model actually rendered/bound: the posted Form on a POST, else a seeded blank.
     private CompletionFormModel? _form;
@@ -503,7 +552,8 @@ else
 
             // Day guests apply only for a catered plan (§4.2); the section is hidden otherwise.
             _dayGuestsApplicable = InquiryNormalizer.DayGuestsApplicable(_booking.MealPlan);
-            _stayDates = EnumerateDates(_stayCheckIn, _stayCheckOut);
+            // The same day list the participant template offers (FR-118).
+            _stayDates = ParticipantTemplateShape.For(_booking).StayDates;
 
             // The buildings the admin assigned before approval (FR-103), with their rooms, shown
             // read-only. Names come from the assignment snapshots (NFR-16) so a later rename of the
@@ -553,6 +603,11 @@ else
 
         // Add/remove day-guest rows are server round-trips that just mutate the model and re-render
         // (no validation, no submission) — the robust SSR alternative to client-side row cloning.
+        if (Action == "import")
+        {
+            await ImportParticipantsAsync();
+            return;
+        }
         if (Action == "add-dayguest")
         {
             _form!.DayGuests.Add(new DayGuestEntry());
@@ -585,12 +640,47 @@ else
         }
     }
 
-    private static IReadOnlyList<DateOnly> EnumerateDates(DateOnly from, DateOnly to)
+    /// <summary>
+    /// Replaces the roster on the form with the uploaded file's (FR-118) — all of it, or none of it.
+    /// The size is checked before a byte is read, so a wrong pick gets a message and the guest keeps
+    /// everything they have typed. The file is held in memory (Program.cs keeps uploads up to the limit off
+    /// disk) and dropped: never stored, never logged.
+    /// </summary>
+    private async Task ImportParticipantsAsync()
     {
-        var dates = new List<DateOnly>();
-        for (var d = from; d <= to; d = d.AddDays(1))
-            dates.Add(d);
-        return dates;
+        if (Upload is null || Upload.Length == 0)
+        {
+            _importErrors = [ParticipantImport.NoFile];
+            return;
+        }
+        if (Upload.Length > ParticipantImport.MaxFileBytes)
+        {
+            _importErrors = [ParticipantImport.TooLarge];
+            return;
+        }
+
+        byte[] content;
+        using (var buffer = new MemoryStream((int)Upload.Length))
+        {
+            await Upload.CopyToAsync(buffer);
+            content = buffer.ToArray();
+        }
+
+        var result = ParticipantImport.Read(content, ParticipantTemplateShape.For(_booking!));
+        if (!result.Succeeded)
+        {
+            _importErrors = result.Errors;
+            return;
+        }
+
+        _form!.Overnight = result.Overnight;
+        _form.DayGuests = result.DayGuests;
+
+        var people = result.Overnight.Count == 1 ? "1 deltagare" : $"{result.Overnight.Count} deltagare";
+        var dayGuests = !_dayGuestsApplicable ? ""
+            : result.DayGuests.Count == 1 ? " och 1 dagsgäst"
+            : $" och {result.DayGuests.Count} dagsgäster";
+        _importNotice = $"{people}{dayGuests} har fyllts i från filen. Kontrollera uppgifterna och tryck sedan på Skicka in uppgifter.";
     }
 
     private static CompletionFormModel BuildEmptyForm(Booking booking)
@@ -627,9 +717,6 @@ else
         BookingDisplay.TimeLabel(time, standard);
 
     private static string Fmt(DateOnly? date) => date?.ToString("d MMMM yyyy", Sv) ?? "—";
-
-    private static string Capitalize(string value) =>
-        string.IsNullOrEmpty(value) ? value : char.ToUpper(value[0], Sv) + value[1..];
 
     private static string AgeLabel(AgeCategory age) => BookingDisplay.AgeLabel(age);
 

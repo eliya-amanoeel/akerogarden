@@ -25,7 +25,7 @@ brackets is the client's original numbering.
 | 5 | [8] Remove the extra cleaning day | ✅ **Done** 2026-11-12 — awaiting deploy | S |
 | 6 | [1] Vegan as a dish label | ✅ **Done** 2026-11-13 (with 12) — awaiting deploy | S (migration) |
 | 7 | [7] Completion link 3 weeks before the stay | **Open — client** | S code, M docs |
-| 8 | [10] Admin gets the guest's full summary email | Locked | M |
+| 8 | [10] Admin gets the guest's full summary email | ✅ **Done** 2026-11-13 — awaiting deploy | M |
 | 9 | [11] One signature with logo and phone in all emails | ✅ **Done** 2026-11-12 — awaiting deploy | M |
 | 10 | [13] Deposit: 14 days, reminder inside the period, admin notified | Locked (terms question open) | M |
 | 11 | [12] New cancellation terms | Locked rule — **3+1 questions open with client** | M–L |
@@ -118,6 +118,8 @@ brackets is the client's original numbering.
 **Context.** `info@` is a One.com mailbox in the EU.
 
 **Privacy — check when built.** The email puts named participants' **allergies (health data, art. 9)** in the `info@` mailbox. The policy says allergy data is shared only with the staff who plan meals (via their system accounts) and is deleted with the booking; email in `info@` is not auto-deleted (§5). Policy wording needs to cover this. **Docs.** FR-61, FR-107, handbook. **Azure cost.** None.
+
+**Built 2026-11-13** (branch `feat/admin-full-summary`) — **narrowed from the decision above, maintainer's call, client to be told.** The admin's copy carries the group as **counts** — participants, each kind of allergy with how many have it, dietary preferences — and **no participant names or allergy notes**. Why: the email lands in `info@`, which nothing deletes, and **One.com cannot auto-delete mail** (checked by the maintainer). Named allergies there would be art. 9 health data outliving the booking indefinitely; the privacy policy would have had to say so, and a manual deletion routine would make it true only as long as someone keeps it. A count tied to no name is not about anyone — the reasoning that already keeps vegetarian/vegan as counts — so **the privacy policy does not change**. Names and who has which allergy stay in the panel and the lists. Built from the rule, not beside the old alert: the stay (times, lodging) and the meals are **one rendering** both emails share; only the participant section differs. A free-text note with no box ticked counts as "Annat", as on the kitchen list. **Found while building it, fixed in the same branch:** `BookingDisplay.AllergySummary` showed a note only beside a ticked "Annat", so a note on its own read "—" in the guest's summary email and the participant list (FR-44), and the completion form's collapsed row offered "Lägg till allergi" over it — only the kitchen list had a local workaround. The rule now lives in `AllergySummary` (a note is always shown: in "Annat (…)" when ticked, otherwise appended) and the workaround is deleted. **The address is left out of the admin's copy** (maintainer's call). The guest's copy now reads "**Boende:** …" instead of "Ert boende: … Ni fördelar själva gruppen mellan rummen" (that sentence stays in the approval email) and "Självhushåll — inga måltider är beställda." — the shared sections speak in no one's voice. **Residual:** in a group of one or two, a count can still point at a person — accepted. Terms: none. Azure cost: none.
 
 ## 9. [11] One signature with logo and phone in all emails
 
@@ -248,6 +250,14 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] Admin → that booking → **Gruppens rätter**: *2027-07-06 lunch* shows the chicken fillet and *2027-07-06 middag* the fish; change one to another dish → saved. **Deltagar- och matlistor**: the 6 juli lunch and dinner show those dishes.
 - [ ] **Staging, after the deploy** (temporary IP rule): Matalternativ as in the first check — staging's migrated data, not a fresh seed.
 
+**Item 8 — admin gets the guest's summary** (branch `feat/admin-full-summary`)
+- [ ] `/boka`: request **2027-08-02 → 2027-08-04**, full board, with a phone number. Admin → open it, tick **Smedjan**, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit, add two participants, give one **Nötallergi**, tick the allergy consent, choose the dishes, submit → acknowledgement.
+- [ ] Mailpit, **Bokningsuppgifter inskickade (AG-…)** to admin: reference; *Kontaktperson* with name, e-post and the phone you typed; Incheckning/Utcheckning with times; **Boende: Smedjan**; *Antal deltagare (övernattning): 2*; **Allergier: Nötallergi (1)**; the meals 2–4 augusti with the dishes chosen; *Namn och vem som har vilken allergi står i deltagar- och matlistorna…*; **Öppna bokningen i adminpanelen** opens that booking. **No** participant name, **no** *Adress*, **no** *Behöver något ändras?*.
+- [ ] Mailpit, **Vi har tagit emot era uppgifter (AG-…)** to the guest: *Adress: Åkerövägen 81, 761 94 Norrtälje*; **Boende: Smedjan**; the same participants and meals as the admin's copy; ends in *Behöver något ändras?…*; no admin link, no Kontaktperson.
+- [ ] Same flow, but on a second booking (**2027-08-09 → 2027-08-11**) give one participant **no box ticked** and only the note *selleri* → the admin email says **Allergier: Annat (1)** and does not contain *selleri*; the guest's email says **Allergier: selleri** for that person (it used to say *—*).
+- [ ] Admin → that booking → **Deltagarlista** (PDF and Excel): the person's allergy column reads **selleri** (it used to read *—*); **Matlista**: listed under kostbehov with **selleri**, as before.
+- [ ] Admin → **Handbok** → *Mejlen systemet skickar* → *Till er*: the **Uppgifter klara** row says names and who has which allergy are not in the email, and why.
+
 **Site addresses in one `Site` section** (this branch, after `767365b`) — every absolute link is now built from `Site:PublicBaseUrl` / `Site:AdminBaseUrl`, so check each kind of link once:
 - [ ] Mailpit: the approval email's completion link opens `/slutfor/…` on the public site; the terms link opens `/bokningsvillkor`.
 - [ ] Mailpit: the admin notification's booking link opens that booking in the admin panel.
@@ -258,7 +268,7 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 
 ## To-do lists
 
-**Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed (e.g. the second *Wokade grönsaker med nudlar*), and renumber Visningsordning if wanted; optionally a photo of the caravan pitch; answer item 7's question and item 11's four questions; reword terms §6 if needed (item 10).
+**Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed (e.g. the second *Wokade grönsaker med nudlar*), and renumber Visningsordning if wanted; optionally a photo of the caravan pitch; answer item 7's question and item 11's four questions; reword terms §6 if needed (item 10); be told that the admin's summary email shows participants and allergies as counts, not names (item 8).
 
 **Maintainer:** one.com access for the client, with the DNS warning (item 1).
 

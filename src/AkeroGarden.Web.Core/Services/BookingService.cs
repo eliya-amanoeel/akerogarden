@@ -400,17 +400,24 @@ public class BookingService(
         // is the send, not the submission; it is logged rather than surfaced. Each send is
         // attempted independently so a failing admin alert cannot also cost the guest their copy.
         // (This is not hypothetical: an SMTP auth failure took out all email on staging in July.)
-        await TrySendCompletionEmailAsync(booking, "adminavisering (FR-61)",
-            () => emails.SendAdminDetailsCompleteAsync(booking));
+        //
+        // Both emails state the stay, the lodging and the meals (FR-61/107). Participants and meal selections are
+        // already on the tracked booking; the assigned buildings are not — the booking was loaded
+        // by token with only Participants included — so each send loads them first. Without that
+        // the lodging would be omitted silently rather than fail, which is the worst way for it to
+        // be wrong (same trap as the approval email, FR-103). The load sits inside each send so a
+        // failing read is caught like a failing send, and is skipped once the first has done it.
+        var buildings = db.Entry(booking).Collection(b => b.BuildingAssignments);
 
-        // The guest's own copy of what they just submitted (FR-107). Participants and meal
-        // selections are already on the tracked booking; the assigned buildings are not — the
-        // booking was loaded by token with only Participants included — so load them explicitly.
-        // Without this the email would omit the lodging silently rather than fail, which is the
-        // worst way for it to be wrong (same trap as the approval email, FR-103).
+        await TrySendCompletionEmailAsync(booking, "adminavisering (FR-61)", async () =>
+        {
+            if (!buildings.IsLoaded) await buildings.LoadAsync();
+            await emails.SendAdminDetailsCompleteAsync(booking);
+        });
+
         await TrySendCompletionEmailAsync(booking, "gästbekräftelse (FR-107)", async () =>
         {
-            await db.Entry(booking).Collection(b => b.BuildingAssignments).LoadAsync();
+            if (!buildings.IsLoaded) await buildings.LoadAsync();
             await emails.SendGuestDetailsReceivedAsync(booking);
         });
 

@@ -259,14 +259,14 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
         Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se" && e.Subject.Contains("inskickade"));
     }
 
-    /// <summary>FR-107 — submitting sends the guest their own confirmation of what they entered,
-    /// <b>in addition to</b> the admin notification (FR-61), which is unchanged. Asserts the guest
-    /// mail actually carries their data: the participant they typed, that person's allergy, every
-    /// dish snapshot stored for the booking, and the assigned lodging — the lodging especially,
-    /// because the booking is loaded by token with only Participants included, so a missing
-    /// explicit load would drop the building silently rather than fail.</summary>
+    /// <summary>FR-61/107 — submitting sends the guest their own confirmation of what they entered
+    /// and the admin a summary with the group as counts. Asserts both mails actually carry the
+    /// data: the participant and their allergy (named for the guest, counted for the admin), every
+    /// dish snapshot stored for the booking, and the assigned lodging — the lodging especially, because the booking is loaded by token with only
+    /// Participants included, so a missing explicit load would drop the building silently rather
+    /// than fail. Checked in both mails because the admin's is sent first and does the load.</summary>
     [Fact]
-    public async Task Submit_SendsTheGuestTheirOwnConfirmation_AlongsideTheAdminNotification()
+    public async Task Submit_SendsTheGuestAndTheAdminTheSummaryOfWhatWasEntered()
     {
         var provider = NewProvider(out var email);
         var seed = await SeedAsync(provider);
@@ -295,8 +295,17 @@ public class CompletionSubmitIntegrationTests : IClassFixture<DbFixture>
             buildingName = booking.BuildingAssignments.Single().BuildingNameSnapshot;
         }
 
-        // FR-61 still fires — the guest copy is an addition, not a replacement.
-        Assert.Contains(email.Sent, e => e.ToAddress == "admin@test.se" && e.Subject.Contains("inskickade"));
+        var adminMail = Assert.Single(
+            email.Sent, e => e.ToAddress == "admin@test.se" && e.Subject.Contains("inskickade"));
+
+        Assert.Contains(guestAddress, adminMail.HtmlBody);
+        // The group as counts — the participant's allergy is counted, their name is not there.
+        Assert.Contains(WebUtility.HtmlEncode("Nötallergi (1)"), adminMail.HtmlBody);
+        Assert.DoesNotContain("Deltagare 1", adminMail.HtmlBody);
+        Assert.Contains(buildingName, adminMail.HtmlBody);
+        Assert.All(dishes, dish => Assert.Contains(dish, adminMail.HtmlBody));
+        Assert.Contains("admin.akerogarden.se", adminMail.HtmlBody);
+        Assert.DoesNotContain("Kontakta oss", adminMail.HtmlBody);
 
         // Matched on subject, not just recipient: the guest already received the approval email at
         // the same address during seeding, so "an email went to the guest" would prove nothing.

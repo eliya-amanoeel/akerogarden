@@ -33,11 +33,15 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
         return SendToAdminAsync(content, booking);
     }
 
-    /// <summary>Admin notification that the guest submitted the completion form (FR-61). Requires
-    /// <see cref="Booking.Participants"/> to be loaded for the participant count.</summary>
+    /// <summary>The admin's copy of a submitted completion form (FR-61) — the stay and meals as the
+    /// guest's copy states them, the group as counts, the contact person and the panel link. Requires <see cref="Booking.Participants"/>,
+    /// <see cref="Booking.MealSelections"/> and <see cref="Booking.BuildingAssignments"/> to be
+    /// loaded; each one silently renders as "none" rather than failing, so the caller must load
+    /// them deliberately.</summary>
     public Task<bool> SendAdminDetailsCompleteAsync(Booking booking)
     {
-        var content = BookingEmailTemplates.AdminDetailsComplete(booking, BuildAdminBookingUrl(booking.Id));
+        var content = BookingEmailTemplates.AdminDetailsComplete(
+            booking, AssignedBuildingNames(booking), BuildAdminBookingUrl(booking.Id));
         return SendToAdminAsync(content, booking);
     }
 

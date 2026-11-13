@@ -75,31 +75,46 @@ public static class BookingEmailTemplates
             body.ToString());
     }
 
-    /// <summary>Admin notification that the guest has submitted the completion form (§9 "Admin —
-    /// details complete", FR-61): data is ready, a link to the booking, and a reminder to download
-    /// the lists (list downloads land in Phase 5).</summary>
-    public static EmailContent AdminDetailsComplete(Booking booking, string adminBookingUrl)
+    /// <summary>The admin's copy of a submitted completion form (§9, FR-61): who to contact, the
+    /// stay and the meals exactly as the guest's copy states them, and the group as <b>counts</b>
+    /// — no participant names, and allergies as a number per kind. The admin gets the summary
+    /// rather than a "details are in" alert because they act on it (kitchen and cleaning plan from
+    /// these details), but this email lands in the <c>info@</c> mailbox, which nothing deletes
+    /// automatically and One.com cannot be set to. A named person's allergy is health data
+    /// (GDPR art. 9) and would outlive the booking there indefinitely; a count tied to no name is
+    /// not about anyone. Who has which allergy is in the panel and the lists (FR-44/45).
+    /// Requires <see cref="Booking.Participants"/>, <see cref="Booking.MealSelections"/> and the
+    /// assigned buildings, like the guest's copy.</summary>
+    public static EmailContent AdminDetailsComplete(
+        Booking booking, IReadOnlyList<string> assignedBuildingNames, string adminBookingUrl)
     {
         var body = new StringBuilder();
-        body.Append("<p>Gästen har slutfört sina bokningsuppgifter.</p>");
+        body.Append("<p>Gästen har skickat in sina bokningsuppgifter.</p>");
+        body.Append(ReferenceLine(booking.BookingReference));
+
+        body.Append("<h3>Kontaktperson</h3>");
         body.Append("<ul>");
-        body.Append($"<li><strong>Referensnummer:</strong> {Enc(booking.BookingReference)}</li>");
         body.Append($"<li><strong>Namn:</strong> {Enc(booking.ContactName)}</li>");
-        body.Append($"<li><strong>Incheckning:</strong> {FormatDate(booking.CheckIn)}</li>");
-        body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(booking.CheckOut)}</li>");
-        body.Append($"<li><strong>Antal deltagare:</strong> {booking.Participants.Count.ToString(Sv)}</li>");
+        body.Append($"<li><strong>E-post:</strong> {Enc(booking.ContactEmail)}</li>");
+        if (!string.IsNullOrWhiteSpace(booking.ContactPhone))
+            body.Append($"<li><strong>Telefon:</strong> {Enc(booking.ContactPhone)}</li>");
         body.Append("</ul>");
-        body.Append("<p>Uppgifterna är redo. Kom ihåg att ladda ner deltagar- och matlistorna inför vistelsen.</p>");
+
+        body.Append(StaySection(booking, assignedBuildingNames));
+        body.Append(ParticipantCountSection(booking));
+        body.Append(MealSection(booking));
+
+        body.Append("<p>Namn och vem som har vilken allergi står i deltagar- och matlistorna "
+            + "— kom ihåg att ladda ner dem inför vistelsen.</p>");
         body.Append($"<p><a href=\"{Enc(adminBookingUrl)}\">Öppna bokningen i adminpanelen</a></p>");
 
         return new EmailContent(WithReference("Bokningsuppgifter inskickade", booking.BookingReference), body.ToString());
     }
 
     /// <summary>The guest's own confirmation of what they submitted on the completion form
-    /// (§9, FR-107). Deliberately <b>not</b> the same email as <see cref="AdminDetailsComplete"/>:
-    /// that one is a five-line staff alert with a panel link, which tells the guest nothing about
-    /// their own choices and must never be sent to them. Requires
-    /// <see cref="Booking.Participants"/> and <see cref="Booking.MealSelections"/> to be loaded.
+    /// (§9, FR-107): the property's address, the stay, every participant by name with their
+    /// allergies, and the meals. Requires <see cref="Booking.Participants"/> and
+    /// <see cref="Booking.MealSelections"/> to be loaded.
     ///
     /// <para>The closing "contact us" line is load-bearing, not politeness: the completion link is
     /// single-use (FR-62) and is already dead by the time this arrives, so without it the guest is
@@ -111,16 +126,9 @@ public static class BookingEmailTemplates
         body.Append(Greeting(booking.ContactName));
         body.Append("<p>Tack! Vi har tagit emot era uppgifter. Här är en sammanställning av det ni har fyllt i.</p>");
         body.Append(ReferenceLine(booking.BookingReference));
+        body.Append($"<p><strong>Adress:</strong> {Enc(ContactDetails.Address)}</p>");
 
-        body.Append("<ul>");
-        body.Append($"<li><strong>Incheckning:</strong> {FormatDate(booking.CheckIn)} kl. "
-            + $"{Enc(StatedTimePolicy.Display(booking.CheckInTime, MealOccasionResolver.StandardCheckInTime))}</li>");
-        body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(booking.CheckOut)} kl. "
-            + $"{Enc(StatedTimePolicy.Display(booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime))}</li>");
-        body.Append($"<li><strong>Adress:</strong> {Enc(ContactDetails.Address)}</li>");
-        body.Append("</ul>");
-        body.Append(LodgingLine(assignedBuildingNames));
-
+        body.Append(StaySection(booking, assignedBuildingNames));
         body.Append(ParticipantSection(booking));
         body.Append(MealSection(booking));
 
@@ -131,9 +139,28 @@ public static class BookingEmailTemplates
             WithReference("Vi har tagit emot era uppgifter", booking.BookingReference), body.ToString());
     }
 
+    /// <summary>The stay as submitted — stated times and assigned lodging — shared verbatim by the
+    /// guest's (FR-107) and the admin's (FR-61) copy, as is <see cref="MealSection"/>, so the two
+    /// cannot describe the same submission differently. Written in no one's voice for that reason.</summary>
+    private static string StaySection(Booking booking, IReadOnlyList<string> assignedBuildingNames)
+    {
+        var body = new StringBuilder();
+        body.Append("<ul>");
+        body.Append($"<li><strong>Incheckning:</strong> {FormatDate(booking.CheckIn)} kl. "
+            + $"{Enc(StatedTimePolicy.Display(booking.CheckInTime, MealOccasionResolver.StandardCheckInTime))}</li>");
+        body.Append($"<li><strong>Utcheckning:</strong> {FormatDate(booking.CheckOut)} kl. "
+            + $"{Enc(StatedTimePolicy.Display(booking.CheckOutTime, MealOccasionResolver.StandardCheckOutTime))}</li>");
+        // Omitted rather than blank when nothing is assigned — see LodgingLine for why.
+        if (assignedBuildingNames.Count > 0)
+            body.Append($"<li><strong>Boende:</strong> {Enc(string.Join(", ", assignedBuildingNames))}</li>");
+        body.Append("</ul>");
+        return body.ToString();
+    }
+
     /// <summary>The participant roster as the guest entered it, with each person's allergies
-    /// (§4.6) and the booking-level preference counts. Day guests carry the date they attend —
-    /// without it a name in the list is unidentifiable to the person who typed it.</summary>
+    /// (§4.6) and the booking-level preference counts — the guest's copy only. Day guests carry
+    /// the date they attend — without it a name in the list is unidentifiable to the person who
+    /// typed it.</summary>
     private static string ParticipantSection(Booking booking)
     {
         var body = new StringBuilder();
@@ -159,12 +186,54 @@ public static class BookingEmailTemplates
             body.Append($"<li>{line}</li>");
         }
         body.Append("</ul>");
-
-        var preferences = BookingDisplay.PreferenceSummary(booking.VegetarianCount, booking.VeganCount);
-        if (preferences != "—")
-            body.Append($"<p><strong>Kostönskemål:</strong> {Enc(preferences)}</p>");
+        body.Append(PreferenceLine(booking));
 
         return body.ToString();
+    }
+
+    /// <summary>The group as counts — the admin's copy only (see <see cref="AdminDetailsComplete"/>
+    /// for why no name appears). Allergies are counted per kind, one per participant who has it.
+    /// A written note counts as "Annat" even with no box ticked — the rule the kitchen list and the
+    /// completion form already apply, since a note is a declared allergy and a safety count must
+    /// never read "Inga" over one. The note's text is left out: free text can name or identify the
+    /// person it is about, which is exactly what the count exists to avoid.</summary>
+    private static string ParticipantCountSection(Booking booking)
+    {
+        var overnight = booking.Participants.Count(p => p.ParticipantType == ParticipantType.Overnight);
+        var dayGuests = booking.Participants.Count(p => p.ParticipantType == ParticipantType.DayGuest);
+
+        var allergies = booking.Participants
+            .SelectMany(AllergyKinds)
+            .GroupBy(a => a)
+            .OrderBy(g => g.Key)
+            .Select(g => $"{BookingDisplay.AllergyLabel(g.Key)} ({g.Count().ToString(Sv)})")
+            .ToList();
+
+        var body = new StringBuilder();
+        body.Append("<h3>Deltagare</h3>");
+        body.Append("<ul>");
+        body.Append($"<li><strong>Antal deltagare (övernattning):</strong> {overnight.ToString(Sv)}</li>");
+        body.Append($"<li><strong>Antal dagsgäster:</strong> {dayGuests.ToString(Sv)}</li>");
+        body.Append($"<li><strong>Allergier:</strong> {Enc(allergies.Count == 0 ? "Inga" : string.Join(", ", allergies))}</li>");
+        body.Append("</ul>");
+        body.Append(PreferenceLine(booking));
+
+        return body.ToString();
+    }
+
+    private static IEnumerable<Allergy> AllergyKinds(Participant p)
+    {
+        var kinds = p.Allergies.Where(a => a != Allergy.None).ToHashSet();
+        if (!string.IsNullOrWhiteSpace(p.AllergyNotes)) kinds.Add(Allergy.Other);
+        return kinds;
+    }
+
+    /// <summary>The booking-level dietary-preference counts (§4.6), or nothing when none were
+    /// requested. A count on the booking, never a person, so both copies carry it.</summary>
+    private static string PreferenceLine(Booking booking)
+    {
+        var preferences = BookingDisplay.PreferenceSummary(booking.VegetarianCount, booking.VeganCount);
+        return preferences == "—" ? string.Empty : $"<p><strong>Kostönskemål:</strong> {Enc(preferences)}</p>";
     }
 
     /// <summary>The group's meals day by day (FR-105). Breakfast has no dish to choose, so it is
@@ -203,7 +272,7 @@ public static class BookingEmailTemplates
         {
             // Self-catering resolves to no sittings at all — say so plainly rather than printing an
             // empty heading, which would read as data we lost rather than a choice they made.
-            body.Append("<p>Ni har valt självhushåll — inga måltider är beställda.</p>");
+            body.Append("<p>Självhushåll — inga måltider är beställda.</p>");
             return body.ToString();
         }
 

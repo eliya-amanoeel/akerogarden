@@ -136,17 +136,29 @@ public static class BookingDisplay
         _ => allergy.ToString()
     };
 
-    /// <summary>Joined Swedish allergy summary for a participant, appending free-text notes for
-    /// <see cref="Allergy.Other"/>. Returns "—" when there are none.</summary>
+    /// <summary>Joined Swedish allergy summary for a participant — the one rendering every screen,
+    /// list and email uses. Returns "—" only when nothing is declared.
+    ///
+    /// <para><b>A written note is always shown.</b> A note is a declared allergy whether or not a
+    /// box is ticked (the completion form treats it so, FR-110), so it is folded into "Annat" when
+    /// that is ticked and otherwise appended — "Glutenintolerans · svår" or the note alone. It used
+    /// to appear only beside a ticked "Annat", so a note on its own read "—" in the guest's summary
+    /// email and the participant list, and the completion form offered "Lägg till allergi" over
+    /// it; only the kitchen list had worked around it.</para></summary>
     public static string AllergySummary(IEnumerable<Allergy> allergies, string? notes)
     {
-        var relevant = allergies.Where(a => a != Allergy.None).ToList();
-        if (relevant.Count == 0) return "—";
-        var parts = relevant.Select(a =>
-            a == Allergy.Other && !string.IsNullOrWhiteSpace(notes)
-                ? $"{AllergyLabel(a)} ({notes.Trim()})"
-                : AllergyLabel(a));
-        return string.Join(", ", parts);
+        var ticked = allergies.Where(a => a != Allergy.None).Distinct().ToList();
+        var note = notes?.Trim();
+        var hasNote = !string.IsNullOrEmpty(note);
+
+        var parts = ticked.Select(a =>
+            a == Allergy.Other && hasNote ? $"{AllergyLabel(a)} ({note})" : AllergyLabel(a));
+        var summary = string.Join(", ", parts);
+
+        if (hasNote && !ticked.Contains(Allergy.Other))
+            summary = summary.Length == 0 ? note! : $"{summary} · {note}";
+
+        return summary.Length == 0 ? "—" : summary;
     }
 
     /// <summary>The booking's dietary-preference counts as one Swedish line (§4.6) — "3 vegetariska,

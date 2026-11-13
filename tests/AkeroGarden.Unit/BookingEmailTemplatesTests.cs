@@ -553,8 +553,7 @@ public class BookingEmailTemplatesTests
         Assert.Contains("kl. 10:00", c.HtmlBody);
         Assert.DoesNotContain("14:00", c.HtmlBody);
 
-        Assert.Contains("Ert boende:", c.HtmlBody);
-        Assert.Contains("Smedjan", c.HtmlBody);
+        Assert.Contains("Boende:</strong> Smedjan", c.HtmlBody);
         Assert.Contains("Adress:</strong> Åkerövägen 81, 761 94 Norrtälje", WebUtility.HtmlDecode(c.HtmlBody));
 
         // Every participant, with their own allergies — including the free-text note behind "Annat".
@@ -622,20 +621,33 @@ public class BookingEmailTemplatesTests
 
         var c = BookingEmailTemplates.GuestDetailsReceived(booking, ["Smedjan"]);
 
-        Assert.Contains("självhushåll", c.HtmlBody);
+        Assert.Contains("Självhushåll", c.HtmlBody);
         Assert.DoesNotContain("Middag", c.HtmlBody);
     }
 
     [Fact]
     public void GuestDetailsReceived_CarriesNoAdminLink()
     {
-        // FR-107 exists because the admin notification (FR-61) is not a copy of the guest's choices.
-        // Sending the guest an admin-panel URL would be the shortcut this requirement rules out.
+        // Both emails share one summary (FR-61/107); the panel link is the admin's frame around it,
+        // and an admin-panel URL in a guest's inbox points them at a login they do not have.
         var c = BookingEmailTemplates.GuestDetailsReceived(
             CateredBooking(), ["Smedjan"]);
 
         Assert.DoesNotContain("admin", c.HtmlBody, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("adminpanelen", c.HtmlBody);
+    }
+
+    [Fact]
+    public void GuestDetailsReceived_ShowsAnAllergyNoteWithNoBoxTicked()
+    {
+        // The guest wrote it; their own summary must not answer "—" over it.
+        var booking = CateredBooking();
+        booking.Participants[1].Allergies = [];
+        booking.Participants[1].AllergyNotes = "selleri";
+
+        var c = BookingEmailTemplates.GuestDetailsReceived(booking, []);
+
+        Assert.Contains("Allergier: " + Enc("selleri"), c.HtmlBody);
     }
 
     [Fact]
@@ -650,5 +662,149 @@ public class BookingEmailTemplatesTests
         Assert.DoesNotContain("<b>Bengt</b>", c.HtmlBody);
         Assert.Contains("&lt;b&gt;Bengt&lt;/b&gt;", c.HtmlBody);
         Assert.Contains(Enc("selleri & nötter"), c.HtmlBody);
+    }
+
+    private const string AdminUrl = "https://admin.akerogarden.se/bokningar/x";
+
+    [Fact]
+    public void AdminDetailsComplete_CarriesTheContactPersonTheStayTheGroupAsCountsAndThePanelLink()
+    {
+        var booking = CateredBooking();
+        booking.ContactPhone = "070-123 45 67";
+
+        var c = BookingEmailTemplates.AdminDetailsComplete(booking, ["Smedjan"], AdminUrl);
+
+        Assert.Contains(Ref, c.Subject);
+        Assert.Contains("Bokningsuppgifter inskickade", c.Subject);
+        Assert.Contains(Ref, c.HtmlBody);
+
+        // Who to call about it.
+        Assert.Contains("Namn:</strong> Anna", c.HtmlBody);
+        Assert.Contains("E-post:</strong> anna@test.se", c.HtmlBody);
+        Assert.Contains("Telefon:</strong> 070-123 45 67", c.HtmlBody);
+
+        // The stay and every dish (FR-61).
+        Assert.Contains("kl. 16:30", c.HtmlBody);
+        Assert.Contains("kl. 10:00", c.HtmlBody);
+        Assert.Contains("Boende:</strong> Smedjan", c.HtmlBody);
+        Assert.Contains(Enc("Köttbullar"), c.HtmlBody);
+        Assert.Contains(Enc("Ärtsoppa"), c.HtmlBody);
+        Assert.Contains(Enc("Laxfilé"), c.HtmlBody);
+
+        // The group as counts.
+        Assert.Contains("Antal deltagare (övernattning):</strong> 1", c.HtmlBody);
+        Assert.Contains("Antal dagsgäster:</strong> 1", c.HtmlBody);
+        Assert.Contains("Allergier:</strong> " + Enc("Glutenintolerans (1), Annat (1)"), c.HtmlBody);
+        Assert.Contains(Enc("2 vegetariska"), c.HtmlBody);
+
+        Assert.Contains($"href=\"{AdminUrl}\"", c.HtmlBody);
+        Assert.Contains("Öppna bokningen i adminpanelen", c.HtmlBody);
+    }
+
+    [Fact]
+    public void AdminDetailsComplete_NamesNoParticipant_AndCarriesNoAllergyNote()
+    {
+        // The email lands in info@, which nothing deletes. A named person's allergy there is health
+        // data outliving the booking; a count tied to no name is not about anyone (FR-61). The
+        // free-text note goes too — it can name the person it is about.
+        var c = BookingEmailTemplates.AdminDetailsComplete(CateredBooking(), ["Smedjan"], AdminUrl);
+
+        Assert.DoesNotContain(Enc("Bengt Bok"), c.HtmlBody);
+        Assert.DoesNotContain(Enc("Cecilia Dag"), c.HtmlBody);
+        Assert.DoesNotContain(Enc("selleri"), c.HtmlBody);
+    }
+
+    [Fact]
+    public void AdminDetailsComplete_StatesTheStayAndTheMealsExactlyAsTheGuestsCopyDoes()
+    {
+        // The stay and meal sections are shared, not copied: if the admin's copy ever rendered them
+        // differently, the two emails would describe the same submission differently.
+        var guest = BookingEmailTemplates.GuestDetailsReceived(CateredBooking(), ["Smedjan"]).HtmlBody;
+        var admin = BookingEmailTemplates.AdminDetailsComplete(CateredBooking(), ["Smedjan"], AdminUrl).HtmlBody;
+
+        var stayStart = guest.IndexOf("<ul><li><strong>Incheckning:", StringComparison.Ordinal);
+        Assert.True(stayStart >= 0, "Vistelsen saknas i gästens mejl.");
+        var stay = guest[stayStart..(guest.IndexOf("</ul>", stayStart, StringComparison.Ordinal) + "</ul>".Length)];
+
+        var mealsStart = guest.IndexOf("<h3>Måltider</h3>", StringComparison.Ordinal);
+        var mealsEnd = guest.IndexOf("<p>Behöver något ändras?", StringComparison.Ordinal);
+        Assert.True(mealsStart >= 0 && mealsEnd > mealsStart, "Måltiderna saknas i gästens mejl.");
+
+        Assert.Contains(stay, admin);
+        Assert.Contains(guest[mealsStart..mealsEnd], admin);
+    }
+
+    [Fact]
+    public void AdminDetailsComplete_CountsEachPersonOncePerKind_AndANoteAloneAsAnnat()
+    {
+        var booking = CateredBooking();
+        booking.Participants[0].Allergies = [Allergy.Gluten, Allergy.Nut];
+        // A written note with no box ticked is a declared allergy (the kitchen list's rule); a
+        // safety count must not read "Inga" over it.
+        booking.Participants[1].Allergies = [];
+        booking.Participants[1].AllergyNotes = "selleri";
+        booking.Participants.Add(new Participant
+        {
+            FullName = "David Ek",
+            ParticipantType = ParticipantType.Overnight,
+            AgeCategory = AgeCategory.Adult,
+            Allergies = [Allergy.Gluten],
+        });
+
+        var c = BookingEmailTemplates.AdminDetailsComplete(booking, [], AdminUrl);
+
+        Assert.Contains("Allergier:</strong> " + Enc("Glutenintolerans (2), Nötallergi (1), Annat (1)"), c.HtmlBody);
+        Assert.Contains("Antal deltagare (övernattning):</strong> 2", c.HtmlBody);
+    }
+
+    [Fact]
+    public void AdminDetailsComplete_SaysInga_WhenNoOneDeclaredAnAllergy()
+    {
+        var booking = CateredBooking();
+        foreach (var p in booking.Participants)
+        {
+            p.Allergies = [];
+            p.AllergyNotes = null;
+        }
+
+        var c = BookingEmailTemplates.AdminDetailsComplete(booking, [], AdminUrl);
+
+        Assert.Contains("Allergier:</strong> Inga", c.HtmlBody);
+    }
+
+    [Fact]
+    public void AdminDetailsComplete_LeavesOutWhatIsMeantForTheGuestOnly()
+    {
+        var c = BookingEmailTemplates.AdminDetailsComplete(CateredBooking(), ["Smedjan"], AdminUrl);
+
+        Assert.DoesNotContain("Behöver något ändras", c.HtmlBody);
+        Assert.DoesNotContain("kan bara användas en gång", c.HtmlBody);
+        Assert.DoesNotContain("Hej Anna", c.HtmlBody);
+        // The property's own address tells the admin nothing.
+        Assert.DoesNotContain("Adress:", c.HtmlBody);
+        Assert.DoesNotContain(Enc("Åkerövägen"), c.HtmlBody);
+    }
+
+    [Fact]
+    public void AdminDetailsComplete_OmitsThePhoneLine_WhenTheGuestGaveNone()
+    {
+        var booking = CateredBooking();
+        booking.ContactPhone = null;
+
+        var c = BookingEmailTemplates.AdminDetailsComplete(booking, ["Smedjan"], AdminUrl);
+
+        Assert.DoesNotContain("Telefon:", c.HtmlBody);
+    }
+
+    [Fact]
+    public void AdminDetailsComplete_HtmlEncodesTheContactPerson()
+    {
+        var booking = CateredBooking();
+        booking.ContactName = "<b>Anna</b>";
+
+        var c = BookingEmailTemplates.AdminDetailsComplete(booking, [], AdminUrl);
+
+        Assert.DoesNotContain("<b>Anna</b>", c.HtmlBody);
+        Assert.Contains("&lt;b&gt;Anna&lt;/b&gt;", c.HtmlBody);
     }
 }

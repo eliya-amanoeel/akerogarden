@@ -228,6 +228,30 @@ public class ListShaperTests
     }
 
     [Fact]
+    public void AllergySummary_ShowsANoteWithNoBoxTicked_InTheParticipantList()
+    {
+        // A note is a declared allergy (FR-110). It used to read "—" here unless "Annat" was ticked.
+        var p = Overnight("Anna");
+        p.Allergies = [Allergy.None];
+        p.AllergyNotes = "Ingen paprika";
+
+        Assert.Equal("Ingen paprika", ListShaper.Shape(Booking(p)).Participants[0].Dietary);
+    }
+
+    [Fact]
+    public void AllergySummary_AppendsANoteBesideAnotherAllergy()
+    {
+        var p = Overnight("Anna");
+        p.Allergies = [Allergy.Gluten];
+        p.AllergyNotes = "Svår, även spår";
+
+        var shaped = ListShaper.Shape(Booking(p));
+
+        Assert.Equal("Glutenintolerans · Svår, även spår", shaped.Participants[0].Dietary);
+        Assert.Equal("Glutenintolerans · Svår, även spår", shaped.SpecialDiets[0].Dietary);
+    }
+
+    [Fact]
     public void AllergySummary_None_ShowsDash()
     {
         var p = Overnight("Anna");

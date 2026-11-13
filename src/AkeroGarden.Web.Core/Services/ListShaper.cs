@@ -165,7 +165,7 @@ public static class ListShaper
             .Select(p => new SpecialDietRow(
                 Name: p.FullName,
                 Type: BookingDisplay.ParticipantTypeLabel(p.ParticipantType),
-                Dietary: AllergyListSummary(p),
+                Dietary: BookingDisplay.AllergySummary(p.Allergies, p.AllergyNotes),
                 Attendance: p.ParticipantType == ParticipantType.DayGuest && p.AttendanceDate is { } d
                     ? MealDateHeader(d)
                     : "Hela vistelsen"))
@@ -174,18 +174,6 @@ public static class ListShaper
     private static bool HasAllergy(Participant p) =>
         (p.Allergies?.Any(a => a != Allergy.None) ?? false)
         || !string.IsNullOrWhiteSpace(p.AllergyNotes);
-
-    /// <summary>The allergy summary for the kitchen list. <see cref="BookingDisplay.AllergySummary"/>
-    /// only folds the free-text note into the "Annat" entry; here — a safety list — any note is
-    /// surfaced even when it stands alone or accompanies a different allergy.</summary>
-    private static string AllergyListSummary(Participant p)
-    {
-        var summary = BookingDisplay.AllergySummary(p.Allergies, p.AllergyNotes);
-        var note = p.AllergyNotes?.Trim();
-        if (string.IsNullOrEmpty(note) || summary.Contains(note, StringComparison.Ordinal))
-            return summary;
-        return summary == "—" ? note : $"{summary} · {note}";
-    }
 
     /// <summary>Compact day label, e.g. "Mån 1/6".</summary>
     public static string MealDateHeader(DateOnly date)

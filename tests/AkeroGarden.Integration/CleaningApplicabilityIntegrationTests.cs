@@ -149,7 +149,7 @@ public class CleaningApplicabilityIntegrationTests : IClassFixture<DbFixture>
     {
         // Own window per seeded stay — approval refuses to double-book (FR-10), and every test in
         // this class approves. Walks backwards from today: a stay in the past is still inside the
-        // 40-day link-issue window (FR-108) and can never collide with a forward-dated one.
+        // link-issue window (IssueLeadDays, FR-108) and can never collide with a forward-dated one.
         var checkIn = DbFixture.StayWindow(provider, Interlocked.Increment(ref _window), firstDaysOut: -40, stepDays: -6);
 
         var input = new StayRequestInput

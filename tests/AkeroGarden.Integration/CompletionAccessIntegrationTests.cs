@@ -49,7 +49,7 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
     /// <summary>
     /// Creates a Pending stay, approves it, and returns (bookingId, token).
     ///
-    /// <para>Check-in is deliberately inside the 40-day issue window and relative to today: approval
+    /// <para>Check-in is deliberately inside the issue window (IssueLeadDays) and relative to today: approval
     /// only mints a token when the guest could actually use it (FR-51/108), so a fixed far-future
     /// date would approve without one and every caller here would then be evaluating a null token —
     /// reporting NotFound rather than the access state it means to test.</para>
@@ -64,10 +64,13 @@ public class CompletionAccessIntegrationTests : IClassFixture<DbFixture>
     {
         using var scope = provider.CreateScope();
         var service = scope.ServiceProvider.GetRequiredService<BookingService>();
-        // Own window per seeded stay — approval refuses to double-book (FR-10). Base 4, step 6
-        // keeps every window inside the 40-day link-issue window (FR-108), which these tests need:
-        // a stay further out than that is approved with no token at all.
-        var checkIn = DbFixture.StayWindow(provider, Interlocked.Increment(ref _window), firstDaysOut: 4, stepDays: 6);
+        // Own window per seeded stay — approval refuses to double-book (FR-10). The class seeds five
+        // stays (four tests, one of them a two-case Theory). Base −1, step 4 puts them at 3, 7, 11, 15
+        // and 19 days out: a stay holds check-in through check-out (+3), so step 4 is the tightest
+        // that never overlaps, and all five stay inside the link-issue window (IssueLeadDays, FR-108),
+        // which these tests need — a stay further out is approved with no token at all. A sixth seed
+        // would land at 23, outside it; the assert below names that failure if one is ever added.
+        var checkIn = DbFixture.StayWindow(provider, Interlocked.Increment(ref _window), firstDaysOut: -1, stepDays: 4);
         var booking = await service.CreateStayRequestAsync(new StayRequestInput
         {
             ContactName = "Gäst",

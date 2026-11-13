@@ -24,7 +24,7 @@ brackets is the client's original numbering.
 | 4 | [14] Sender shows as "Info" | ✅ **Done** 2026-11-12 — awaiting deploy | S |
 | 5 | [8] Remove the extra cleaning day | ✅ **Done** 2026-11-12 — awaiting deploy | S |
 | 6 | [1] Vegan as a dish label | ✅ **Done** 2026-11-13 (with 12) — awaiting deploy | S (migration) |
-| 7 | [7] Completion link 3 weeks before the stay | **Open — client** | S code, M docs |
+| 7 | [7] Completion link 3 weeks before the stay | ✅ **Done** 2026-11-13 (client: exactly 21 days) — awaiting deploy | S code, M docs |
 | 8 | [10] Admin gets the guest's full summary email | ✅ **Done** 2026-11-13 — awaiting deploy | M |
 | 9 | [11] One signature with logo and phone in all emails | ✅ **Done** 2026-11-12 — awaiting deploy | M |
 | 10 | [13] Deposit: 14 days, reminder inside the period, admin notified | **Dropped** 2026-11-13 — overdue deposit made visible instead; ✅ built, awaiting deploy | S |
@@ -98,17 +98,17 @@ brackets is the client's original numbering.
 
 **Docs.** FR-22, §8.7, `erd.md`, handbook (Matalternativ row). **Terms / privacy / Azure cost.** None — a dish label is not personal data, and the policy's "gruppens gemensamma val av måltidsalternativ" stays true.
 
-## 7. [7] Completion link 3 weeks before the stay — **OPEN**
+## 7. [7] Completion link 3 weeks before the stay
 
 **Today (§2.6, FR-108, FR-53).** The link is issued **40 days** before check-in and expires **14 days** before — about 4 weeks to fill it in. The 14-day deadline is the client's own: the terms require final participant numbers and dietary needs **14 days before arrival**, and kitchen and cleaning plan from it. On day 14 the completion nudge sends a fresh link valid to 3 days before.
 
-**Consequence of the request.** Issued at **21 days** with the deadline unchanged, the guest gets **one week** — tight for a large group (see item 14).
+**Decision (client, confirmed 2026-11-13): exactly 21 days.** The deadline stays at 14 days, so the guest gets **one week**; a group that misses it is nudged on day 14 with a link valid to 3 days before arrival, as today. Technically sound: the 30-day security ceiling only bites past 44 days, so at 21 no link can die while the guest still needs it.
 
-**Open question for the client.** Why 3 weeks? If guests get the link too early to know who's coming, one week is intended and fine; if not, they may not realise it means one week.
+**Built.** `CompletionTokenPolicy.IssueLeadDays` 40 → 21. The guest's approval email said *"cirka sex veckor före ankomst"* as a written-out phrase, and the admin page, its dialogs and the handbook repeated it in five places — all now built from the constant (*"21 dagar före ankomst"*), so the number cannot drift from the promise again. §2.6 rewritten (21 is the client's choice; 44 is the hard limit). Tests and the demo seed moved inside the new window.
 
-**To be discussed further when it is time.** Changing 40 → 21 also requires rewriting the §2.6 reasoning (why 40, the 30-day ceiling, the admin-resend invariant).
+**Bookings already approved when this deploys.** A booking approved more than 40 days ahead was told the link comes *"cirka sex veckor före ankomst"*; after the deploy it comes at 21 days. Nothing breaks — the link still arrives with a week to fill it in — but those guests were promised earlier. If that matters, the admin can send any of them the link early with **Skicka slutförandelänk nu**.
 
-**Terms.** None if the 14-day deadline stays. **Privacy / Azure cost.** None.
+**Docs.** §2.6, FR-49/51/52/108, the email table, the flowchart, `booking-lifecycle-timeline.md` (scenarios redated), `architecture.md`, handbook, seeding, README. **Terms / privacy.** None — the terms keep the 14-day deadline and name no issue date. **Azure cost.** None.
 
 ## 8. [10] Admin gets the guest's full summary email
 
@@ -273,9 +273,16 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] Open **Sara Lindqvist**: blue *Väntar på handpenning* badge, no alert. Admin → Översikt: with only Sara left waiting (confirm the two overdue ones), the hint line is gone.
 - [ ] Admin → **Handbok** → *Begära handpenning*: the "Kommer pengarna inte?" paragraph names the red badge on Bokningar and Kalendervy too.
 
+**Item 7 — link 21 days before arrival** (branch `feat/link-at-three-weeks`). Start admin with `DemoSeed__Reset=true` and `Jobs__RunOnStartup=true`.
+- [ ] Mailpit: **Elsa Wikander** (check-in exactly 21 days after the reseed day) gets *"Nu kan ni fylla i era uppgifter"* from the startup run; the link's expiry is **14 days before** her check-in, kl. 14:00. Admin → **Jobbhistorik**: that night's link-issuance row says *"…när incheckningen kom inom 21 dagar."*
+- [ ] Admin → open **Nils Åkerlund** (far out): the rail reads **Slutförandelänk: Skickas automatiskt 21 dagar före ankomst.**
+- [ ] `/boka`: request **2027-09-06 → 2027-09-08**. Admin → open it, tick a building, **Godkänn** → the dialog says *"Slutförandelänken skickas automatiskt 21 dagar före ankomst."*; after confirming, the toast says the same. Mailpit: the approval email has **no link** and says *"…skickas till er 21 dagar före ankomst. Fram till dess behöver ni inte göra något."*
+- [ ] Admin → open **Johan Bergström** (17 days out): the rail shows a live link valid to **14 days before** his check-in. Open **Per Holmgren** (9 days out): the rail shows *"Kort varsel — 9 dagar till incheckning"*. **Godkänn** with any price → the dialog promises the link *"med slutförandelänk"*; the toast says the link is shortened; Mailpit: the approval email carries the link, valid to **3 days before** his check-in.
+- [ ] Admin → **Handbok**: *Godkänna en förfrågan* says the link comes with the confirmation when at most **21 dagar** remain, otherwise at 21 dagar; *Mejlen systemet skickar*: the **Bokningsbekräftelse** and **Länk till formuläret** rows say **21 dagar**.
+
 ## To-do lists
 
-**Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed (e.g. the second *Wokade grönsaker med nudlar*), and renumber Visningsordning if wanted; optionally a photo of the caravan pitch; answer item 7's question and item 11's four questions; be told that the admin's summary email shows participants and allergies as counts, not names (item 8).
+**Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed (e.g. the second *Wokade grönsaker med nudlar*), and renumber Visningsordning if wanted; optionally a photo of the caravan pitch; answer item 11's four questions; be told that the admin's summary email shows participants and allergies as counts, not names (item 8).
 
 **Maintainer:** one.com access for the client, with the DNS warning (item 1).
 

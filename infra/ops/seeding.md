@@ -18,7 +18,7 @@ wired into `src/AkeroGarden.Web.Admin/Program.cs` only — the public app never 
    lägret" bundle; 3 blocks; and one booking in every lifecycle state (Pending/AwaitingDeposit/
    Approved/DetailsComplete/Active/Completed/Denied/Cancelled/Closed). Two stay requests are
    Pending, so both ways of saying yes can be tried: one with no building yet (for *Begär
-   handpenning*), one with a building assigned and check-in inside 40 days (for *Godkänn*, with a
+   handpenning*), one with a building assigned and check-in inside 21 days (for *Godkänn*, with a
    link). Three bookings wait for their deposit (FR-115): one on time, and two **overdue and not yet
    reminded** — so the next nightly run sends deposit reminder emails (FR-116) to their `example.com`
    addresses, the same way the seeded link-issuance booking demonstrates that job. Of the waiting

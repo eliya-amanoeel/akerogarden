@@ -89,7 +89,7 @@ public class CompletionLinkIssuanceJob(
             // System actor (FR-95): the automatic issue involved no admin. Only after a confirmed
             // send — a link taken back was never issued as far as the trail is concerned.
             await audit.RecordAsync(AuditAction.CompletionLinkIssued, nameof(Booking), booking.Id,
-                "Slutförandelänk utfärdades automatiskt när incheckningen kom inom 40 dagar.",
+                $"Slutförandelänk utfärdades automatiskt när incheckningen kom inom {CompletionTokenPolicy.IssueLeadDays} dagar.",
                 booking.Id, booking.BookingReference, AuditActor.System);
             issued++;
         }

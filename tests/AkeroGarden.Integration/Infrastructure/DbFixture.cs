@@ -44,7 +44,7 @@ public sealed class DbFixture : IAsyncLifetime
     ///
     /// <para>Seeding dates relative to <c>DateTime.UtcNow</c> also works and is fine for a stay that
     /// merely needs to be "in the future". Pin the clock instead when the test is <i>about</i> a
-    /// boundary — 40 days, 14 days, expiry — because then the distance is the thing under test and
+    /// boundary — the issue window, 14 days, expiry — because then the distance is the thing under test and
     /// it should not be able to drift.</para>
     /// </summary>
     public static void PinClock(IServiceCollection services, DateTimeOffset instant) =>
@@ -113,7 +113,7 @@ public sealed class DbFixture : IAsyncLifetime
     ///
     /// <para><paramref name="sequence"/> is the caller's <b>own</b> counter, not a shared one, so a
     /// class can reason about how far out its last stay lands. That matters wherever the distance
-    /// itself carries meaning — a completion link is only issued within 40 days of check-in
+    /// itself carries meaning — a completion link is only issued within IssueLeadDays of check-in
     /// (FR-108), so a class relying on one must keep every window inside that. <paramref
     /// name="stepDays"/> must clear a stay and its check-out day (FR-106); it may be negative to
     /// walk backwards for stays in the past.</para>

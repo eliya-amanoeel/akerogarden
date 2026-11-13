@@ -105,7 +105,7 @@ DemoSeed__Reset=true Jobs__RunOnStartup=true dotnet run --project src/AkeroGarde
 by default and must never be set in production. `DemoSeed:Reset` wipes app data (the admin user
 survives) and reseeds — including one `DetailsComplete` booking with check-in exactly 14 days out and
 deliberately non-standard times (*Ingrid Påminnelse*, picked up by the reminder) and one `Approved`
-booking exactly 40 days out with no link (*Elsa Wikander*, picked up by link issuance). There is no
+booking exactly 21 days out with no link (*Elsa Wikander*, picked up by link issuance). There is no
 seeded nudge case: move an approved booking's check-in inside 14 days by hand.
 
 Mail lands in Mailpit at <http://localhost:8025>.
@@ -132,7 +132,7 @@ macOS↔CI-Linux font rendering, so the suite asserts behaviour and structure in
 A test must honestly verify what it claims. Never route a test around a known bug to get it green — fix
 the bug, or assert the current wrong behaviour so it stays visible. **The clock is an input:** anything
 that compares against "now" takes it from an injected `TimeProvider` or a `today` parameter, and a test
-whose subject is a distance (40 days, 14 days, an expiry) pins it. See `.claude/CLAUDE.md` for the full
+whose subject is a distance (21 days, 14 days, an expiry) pins it. See `.claude/CLAUDE.md` for the full
 test-integrity rule.
 
 ## Infrastructure and deployment

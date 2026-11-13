@@ -9,7 +9,7 @@ namespace AkeroGarden.Integration;
 
 /// <summary>
 /// Integration coverage for the deferred completion-link issuance job against real PostgreSQL
-/// (§2.6, FR-108): a booking approved beyond the 40-day window receives its link when check-in
+/// (§2.6, FR-108): a booking approved beyond the issue window (IssueLeadDays) receives its link when check-in
 /// comes inside it, exactly once, and only while it is still awaiting completion.
 /// </summary>
 public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture>
@@ -41,7 +41,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     {
         s.AddSingleton<IEmailService>(fake);
         // Pinned, not TimeProvider.System: every assertion in this file is about a *distance*
-        // (the 40-day issue window, the 14-day nudge, the link outliving it), which is the one
+        // (the issue window, the 14-day nudge, the link outliving it), which is the one
         // thing a midnight crossing breaks. Every date below is then taken from this same clock
         // via DbFixture.TodayIn — a pinned service with a wall-clock seed holds two disagreeing
         // "now"s and is worse than not pinning.
@@ -119,7 +119,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     {
         var provider = NewProvider(out var email);
         var today = DbFixture.TodayIn(provider);
-        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(30));
+        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(CompletionTokenPolicy.IssueLeadDays - 3));
 
         var issued = await RunAsync(provider, today);
 
@@ -135,14 +135,14 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         Assert.Contains("/slutfor/", mail.HtmlBody);
 
         // The live expiry is what stops a second issue — otherwise the guest is mailed nightly for
-        // 40 days, each mail killing the link in the one before it.
+        // the whole window, each mail killing the link in the one before it.
         Assert.Equal(0, await RunAsync(provider, today.AddDays(1)));
     }
 
     [Fact]
     public async Task TheIssuedLinkStillWorksAtTheNudge()
     {
-        // Why the lead time is 40 and not 44 (§2.6). If the link the job issues cannot survive to the
+        // Why the lead time must stay below 44 (§2.6). If the link the job issues cannot survive to the
         // 14-day nudge that replaces it, the dead-link gap deferred issuance exists to close is back.
         var provider = NewProvider(out _);
         var today = DbFixture.TodayIn(provider);
@@ -179,7 +179,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         // second one, which would invalidate the URL the guest is already holding.
         var provider = NewProvider(out var email);
         var today = DbFixture.TodayIn(provider);
-        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(20),
+        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(CompletionTokenPolicy.IssueLeadDays - 1),
             linkSentAt: NowIn(provider).AddDays(-1));
 
         Assert.Equal(0, await RunAsync(provider, today));
@@ -259,7 +259,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
     {
         var provider = NewProvider(out var email);
         var today = DbFixture.TodayIn(provider);
-        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(30), status: status);
+        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(CompletionTokenPolicy.IssueLeadDays - 3), status: status);
 
         Assert.Equal(0, await RunAsync(provider, today));
 
@@ -289,7 +289,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         var (provider, email) = await NewIsolatedProviderAsync();
         email.Delivers = false;
         var today = DbFixture.TodayIn(provider);
-        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(29));
+        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(CompletionTokenPolicy.IssueLeadDays - 3));
 
         Assert.Equal(0, await RunAsync(provider, today)); // nothing reached the guest
 
@@ -316,7 +316,7 @@ public class CompletionLinkIssuanceJobIntegrationTests : IClassFixture<DbFixture
         var (provider, email) = await NewIsolatedProviderAsync();
         email.Delivers = false;
         var today = DbFixture.TodayIn(provider);
-        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(29));
+        var id = await SeedApprovedAsync(provider, checkIn: today.AddDays(CompletionTokenPolicy.IssueLeadDays - 3));
         var expired = NowIn(provider).AddDays(-1);
         var sentEarly = NowIn(provider).AddDays(-31);
         using (var scope = provider.CreateScope())

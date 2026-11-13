@@ -24,20 +24,30 @@ public static class CompletionTokenPolicy
     /// How far before check-in the link is issued (§2.6, FR-108). Approving further ahead than this
     /// issues no token at all; a daily job issues one when check-in comes within this window.
     ///
-    /// <para><b>40 is load-bearing, not a round number.</b> <see cref="MaxLifetime"/> only outlives
-    /// <see cref="CheckInLeadDays"/> while the link is issued within <b>44</b> days of check-in
+    /// <para><b>21 — three weeks — is the client's choice</b> (review 2026-11-11, item 7), and it
+    /// leaves the guest one week before the <see cref="CheckInLeadDays"/> deadline. It replaced 40.</para>
+    ///
+    /// <para><b>The hard limit is 44.</b> <see cref="MaxLifetime"/> only outlives
+    /// <see cref="CheckInLeadDays"/> while the link is issued within 44 days of check-in
     /// (issue + 30 ≥ check-in − 14). Past that the 30-day ceiling binds first and the link dies while
-    /// the guest is still waiting — the exact gap deferred issuance exists to close. 40 sits four days
-    /// inside that boundary so the daily job has room to fire without the rule resting on its edge.
-    /// <b>Do not raise this toward 44, and do not lower <see cref="MaxLifetime"/> without lowering
-    /// this in step.</b></para>
+    /// the guest is still waiting — the exact gap deferred issuance exists to close. Never raise this
+    /// toward 44, and never lower <see cref="MaxLifetime"/> below <c>this − 14</c>; a unit test holds
+    /// the limit.</para>
+    ///
+    /// <para>Every text that tells anyone when the link comes — the guest's approval email, the admin
+    /// page and dialogs — is built from this constant (<see cref="IssueLeadText"/>), never written out,
+    /// so changing it cannot leave a promise behind.</para>
     ///
     /// <para>Counted in whole days rather than as an instant offset: check-in is a date, and an
     /// instant comparison against the standard 14:00 check-in time makes the answer depend on the
-    /// hour the job happens to run — the 03:00 sweep would quietly issue at 39 days, not 40. FR-75
-    /// already counts the distance to check-in this way.</para>
+    /// hour the job happens to run — the 03:00 sweep would quietly issue a day late. FR-75 already
+    /// counts the distance to check-in this way.</para>
     /// </summary>
-    public const int IssueLeadDays = 40;
+    public const int IssueLeadDays = 21;
+
+    /// <summary>"21 dagar före ankomst" — when the link comes, as every guest and admin text states it.
+    /// Built from <see cref="IssueLeadDays"/> so no text can promise a different day than the job keeps.</summary>
+    public static readonly string IssueLeadText = $"{IssueLeadDays} dagar före ankomst";
 
     /// <summary>
     /// How long before check-in a <b>late-issued</b> link stops working (§2.6, FR-53). When the link

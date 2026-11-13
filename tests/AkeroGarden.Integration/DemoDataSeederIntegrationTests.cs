@@ -23,7 +23,7 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
     private DemoDataSeeder NewSeeder(out IServiceScope scope, out ApplicationDbContext db)
     {
         // Pinned, and the seeder now takes the same TimeProvider. This file asserts where the seeded
-        // bookings sit *relative to today* — one of them with check-in exactly at the 40-day issuance
+        // bookings sit *relative to today* — one of them with check-in exactly at the issuance
         // lead time, an exact boundary. While the seeder read DateTime.UtcNow and the assertions
         // recomputed "today" separately, a run straddling midnight put those one day apart and
         // flipped ShouldIssueOn. Pinning the test alone could not have fixed it; the clock had to
@@ -88,6 +88,14 @@ public class DemoDataSeederIntegrationTests : IClassFixture<DbFixture>
         Assert.NotNull(approved.CompletionToken);
         Assert.True(approved.CompletionTokenExpiry > Now);
         Assert.NotNull(approved.CompletionLinkSentAt); // dates the link for the nudge grace (FR-63)
+        // A link the daily job could have issued — inside the window, not one only an admin resend gives.
+        Assert.True(CompletionTokenPolicy.ShouldIssueOn(
+            StockholmTime.DateOf(approved.CompletionLinkSentAt!.Value), approved.CheckIn!.Value));
+
+        // The Pending stay meant for Godkänn "with a link" must be inside the window, or approving it
+        // in a seeded environment demonstrates the far-out variant instead.
+        var pendingDirect = await db.Bookings.SingleAsync(b => b.ContactEmail == "per.holmgren@example.com");
+        Assert.True(CompletionTokenPolicy.ShouldIssueOn(Today, pendingDirect.CheckIn!.Value));
 
         // 2. Check-in exactly at the lead time and no link yet — what the issuance job picks up.
         var awaitingLink = Assert.Single(approvedAll, b => b.ContactEmail == "elsa.wikander@example.com");

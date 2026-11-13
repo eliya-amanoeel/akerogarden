@@ -198,7 +198,7 @@ public class BookingEmailTemplatesTests
     [Fact]
     public void Approval_BeyondTheIssueWindow_CarriesNoLinkAndPromisesOneLater()
     {
-        // FR-52/108: a booking approved more than 40 days out has no token, so the email must not
+        // FR-52/108: a booking approved further out than IssueLeadDays has no token, so the email must not
         // show a link or an expiry — it tells the guest nothing is required of them yet.
         var c = BookingEmailTemplates.Approval(
             "Anna", magicLinkUrl: null, expiryUtc: null, Ref, ["Smedjan"],
@@ -206,7 +206,7 @@ public class BookingEmailTemplatesTests
 
         Assert.DoesNotContain("/slutfor/", c.HtmlBody);
         Assert.DoesNotContain("Länken är giltig", c.HtmlBody);
-        Assert.Contains("sex veckor före ankomst", c.HtmlBody);
+        Assert.Contains("skickas till er 21 dagar före ankomst", c.HtmlBody);
         Assert.Contains("behöver ni inte göra något", c.HtmlBody);
 
         // Everything that does not depend on the link is unchanged.

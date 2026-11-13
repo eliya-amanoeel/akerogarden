@@ -57,7 +57,7 @@ stateDiagram-v2
 
     note right of Approved
         Guest: approval — states the estimated price;
-        with the link if check-in is 40 days away or sooner,
+        with the link if check-in is 21 days away or sooner,
         otherwise "the link follows later"
         Then, while still Approved:
         the daily jobs below take over
@@ -113,7 +113,7 @@ flowchart TD
     Q8 -->|"yes"| A5["Admin: record due for deletion"] --> J1
     Q8 -->|"no"| J1
 
-    J1["**2. Completion-link issuance** (FR-108)"] --> Q1{"Still Approved,<br/>check-in within 40 days,<br/>and no usable link?"}
+    J1["**2. Completion-link issuance** (FR-108)"] --> Q1{"Still Approved,<br/>check-in within 21 days,<br/>and no usable link?"}
     Q1 -->|"no"| J2
     Q1 -->|"yes"| A1["Issue a link<br/>Email: 'you can now fill in your details'"] --> J2
 
@@ -160,7 +160,7 @@ is when the admin approved. Three dates are fixed by that check-in:
 
 | Landmark | Date | What happens there |
 |---|---|---|
-| 40 days before | **2026-10-31** | the issuance job's window opens |
+| 21 days before | **2026-11-19** | the issuance job's window opens |
 | 14 days before | **2026-11-26** | pre-arrival reminder *or* completion nudge |
 | 3 days before | **2026-12-07** | the deadline any link issued 14 days or fewer out runs to — a late approval *or* the nudge |
 
@@ -172,28 +172,28 @@ gantt
     todayMarker off
 
     section Landmarks
-    40 days before          :milestone, 2026-10-31, 0d
+    21 days before          :milestone, 2026-11-19, 0d
     14 days before          :milestone, 2026-11-26, 0d
     Check-in                :milestone, 2026-12-10, 0d
 
     section S1 — approved 192 days out
     Approved — no link      :milestone, 2026-06-01, 0d
-    Link issued + emailed   :milestone, 2026-10-31, 0d
-    Link valid              :s1a, 2026-10-31, 26d
-    Guest submits           :milestone, 2026-11-05, 0d
+    Link issued + emailed   :milestone, 2026-11-19, 0d
+    Link valid              :s1a, 2026-11-19, 7d
+    Guest submits           :milestone, 2026-11-22, 0d
     Pre-arrival reminder    :milestone, 2026-11-26, 0d
 
     section S2 — same but link sent early
     Approved — no link      :milestone, 2026-06-01, 0d
     Admin sends early       :milestone, 2026-06-15, 0d
     Early link valid        :s2a, 2026-06-15, 30d
-    Dead link — no one needs it yet :s2b, 2026-07-15, 108d
-    Replacement issued      :milestone, 2026-10-31, 0d
-    Link valid              :s2c, 2026-10-31, 26d
+    Dead link — no one needs it yet :s2b, 2026-07-15, 127d
+    Replacement issued      :milestone, 2026-11-19, 0d
+    Link valid              :s2c, 2026-11-19, 7d
 
-    section S3 — approved 30 days out
-    Approved — link in the email :milestone, 2026-11-10, 0d
-    Link valid              :s3a, 2026-11-10, 16d
+    section S3 — approved 18 days out
+    Approved — link in the email :milestone, 2026-11-22, 0d
+    Link valid              :s3a, 2026-11-22, 4d
     Nudge + admin alert     :milestone, 2026-11-26, 0d
     Nudge link valid        :s3b, 2026-11-26, 11d
     Guest submits           :milestone, 2026-11-30, 0d
@@ -213,16 +213,16 @@ gantt
 
 | | Approved | Link issued at approval? | Link expires | Why that date | 14-day email |
 |---|---|---|---|---|---|
-| **S1** | 2026-06-01 (192 d) | **No** — beyond 40 days | 2026-11-26 | issued 10-31 at the 40-day mark; the 14-day cut-off binds before the 30-day ceiling | pre-arrival (submitted 11-05) |
-| **S2** | 2026-06-01 (192 d) | **No**, but the admin sent one on 06-15 | early link 2026-07-15, replacement 2026-11-26 | the early link hits the 30-day ceiling; the job replaces it at the 40-day mark | pre-arrival |
-| **S3** | 2026-11-10 (30 d) | **Yes** | 2026-11-26, then **2026-12-07** | 14-day cut-off; the nudge then reissues, and that link is a late issue → 3 days before check-in | nudge — guest had not submitted |
+| **S1** | 2026-06-01 (192 d) | **No** — beyond 21 days | 2026-11-26 | issued 11-19 at the 21-day mark; the 14-day cut-off binds before the 30-day ceiling | pre-arrival (submitted 11-22) |
+| **S2** | 2026-06-01 (192 d) | **No**, but the admin sent one on 06-15 | early link 2026-07-15, replacement 2026-11-26 | the early link hits the 30-day ceiling; the job replaces it at the 21-day mark | pre-arrival |
+| **S3** | 2026-11-22 (18 d) | **Yes** | 2026-11-26, then **2026-12-07** | 14-day cut-off; the nudge then reissues, and that link is a late issue → 3 days before check-in | nudge — guest had not submitted |
 | **S4** | 2026-12-04 (6 d) | **Yes** | 2026-12-07 | late issue → 3 days before check-in | nudge on 12-08, held 3 days after the link |
 | **S5** | 2026-12-09 (1 d) | **Yes** | 2026-12-11 | 3-days-before is already past → 48-hour floor | **none** — the grace outlasts check-in, and nobody nudges a guest who has arrived |
 
 **S2 is the case that reopens the gap if the issuance job is written the obvious way.** Keyed on
 "has a link ever been sent", the job would skip S2 for ever and the guest would hold a dead URL from
 15 July to the nudge on 26 November — 134 days. Keyed on "is there a usable link", it replaces it on
-31 October. See §2.6 and FR-108.
+19 November. See §2.6 and FR-108.
 
 **S3 is the case the flag split fixes.** The nudge fires on 11-26 and the guest submits on 11-30. The
 pre-arrival email with the address and their stated times must still go out on 12-01. Under one

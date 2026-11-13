@@ -26,7 +26,7 @@ public class BookingService(
     /// <summary>
     /// "Now", from the injected clock rather than the wall clock — so a test can pin it and get the
     /// same answer every day it runs. This matters more here than the timestamp fields suggest:
-    /// approval decides <b>whether a completion link is issued at all</b> (FR-108, within 40 days of
+    /// approval decides <b>whether a completion link is issued at all</b> (FR-108, within CompletionTokenPolicy.IssueLeadDays of
     /// check-in), <b>how long it lives</b> (FR-53), and whether the short-expiry warning fires
     /// (FR-75) — all measured from now against the booking's check-in date.
     ///
@@ -590,7 +590,7 @@ public class BookingService(
     /// states it (FR-38, §5.6). When confirming after a deposit it must be null: the price was entered
     /// and sent with the deposit request, and is never changed once sent.</para>
     ///
-    /// <para>A completion token is generated only when check-in is 40 days away or sooner (FR-51/108,
+    /// <para>A completion token is generated only when check-in is CompletionTokenPolicy.IssueLeadDays away or sooner (FR-51/108,
     /// §2.6); approved further ahead, <see cref="ApproveResult.TokenExpiry"/> is null and the guest is
     /// told the link follows later. Callers must not assume an approval produced a link.</para>
     /// </summary>
@@ -610,7 +610,7 @@ public class BookingService(
 
         // The link is issued when the guest can use it, not when the booking is approved (FR-51/108,
         // §2.6). A group booking a year out cannot name its participants yet, and a link issued now
-        // would expire long before they could — so approval more than 40 days ahead stores no token
+        // would expire long before they could — so approval further ahead than IssueLeadDays stores no token
         // and CompletionLinkIssuanceJob issues one when check-in comes within the window.
         var linkIssued = CompletionTokenPolicy.ShouldIssueOn(StockholmTime.DateOf(now), checkIn);
         if (linkIssued)
@@ -1128,7 +1128,7 @@ public class BookingService(
     /// Issues and sends a fresh completion magic link while the booking is still awaiting completion
     /// (status Approved) — invalidating any previous link (FR-49, §2.6). Works whether or not a link
     /// was ever issued: this is how a guest who already knows their participants gets the form before
-    /// the automatic issue at 40 days (FR-108).
+    /// the automatic issue at CompletionTokenPolicy.IssueLeadDays (FR-108).
     ///
     /// <para>Sends the "link is now available" email, not the approval email. The guest of a far-out
     /// booking read the approval months ago; re-sending it would announce the same approval twice and

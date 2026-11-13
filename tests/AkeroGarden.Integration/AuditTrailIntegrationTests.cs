@@ -53,7 +53,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
     private static int _window;
 
     /// Creates a Pending stay with a lodging assignment, ready to approve. <paramref name="checkIn"/>
-    /// defaults to well beyond the 40-day issue window, so approving it issues no completion link
+    /// defaults to well beyond the issue window (IssueLeadDays), so approving it issues no completion link
     /// (FR-51/108) — pass a nearer date to exercise the link-issued audit row.
     /// </summary>
     private static async Task<(Guid Id, string GuestEmail, string Reference)> CreatePendingStayAsync(
@@ -133,7 +133,7 @@ public class AuditTrailIntegrationTests : IClassFixture<DbFixture>
         // unanswerable for the most common case of all.
         var provider = NewProvider();
         var (id, guestEmail, reference) = await CreatePendingStayAsync(
-            provider, checkIn: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(30));
+            provider, checkIn: DateOnly.FromDateTime(DateTime.UtcNow).AddDays(CompletionTokenPolicy.IssueLeadDays - 3));
 
         using (var scope = provider.CreateScope())
             await scope.ServiceProvider.GetRequiredService<BookingService>().ApproveAsync(id, DbFixture.EstimatedPrice);

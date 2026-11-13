@@ -594,7 +594,7 @@ else
                     }
                     else
                     {
-                        <p class="action-note"><strong>Slutförandelänk:</strong><br />Skickas automatiskt cirka sex veckor före ankomst.</p>
+                        <p class="action-note"><strong>Slutförandelänk:</strong><br />Skickas automatiskt @CompletionTokenPolicy.IssueLeadText.</p>
                     }
                     <div class="rail-actions rail-actions--spaced">
                         @* FR-49: the same button sends the link early to a guest who asks for it
@@ -743,7 +743,7 @@ else
             $"{PriceToBeSent}Bokningen godkänns och ett e-postmeddelande med slutförandelänk skickas till {_booking?.ContactEmail}. Vill du fortsätta?",
         PendingBookingAction.Approve =>
             $"{PriceToBeSent}Bokningen godkänns och ett bekräftelsemejl skickas till {_booking?.ContactEmail}. "
-            + "Slutförandelänken skickas automatiskt cirka sex veckor före ankomst. Vill du fortsätta?",
+            + $"Slutförandelänken skickas automatiskt {CompletionTokenPolicy.IssueLeadText}. Vill du fortsätta?",
         // Same reason as approval for naming the address (FR-38): for a manually created booking this
         // is the first email the guest ever receives.
         PendingBookingAction.RequestDeposit =>
@@ -754,7 +754,7 @@ else
             $"Bokningen bekräftas och ett bekräftelsemejl med slutförandelänk skickas till {_booking?.ContactEmail}. Vill du fortsätta?",
         PendingBookingAction.Confirm =>
             $"Bokningen bekräftas och ett bekräftelsemejl skickas till {_booking?.ContactEmail}. "
-            + "Slutförandelänken skickas automatiskt cirka sex veckor före ankomst. Vill du fortsätta?",
+            + $"Slutförandelänken skickas automatiskt {CompletionTokenPolicy.IssueLeadText}. Vill du fortsätta?",
         PendingBookingAction.Deny => "Bokningen avslås och gästen underrättas via e-post. Vill du fortsätta?",
         PendingBookingAction.Cancel => "Bokningen avbokas och gästen underrättas via e-post. Vill du fortsätta?",
         PendingBookingAction.MarkCompleted => "Bokningen markeras som avslutad och ett tackmejl skickas till gästen. Vill du fortsätta?",
@@ -1141,7 +1141,7 @@ else
         // means no link was issued at all (FR-51/108); stating an expiry there would print an empty
         // date and imply a mail the guest never received.
         _message = ToastMessage.Ok(result.TokenExpiry is not { } expiry
-            ? $"Bokningen är {verb} och ett bekräftelsemejl är skickat. Slutförandelänken skickas automatiskt cirka sex veckor före ankomst."
+            ? $"Bokningen är {verb} och ett bekräftelsemejl är skickat. Slutförandelänken skickas automatiskt {CompletionTokenPolicy.IssueLeadText}."
             : result.ShortExpiryWarning
                 ? $"Bokningen är {verb}. Slutförandelänken är förkortad och går ut {StockholmTime.ToLocal(expiry):yyyy-MM-dd HH:mm} — kontakta gästen vid behov."
                 : $"Bokningen är {verb} och e-post med slutförandelänk är skickad (giltig till {StockholmTime.ToLocal(expiry):yyyy-MM-dd HH:mm}).");

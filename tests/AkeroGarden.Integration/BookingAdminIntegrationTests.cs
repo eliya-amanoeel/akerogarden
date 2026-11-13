@@ -22,7 +22,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     public BookingAdminIntegrationTests(DbFixture fixture) => _fixture = fixture;
 
     /// <param name="pinnedNow">Pin the service's clock. Pass this for any test whose subject is a
-    /// <i>distance</i> — the 40-day issue window, the 14-day short expiry. Those seed a check-in by
+    /// <i>distance</i> — the issue window (IssueLeadDays), the 14-day short expiry. Those seed a check-in by
     /// offsetting today and then assert on what the service computes from its own clock; against the
     /// real clock the two reads can land either side of midnight, and one day is exactly what flips
     /// the outcome at a boundary. Pinning makes the distance the test's own statement rather than
@@ -73,9 +73,9 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
             ContactEmail = $"guest-{Guid.NewGuid():N}@test.se",
             // Relative, never a literal. A fixed calendar date drifts across the FR-108 boundary as
             // real time passes: 2026-12-01 sat 113 days out when it was written (no link issued at
-            // approval) and would have crossed inside 40 days around 2026-10-22, silently flipping
+            // approval) and would have crossed inside the issue window as real time passed, silently flipping
             // that behaviour for every test using the default. 90 days keeps it clear of both the
-            // 40-day trigger and the 44-day point where the expiry rules change, for good.
+            // issue window (IssueLeadDays) and the 44-day point where the expiry rules change, for good.
             CheckIn = effectiveCheckIn,
             CheckOut = effectiveCheckIn.AddDays(3),
             OvernightGuestCount = 5,
@@ -116,8 +116,8 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     public async Task Approve_WithinIssueWindow_GeneratesToken_SetsApproved_AndSendsApprovalEmail()
     {
         var provider = NewProvider(out var email, pinnedNow: DbFixture.FixedNow);
-        // Inside the 40-day issue window but outside the 14-day short-expiry one (FR-51/75/108).
-        var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(30));
+        // Inside the issue window (IssueLeadDays) but outside the 14-day short-expiry one (FR-51/75/108).
+        var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(19));
 
         ApproveResult result;
         using (var scope = provider.CreateScope())
@@ -162,7 +162,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         // The guest is still told they are approved — but with no link and no expiry to miss.
         var approval = Assert.Single(email.Sent, e => e.Subject.Contains("godkänd"));
         Assert.DoesNotContain("/slutfor/", approval.HtmlBody);
-        Assert.Contains("sex veckor före ankomst", approval.HtmlBody);
+        Assert.Contains("skickas till er 21 dagar före ankomst", approval.HtmlBody);
     }
 
     [Fact]
@@ -237,8 +237,8 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     }
 
     /// <summary>
-    /// FR-108 counts the 40 days on the <b>Swedish</b> date. Approved at 00:30 Swedish time — still
-    /// the previous day in UTC — a check-in 40 days out used to count as 41 and get no link. Also
+    /// FR-108 counts the issue window on the <b>Swedish</b> date. Approved at 00:30 Swedish time — still
+    /// the previous day in UTC — a check-in exactly IssueLeadDays out used to count as one more and get no link. Also
     /// asserts the email states the expiry as 14:00 Swedish time (§2.6), end to end. A far-off year
     /// so the pinned stay cannot collide with other tests' bookings in the shared database.
     /// </summary>
@@ -248,7 +248,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         var approvedOn = new DateOnly(2036, 7, 15);
         var instant = StockholmTime.ToUtc(approvedOn, new TimeOnly(0, 30));
         var provider = NewProvider(out var email, pinnedNow: new DateTimeOffset(instant, TimeSpan.Zero));
-        var checkIn = approvedOn.AddDays(CompletionTokenPolicy.IssueLeadDays); // 2036-08-24
+        var checkIn = approvedOn.AddDays(CompletionTokenPolicy.IssueLeadDays); // 2036-08-05
         var id = await CreatePendingStayAsync(provider, checkIn);
 
         using (var scope = provider.CreateScope())
@@ -257,7 +257,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         var booking = await ReloadAsync(provider, id);
         Assert.False(string.IsNullOrEmpty(booking.CompletionToken));
         var approval = Assert.Single(email.Sent, e => e.Subject.Contains("godkänd"));
-        Assert.Contains("giltig till och med <strong>10 augusti 2036 kl. 14:00</strong>", approval.HtmlBody);
+        Assert.Contains("giltig till och med <strong>22 juli 2036 kl. 14:00</strong>", approval.HtmlBody); // check-in − 14 days
     }
 
     [Fact]
@@ -731,7 +731,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     {
         var provider = NewProvider(out _, pinnedNow: DbFixture.FixedNow);
         // Inside the issue window, so approval really does produce a first token to replace.
-        var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(36));
+        var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(15));
 
         using var scope = provider.CreateScope();
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
@@ -753,7 +753,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     public async Task RegenerateLink_SendsTheLinkEarly_ToABookingThatHasNoneYet()
     {
         // FR-49/108: this is how a guest who already knows their participants gets the form before
-        // the automatic issue at 40 days. It must send the "you can fill in your details" email, not
+        // the automatic issue at IssueLeadDays. It must send the "you can fill in your details" email, not
         // a second copy of the approval the guest read months ago.
         var provider = NewProvider(out var email, pinnedNow: DbFixture.FixedNow);
         var id = await CreatePendingStayAsync(provider, checkIn: DbFixture.TodayIn(provider).AddDays(190));

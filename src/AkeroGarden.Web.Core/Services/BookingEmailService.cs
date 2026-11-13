@@ -63,7 +63,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
             .ToList();
 
     /// <summary>Approval email (FR-52). Carries the completion magic link and its exact expiry when
-    /// one was issued; a booking approved more than 40 days before check-in has no token yet
+    /// one was issued; a booking approved further ahead than CompletionTokenPolicy.IssueLeadDays has no token yet
     /// (FR-51/108) and the email says the link follows later instead.
     ///
     /// <para>The variant is decided from the booking's own state rather than a parameter, so an
@@ -88,7 +88,7 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     }
 
     /// <summary>Tells the guest the completion form is now open (FR-108) — sent by the daily issuance
-    /// job when check-in comes within 40 days of a booking approved too far ahead to be given a link
+    /// job when check-in comes within CompletionTokenPolicy.IssueLeadDays of a booking approved too far ahead to be given a link
     /// at the time, and by the admin's manual resend (FR-49). Requires
     /// <see cref="Booking.CompletionToken"/> and <see cref="Booking.CompletionTokenExpiry"/> to be set.</summary>
     public Task<bool> SendCompletionLinkAvailableAsync(Booking booking)

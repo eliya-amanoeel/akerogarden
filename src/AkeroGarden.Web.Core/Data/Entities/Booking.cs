@@ -285,7 +285,7 @@ public class Booking
     public DateTime? ReminderEmailSentAt { get; set; }
 
     /// <summary>Set whenever a completion link is emailed to the guest — by the approval email, by
-    /// the automatic issue roughly six weeks before check-in (FR-108), by an admin resend (FR-49), or
+    /// the automatic issue IssueLeadDays before check-in (FR-108), by an admin resend (FR-49), or
     /// by the completion nudge (FR-63). It dates the link for the nudge's 3-day grace period, and
     /// that is its only use.
     ///

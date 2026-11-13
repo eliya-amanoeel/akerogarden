@@ -317,7 +317,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
     private void SeedBookingsAndBlocks(RefData r)
     {
         // From the injected clock, not DateTime.UtcNow: this seeder positions bookings *relative to
-        // today* — one with check-in exactly at the 40-day issuance lead time — and the integration
+        // today* — one with check-in exactly at the issuance lead time (IssueLeadDays) — and the integration
         // test then asserts that placement. With the seeder on the wall clock the test had no way to
         // agree with it: pinning the test's clock alone would have left a pinned "today" comparing
         // against a wall-clock seed, which is worse than not pinning. ("The clock is an input, never
@@ -355,12 +355,15 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddFacility(pending, utflykt);
         db.Bookings.Add(pending);
 
-        // 1b. A second Pending stay, building already assigned and inside the 40-day issue window —
-        // ready to approve directly with a price (FR-38), so both ways of saying yes can be tried
-        // in one seeded environment: this one by Godkänn (with a link), Karin's by Begär handpenning.
+        // 1b. A second Pending stay, building already assigned and inside the issue window
+        // (IssueLeadDays) — ready to approve directly with a price (FR-38), so both ways of saying yes
+        // can be tried in one seeded environment: this one by Godkänn (with a link), Karin's by Begär
+        // handpenning. The property is let to one group at a time, so it sits in the free days 9–11,
+        // between the active stay and Ingrid; that close in, approving it issues a short-notice link
+        // (FR-53/75).
         var pendingDirect = StayRequest(
             "Per Holmgren", "per.holmgren@example.com", "070-767 88 99",
-            today.AddDays(35), today.AddDays(37), overnight: 12, dayGuests: 0,
+            today.AddDays(9), today.AddDays(11), overnight: 12, dayGuests: 0,
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-1));
         pendingDirect.Status = BookingStatus.Pending;
         pendingDirect.Message = "Församlingens ledarhelg — vi betalar mot faktura.";
@@ -370,10 +373,11 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         db.Bookings.Add(pendingDirect);
 
         // 2. Approved — token issued, guest yet to complete details (valid magic link). Check-in is
-        // inside the 40-day issue window, so this is a booking approval would have given a link to.
+        // inside the issue window (IssueLeadDays) and past the 14-day deadline, so the link is live and
+        // the nudge leaves it alone. 17–20 is the one free slot between Ingrid (14–16) and Elsa (21–23).
         var approved = StayRequest(
             "Johan Bergström", "johan.bergstrom@example.com", "073-222 33 44",
-            today.AddDays(30), today.AddDays(33), overnight: 24, dayGuests: 6,
+            today.AddDays(17), today.AddDays(20), overnight: 24, dayGuests: 6,
             MealPlan.FullBoardAll, createdAt: nowUtc.AddDays(-6));
         approved.Status = BookingStatus.Approved;
         // Approved directly with a price (FR-38, §5.6). The other approved and later bookings are left
@@ -382,8 +386,9 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         approved.CompletionToken = CompletionTokenPolicy.GenerateToken();
         approved.CompletionTokenExpiry = CompletionTokenPolicy.ComputeExpiry(nowUtc, approved.CheckIn!.Value);
         // Dated back past the nudge grace (FR-63) so this booking is not sitting inside a grace
-        // window. What keeps the issuance job off it is the live expiry above, not this field.
-        approved.CompletionLinkSentAt = nowUtc.AddDays(-6);
+        // window — four days ago is the day check-in came within IssueLeadDays, when the job would
+        // have sent it. What keeps the issuance job off it is the live expiry above, not this field.
+        approved.CompletionLinkSentAt = nowUtc.AddDays(-4);
         approved.Message = "Konfirmationsläger för församlingen.";
         approved.AdminNotes = "Ringde och bekräftade antal – återkommer med matval via länken.";
         // A non-standard stated arrival (§2.8) so the admin panel's FR-101 deviation warning has
@@ -409,7 +414,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         db.Bookings.Add(awaitingLink);
 
         // 2c. Approved far beyond the window — no link, and none due yet. This is the booking whose
-        // action rail should read "Skickas automatiskt cirka sex veckor före ankomst" rather than
+        // action rail should read "Skickas automatiskt {IssueLeadText}" rather than
         // showing a blank expiry.
         var farOut = StayRequest(
             "Nils Åkerlund", "nils.akerlund@example.com", "073-121 31 41",
@@ -470,7 +475,9 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         // 3. DetailsComplete — guest submitted the completion form (participants + the group's meal
         // choices + cleaning, FR-93). Occupies rooms in both Tjockö and Singö — both map to the same Lilla
         // bostadslängan zone, so this demonstrates the "one row per distinct occupied zone, never
-        // per room" rule (§8.12): two occupied lodging units, one cleaning charge.
+        // per room" rule (§8.12): two occupied lodging units, one cleaning charge. Further out than
+        // IssueLeadDays: a group that knew its participants and asked for the link early (FR-49) —
+        // inside 14 days the pre-arrival reminder would pick it up, and Ingrid is the one meant to.
         var details = StayRequest(
             "Anna Sjöberg", "anna.sjoberg@example.com", "076-555 11 22",
             today.AddDays(25), today.AddDays(28), overnight: 4, dayGuests: 1,

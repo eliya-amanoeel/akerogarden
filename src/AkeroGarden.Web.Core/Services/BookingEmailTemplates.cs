@@ -318,12 +318,12 @@ public static class BookingEmailTemplates
     /// <summary>Approval email — the assigned lodging buildings (FR-103), deposit/cancellation policy
     /// (§9, FR-52), and the booking's own check-in and check-out times.
     ///
-    /// <para><b>Two variants, chosen by whether a link exists.</b> A booking approved 40 days or less
-    /// before check-in carries the magic link and its exact expiry in plain text. Approved further
-    /// ahead, no token is issued at all (FR-51/108) — passing null for
-    /// <paramref name="magicLinkUrl"/>/<paramref name="expiryUtc"/> replaces the link paragraph with
-    /// a statement that the form opens roughly six weeks before the stay and that nothing is required
-    /// until then. The two are one template rather than two because everything else on the page —
+    /// <para><b>Two variants, chosen by whether a link exists.</b> A booking approved
+    /// <see cref="CompletionTokenPolicy.IssueLeadDays"/> days or less before check-in carries the magic
+    /// link and its exact expiry in plain text. Approved further ahead, no token is issued at all
+    /// (FR-51/108) — passing null for <paramref name="magicLinkUrl"/>/<paramref name="expiryUtc"/>
+    /// replaces the link paragraph with the day the link comes
+    /// (<see cref="CompletionTokenPolicy.IssueLeadText"/>) and that nothing is required until then. The two are one template rather than two because everything else on the page —
     /// lodging, payment and cancellation lines, times — is identical, and a copy would drift.</para>
     ///
     /// <para><b>Two paths in (FR-115), told apart by <paramref name="depositRequested"/>.</b> After a
@@ -363,7 +363,7 @@ public static class BookingEmailTemplates
         }
         else
         {
-            body.Append("<p>En länk för att fylla i uppgifter om deltagare och måltider skickas till er cirka sex veckor före ankomst. Fram till dess behöver ni inte göra något.</p>");
+            body.Append($"<p>En länk för att fylla i uppgifter om deltagare och måltider skickas till er {CompletionTokenPolicy.IssueLeadText}. Fram till dess behöver ni inte göra något.</p>");
         }
 
         body.Append("<h3>Betalning och avbokning</h3>");
@@ -465,7 +465,7 @@ public static class BookingEmailTemplates
         + $"<p>Ange referensnumret <strong>{Enc(bookingReference)}</strong> som meddelande när ni betalar.</p>";
 
     /// <summary>The completion link is now available (§9, FR-108) — sent when check-in comes within
-    /// 40 days of a booking that was approved too far ahead to be given a link at the time, and by an
+    /// the issue window (CompletionTokenPolicy.IssueLeadDays) of a booking approved too far ahead to be given a link at the time, and by an
     /// admin resend (FR-49).
     ///
     /// <para>Deliberately <b>not</b> the approval email again: that one announces the approval and

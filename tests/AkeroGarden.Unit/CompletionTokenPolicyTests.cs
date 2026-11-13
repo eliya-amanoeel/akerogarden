@@ -96,14 +96,14 @@ public class CompletionTokenPolicyTests
     }
 
     [Fact]
-    public void ShouldIssueOn_TrueAtExactly40Days_FalseBeyond()
+    public void ShouldIssueOn_TrueAtExactly21Days_FalseBeyond()
     {
         var today = DateOnly.FromDateTime(Issued);
 
-        Assert.True(CompletionTokenPolicy.ShouldIssueOn(today, today.AddDays(40)));   // the edge itself
+        Assert.True(CompletionTokenPolicy.ShouldIssueOn(today, today.AddDays(21)));   // the edge itself — three weeks, the client's choice
         Assert.True(CompletionTokenPolicy.ShouldIssueOn(today, today.AddDays(7)));
         Assert.True(CompletionTokenPolicy.ShouldIssueOn(today, today));               // check-in today
-        Assert.False(CompletionTokenPolicy.ShouldIssueOn(today, today.AddDays(41)));
+        Assert.False(CompletionTokenPolicy.ShouldIssueOn(today, today.AddDays(22)));
         Assert.False(CompletionTokenPolicy.ShouldIssueOn(today, today.AddDays(180)));
     }
 
@@ -114,7 +114,7 @@ public class CompletionTokenPolicyTests
     public void ShouldIssueOn_DoesNotDependOnTheHourOfDay(int hour)
     {
         // Counting instants against the 14:00 standard check-in time would make a 03:00 sweep issue
-        // at 39 days and a 15:00 one at 40. The rule is whole days, so the hour cannot matter.
+        // a day later than a 15:00 one. The rule is whole days, so the hour cannot matter.
         var now = new DateTime(2026, 7, 1, hour, 0, 0, DateTimeKind.Utc);
         var today = DateOnly.FromDateTime(now);
 
@@ -125,7 +125,7 @@ public class CompletionTokenPolicyTests
     [Fact]
     public void LinkIssuedAtTheLeadTime_SurvivesToTheNudge()
     {
-        // The reason the lead time is 40 and not 44: a link issued the moment the job first sees the
+        // Why the lead time must stay below 44 (§2.6): a link issued the moment the job first sees the
         // booking must still be alive at the 14-day nudge that replaces it. If this fails, the
         // dead-link gap deferred issuance exists to close has been reopened (§2.6).
         var checkIn = DateOnly.FromDateTime(Issued).AddDays(CompletionTokenPolicy.IssueLeadDays);

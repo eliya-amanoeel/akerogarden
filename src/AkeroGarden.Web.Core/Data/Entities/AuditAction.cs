@@ -17,7 +17,7 @@ public enum AuditAction
     BookingMarkedArrived,
     BookingMarkedCompleted,
     // One verb for every completion link that reaches a guest, whoever or whatever sent it —
-    // approval, the automatic issue at 40 days, an admin resend, or the 14-day nudge. Not split into
+    // approval, the automatic issue (CompletionTokenPolicy.IssueLeadDays), an admin resend, or the 14-day nudge. Not split into
     // issued-vs-regenerated: every link after the first invalidates its predecessor (§2.6), so
     // "was something invalidated" is just "is this the first such entry for this booking", readable
     // from the order. The issuance job would also straddle the split, since it both issues first

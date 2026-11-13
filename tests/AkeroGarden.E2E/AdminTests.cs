@@ -1063,7 +1063,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 Status = BookingStatus.Pending,
                 ContactName = "Utan Byggnad",
                 ContactEmail = "utanbyggnad@example.se",
-                // Inside the 40-day issue window on purpose: a successful approval here *would* have
+                // Inside the issue window (IssueLeadDays) on purpose: a successful approval here *would* have
                 // issued a link (FR-51/108), so the null-token assertion below still proves the guard
                 // blocked it. Seeded further out, that assertion would pass either way.
 
@@ -1844,7 +1844,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Assertions.Expect(dialog).ToContainTextAsync("godkann@example.se");
             await Assertions.Expect(dialog).ToContainTextAsync($"Beräknat pris: {Price} inkl. moms");
             await Assertions.Expect(dialog).Not.ToContainTextAsync("Handpenning"); // none on the direct path
-            await Assertions.Expect(dialog).ToContainTextAsync("cirka sex veckor före ankomst");
+            await Assertions.Expect(dialog).ToContainTextAsync("21 dagar före ankomst");
             await Assertions.Expect(dialog).Not.ToContainTextAsync("med slutförandelänk skickas");
 
             await dialog.GetByRole(AriaRole.Button, new() { Name = "Avbryt" }).ClickAsync();
@@ -1866,7 +1866,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
             // …and the toast tells the truth about the link rather than printing a blank expiry.
             await Assertions.Expect(Page.Locator(".form-status"))
-                .ToContainTextAsync("cirka sex veckor före ankomst");
+                .ToContainTextAsync("21 dagar före ankomst");
 
             await using (var db = Fixture.NewDbContext())
             {
@@ -1885,7 +1885,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             // building-assignment box is a second .action-note — either alone still matches two
             // elements and fails on strict mode.
             await Assertions.Expect(Page.Locator(".action-note", new() { HasText = "Slutförandelänk" }))
-                .ToContainTextAsync("Skickas automatiskt cirka sex veckor före ankomst");
+                .ToContainTextAsync("Skickas automatiskt 21 dagar före ankomst");
             await Assertions.Expect(
                 Page.GetByRole(AriaRole.Button, new() { Name = "Skicka slutförandelänk nu" }))
                 .ToBeVisibleAsync();
@@ -1898,7 +1898,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     }
 
     /// <summary>
-    /// The other half of the approve dialog's conditional: a booking inside the 40-day window is
+    /// The other half of the approve dialog's conditional: a booking inside the issue window is
     /// promised a link, because approving it really does send one (FR-51/108). Cancels rather than
     /// approves — the transition itself is covered above.
     /// </summary>
@@ -1918,8 +1918,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                 Status = BookingStatus.Pending,
                 ContactName = "Nära Incheckning",
                 ContactEmail = "nara@example.se",
-                CheckIn = today.AddDays(30),
-                CheckOut = today.AddDays(32),
+                CheckIn = today.AddDays(CompletionTokenPolicy.IssueLeadDays - 3),
+                CheckOut = today.AddDays(CompletionTokenPolicy.IssueLeadDays - 1),
                 OvernightGuestCount = 6,
                 MealPlan = MealPlan.FullBoardAll,
                 ArrivalDinner = true,
@@ -1943,7 +1943,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             var dialog = Page.GetByRole(AriaRole.Dialog);
             await Assertions.Expect(dialog).ToBeVisibleAsync();
             await Assertions.Expect(dialog).ToContainTextAsync("med slutförandelänk skickas till nara@example.se");
-            await Assertions.Expect(dialog).Not.ToContainTextAsync("cirka sex veckor före ankomst");
+            await Assertions.Expect(dialog).Not.ToContainTextAsync("21 dagar före ankomst");
 
             await dialog.GetByRole(AriaRole.Button, new() { Name = "Avbryt" }).ClickAsync();
         }
@@ -2407,7 +2407,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     }
 
     /// <summary>
-    /// The first two-night window inside the 40-day completion-link window (FR-108) that no
+    /// The first two-night window inside the completion-link window (IssueLeadDays, FR-108) that no
     /// occupying booking holds (check-in through check-out). Derived through <see cref="OccupancyProvider"/>
     /// rather than re-implemented, so a test can never believe a date is free that the application
     /// considers taken.
@@ -2421,10 +2421,11 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             .ToListAsync();
         var blocks = await db.BlockedPeriods.ToListAsync();
 
-        var reasons = OccupancyProvider.ComputeReasons(today, today.AddDays(50), occupying, blocks);
+        var lastCheckIn = CompletionTokenPolicy.IssueLeadDays;
+        var reasons = OccupancyProvider.ComputeReasons(today, today.AddDays(lastCheckIn + 3), occupying, blocks);
 
         // A two-night stay needs three clear days: both nights and the check-out day (FR-106).
-        for (var offset = 5; offset <= 34; offset++)
+        for (var offset = 5; offset <= lastCheckIn; offset++)
         {
             var candidate = today.AddDays(offset);
             if (Enumerable.Range(0, 3).All(i => reasons[candidate.AddDays(i)] == UnavailableReason.None))
@@ -2432,6 +2433,6 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         }
 
         throw new InvalidOperationException(
-            "No free two-night window inside the 40-day issue window — the seeded data has filled it.");
+            "No free two-night window inside the completion-link issue window — the seeded data has filled it.");
     }
 }

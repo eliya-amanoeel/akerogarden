@@ -21,11 +21,16 @@ public class Building
 
     public PhysicalBuilding? PhysicalBuilding { get; set; }
 
-    [StringLength(2000, ErrorMessage = "Beskrivningen får vara högst 2000 tecken.")]
-    public string? Description { get; set; }
-
+    /// <summary>What the house's guests share — allrum, showers, toilets. The one text the public
+    /// facilities page shows for a house (FR-81). There is no separate free-text description: it
+    /// only ever restated the room count, which the page now derives from the rooms themselves.</summary>
     [StringLength(2000, ErrorMessage = "Beskrivningen av gemensamma utrymmen får vara högst 2000 tecken.")]
     public string? SharedFacilities { get; set; }
+
+    /// <summary>Name of the uploaded image (<see cref="Services.ImagePath"/>) — the stored blob's name,
+    /// never a URL; the page renders it from <c>/bilder/{name}</c>. Null until one is uploaded.</summary>
+    [StringLength(64)]
+    public string? ImageName { get; set; }
 
     public bool IsAccessible { get; set; }
 

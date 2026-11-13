@@ -3,7 +3,8 @@ using System.ComponentModel.DataAnnotations;
 namespace AkeroGarden.Web.Core.Data.Entities;
 
 /// <summary>
-/// A room within a building (requirements.md §8.3).
+/// A room within a building (requirements.md §8.3). Capacity data — never an assignment target — and
+/// shown publicly on /faciliteter with its image, name and bed setup (FR-81).
 /// Reference data — never hard-deleted while referenced by a booking (FR-20); deactivate instead (FR-19).
 /// </summary>
 public class Room
@@ -23,6 +24,11 @@ public class Room
 
     [StringLength(500, ErrorMessage = "Bäddkonfigurationen får vara högst 500 tecken.")]
     public string? BedConfiguration { get; set; }
+
+    /// <summary>Name of the uploaded image (<see cref="Services.ImagePath"/>) — the stored blob's name,
+    /// never a URL; the page renders it from <c>/bilder/{name}</c>. Null until one is uploaded.</summary>
+    [StringLength(64)]
+    public string? ImageName { get; set; }
 
     public bool IsActive { get; set; } = true;
 

@@ -17,7 +17,7 @@ This is a system/component view — how the public site, admin panel, background
 | Auth | ASP.NET Core Identity (email + password, admin panel only) — two roles: `Administratör` (full) and `Samordnare` (list download and its part of the handbook only, FR-104/117) |
 | App hosting | Azure App Service, Basic B1 (Linux) |
 | Rate limiting | Azure Managed Redis (Balanced B0) |
-| File/image storage | Azure Blob Storage (Hot tier, LRS) — facility images only; the public pages' fixed photos are static files in the public app. The guest's participant Excel upload (FR-118) is held in memory for the request and dropped — never written to disk or stored (a file over the 1 MB limit may be buffered to a temporary file until the request ends, then refused) |
+| File/image storage | Azure Blob Storage (Hot tier, LRS) — the admin-uploaded images of facilities, lodging buildings and rooms (one container, `images`); the public pages' fixed photos are static files in the public app. The guest's participant Excel upload (FR-118) is held in memory for the request and dropped — never written to disk or stored (a file over the 1 MB limit may be buffered to a temporary file until the request ends, then refused) |
 | Email | MailKit over One.com SMTP |
 | CI/CD | Azure DevOps Pipelines (migrated from GitHub Actions, Phase 10a) |
 | Infra-as-code | Bicep (prod + staging from the same templates, different parameter files) |
@@ -47,7 +47,7 @@ flowchart TB
     subgraph Data["Data & storage (VNet-only, EU region)"]
         Postgres[("Azure Database for PostgreSQL\nFlexible Server (Burstable B1ms)\napp entities + AspNetUsers")]
         Redis[("Azure Managed Redis (Balanced B0)\ndistributed rate-limit counters")]
-        Blob[("Azure Blob Storage (Hot LRS)\nfacility images · Data Protection key rings\nPRIVATE — no anonymous access,\nreached only by the apps via managed identity")]
+        Blob[("Azure Blob Storage (Hot LRS)\nfacility, house and room images · Data Protection key rings\nPRIVATE — no anonymous access,\nreached only by the apps via managed identity")]
     end
 
     SMTP["One.com SMTP\n(via MailKit)"]
@@ -58,7 +58,7 @@ flowchart TB
     Public -->|"read-only availability query\n(least-privilege role: no DDL)"| Postgres
     Public -->|"submit inquiry"| Postgres
     Public -->|"rate limit check"| Redis
-    Public -->|"serve facility images\nvia /bilder/{name}"| Blob
+    Public -->|"serve images\nvia /bilder/{name}"| Blob
 
     AdminApp -->|"CRUD reference data,\nbooking lifecycle, audit writes\n(owner role: runs migrations)"| Postgres
     AdminApp -->|"upload/read images"| Blob
@@ -99,7 +99,7 @@ flowchart TB
 
 6. **Postgres is VNet-only.** No public internet access to the database — reachable only via VNet integration from the App Service (NFR-25). This is also why staging is a fully separate resource group rather than a slot: network isolation and synthetic data can't leak into/from production this way (§11.1).
 
-7. **The browser never contacts Blob storage.** Facility images are served by each app from
+7. **The browser never contacts Blob storage.** Facility, house and room images are served by each app from
    `/bilder/{name}`, not from a Blob URL. `img-src 'self'` (NFR-39) blocks a storage-account origin
    outright, so FR-81's "display the facility image" and the CSP could not both hold while images were
    fetched directly — the images were silently invisible for a day before anyone noticed, because

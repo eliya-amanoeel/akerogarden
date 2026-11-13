@@ -1,4 +1,5 @@
 using AkeroGarden.Integration.Infrastructure;
+using AkeroGarden.Web.Core.Data;
 using AkeroGarden.Web.Core.Data.Entities;
 using AkeroGarden.Web.Core.Services;
 using Microsoft.Extensions.DependencyInjection;
@@ -6,8 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 namespace AkeroGarden.Integration;
 
 /// <summary>
-/// Integration coverage for the read-only <c>GetActiveAsync</c> queries that back the
-/// public content pages (FR-81 facilities, FR-82 prices + cleaning, FR-83 menu) against
+/// Integration coverage for the read-only queries that back the public content pages
+/// (FR-81 facilities and lodging, FR-82 prices + cleaning, FR-83 menu) against
 /// real PostgreSQL: each must return active records only, in the public display order.
 /// The fixture DB is shared across the class, so every test scopes its assertions to a
 /// unique name prefix rather than assuming the table is otherwise empty.
@@ -54,28 +55,42 @@ public class PublicReadQueriesIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task Buildings_GetActive_ExcludesInactive_AndOrdersByDisplayOrder()
+    public async Task Lodging_overview_lists_active_houses_with_their_active_rooms_in_display_order()
     {
-        var physicalBuildingService = NewService<PhysicalBuildingService>(out var pbScope);
-        using var _pbs = pbScope;
+        // The query half of /faciliteter's Boende section (FR-81); the grouping half is unit-tested in
+        // BuildingLodgingGroupingTests. Proves what only the database can: inactive houses and rooms
+        // are filtered out by the query, not by the page.
         var buildingService = NewService<BuildingService>(out var scope);
         using var _s = scope;
+        var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         var prefix = $"Bldg-{Guid.NewGuid():N}-";
 
-        var pb = new PhysicalBuilding { Name = $"{prefix}Pb" };
-        await physicalBuildingService.CreateAsync(pb);
+        var pb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"{prefix}Pb" };
+        db.PhysicalBuildings.Add(pb);
+        Building House(string name, int order, bool active = true) =>
+            new() { Id = Guid.NewGuid(), Name = $"{prefix}{name}", PhysicalBuildingId = pb.Id, DisplayOrder = order, IsActive = active };
+        Room RoomIn(Building b, string name, int order, bool active = true) =>
+            new() { Id = Guid.NewGuid(), BuildingId = b.Id, Name = name, BedCount = 2, DisplayOrder = order, IsActive = active };
 
-        await buildingService.TryCreateAsync(new Building { Name = $"{prefix}B", PhysicalBuildingId = pb.Id, DisplayOrder = 2 });
-        await buildingService.TryCreateAsync(new Building { Name = $"{prefix}A", PhysicalBuildingId = pb.Id, DisplayOrder = 1 });
-        var inactive = new Building { Name = $"{prefix}Z", PhysicalBuildingId = pb.Id, DisplayOrder = 3 };
-        await buildingService.TryCreateAsync(inactive);
-        await buildingService.SetActiveAsync(inactive.Id, false);
+        var a = House("A", 1);
+        var b = House("B", 2);
+        var inactive = House("Z", 3, active: false);
+        var onlyInactiveRooms = House("W", 4);
+        db.Buildings.AddRange(a, b, inactive, onlyInactiveRooms);
+        db.Rooms.AddRange(
+            RoomIn(a, "Rum 2", 2), RoomIn(a, "Rum 1", 1), RoomIn(a, "Rum 3", 3, active: false),
+            RoomIn(b, "Rum 1", 1),
+            RoomIn(inactive, "Rum 1", 1),
+            RoomIn(onlyInactiveRooms, "Rum 1", 1, active: false));
+        await db.SaveChangesAsync();
 
-        var mine = (await buildingService.GetActiveAsync())
-            .Where(b => b.Name.StartsWith(prefix)).ToList();
+        var overview = await buildingService.GetLodgingOverviewAsync();
 
-        Assert.Equal([$"{prefix}A", $"{prefix}B"], mine.Select(b => b.Name));
-        Assert.DoesNotContain(mine, b => b.Name == $"{prefix}Z");
+        var group = Assert.Single(overview.Groups, g => g.Name == pb.Name);
+        Assert.Equal([$"{prefix}A", $"{prefix}B"], group.Houses.Select(h => h.Building.Name));
+        Assert.Equal(["Rum 1", "Rum 2"], group.Houses[0].Rooms.Select(r => r.Name));
+        Assert.DoesNotContain(overview.Groups.SelectMany(g => g.Houses),
+            h => h.Building.Name == $"{prefix}Z" || h.Building.Name == $"{prefix}W");
     }
 
     [Fact]

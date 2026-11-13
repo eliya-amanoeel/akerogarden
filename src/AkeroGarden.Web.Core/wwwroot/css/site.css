@@ -506,7 +506,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 
 /* Caption chip on an empty photo frame. The page photos are all real now (design.md, Imagery);
-   what still uses this is /faciliteter, for a facility the admin has not given an image. */
+   what still uses this is /faciliteter, for a facility, house or room the admin has not given an image. */
 .photo-tag {
     position: absolute;
     bottom: 0.6rem;
@@ -684,8 +684,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
 }
 /* Absolute, not in flow. The frame only has a min-height, which a percentage height cannot
    resolve against, so an in-flow photo fell back to its own aspect and set the frame's height
-   itself — a crop nobody chose (design.md, Imagery). Also applies to the admin-uploaded lead
-   photo on /faciliteter, which had the same defect. */
+   itself — a crop nobody chose (design.md, Imagery). .house-card__img follows the same rule. */
 .teaser__photo img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .teaser h2 { font-weight: 400; font-size: clamp(1.75rem, 3.4vw, 2.375rem); line-height: 1.1; margin: 0 0 1rem; }
 .teaser p { font-size: 1.0625rem; color: var(--color-text); margin: 0 0 1.5rem; max-width: 46ch; }
@@ -1637,7 +1636,7 @@ table.admin-table .num { text-align: right; font-variant-numeric: tabular-nums; 
    here. Nothing errored and no test caught it, because a wrong-but-valid layout looks
    deliberate. The duplication rule in design.md is about repeated *values*; this is the
    same failure one level up — a repeated *name*. Keep both families prefixed by their own
-   block (`lodging-note__*` here, `lodging-group`/`lodging-item` there). */
+   block (`lodging-note__*` here, `lodging-group`/`house-card` on /faciliteter). */
 .lodging-note { margin-top: 1.5rem; }
 .lodging-note__list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.5rem; }
 .lodging-note__list li { display: flex; flex-direction: column; gap: 0.1rem; padding: 0.6rem 0.75rem; background: var(--color-bg-warm); border-radius: var(--radius-sm); }
@@ -1886,10 +1885,26 @@ fieldset.participant legend {
     .about-photo { min-height: 21rem; }
 }
 
-/* Facilities grid — sits below the lead .teaser feature, so card titles are h3 (h2 is the
-   section head above them). Deliberately capped at 2 columns (not 3): with the lead facility
-   pulled into its own feature spread, the remaining count is usually small, and the first
-   remaining card takes a --wide, two-up treatment so the grid isn't a uniform wall of boxes. */
+/* /faciliteter (rebuilt 2026-11, client review item 13 — agreed from an HTML mockup). Ordered by the
+   questions a group organiser asks: do we fit (the facts in the page head), where do we sleep
+   (Boende), where do we gather (Lokaler och aktiviteter), what next (the .cta-band).
+   The page used to end on a quiet one-line sign-off, deliberately not a third call to action beside
+   the header button and the docked mobile one. Reversed on purpose: this is the page where a group
+   decides whether it fits, so it ends on the same request-or-check-dates band as the home page. */
+
+/* Page-head additions: the three counted facts (beds, houses, rooms) and the jump links. .facts was
+   built for half a column on Om oss, where it is a 2 × 2 grid; three numbers in a page-wide head
+   read as one capped row instead of a stretched box. Below 30em it keeps .facts' auto-fit, with a
+   smaller floor so three fit a phone at the default size — and still stack at a raised text size,
+   where a forced three-across would push "bäddar" out of a 98px cell at a 32px root. */
+.facts--trio { max-width: 30rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 5.5rem), 1fr)); }
+@media (min-width: 30em) { .facts--trio { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.page-jump { display: flex; flex-wrap: wrap; gap: 0.5rem 1.5rem; margin-top: 1.5rem; }
+
+/* Facilities — one even grid, every card alike. It used to be a lead .teaser plus a grid whose first
+   card went --wide, a layout tuned for about five facilities: with two of them deactivated it
+   turned lopsided, and it would have done so again with any other count. An even grid reads the
+   same with one facility or ten. Card titles are h3 (h2 is the section head above them). */
 .fac-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.5rem; }
 .fac-card { border: 1px solid var(--color-line); border-radius: var(--radius-card); overflow: hidden; background: #fff; }
 .fac-card__img {
@@ -1901,83 +1916,118 @@ fieldset.participant legend {
 .fac-card__body { padding: 1.1rem 1.25rem; }
 .fac-card h3 { font-size: 1.2rem; font-weight: 700; margin: 0 0 0.4rem; }
 .fac-card p { margin: 0; font-size: 0.95rem; color: var(--color-text); }
-@media (min-width: 40em) {
-    .fac-grid { grid-template-columns: repeat(2, 1fr); }
-    .fac-card--wide { grid-column: span 2; display: grid; grid-template-columns: 1.2fr 1fr; }
-    .fac-card--wide .fac-card__img { aspect-ratio: auto; height: 100%; }
-    .fac-card--wide .fac-card__body { display: flex; flex-direction: column; justify-content: center; padding: 1.5rem 1.75rem; }
-    .fac-card--wide .fac-card__body h3 { font-size: 1.4rem; }
-}
+@media (min-width: 40em) { .fac-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 64em) { .fac-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
-/* Lodging (Boende) — active buildings grouped by physical building (BuildingService.
-   GroupByPhysicalBuilding). A compact list, not a full photo card each: eight similar
-   sleeping sections would just reintroduce the "wall of boxes" problem one section down. */
+/* Lodging (Boende) — houses grouped as BuildingService.BuildLodgingOverview decides: a physical
+   building with several houses under its own name, houses alone in theirs under one "Fristående
+   stugor" heading. */
 .lodging-group { margin-bottom: 2.25rem; }
 .lodging-group:last-child { margin-bottom: 0; }
+/* `wrap`: at a raised text size "Lilla bostadslängan" and "4 hus · 55 bäddar" do not fit on one
+   line of a phone, and an unwrapped flex row pushed the count 7px past a 360px screen at a 32px root. */
 .lodging-group__head {
     display: flex;
+    flex-wrap: wrap;
     align-items: baseline;
     justify-content: space-between;
-    gap: 1rem;
+    gap: 0.25rem 1rem;
     border-bottom: 1px solid var(--color-line);
     padding-bottom: 0.6rem;
     margin-bottom: 1rem;
 }
 .lodging-group__head h3 { font-weight: 700; font-size: 1.05rem; color: var(--color-heading); }
 .lodging-group__head span { font-size: 0.8rem; color: var(--color-muted); }
-/* `minmax(0, 1fr)`: a bare `1fr` cannot shrink below its item's min-content, and a lodging item
-   is a flex row (mark + body) whose body already carries `min-width: 0` — the flex half of this
-   was fixed before, the grid half was not, so the track still refused to go narrow and the list
-   ran past a 360px screen from a 24px root upward. Only visible with realistic building names;
-   the page renders empty without seeded data, which is why it was missed until the dev database
-   was reseeded (2026-08-20). */
-.lodging-list { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.1rem; }
-.lodging-item { display: flex; gap: 0.85rem; align-items: flex-start; }
-.lodging-item__body { min-width: 0; } /* flex children default to min-width:auto — without this,
-    a long unbroken word in an admin-entered building description could overflow the row */
-.lodging-item__mark {
-    width: 2.5rem;
-    height: 2.5rem;
-    flex: none;
+
+/* A house: photo BESIDE the text at every width. A full-width photo on top made each house a
+   screen tall on a phone — and until the client has photographed them, that screen was an empty
+   green placeholder, eight times over. Beside the text an empty frame costs a strip, not a page.
+   On a phone the photo takes a third of the card (1 : 2), leaving the text column room for the
+   accessibility pill; from 30em the two share it 2 : 3. A fraction, not a rem width: at a 32px root a
+   7rem column would have left the text 72px. `minmax(0, …)` on every track: a bare `1fr` cannot shrink
+   below its min-content, the trap that once ran the old lodging list past a 360px screen. */
+.house-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; }
+.house-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    border: 1px solid var(--color-line);
     border-radius: var(--radius-card);
-    background: linear-gradient(150deg, #cddca0, #7c9a4a);
+    overflow: hidden;
+    background: #fff;
+    min-width: 0;
 }
-.lodging-item h4 { font-family: var(--font-heading); font-weight: 700; font-size: 1.02rem; color: var(--color-heading); margin: 0; }
-.lodging-item p { font-size: 0.85rem; color: var(--color-text); margin: 0.25rem 0 0; }
-.lodging-item__tag {
+/* Absolute, not in flow: the frame's height is the card row's, and an in-flow photo would set it
+   from its own aspect instead (the .teaser__photo lesson, design.md Imagery). */
+.house-card__img {
+    position: relative;
+    min-height: 8.5rem;
+    background: linear-gradient(160deg, var(--color-photo-light), var(--color-photo-dark));
+}
+.house-card__img img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.house-card__body { padding: 0.9rem 1rem 1rem; min-width: 0; }
+.house-card h4 { font-family: var(--font-heading); font-weight: 700; font-size: 1.2rem; color: var(--color-heading); margin: 0; }
+.house-card .house-card__meta { font-size: 0.875rem; font-weight: 700; color: var(--color-primary-ink); margin: 0.2rem 0 0.5rem; }
+.house-card__body p:not(.house-card__meta) { font-size: 0.95rem; color: var(--color-text); margin: 0; }
+@media (min-width: 30em) { .house-card { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); } }
+@media (min-width: 48em) { .house-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; } }
+
+/* Accessibility pill. Sentence case, not the uppercase letter-spaced label style: "Tillgänglighets-
+   anpassad" is one 23-character compound with no break opportunity, and in capitals it is wider
+   than a phone card's text column — it broke mid-word in the mockup. `anywhere` + `max-width` still
+   keep it inside its column at a raised text size. */
+.lodging-tag {
     display: inline-block;
-    margin-top: 0.4rem;
-    font-size: 0.68rem;
+    margin-top: 0.6rem;
+    font-size: 0.75rem;
     font-weight: 700;
-    letter-spacing: 0.03em;
-    text-transform: uppercase;
     color: var(--color-primary-ink);
     background: var(--color-ok-bg);
-    padding: 0.18rem 0.5rem;
+    padding: 0.18rem 0.55rem;
     border-radius: 1rem;
-    /* "Tillgänglighetsanpassad" is one 23-character compound with no break opportunity in it, so
-       `anywhere` rather than `break-word`. It is the widest single token on the public site and
-       overflowed a 360px screen from a 24px root up. `max-width` keeps the pill inside its column
-       even when the word is broken. */
     max-width: 100%;
     overflow-wrap: anywhere;
 }
-@media (min-width: 40em) { .lodging-list { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 64em) { .lodging-list { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 
-/* Quiet non-CTA sign-off — closes a page that already has enough routes into the funnel
-   (header CTA + docked mobile CTA) without stacking on a third, heavier one. Bookends the
-   page-head's warm tint from the top. See /faciliteter. */
-.closing-line { text-align: center; padding: 1rem 0; }
-.closing-line p {
-    font-family: var(--font-heading);
-    font-weight: 400;
-    font-size: clamp(1.25rem, 2.6vw, 1.625rem);
-    line-height: 1.35;
-    color: var(--color-heading);
-    max-width: 34ch;
-    margin: 0 auto;
+/* The rooms, behind a native <details>: no script (the public site is static SSR and the CSP allows
+   none), keyboard- and screen-reader-operable as the browser builds it. Closed by default so eight
+   houses do not become 28 photo tiles before anyone asked; the summary names the count. */
+.rooms { grid-column: 1 / -1; border-top: 1px solid var(--color-line); }
+.rooms > summary {
+    list-style: none;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 1rem;
+    padding: 0.85rem 1.25rem;
+    font-weight: 700;
+    color: var(--color-primary-ink);
 }
+.rooms > summary::-webkit-details-marker { display: none; }
+.rooms > summary::after { content: "▾"; transition: transform 0.15s; }
+.rooms[open] > summary::after { transform: rotate(180deg); }
+.rooms > summary:focus-visible { outline: 2px solid var(--color-primary-ink); outline-offset: -2px; }
+/* Two across on a phone (7.5rem floor), more as the card widens — intrinsic, no breakpoints. At 8.5rem
+   the phone fell to one column and each opened house grew by ~1,100px. */
+.room-grid {
+    list-style: none;
+    margin: 0;
+    padding: 0 1.25rem 1.25rem;
+    display: grid;
+    gap: 0.9rem;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 7.5rem), 1fr));
+}
+.room-tile { min-width: 0; }
+.room-tile__img {
+    aspect-ratio: 4 / 3;
+    position: relative;
+    border-radius: var(--radius-card);
+    overflow: hidden;
+    background: linear-gradient(160deg, var(--color-photo-light), var(--color-photo-dark));
+}
+.room-tile__img img { width: 100%; height: 100%; object-fit: cover; }
+.room-tile h5 { font-family: var(--font-body); font-size: 0.95rem; font-weight: 700; color: var(--color-heading); margin: 0.45rem 0 0; }
+.room-tile p { font-size: 0.82rem; color: var(--color-muted); margin: 0.1rem 0 0; overflow-wrap: anywhere; }
 
 /* Menu (part of Mat & priser) — sits below a lead .teaser (shared component, reused from
    Home/Facilities), which is the page's only visual anchor. One menu — any dish at lunch or

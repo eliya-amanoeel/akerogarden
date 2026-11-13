@@ -1,7 +1,8 @@
 namespace AkeroGarden.Web.Core.Services;
 
 /// <summary>
-/// Azure Blob Storage configuration for facility images (FR-27), bound from the "Blob"
+/// Azure Blob Storage configuration for the images of facilities, lodging buildings and rooms
+/// (FR-27, FR-13, FR-17), bound from the "Blob"
 /// configuration section.
 ///
 /// <para>In Azure the app authenticates with its <b>managed identity</b> via
@@ -32,8 +33,8 @@ public class BlobOptions
     /// </summary>
     public string ManagedIdentityClientId { get; set; } = string.Empty;
 
-    /// <summary>Container holding facility images (FR-27).</summary>
-    public string FacilityImagesContainer { get; set; } = "facility-images";
+    /// <summary>Container holding every uploaded image — facilities, lodging buildings and rooms alike.</summary>
+    public string ImagesContainer { get; set; } = "images";
 
     /// <summary>True when the managed-identity path is configured. Pure, so it is unit-testable.</summary>
     public bool UsesManagedIdentity => !string.IsNullOrWhiteSpace(ServiceUri);

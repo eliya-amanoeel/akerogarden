@@ -157,7 +157,7 @@ public sealed class E2EFixture : IAsyncLifetime
         // A lodging Building requires a PhysicalBuilding (§8.2, FR-13) — seed one and link it.
         var sovPb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = "Sovbyggnad", IsActive = true };
         ctx.PhysicalBuildings.Add(sovPb);
-        // IsAccessible on purpose: it is what renders the `.lodging-item__tag` pill, whose label
+        // IsAccessible on purpose: it is what renders the `.lodging-tag` pill, whose label
         // "Tillgänglighetsanpassad" is a 23-character compound with no break opportunity — the
         // widest single token on the public site, and one that overflowed a 360px screen at a
         // raised text size. Without this flag the layout guards never see it.
@@ -260,11 +260,9 @@ public sealed class E2EFixture : IAsyncLifetime
         };
         ctx.Facilities.Add(konferensrum);
 
-        // /faciliteter renders facilities[0] as the lead teaser and only builds `.fac-grid` when
-        // there is a *rest* — so with a single facility the entire grid path never executed and
-        // the layout guards were asserting against a page the real site does not show. Two more,
-        // one of them deliberately carrying a long Swedish compound, so the grid renders (its
-        // first card takes the `fac-card--wide` branch) and the wrapping rules are exercised.
+        // Three facilities, one of them deliberately carrying a long Swedish compound, so the
+        // /faciliteter grid holds more than one card and its wrapping rules are exercised. (A single
+        // seeded facility once left a whole layout path unexecuted while the guards passed.)
         ctx.Facilities.AddRange(
             new Facility
             {

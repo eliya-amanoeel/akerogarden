@@ -59,10 +59,9 @@ public class PhysicalBuildingIntegrationTests : IClassFixture<DbFixture>
         Assert.NotNull(reloaded);
         Assert.False(reloaded!.IsActive);
 
-        // Deactivated physical buildings still exist for GetAllAsync (admin can see + reactivate)
-        // but drop out of GetActiveAsync (the FK picker on the Building form).
+        // Deactivated physical buildings still exist for GetAllAsync (admin can see + reactivate);
+        // the admin pickers filter that list to active ones themselves.
         Assert.Contains(await physical.GetAllAsync(), p => p.Id == pb.Id);
-        Assert.DoesNotContain(await physical.GetActiveAsync(), p => p.Id == pb.Id);
     }
 
     [Fact]

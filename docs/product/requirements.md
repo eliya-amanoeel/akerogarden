@@ -80,7 +80,7 @@ It serves as the single source of truth for all design, development, and testing
 | Admin authentication | ASP.NET Core Identity | Single-library solution for credential storage, password hashing, cookie auth, and password reset — no external auth dependency |
 | Database | PostgreSQL on Azure | Managed backups; familiar query model |
 | Hosting | Azure App Service (Linux, B1) | Managed SSL; CI/CD from Azure DevOps Pipelines |
-| File storage | Azure Blob Storage | Facility images, and each site's Data Protection key ring. Participant and food lists are generated on request and streamed straight to the browser — they are never stored. Likewise the guest's participant upload (FR-118) is held in memory for the request and never stored. The fixed photographs on the public pages are **not** in Blob: they ship with the public app as static files and change by deployment, because a handful of photos replaced perhaps once a year does not justify an admin screen (`docs/ux/design.md`, Imagery) |
+| File storage | Azure Blob Storage | The images of facilities, lodging buildings and rooms (one container, `images`), and each site's Data Protection key ring. Participant and food lists are generated on request and streamed straight to the browser — they are never stored. Likewise the guest's participant upload (FR-118) is held in memory for the request and never stored. The fixed photographs on the public pages are **not** in Blob: they ship with the public app as static files and change by deployment, because a handful of photos replaced perhaps once a year does not justify an admin screen (`docs/ux/design.md`, Imagery) |
 | Rate limiting store | Azure Managed Redis | Distributed rate-limit counters; correct under multi-instance scale-out (NFR-04). Successor to the retired Azure Cache for Redis |
 | Email | MailKit (SMTP via One.com) | Robust .NET email library |
 | ORM | Entity Framework Core | Standard .NET data access layer |
@@ -543,7 +543,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | FR-05 | The system shall send an automatic acknowledgement email to the guest immediately upon submission. Content differs by inquiry type: stay requests receive a booking receipt ("we received your stay request"); general inquiries receive a contact acknowledgement ("we received your message and will be in touch") |
 | FR-06 | The system shall send an admin notification email immediately upon submission with all details and a direct link to the booking record |
 | FR-07 | The public website shall display the privacy policy and link to it from the booking form and the site footer |
-| FR-81 | The public facilities page shall display active facility records in their configured display order, drawn dynamically from the admin-managed facility list (name, description, image) |
+| FR-81 | The public facilities page (`/faciliteter`) shall show, drawn dynamically from admin-managed data: **(1) the lodging** — every active lodging building that has at least one active room, with its image, name, room and bed count, shared facilities (FR-13) and accessibility; its active rooms, in display order, behind a disclosure the visitor opens, each with image, name, bed count and bed configuration. A physical building holding two or more of these houses is a group under its own name; houses alone in their physical building are listed together under *Fristående stugor*. **(2) The active facilities** in display order (name, description, image), as one even grid. A missing image shows a placeholder. **Every count of beds, houses and rooms on the public site — on this page, the home page and Om oss — is counted from the same active data, never written into the copy**, so deactivating a house or a room can never leave a page stating a capacity that is no longer true (client review 2026-11-11, item 13) |
 | FR-82 | The public website shall display current active price rules and active cleaning zones, drawn dynamically from the admin-managed price and cleaning-zone lists, on a combined **Mat & priser** page (shown together with the menu, FR-83). **Each price is shown including VAT**, with the stored ex-VAT amount beneath it: private individuals book as consumers, and a price aimed at a consumer must be the price they pay (prisinformationslagen 2004:347). The VAT-inclusive figure is computed per item for display and never stored (C8). The page also states that bed linen and towels are not included (client, 2026-10-09) |
 | FR-83 | The public website shall display current active meal options as **one menu** in display order — no lunch and dinner lists, since any dish can be served at either (§4.5) — each labelled "Vegetariskt" or "Veganskt" by its diet, drawn dynamically from the admin-managed meal list, on the combined **Mat & priser** page (shown together with prices, FR-82) |
 
@@ -567,7 +567,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 
 | ID | Requirement |
 |---|---|
-| FR-13 | The admin shall be able to create a **lodging building** with: name, **the physical building it belongs to** (§8.14, required), description, accessibility status, shared facilities description, and display order |
+| FR-13 | The admin shall be able to create a **lodging building** with: name, **the physical building it belongs to** (§8.14, required), accessibility status, shared facilities description, **image** (upload rules as FR-27), and display order. The shared facilities description is the one text the public facilities page shows for a house (FR-81); there is no separate free-text description, because it only ever restated the room count the page now counts from the rooms |
 | FR-14 | The admin shall be able to edit any building field |
 | FR-15 | The admin shall be able to deactivate a building without deleting historical data |
 | FR-16 | The admin shall not be able to hard-delete a building that is assigned to any booking (§8.16), that still contains rooms, or that a `BlockedPeriod` still references (FR-20) |
@@ -577,7 +577,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 
 | ID | Requirement |
 |---|---|
-| FR-17 | The admin shall be able to create a room within a building with: room name, bed count, bed configuration description, and display order |
+| FR-17 | The admin shall be able to create a room within a building with: room name, bed count, bed configuration description, **image** (upload rules as FR-27), and display order. Rooms are shown publicly on the facilities page (FR-81) — capacity data, never an assignment target (FR-56) |
 | FR-18 | The admin shall be able to edit any room field |
 | FR-19 | The admin shall be able to deactivate a room without deleting it. *(Rooms carry no booking history since per-participant room assignment was withdrawn (FR-56) — deactivation now removes the room's beds from the approval-time capacity warning (FR-103) while preserving any `BlockedPeriod` that references it. It does not affect the public calendar, which does not count beds — FR-10.)* |
 | FR-20 | The admin shall not be able to hard-delete a room, or a building, that a `BlockedPeriod` still references. `BlockedPeriod.BuildingId` / `RoomId` are logical references rather than foreign keys (§8.10), so without this guard deleting a room would silently orphan any block pointing at it. **This requirement was previously stated as "a room referenced in an existing booking"; bookings no longer reference rooms at all (FR-56 retired), which would have left the guard counting zero for ever and always passing — a check that looks alive but protects nothing.** It is repointed here at the referential hole that does exist |
@@ -597,7 +597,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 
 | ID | Requirement |
 |---|---|
-| FR-27 | The admin shall be able to create a facility with: name, description, image, and display order. Image upload accepts JPEG, PNG, and WebP formats; maximum 5 MB per file. Violations show an inline error — no silent failures. The admin shall also be able to **remove** an existing image, returning the facility to having none. Selecting, replacing or removing an image takes effect only when the form is saved, and a replaced or removed image is deleted from storage rather than left behind |
+| FR-27 | The admin shall be able to create a facility with: name, description, image, and display order. Image upload — the same for a facility, a lodging building (FR-13) and a room (FR-17), one image each — accepts JPEG, PNG, and WebP formats; maximum 5 MB per file. Violations show an inline error — no silent failures. The admin shall also be able to **remove** an existing image, returning the facility to having none. Selecting, replacing or removing an image takes effect only when the form is saved, and a replaced or removed image is deleted from storage rather than left behind |
 | FR-28 | The admin shall be able to edit any facility field |
 | FR-29 | The admin shall be able to deactivate a facility |
 | FR-30 | The admin shall not be able to hard-delete a facility referenced in an existing booking |
@@ -887,8 +887,8 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | `Id` | GUID | Primary key |
 | `Name` | string | e.g. Blidö |
 | `PhysicalBuildingId` | GUID | Foreign key → PhysicalBuilding (§8.14); the physical building this lodging unit sits in. Drives cleaning-zone resolution (assigned building → physical building → zone, §8.16), and would drive whole-building blocking if that is ever built (§10) |
-| `Description` | string | |
-| `SharedFacilities` | string | |
+| `SharedFacilities` | string | What the house's guests share (allrum, showers, toilets) — the one text shown for the house on the public facilities page (FR-81). There is no `Description`: it was dropped in 2026-11 because it only restated the room count, which the page counts from the rooms |
+| `ImageName` | string? | The house's image (FR-13) — a blob name, rendered as `/bilder/{name}`; see `Facility.ImageName` (§8.8) |
 | `IsAccessible` | bool | |
 | `IsActive` | bool | |
 | `DisplayOrder` | int | |
@@ -901,7 +901,8 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | `BuildingId` | GUID | Foreign key → Building |
 | `Name` | string | e.g. Room 1 |
 | `BedCount` | int | Number of beds |
-| `BedConfiguration` | string | |
+| `BedConfiguration` | string | e.g. "2 våningssängar" — shown publicly beside the bed count (FR-81) |
+| `ImageName` | string? | The room's image (FR-17) — a blob name, rendered as `/bilder/{name}`; see `Facility.ImageName` (§8.8) |
 | `IsActive` | bool | |
 | `DisplayOrder` | int | |
 
@@ -957,7 +958,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | `Id` | GUID | Primary key |
 | `Name` | string | |
 | `Description` | string | |
-| `ImageUrl` | string | Despite the name, holds the image's **blob name** (a GUID plus extension), not a URL. Pages render it as `/bilder/{name}`, served by the app with its managed identity — the browser never contacts storage (NFR-35/39, post-launch security review #25). Rows written before 2026-09-09 may still hold a full Blob URL; both shapes are accepted, so no data migration was needed |
+| `ImageName` | string? | The image's **blob name** (a GUID plus extension, max 64 characters), never a URL. Pages render it as `/bilder/{name}`, served by the app with its managed identity — the browser never contacts storage (NFR-35/39, post-launch security review #25). Lodging buildings and rooms store their image the same way. Was `ImageUrl` until 2026-11; the rename's migration reduced any pre-2026-09-09 full Blob URL to its name, so a name is the only shape stored |
 | `AmountExVat` | decimal | Reference figure — invoicing is manual (no automatic calculation). Snapshotted onto `BookingFacilitySelection` at selection time (NFR-34) |
 | `VatRate` | decimal | e.g. 0.25 — stored per facility, mirroring PriceRule/CleaningZone |
 | `PhysicalBuildingId` | GUID? | Nullable FK → PhysicalBuilding (§8.14); set only where booking the facility puts a physical building's cleaning in play (Konferensrum → Konferensbyggnad). Null for facilities with no associated cleaning building (Kapellet, pitches, Spelrum) |
@@ -1161,7 +1162,7 @@ All emails sent in Swedish, from `info@akerogarden.se`. Every email a guest rece
 |---|---|---|---|
 | Azure App Service | Basic B1 (Linux) | ~$13 | Hosts both the public and admin Blazor apps as two sites on one B1 plan (the plan, not the site, is the billing unit — the second site is $0) |
 | Azure Database for PostgreSQL Flexible Server | Burstable B1ms | ~$17 | Primary database — compute ~$13 + 32 GB storage ~$4; daily backups, see the backup-retention note below |
-| Azure Blob Storage | Hot tier, LRS | ~$1–2 | Facility images; each site's Data Protection key ring. Private — no anonymous access at container or account level (2026-09-11) |
+| Azure Blob Storage | Hot tier, LRS | ~$1–2 | Facility, house and room images; each site's Data Protection key ring. Private — no anonymous access at container or account level (2026-09-11) |
 | Azure Managed Redis | Balanced B0 | ~$13 | Distributed rate-limit counters (NFR-04); successor to the retired Azure Cache for Redis |
 | Azure-managed SSL | Included | $0 | HTTPS certificate management (per-site cert on each of the two sites) |
 | Custom domains | Included on Basic+ | $0 | akerogarden.se → public site, admin.akerogarden.se → admin site — two sites on the one shared B1 plan |

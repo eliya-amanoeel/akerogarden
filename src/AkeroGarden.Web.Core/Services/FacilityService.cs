@@ -6,8 +6,8 @@ namespace AkeroGarden.Web.Core.Services;
 
 /// <summary>
 /// CRUD and lifecycle rules for <see cref="Facility"/> reference data (FR-27–30, NFR-14).
-/// Business rules live here, not in the Razor component (NFR-26/27). Image upload itself
-/// is handled by <see cref="IImageStorage"/>; this service validates the upload's format/size.
+/// Business rules live here, not in the Razor component (NFR-26/27). The image follows the shared
+/// rules in <see cref="ImageUpload"/>, like a building's and a room's.
 /// </summary>
 public class FacilityService(
     ApplicationDbContext db,
@@ -15,11 +15,6 @@ public class FacilityService(
     IImageStorage images,
     ILogger<FacilityService> logger)
 {
-    /// <summary>5 MB upload ceiling for facility images (FR-27).</summary>
-    public const long MaxImageBytes = 5 * 1024 * 1024;
-
-    private static readonly string[] AllowedContentTypes = ["image/jpeg", "image/png", "image/webp"];
-
     /// <summary>All facilities, active and inactive, in admin display order.</summary>
     public async Task<List<Facility>> GetAllAsync() =>
         await db.Facilities
@@ -57,9 +52,9 @@ public class FacilityService(
         existing.PhysicalBuildingId = input.PhysicalBuildingId;
         existing.Description = input.Description;
         // Captured before the assignment so the superseded blob can be cleaned up after the commit.
-        var previousImage = existing.ImageUrl;
+        var previousImage = existing.ImageName;
 
-        existing.ImageUrl = input.ImageUrl;
+        existing.ImageName = input.ImageName;
         existing.AmountExVat = input.AmountExVat;
         existing.VatRate = input.VatRate;
         existing.DisplayOrder = input.DisplayOrder;
@@ -67,34 +62,7 @@ public class FacilityService(
             $"Facilitet uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
 
-        // Replacing or clearing an image used to leave the old blob in storage forever — nothing in
-        // the app deleted a blob at all, so every edit orphaned a file that stayed fetchable by anyone
-        // holding its name. Raised by the maintainer on 2026-09-09; FR-27 covers upload and never
-        // mentions removal.
-        await DeleteSupersededImageAsync(previousImage, existing.ImageUrl);
-    }
-
-    /// <summary>
-    /// Removes a blob that the facility no longer points at. Runs AFTER the save, deliberately: the
-    /// database is the record of what the facility HAS, and a storage failure must not roll back a
-    /// completed edit. It also keeps the slow call outside the window where unsaved rows are pending
-    /// on the circuit-shared context — the same ordering that produced the #2 crash.
-    /// </summary>
-    private async Task DeleteSupersededImageAsync(string? previous, string? current)
-    {
-        var oldName = FacilityImagePath.ToBlobName(previous);
-        if (oldName is null || oldName == FacilityImagePath.ToBlobName(current))
-            return;
-
-        try
-        {
-            await images.DeleteFacilityImageAsync(oldName);
-        }
-        catch (Exception ex)
-        {
-            // An orphaned blob is a tidiness problem; a failed edit is a real one.
-            logger.LogWarning(ex, "Could not delete superseded facility image {BlobName}", oldName);
-        }
+        await images.DeleteSupersededAsync(previousImage, existing.ImageName, logger);
     }
 
     /// <summary>Deactivates (soft) or reactivates a facility without deleting history (FR-29, NFR-14).</summary>
@@ -122,7 +90,7 @@ public class FacilityService(
         if (!CanHardDelete(await CountReferencesAsync(id)))
             return HardDeleteResult.Blocked;
 
-        var image = facility.ImageUrl;
+        var image = facility.ImageName;
 
         db.Facilities.Remove(facility);
         await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(Facility), facility.Id,
@@ -130,27 +98,8 @@ public class FacilityService(
         await db.SaveChangesAsync();
 
         // Delete the image too — the facility that referenced it is gone, so nothing ever will again.
-        await DeleteSupersededImageAsync(image, null);
+        await images.DeleteSupersededAsync(image, null, logger);
         return HardDeleteResult.Deleted;
-    }
-
-    /// <summary>
-    /// Pure image-upload validation (unit-testable, NFR-26): accepts JPEG/PNG/WebP up to
-    /// 5 MB (FR-27). Returns a Swedish error message when invalid, or null when valid.
-    /// </summary>
-    public static string? ValidateImage(string? contentType, long sizeBytes)
-    {
-        if (string.IsNullOrEmpty(contentType) ||
-            !AllowedContentTypes.Contains(contentType, StringComparer.OrdinalIgnoreCase))
-            return "Bilden måste vara i formatet JPEG, PNG eller WebP.";
-
-        if (sizeBytes <= 0)
-            return "Bilden är tom.";
-
-        if (sizeBytes > MaxImageBytes)
-            return "Bilden får vara högst 5 MB.";
-
-        return null;
     }
 
     /// <summary>

@@ -18,8 +18,10 @@ public class Facility
     [StringLength(2000, ErrorMessage = "Beskrivningen får vara högst 2000 tecken.")]
     public string? Description { get; set; }
 
-    /// <summary>Azure Blob Storage URL of the facility image; null until one is uploaded.</summary>
-    public string? ImageUrl { get; set; }
+    /// <summary>Name of the uploaded image (<see cref="Services.ImagePath"/>) — the stored blob's name,
+    /// never a URL; the page renders it from <c>/bilder/{name}</c>. Null until one is uploaded.</summary>
+    [StringLength(64)]
+    public string? ImageName { get; set; }
 
     // Reference figure only — snapshotted onto BookingFacilitySelection at selection time
     // (NFR-34). No totals are computed from it (C8). Mirrors CleaningZone.

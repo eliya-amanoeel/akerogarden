@@ -9,7 +9,7 @@ namespace AkeroGarden.Integration;
 
 /// <summary>
 /// Integration coverage for Facility reference data against real PostgreSQL
-/// (FR-27–30, NFR-14): create with image URL, soft-deactivate, and hard-delete
+/// (FR-27–30, NFR-14): create with an image name, soft-deactivate, and hard-delete
 /// (no referents until Phase 3). Blob upload itself is an infrastructure adapter
 /// (BlobImageStorage), verified in dev / Phase 6 — not exercised here.
 /// Tests use unique names because the fixture's database is shared across the class.
@@ -28,18 +28,18 @@ public class FacilityIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task Create_PersistsImageUrl_AndIsActive()
+    public async Task Create_PersistsImageName_AndIsActive()
     {
         var service = NewService(out var scope);
         using var _s = scope;
 
-        var url = $"http://127.0.0.1:10000/devstoreaccount1/facility-images/{Guid.NewGuid():N}.jpg";
-        var facility = new Facility { Name = $"Kapellet-{Guid.NewGuid():N}", ImageUrl = url };
+        var name = $"{Guid.NewGuid():N}.jpg";
+        var facility = new Facility { Name = $"Kapellet-{Guid.NewGuid():N}", ImageName = name };
         await service.CreateAsync(facility);
 
         var reloaded = await service.GetAsync(facility.Id);
         Assert.NotNull(reloaded);
-        Assert.Equal(url, reloaded!.ImageUrl);
+        Assert.Equal(name, reloaded!.ImageName);
         Assert.True(reloaded.IsActive);
     }
 
@@ -82,7 +82,7 @@ public class FacilityIntegrationTests : IClassFixture<DbFixture>
     private static Facility NewFacility(string? image) => new()
     {
         Name = $"Kapellet-{Guid.NewGuid():N}",
-        ImageUrl = image,
+        ImageName = image,
     };
 
     [Fact]
@@ -110,7 +110,7 @@ public class FacilityIntegrationTests : IClassFixture<DbFixture>
             var service = scope.ServiceProvider.GetRequiredService<FacilityService>();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var input = await db.Facilities.AsNoTracking().SingleAsync(f => f.Id == id);
-            input.ImageUrl = newName;
+            input.ImageName = newName;
             await service.UpdateAsync(input);
         }
 
@@ -142,7 +142,7 @@ public class FacilityIntegrationTests : IClassFixture<DbFixture>
             var service = scope.ServiceProvider.GetRequiredService<FacilityService>();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var input = await db.Facilities.AsNoTracking().SingleAsync(f => f.Id == id);
-            input.ImageUrl = null; // what "Ta bort bild" then Save does
+            input.ImageName = null; // what "Ta bort bild" then Save does
             await service.UpdateAsync(input);
         }
 
@@ -150,7 +150,7 @@ public class FacilityIntegrationTests : IClassFixture<DbFixture>
         using var check = provider.CreateScope();
         var reloaded = await check.ServiceProvider.GetRequiredService<ApplicationDbContext>()
             .Facilities.SingleAsync(f => f.Id == id);
-        Assert.Null(reloaded.ImageUrl);
+        Assert.Null(reloaded.ImageName);
     }
 
     [Fact]
@@ -212,13 +212,13 @@ public class FacilityIntegrationTests : IClassFixture<DbFixture>
             var service = scope.ServiceProvider.GetRequiredService<FacilityService>();
             var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
             var input = await db.Facilities.AsNoTracking().SingleAsync(f => f.Id == id);
-            input.ImageUrl = null;
+            input.ImageName = null;
             await service.UpdateAsync(input); // must NOT throw
         }
 
         using var check = provider.CreateScope();
         var reloaded = await check.ServiceProvider.GetRequiredService<ApplicationDbContext>()
             .Facilities.SingleAsync(f => f.Id == id);
-        Assert.Null(reloaded.ImageUrl);
+        Assert.Null(reloaded.ImageName);
     }
 }

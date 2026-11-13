@@ -3,47 +3,24 @@ using AkeroGarden.Web.Core.Services;
 namespace AkeroGarden.Unit;
 
 /// <summary>
-/// Facility images are served by the app rather than fetched from Blob storage by the browser
-/// (post-launch security review — the CSP/image finding). FR-81 said the public site renders images
-/// from their anonymous Blob URLs; the <c>img-src 'self'</c> policy shipped for NFR-39 blocks exactly
-/// that. Both requirements were live and contradicted each other for a day, invisibly, because
-/// production had no facility images to break.
+/// Images — of facilities, lodging buildings and rooms — are served by the app rather than fetched
+/// from Blob storage by the browser (post-launch security review — the CSP/image finding). The
+/// <c>img-src 'self'</c> policy (NFR-39) blocks a Blob URL outright.
 ///
 /// <para>These cover the two jobs of the helper: producing the path a page renders, and deciding
 /// which names may reach storage. The second is a security boundary — the endpoint takes the name
 /// straight off a public URL.</para>
 /// </summary>
-public class FacilityImagePathTests
+public class ImagePathTests
 {
     private const string Name = "0c9be3c902284fa898b6eb78264953c9.jpg";
 
     // ── Rendering ───────────────────────────────────────────────────────────────
 
     [Fact]
-    public void A_stored_blob_name_becomes_an_app_hosted_path()
+    public void A_stored_image_name_becomes_an_app_hosted_path()
     {
-        Assert.Equal($"/bilder/{Name}", FacilityImagePath.ToDisplayPath(Name));
-    }
-
-    [Fact]
-    public void A_legacy_absolute_blob_url_still_renders()
-    {
-        // Rows written before this change hold a full Blob URL. Both shapes are accepted so no data
-        // migration was needed — there was exactly one such row across all environments, and none in
-        // production.
-        Assert.Equal(
-            $"/bilder/{Name}",
-            FacilityImagePath.ToDisplayPath($"https://jmkagprodblob.blob.core.windows.net/facility-images/{Name}"));
-    }
-
-    [Fact]
-    public void A_legacy_url_with_a_query_string_is_stripped_before_the_name_is_taken()
-    {
-        // A stored SAS-style suffix must not smuggle anything into the name.
-        Assert.Equal(
-            $"/bilder/{Name}",
-            FacilityImagePath.ToDisplayPath(
-                $"https://jmkagprodblob.blob.core.windows.net/facility-images/{Name}?sv=2024-01-01&sig=abc"));
+        Assert.Equal($"/bilder/{Name}", ImagePath.ToDisplayPath(Name));
     }
 
     [Theory]
@@ -52,15 +29,16 @@ public class FacilityImagePathTests
     [InlineData("   ")]
     public void No_image_renders_no_path(string? stored)
     {
-        Assert.Null(FacilityImagePath.ToDisplayPath(stored));
+        Assert.Null(ImagePath.ToDisplayPath(stored));
     }
 
     [Fact]
     public void A_stored_value_that_is_not_a_name_this_app_generated_renders_nothing()
     {
-        // Better a missing image than a request to something unexpected.
-        Assert.Null(FacilityImagePath.ToDisplayPath("https://evil.example/facility-images/x.jpg"));
-        Assert.Null(FacilityImagePath.ToDisplayPath("not-a-blob-name"));
+        // Better a missing image than a request to something unexpected. A full URL is no longer a
+        // stored shape at all — the ImagesForLodging migration reduced the last legacy ones to names.
+        Assert.Null(ImagePath.ToDisplayPath("https://evil.example/images/x.jpg"));
+        Assert.Null(ImagePath.ToDisplayPath("not-a-blob-name"));
     }
 
     // ── The security boundary ───────────────────────────────────────────────────
@@ -73,7 +51,7 @@ public class FacilityImagePathTests
     [InlineData("0C9BE3C902284FA898B6EB78264953C9.JPG")]
     public void Names_this_app_generates_are_accepted(string name)
     {
-        Assert.True(FacilityImagePath.IsValidBlobName(name));
+        Assert.True(ImagePath.IsValidName(name));
     }
 
     [Theory]
@@ -94,7 +72,7 @@ public class FacilityImagePathTests
     [InlineData(null)]
     public void Anything_else_is_refused(string? name)
     {
-        Assert.False(FacilityImagePath.IsValidBlobName(name));
+        Assert.False(ImagePath.IsValidName(name));
     }
 
     [Fact]
@@ -103,7 +81,7 @@ public class FacilityImagePathTests
         // The key rings live in sibling containers on the same storage account. The endpoint uses the
         // app's managed identity, which can read them — so the name check is the only thing standing
         // between a public URL and the key that protects the admin auth cookie.
-        Assert.False(FacilityImagePath.IsValidBlobName("../dataprotection-keys-admin/keys.xml"));
-        Assert.Null(FacilityImagePath.ToBlobName("../dataprotection-keys-admin/keys.xml"));
+        Assert.False(ImagePath.IsValidName("../dataprotection-keys-admin/keys.xml"));
+        Assert.Null(ImagePath.ToDisplayPath("../dataprotection-keys-admin/keys.xml"));
     }
 }

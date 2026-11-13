@@ -97,7 +97,7 @@ builder.Services.AddAkeroAudit();
 // constructor and defaults any stray public audit entry to the system actor.
 builder.Services.AddScoped<IAuditActorAccessor, SystemAuditActorAccessor>();
 
-// ── Facility image reads (the CSP/image finding) ──────────────────────────────
+// ── Image reads (the CSP/image finding) ───────────────────────────────────────
 // The public host now SERVES images from /bilder/{name} rather than pointing the browser at the
 // storage account, so it needs blob read access it previously did not. Its managed identity already
 // holds the data-plane role; Bicep now supplies Blob__ServiceUri to this site too.
@@ -196,24 +196,23 @@ app.MapGet("/sitemap.xml", (
 // an infrastructure endpoint, not a page.
 app.MapHealthChecks("/health");
 
-// ── Facility images (post-launch security review — the CSP/image finding) ─────────────────────
+// ── Uploaded images (post-launch security review — the CSP/image finding) ─────────────────────
 // Images are served BY THE APP, not fetched from the storage account by the browser. The
-// img-src 'self' Content-Security-Policy shipped for NFR-39 blocks a Blob URL outright, so FR-81's
-// "render from their anonymous Blob URLs" and the CSP could not both be true. This endpoint makes
-// them so — and the visitor's browser never contacts the storage domain, which is what NFR-35 is
-// actually about.
+// img-src 'self' Content-Security-Policy (NFR-39) blocks a Blob URL outright. Facility, building and
+// room images all come through here — and the visitor's browser never contacts the storage domain,
+// which is what NFR-35 is actually about.
 //
 // The name is validated against an exact allow-list before it reaches storage: it must look like a
-// name this app generated. Blob names are random GUIDs whose content never changes, so the response
+// name this app generated. Image names are random GUIDs whose content never changes, so the response
 // is immutable and cacheable for a year — that keeps essentially all image traffic off the B1
 // instance after the first fetch.
-app.MapGet($"{FacilityImagePath.Prefix}/{{blobName}}", async (
-    string blobName, IImageStorage storage, HttpContext http, CancellationToken ct) =>
+app.MapGet($"{ImagePath.Prefix}/{{name}}", async (
+    string name, IImageStorage storage, HttpContext http, CancellationToken ct) =>
 {
-    if (!FacilityImagePath.IsValidBlobName(blobName))
+    if (!ImagePath.IsValidName(name))
         return Results.NotFound();
 
-    var image = await storage.OpenFacilityImageAsync(blobName, ct);
+    var image = await storage.OpenImageAsync(name, ct);
     if (image is null)
         return Results.NotFound();
 

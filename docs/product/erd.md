@@ -80,6 +80,8 @@ erDiagram
         guid Id PK
         guid PhysicalBuildingId FK "the physical building it sits in"
         string Name "lodging unit: Blidö, Tjockö, Smedjan, …"
+        string SharedFacilities "the house's public text (FR-81)"
+        string ImageName "blob name, served via /bilder/{name} (FR-13)"
         bool IsAccessible
         bool IsActive
         int DisplayOrder
@@ -90,6 +92,8 @@ erDiagram
         guid BuildingId FK
         string Name
         int BedCount
+        string BedConfiguration
+        string ImageName "blob name, served via /bilder/{name} (FR-17)"
         bool IsActive
         int DisplayOrder
     }
@@ -135,7 +139,7 @@ erDiagram
         guid Id PK
         guid PhysicalBuildingId FK "nullable; Konferensrum → Konferensbyggnad"
         string Name
-        string ImageUrl "blob name, served via /bilder/{name} (§8.8)"
+        string ImageName "blob name, served via /bilder/{name} (§8.8)"
         decimal AmountExVat
         decimal VatRate
         bool IsActive

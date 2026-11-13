@@ -8,7 +8,11 @@ namespace AkeroGarden.Web.Core.Services;
 /// CRUD and lifecycle rules for <see cref="Room"/> reference data
 /// (FR-17–20, NFR-14). Business rules live here, not in the Razor component (NFR-26/27).
 /// </summary>
-public class RoomService(ApplicationDbContext db, IAuditWriter audit)
+public class RoomService(
+    ApplicationDbContext db,
+    IAuditWriter audit,
+    IImageStorage images,
+    ILogger<RoomService> logger)
 {
     /// <summary>All rooms in a building, active and inactive, in admin display order.</summary>
     public async Task<List<Room>> GetForBuildingAsync(Guid buildingId) =>
@@ -49,9 +53,14 @@ public class RoomService(ApplicationDbContext db, IAuditWriter audit)
         existing.BedCount = input.BedCount;
         existing.BedConfiguration = input.BedConfiguration;
         existing.DisplayOrder = input.DisplayOrder;
+        // Captured before the assignment so the superseded blob can be cleaned up after the commit.
+        var previousImage = existing.ImageName;
+        existing.ImageName = input.ImageName;
         await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(Room), existing.Id,
             $"Rum uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
+
+        await images.DeleteSupersededAsync(previousImage, existing.ImageName, logger);
     }
 
     /// <summary>Deactivates (soft) or reactivates a room without deleting history (FR-19, NFR-14).</summary>
@@ -79,10 +88,15 @@ public class RoomService(ApplicationDbContext db, IAuditWriter audit)
         if (!CanHardDelete(await CountReferencesAsync(id)))
             return HardDeleteResult.Blocked;
 
+        var image = room.ImageName;
+
         db.Rooms.Remove(room);
         await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(Room), room.Id,
             $"Rum togs bort: \"{room.Name}\".");
         await db.SaveChangesAsync();
+
+        // The room that referenced the image is gone, so nothing ever will again.
+        await images.DeleteSupersededAsync(image, null, logger);
         return HardDeleteResult.Deleted;
     }
 

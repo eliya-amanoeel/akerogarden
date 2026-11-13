@@ -9,8 +9,16 @@ namespace AkeroGarden.Web.Core.Services;
 /// (FR-13–16, NFR-14). Business rules live here, not in the Razor component,
 /// so the deactivate / no-hard-delete rules are testable (NFR-26/27).
 /// </summary>
-public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
+public class BuildingService(
+    ApplicationDbContext db,
+    IAuditWriter audit,
+    IImageStorage images,
+    ILogger<BuildingService> logger)
 {
+    /// <summary>The heading over every house that is the only lodging in its physical building
+    /// (Smedjan, Tallstugan) — one shared group instead of a heading that repeats the house's name.</summary>
+    public const string StandaloneGroupName = "Fristående stugor";
+
     /// <summary>All buildings, active and inactive, in admin display order.</summary>
     public async Task<List<Building>> GetAllAsync() =>
         await db.Buildings
@@ -18,14 +26,25 @@ public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
             .ThenBy(b => b.Name)
             .ToListAsync();
 
-    /// <summary>Active buildings only, in display order — for the public facilities page (FR-81
-    /// context: the "Åtta hus" lodging section) and any other public lodging listing.</summary>
-    public async Task<List<Building>> GetActiveAsync() =>
-        await db.Buildings
+    /// <summary>
+    /// The public lodging listing (FR-81): active houses with their active rooms, grouped. Read by
+    /// /faciliteter, and its <see cref="LodgingOverview.Capacity"/> by the home and about pages, so
+    /// no page states a bed or house count that the data does not.
+    /// </summary>
+    public async Task<LodgingOverview> GetLodgingOverviewAsync()
+    {
+        var buildings = await db.Buildings
+            .AsNoTracking()
             .Where(b => b.IsActive)
-            .OrderBy(b => b.DisplayOrder)
-            .ThenBy(b => b.Name)
+            .Include(b => b.Rooms.Where(r => r.IsActive))
             .ToListAsync();
+        var physicalBuildings = await db.PhysicalBuildings
+            .AsNoTracking()
+            .Where(p => p.IsActive)
+            .ToListAsync();
+
+        return BuildLodgingOverview(buildings, physicalBuildings);
+    }
 
     public async Task<Building?> GetAsync(Guid id) =>
         await db.Buildings.FindAsync(id);
@@ -56,13 +75,17 @@ public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
 
         existing.Name = input.Name;
         existing.PhysicalBuildingId = input.PhysicalBuildingId;
-        existing.Description = input.Description;
         existing.SharedFacilities = input.SharedFacilities;
         existing.IsAccessible = input.IsAccessible;
         existing.DisplayOrder = input.DisplayOrder;
+        // Captured before the assignment so the superseded blob can be cleaned up after the commit.
+        var previousImage = existing.ImageName;
+        existing.ImageName = input.ImageName;
         await audit.RecordAsync(AuditAction.ReferenceDataUpdated, nameof(Building), existing.Id,
             $"Byggnad uppdaterades: \"{existing.Name}\".");
         await db.SaveChangesAsync();
+
+        await images.DeleteSupersededAsync(previousImage, existing.ImageName, logger);
         return SaveResult.Success;
     }
 
@@ -106,10 +129,15 @@ public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
         if (!CanHardDelete(await CountReferencesAsync(id)))
             return HardDeleteResult.Blocked;
 
+        var image = building.ImageName;
+
         db.Buildings.Remove(building);
         await audit.RecordAsync(AuditAction.ReferenceDataDeleted, nameof(Building), building.Id,
             $"Byggnad togs bort: \"{building.Name}\".");
         await db.SaveChangesAsync();
+
+        // The building that referenced the image is gone, so nothing ever will again.
+        await images.DeleteSupersededAsync(image, null, logger);
         return HardDeleteResult.Deleted;
     }
 
@@ -120,31 +148,59 @@ public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
     public static bool CanHardDelete(int referenceCount) => referenceCount == 0;
 
     /// <summary>
-    /// Groups active buildings by their physical building for the public lodging listing,
-    /// ordered by <see cref="PhysicalBuilding.DisplayOrder"/> (unit-testable, NFR-26 — the
-    /// Razor page calls this rather than embedding grouping/ordering logic itself). A building
-    /// whose physical building isn't in <paramref name="physicalBuildings"/> (e.g. deactivated
-    /// while the lodging unit under it stayed active) falls into an "Övrigt" group sorted last,
-    /// rather than being silently dropped from the page.
+    /// Shapes the public lodging listing (pure, unit-testable — NFR-26; the Razor page renders the
+    /// result and holds no grouping or ordering logic of its own).
+    /// <list type="bullet">
+    /// <item>A house is listed only with at least one room: a house nobody can sleep in is not
+    /// lodging, and would show as "0 rum · 0 bäddar".</item>
+    /// <item>A physical building holding two or more houses is a group under its own name (Lilla
+    /// bostadslängan: Blidö, Ljusterö, Singö, Tjockö), in physical-building display order.</item>
+    /// <item>A house that is alone in its physical building joins the one
+    /// <see cref="StandaloneGroupName"/> group, listed last — otherwise its group heading would just
+    /// repeat its own name.</item>
+    /// <item>Houses whose physical building is inactive or missing are never silently dropped: by the
+    /// same rule, several of them form a group under "Övrigt" (there is no name to show), and one
+    /// alone joins the standalone group.</item>
+    /// </list>
+    /// Callers pass active records with their active rooms already loaded.
     /// </summary>
-    public static List<LodgingGroup> GroupByPhysicalBuilding(
+    public static LodgingOverview BuildLodgingOverview(
         List<Building> buildings, List<PhysicalBuilding> physicalBuildings)
     {
         var physicalBuildingsById = physicalBuildings.ToDictionary(p => p.Id);
 
-        return buildings
-            .GroupBy(b => b.PhysicalBuildingId)
-            .Select(g =>
-            {
-                var physicalBuilding = physicalBuildingsById.GetValueOrDefault(g.Key);
-                return new LodgingGroup(
-                    physicalBuilding?.Name ?? "Övrigt",
-                    physicalBuilding?.DisplayOrder ?? int.MaxValue,
-                    g.OrderBy(b => b.DisplayOrder).ThenBy(b => b.Name).ToList());
-            })
-            .OrderBy(g => g.PhysicalBuildingOrder)
-            .ThenBy(g => g.PhysicalBuildingName)
+        var byPhysicalBuilding = buildings
+            .Where(b => b.Rooms.Count > 0)
+            .Select(b => new LodgingHouse(
+                b,
+                b.Rooms.OrderBy(r => r.DisplayOrder).ThenBy(r => r.Name).ToList()))
+            .GroupBy(h => h.Building.PhysicalBuildingId)
+            .Select(g => (
+                PhysicalBuilding: physicalBuildingsById.GetValueOrDefault(g.Key),
+                Houses: g.OrderBy(h => h.Building.DisplayOrder).ThenBy(h => h.Building.Name).ToList()))
+            .OrderBy(g => g.PhysicalBuilding?.DisplayOrder ?? int.MaxValue)
+            .ThenBy(g => g.PhysicalBuilding?.Name)
             .ToList();
+
+        var groups = byPhysicalBuilding
+            .Where(g => g.Houses.Count > 1)
+            .Select(g => new LodgingGroup(g.PhysicalBuilding?.Name ?? "Övrigt", g.Houses))
+            .ToList();
+
+        var standalone = byPhysicalBuilding
+            .Where(g => g.Houses.Count == 1)
+            .Select(g => g.Houses[0])
+            .ToList();
+        if (standalone.Count > 0)
+            groups.Add(new LodgingGroup(StandaloneGroupName, standalone));
+
+        var houses = groups.SelectMany(g => g.Houses).ToList();
+        return new LodgingOverview(
+            groups,
+            new LodgingCapacity(
+                Beds: houses.Sum(h => h.Beds),
+                Houses: houses.Count,
+                Rooms: houses.Sum(h => h.Rooms.Count)));
     }
 
     /// <summary>
@@ -175,6 +231,21 @@ public class BuildingService(ApplicationDbContext db, IAuditWriter audit)
     }
 }
 
-/// <summary>One physical building's lodging units, for the public "Boende" listing — see
-/// <see cref="BuildingService.GroupByPhysicalBuilding"/>.</summary>
-public record LodgingGroup(string PhysicalBuildingName, int PhysicalBuildingOrder, List<Building> Buildings);
+/// <summary>The public lodging listing — see <see cref="BuildingService.BuildLodgingOverview"/>.</summary>
+public record LodgingOverview(List<LodgingGroup> Groups, LodgingCapacity Capacity);
+
+/// <summary>One heading's worth of houses on the public lodging listing.</summary>
+public record LodgingGroup(string Name, List<LodgingHouse> Houses)
+{
+    public int Beds => Houses.Sum(h => h.Beds);
+}
+
+/// <summary>One house and its active rooms, in display order.</summary>
+public record LodgingHouse(Building Building, List<Room> Rooms)
+{
+    public int Beds => Rooms.Sum(r => r.BedCount);
+}
+
+/// <summary>What the property sleeps, counted from the active data — the numbers every public page
+/// states, so none can drift from the rooms the admin actually keeps.</summary>
+public record LodgingCapacity(int Beds, int Houses, int Rooms);

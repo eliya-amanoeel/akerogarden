@@ -25,16 +25,16 @@ public class BlobImageStorage(IOptions<BlobOptions> options) : IImageStorage
     private BlobContainerClient Container() =>
         _options.UsesManagedIdentity
             ? new BlobContainerClient(
-                new Uri($"{_options.ServiceUri.TrimEnd('/')}/{_options.FacilityImagesContainer}"),
+                new Uri($"{_options.ServiceUri.TrimEnd('/')}/{_options.ImagesContainer}"),
                 new DefaultAzureCredential(new DefaultAzureCredentialOptions
                 {
                     ManagedIdentityClientId = string.IsNullOrWhiteSpace(_options.ManagedIdentityClientId)
                         ? null
                         : _options.ManagedIdentityClientId,
                 }))
-            : new BlobContainerClient(_options.ConnectionString, _options.FacilityImagesContainer);
+            : new BlobContainerClient(_options.ConnectionString, _options.ImagesContainer);
 
-    public async Task<string> UploadFacilityImageAsync(
+    public async Task<string> UploadImageAsync(
         Stream content,
         string fileName,
         string contentType,
@@ -43,14 +43,13 @@ public class BlobImageStorage(IOptions<BlobOptions> options) : IImageStorage
         var container = Container();
 
         // PRIVATE container. Images are served through the app's own /bilder/{name} endpoint, so
-        // nothing fetches them anonymously any more — and the CSP forbids the browser doing so
-        // regardless (see FacilityImagePath). Previously created with PublicAccessType.Blob, which is
-        // what FR-81 assumed before NFR-39's img-src 'self' made it unworkable.
+        // nothing fetches them anonymously — and the CSP forbids the browser doing so regardless
+        // (see ImagePath).
         await container.CreateIfNotExistsAsync(PublicAccessType.None, cancellationToken: cancellationToken);
 
-        // Random blob name — never derived from guest data or the original filename (NFR-05). The
-        // shape here is what FacilityImagePath.IsValidBlobName enforces on the way back in; change one
-        // and the other must change with it.
+        // Random name — never derived from guest data or the original filename (NFR-05). The shape
+        // here is what ImagePath.IsValidName enforces on the way back in; change one and the other
+        // must change with it.
         var extension = Path.GetExtension(fileName);
         var blobName = $"{Guid.NewGuid():N}{extension}".ToLowerInvariant();
         var blob = container.GetBlobClient(blobName);
@@ -64,16 +63,16 @@ public class BlobImageStorage(IOptions<BlobOptions> options) : IImageStorage
         return blobName;
     }
 
-    public async Task<StoredImage?> OpenFacilityImageAsync(
-        string blobName,
+    public async Task<StoredImage?> OpenImageAsync(
+        string name,
         CancellationToken cancellationToken = default)
     {
         // Defence in depth: the endpoint already rejects anything that is not a name this app
         // generated, but this is the boundary that actually touches storage, so it checks too.
-        if (!FacilityImagePath.IsValidBlobName(blobName))
+        if (!ImagePath.IsValidName(name))
             return null;
 
-        var blob = Container().GetBlobClient(blobName);
+        var blob = Container().GetBlobClient(name);
 
         try
         {
@@ -92,15 +91,15 @@ public class BlobImageStorage(IOptions<BlobOptions> options) : IImageStorage
         }
     }
 
-    public async Task<bool> DeleteFacilityImageAsync(
-        string blobName,
+    public async Task<bool> DeleteImageAsync(
+        string name,
         CancellationToken cancellationToken = default)
     {
-        if (!FacilityImagePath.IsValidBlobName(blobName))
+        if (!ImagePath.IsValidName(name))
             return false;
 
         var response = await Container()
-            .GetBlobClient(blobName)
+            .GetBlobClient(name)
             .DeleteIfExistsAsync(cancellationToken: cancellationToken);
 
         return response.Value;

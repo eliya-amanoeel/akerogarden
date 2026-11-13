@@ -1,5 +1,6 @@
 @page "/"
 @layout MainLayout
+@inject BuildingService BuildingService
 
 @* The tab title is also the headline of the site's search result, so it says what the place is —
    "Välkommen" told a searcher nothing. *@
@@ -16,7 +17,7 @@
                 <h1>Landa tillsammans, på landet</h1>
                 <div class="hero__rule"></div>
                 <p class="hero__sub">
-                    Plats för sällskap från några familjer till 79 gäster — läger, konferenser
+                    Plats för sällskap från några familjer till @capacity.Beds gäster — läger, konferenser
                     och kurser i en lugn miljö nära naturen.
                 </p>
                 <div class="hero__cta">
@@ -48,7 +49,7 @@
                 <div class="trust-strip__label">Retreat &amp; konferens</div>
             </div>
             <div class="trust-strip__item">
-                <div class="trust-strip__num">Upp till 79</div>
+                <div class="trust-strip__num">Upp till @capacity.Beds</div>
                 <div class="trust-strip__label">Gäster över natten</div>
             </div>
             <div class="trust-strip__item">
@@ -136,10 +137,10 @@
             </div>
             <div>
                 <span class="eyebrow">Faciliteter</span>
-                <h2>Åtta hus, en gård</h2>
+                <h2>@SwedishNumbers.CapitalisedWord(capacity.Houses) hus, en gård</h2>
                 <p>
-                    Sex bostadshus och två stugor, konferenslokaler, kapell och gemensamma
-                    utrymmen — omgivna av skog och natur strax utanför Norrtälje.
+                    Hus att sova i, konferenslokaler, kapell och gemensamma utrymmen — omgivna
+                    av skog och natur strax utanför Norrtälje.
                 </p>
                 <a href="/faciliteter" class="link-arrow">Se alla faciliteter →</a>
             </div>
@@ -184,3 +185,12 @@
         </div>
     </div>
 </section>
+
+@code {
+    // Counted from the active houses and rooms (BuildingService.GetLodgingOverviewAsync) — the same
+    // numbers /faciliteter shows, so no page can state a capacity the data no longer bears out.
+    private LodgingCapacity capacity = new(0, 0, 0);
+
+    protected override async Task OnInitializedAsync() =>
+        capacity = (await BuildingService.GetLodgingOverviewAsync()).Capacity;
+}

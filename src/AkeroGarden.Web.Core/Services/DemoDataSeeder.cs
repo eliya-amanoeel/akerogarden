@@ -104,22 +104,14 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             { huvudPb, lillaPb, storaPb, smedjanPb, tallstuganPb, konferensPb };
 
         // ── Buildings + rooms — the real ~79-bed Åkerögården layout ───────────────────
-        var blido = Building(lillaPb, "Blidö", "4 rum, delar allrum, 1 dusch- och städrum, 2 toaletter.",
-            "Delar allrum, 1 dusch- och städrum, 2 toaletter.", isAccessible: false, 1);
-        var ljustero = Building(lillaPb, "Ljusterö", "4 rum, delar allrum, 1 dusch- och städrum, 1 toalett.",
-            "Delar allrum, 1 dusch- och städrum, 1 toalett.", isAccessible: true, 2);
-        var singo = Building(lillaPb, "Singö", "4 rum, delar allrum, 1 dusch, 2 toaletter.",
-            "Delar allrum, 1 dusch, 2 toaletter.", isAccessible: false, 3);
-        var tjocko = Building(lillaPb, "Tjockö", "4 rum, delar allrum, 1 dusch- och städrum, 2 toaletter.",
-            "Delar allrum, 1 dusch- och städrum, 2 toaletter.", isAccessible: false, 4);
-        var vato1 = Building(storaPb, "Vätö 1", "5 rum, delar allrum, 2 dusch- och städrum, 2 toaletter.",
-            "Delar allrum, 2 dusch- och städrum, 2 toaletter.", isAccessible: true, 5);
-        var vato2 = Building(storaPb, "Vätö 2", "5 rum, delar allrum, 2 dusch- och städrum, 2 toaletter.",
-            "Delar allrum, 2 dusch- och städrum, 2 toaletter.", isAccessible: true, 6);
-        var smedjanB = Building(smedjanPb, "Smedjan", "Liten stuga med eget rum.",
-            "Eget dusch- och städrum.", isAccessible: false, 7);
-        var tallstuganB = Building(tallstuganPb, "Tallstugan", "1 rum med dusch och toalett.",
-            "Eget dusch och toalett.", isAccessible: false, 8);
+        var blido = Building(lillaPb, "Blidö", "Delar allrum, 1 dusch- och städrum, 2 toaletter.", isAccessible: false, 1);
+        var ljustero = Building(lillaPb, "Ljusterö", "Delar allrum, 1 dusch- och städrum, 1 toalett.", isAccessible: true, 2);
+        var singo = Building(lillaPb, "Singö", "Delar allrum, 1 dusch, 2 toaletter.", isAccessible: false, 3);
+        var tjocko = Building(lillaPb, "Tjockö", "Delar allrum, 1 dusch- och städrum, 2 toaletter.", isAccessible: false, 4);
+        var vato1 = Building(storaPb, "Vätö 1", "Delar allrum, 2 dusch- och städrum, 2 toaletter.", isAccessible: true, 5);
+        var vato2 = Building(storaPb, "Vätö 2", "Delar allrum, 2 dusch- och städrum, 2 toaletter.", isAccessible: true, 6);
+        var smedjanB = Building(smedjanPb, "Smedjan", "Eget dusch- och städrum.", isAccessible: false, 7);
+        var tallstuganB = Building(tallstuganPb, "Tallstugan", "Eget dusch och toalett.", isAccessible: false, 8);
         var buildings = new List<Building> { blido, ljustero, singo, tjocko, vato1, vato2, smedjanB, tallstuganB };
 
         var rooms = new List<Room>
@@ -248,12 +240,11 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             IsActive = true,
             DisplayOrder = order,
         };
-        Building Building(PhysicalBuilding pb, string name, string desc, string shared, bool isAccessible, int order) => new()
+        Building Building(PhysicalBuilding pb, string name, string shared, bool isAccessible, int order) => new()
         {
             Id = Guid.NewGuid(),
             PhysicalBuildingId = pb.Id,
             Name = name,
-            Description = desc,
             SharedFacilities = shared,
             IsAccessible = isAccessible,
             IsActive = true,

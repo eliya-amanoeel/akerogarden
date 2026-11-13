@@ -1,5 +1,6 @@
 @page "/om-oss"
 @layout MainLayout
+@inject BuildingService BuildingService
 
 <PageTitle>Om oss — Åkerögården</PageTitle>
 <SeoMeta Title="Om Åkerögården"
@@ -30,15 +31,15 @@
                         sedan 1978.
                     </p>
                     <p>
-                        Gården har åtta byggnader med sammanlagt plats för upp till 79 gäster över natten,
+                        Gården har @SwedishNumbers.Word(capacity.Houses) hus att bo i, med sammanlagt plats för upp till @capacity.Beds gäster över natten,
                         gemensamma utrymmen och möjlighet till helpension. Vi tar emot både övernattande
                         grupper och dagsbesökare, från mindre sällskap till stora grupper.
                     </p>
                 </div>
                 <div class="facts">
                     <div><div class="facts__num">1978</div><div class="facts__label">Verksamma sedan</div></div>
-                    <div><div class="facts__num">8 hus</div><div class="facts__label">Sex bostadshus + två stugor</div></div>
-                    <div><div class="facts__num">Upp till 79</div><div class="facts__label">Gäster över natten</div></div>
+                    <div><div class="facts__num">@capacity.Houses hus</div><div class="facts__label">att bo i</div></div>
+                    <div><div class="facts__num">Upp till @capacity.Beds</div><div class="facts__label">Gäster över natten</div></div>
                     <div><div class="facts__num">Helpension</div><div class="facts__label">eller självhushåll</div></div>
                 </div>
             </div>
@@ -101,3 +102,12 @@
         </div>
     </div>
 </section>
+
+@code {
+    // Counted from the active houses and rooms (BuildingService.GetLodgingOverviewAsync) — the same
+    // numbers /faciliteter shows, so no page can state a capacity the data no longer bears out.
+    private LodgingCapacity capacity = new(0, 0, 0);
+
+    protected override async Task OnInitializedAsync() =>
+        capacity = (await BuildingService.GetLodgingOverviewAsync()).Capacity;
+}

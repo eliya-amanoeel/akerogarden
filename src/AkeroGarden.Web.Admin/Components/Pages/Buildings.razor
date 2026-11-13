@@ -232,13 +232,9 @@ else
                         <ValidationMessage For="() => _buildingForm.PhysicalBuildingId" />
                     </div>
                     <div class="form-group">
-                        <label for="b-description">Beskrivning</label>
-                        <InputTextArea id="b-description" @bind-Value="_buildingForm.Description" />
-                        <ValidationMessage For="() => _buildingForm.Description" />
-                    </div>
-                    <div class="form-group">
                         <label for="b-shared">Gemensamma utrymmen</label>
                         <InputTextArea id="b-shared" @bind-Value="_buildingForm.SharedFacilities" />
+                        <p class="form-hint">Visas för huset på webbplatsens sida Faciliteter, t.ex. "Delar allrum, 1 dusch- och städrum, 2 toaletter." Antal rum och bäddar räknas fram ur rummen.</p>
                         <ValidationMessage For="() => _buildingForm.SharedFacilities" />
                     </div>
                     <div class="form-group">
@@ -252,6 +248,7 @@ else
                         <InputNumber id="b-order" min="0" @bind-Value="_buildingForm.DisplayOrder" />
                         <ValidationMessage For="() => _buildingForm.DisplayOrder" />
                     </div>
+                    <ImageField @ref="_buildingImage" Id="b-image" @bind-ImageName="_buildingForm.ImageName" Subject="@_buildingForm.Name" />
                     @if (!_isCreating)
                     {
                         <p class="admin-crumbtrail">Innehåller @RoomsOf(_editingBuildingId!.Value).Count rum.</p>
@@ -279,6 +276,7 @@ else
                         <InputNumber id="r-order" min="0" @bind-Value="_roomForm.DisplayOrder" />
                         <ValidationMessage For="() => _roomForm.DisplayOrder" />
                     </div>
+                    <ImageField @ref="_roomImage" Id="r-image" @bind-ImageName="_roomForm.ImageName" Subject="@_roomForm.Name" />
                     break;
             }
         </ChildContent>
@@ -350,6 +348,11 @@ else
     private Guid? _editingPhysicalId;
     private Guid? _editingBuildingId;
     private Guid? _editingRoomId;
+
+    // Each lives only while its panel kind is showing (the @switch above), so a fresh one comes
+    // with every open; Reset in ClosePanel still drops a chosen-but-unsaved file explicitly.
+    private ImageField? _buildingImage;
+    private ImageField? _roomImage;
 
     private PhysicalBuilding? _pendingDeletePhysical;
     private Building? _pendingDeleteBuilding;
@@ -438,10 +441,10 @@ else
             Id = b.Id,
             Name = b.Name,
             PhysicalBuildingId = b.PhysicalBuildingId,
-            Description = b.Description,
             SharedFacilities = b.SharedFacilities,
             IsAccessible = b.IsAccessible,
-            DisplayOrder = b.DisplayOrder
+            DisplayOrder = b.DisplayOrder,
+            ImageName = b.ImageName
         };
     }
 
@@ -468,7 +471,8 @@ else
             Name = r.Name,
             BedCount = r.BedCount,
             BedConfiguration = r.BedConfiguration,
-            DisplayOrder = r.DisplayOrder
+            DisplayOrder = r.DisplayOrder,
+            ImageName = r.ImageName
         };
     }
 
@@ -480,6 +484,8 @@ else
         _editingBuildingId = null;
         _editingRoomId = null;
         _panelError = null;
+        _buildingImage?.Reset();
+        _roomImage?.Reset();
     }
 
     // The single persistent EditForm (see markup) just points at whichever of the 3 forms is
@@ -530,6 +536,10 @@ else
 
     private async Task SaveBuilding()
     {
+        // Upload only now, so a cancelled panel never leaves a blob behind (see ImageField).
+        if (!await _buildingImage!.CommitAsync())
+            return;
+
         var result = _isCreating
             ? await BuildingService.TryCreateAsync(_buildingForm)
             : await BuildingService.TryUpdateAsync(_buildingForm);
@@ -553,6 +563,10 @@ else
 
     private async Task SaveRoom()
     {
+        // Upload only now, so a cancelled panel never leaves a blob behind (see ImageField).
+        if (!await _roomImage!.CommitAsync())
+            return;
+
         if (_isCreating)
         {
             await RoomService.CreateAsync(_roomForm);

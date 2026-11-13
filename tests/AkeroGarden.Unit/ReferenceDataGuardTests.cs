@@ -53,6 +53,19 @@ public class ReferenceDataGuardTests
     }
 
     [Fact]
+    public void Facility_CanHardDelete_DecisionFollowsReferenceCount()
+    {
+        Assert.True(FacilityService.CanHardDelete(0));
+        Assert.False(FacilityService.CanHardDelete(1));
+    }
+
+    [Fact]
+    public void NewFacility_IsActiveByDefault()
+    {
+        Assert.True(new Facility().IsActive);
+    }
+
+    [Fact]
     public void NewBuilding_IsActiveByDefault()
     {
         Assert.True(new Building().IsActive);

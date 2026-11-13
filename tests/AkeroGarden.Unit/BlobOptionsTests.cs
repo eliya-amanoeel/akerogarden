@@ -3,7 +3,7 @@ using AkeroGarden.Web.Core.Services;
 namespace AkeroGarden.Unit;
 
 /// <summary>
-/// Which credential the facility-image store uses (post-launch security review, finding #9).
+/// Which credential the image store uses (post-launch security review, finding #9).
 ///
 /// <para>This one property decides between the app's managed identity and a storage <b>account key</b>
 /// that grants full access to the whole account — including both Data Protection key-ring containers.
@@ -58,10 +58,10 @@ public class BlobOptionsTests
     }
 
     [Fact]
-    public void Facility_images_container_has_a_default()
+    public void Images_container_has_a_default()
     {
         // The container name is not supplied by Bicep; the default is what production actually uses,
         // and it must match the container declared in main.bicep.
-        Assert.Equal("facility-images", new BlobOptions().FacilityImagesContainer);
+        Assert.Equal("images", new BlobOptions().ImagesContainer);
     }
 }

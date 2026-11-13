@@ -190,7 +190,7 @@ var apps = [
 // security review, finding #3 — it carries the database administrator password).
 var postgresConnectionString = 'Host=${postgresServer.properties.fullyQualifiedDomainName};Database=akerogarden;Username=${postgresAdminLogin};Password=${postgresAdminPassword};SslMode=Require'
 // NOTE: there is deliberately no blob connection string here any more (post-launch security review,
-// finding #9). Both the Data Protection key rings and the facility-image store now authenticate with
+// finding #9). Both the Data Protection key rings and the image store now authenticate with
 // each site's managed identity, so this template never calls storageAccount.listKeys() and no storage
 // account key is written into App Service configuration. Re-introducing one would undo that.
 
@@ -461,10 +461,10 @@ resource sites 'Microsoft.Web/sites@2023-12-01' = [for (app, i) in apps: {
           value: appInsights.properties.ConnectionString
         }
         {
-          // Facility images (FR-27). BOTH sites now, not admin only: admin uploads, and the public
+          // Facility, house and room images (FR-27, FR-13, FR-17). BOTH sites, not admin only: admin uploads, and the public
           // site SERVES them from its own /bilder/{name} endpoint rather than pointing the browser at
           // the storage account — img-src 'self' (NFR-39) blocks a Blob URL outright, so FR-81 and the
-          // CSP could not both hold. See FacilityImagePath.
+          // CSP could not both hold. See ImagePath.
           //
           // Managed identity, not a connection string (finding #9): that string carried the storage
           // ACCOUNT KEY, which grants full access to the whole account including both Data Protection
@@ -680,16 +680,20 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
   }
 }
 
-// Container for facility images (FR-27). Declared in IaC rather than left to the
-// app's runtime CreateIfNotExists, so it exists by deployment, not first upload.
+// Container for every uploaded image — facilities, lodging buildings and rooms (FR-27, FR-13, FR-17).
+// Declared in IaC rather than left to the app's runtime CreateIfNotExists, so it exists by
+// deployment, not first upload. Named 'images' since 2026-11 (client review item 13); it was
+// 'facility-images' while facilities were the only thing with a picture. Bicep never deletes a
+// container it stops declaring, so the old one was copied across and deleted by hand
+// (docs/review/demo-feedback-2026-11-11.md, the deploy steps for item 13).
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
   parent: storageAccount
   name: 'default'
 }
 
-resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
+resource imagesContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = {
   parent: blobService
-  name: 'facility-images'
+  name: 'images'
   properties: {
     // PRIVATE (was 'Blob' — anonymous read). Images are now served through each app's own
     // /bilder/{name} endpoint using managed identity, so nothing fetches them anonymously — and the
@@ -702,7 +706,7 @@ resource facilityImagesContainer 'Microsoft.Storage/storageAccounts/blobServices
 
 // Holds each site's Data Protection key ring (Phase 7 — NFR-30). One PRIVATE container per site
 // (Phase 10b — the public and admin rings share no storage). PRIVATE (no public access): these are
-// secret keys. (Facility images are private too now — see the container above.) Each ring's master key is additionally
+// secret keys. (Images are private too now — see the container above.) Each ring's master key is additionally
 // wrapped by the Key Vault key above.
 resource dataProtectionKeysContainers 'Microsoft.Storage/storageAccounts/blobServices/containers@2023-05-01' = [for app in apps: {
   parent: blobService
@@ -718,7 +722,7 @@ resource dataProtectionKeysContainers 'Microsoft.Storage/storageAccounts/blobSer
 // grant data-plane access on Storage — it is a separate role, which is why the key was used before.
 //
 // Scoped to the account rather than the container because the admin site also needs the
-// facility-images container (FR-27), and a per-container split would still leave each identity able
+// images container (FR-27), and a per-container split would still leave each identity able
 // to reach the other's container only via a role it does not hold. The account key it replaces gave
 // both hosts everything, so this is strictly narrower even at account scope.
 var storageBlobDataContributor = subscriptionResourceId(

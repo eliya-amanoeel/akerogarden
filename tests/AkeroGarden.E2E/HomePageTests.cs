@@ -130,7 +130,9 @@ public class HomePageTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
             await Page.SetViewportSizeAsync(vp.Width, vp.Height);
             await Page.GotoAsync("/");
 
-            var teaser = Page.Locator(".teaser").Filter(new() { Has = Page.GetByRole(AriaRole.Heading, new() { Name = "Åtta hus, en gård" }) });
+            // Found by its link, not its heading: the heading counts the active houses ("Åtta hus, en
+            // gård" in production), and other tests add houses while this suite runs.
+            var teaser = Page.Locator(".teaser").Filter(new() { Has = Page.Locator("a[href='/faciliteter']") });
             var frame = teaser.Locator(".teaser__photo");
             var img = teaser.GetByRole(AriaRole.Img, new() { Name = "Flygbild över gården med husen utspridda längs gångvägar och gräsytor" });
             var what = $"facilities teaser photo at {vp.Width}px";

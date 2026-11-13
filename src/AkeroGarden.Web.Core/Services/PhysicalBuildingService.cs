@@ -17,15 +17,6 @@ public class PhysicalBuildingService(ApplicationDbContext db, IAuditWriter audit
             .ThenBy(p => p.Name)
             .ToListAsync();
 
-    /// <summary>Active physical buildings only, in display order — for FK pickers on the
-    /// Building/Facility/CleaningZone admin forms.</summary>
-    public async Task<List<PhysicalBuilding>> GetActiveAsync() =>
-        await db.PhysicalBuildings
-            .Where(p => p.IsActive)
-            .OrderBy(p => p.DisplayOrder)
-            .ThenBy(p => p.Name)
-            .ToListAsync();
-
     public async Task<PhysicalBuilding?> GetAsync(Guid id) =>
         await db.PhysicalBuildings.FindAsync(id);
 

@@ -3,139 +3,112 @@
 @using AkeroGarden.Web.Core.Data.Entities
 @inject FacilityService FacilityService
 @inject BuildingService BuildingService
-@inject PhysicalBuildingService PhysicalBuildingService
 
 <PageTitle>Faciliteter — Åkerögården</PageTitle>
 <SeoMeta Title="Faciliteter och boende"
-         Description="Byggnader, rum och gemensamma utrymmen på Åkerögården — vad som finns för grupper som bor och arbetar här."
+         Description="Hus, rum och lokaler på Åkerögården — var ert sällskap sover, och var ni samlas."
          Path="/faciliteter" />
+
+@* Ordered by the questions a group organiser asks: do we fit (the facts), where do we sleep
+   (Boende), where do we gather (Lokaler och aktiviteter), what next (the closing band). Every
+   number on the page is counted from the data (BuildingService.GetLodgingOverviewAsync), so
+   deactivating a house or a room can never leave the page stating a count that is no longer true.
+   Agreed from an HTML mockup, client review 2026-11-11 item 13. *@
 
 <section class="page-head">
     <div class="container">
         <span class="eyebrow">Faciliteter</span>
-        <h1>Åtta hus, en gård</h1>
+        <h1>Boende och lokaler</h1>
         <div class="page-head__rule"></div>
         <p class="page-head__intro">
-            Boende, lokaler och utrymmen för möten, måltider och gemenskap — omgivna av skog
-            och natur strax utanför Norrtälje.
+            Hus att sova i, lokaler att samlas i — omgivna av skog och natur strax utanför Norrtälje.
         </p>
+        @if (lodging.Capacity.Houses > 0)
+        {
+            <div class="facts facts--trio">
+                <div><div class="facts__num">@lodging.Capacity.Beds</div><div class="facts__label">bäddar</div></div>
+                <div><div class="facts__num">@lodging.Capacity.Houses</div><div class="facts__label">hus</div></div>
+                <div><div class="facts__num">@lodging.Capacity.Rooms</div><div class="facts__label">rum</div></div>
+            </div>
+        }
+        @* Full path, not a bare "#…": <base href="/"> resolves a bare fragment against the site root. *@
+        <div class="page-jump">
+            <a class="link-arrow" href="/faciliteter#boende">Boendet ↓</a>
+            <a class="link-arrow" href="/faciliteter#lokaler">Lokaler och aktiviteter ↓</a>
+        </div>
     </div>
 </section>
 
-@if (facilities.Count == 0)
-{
-    <section class="section">
-        <div class="container">
-            <p>Inga faciliteter finns för närvarande.</p>
-        </div>
-    </section>
-}
-else
-{
-    var lead = facilities[0];
-    var rest = facilities.Skip(1).ToList();
-
-    <section class="section">
-        <div class="container">
-            <div class="teaser">
-                <div class="teaser__photo">
-                    @if (FacilityImagePath.ToDisplayPath(lead.ImageUrl) is { } leadImage)
-                    {
-                        <img src="@leadImage" alt="@lead.Name" />
-                    }
-                    else
-                    {
-                        <span class="photo-tag">Foto</span>
-                    }
-                </div>
-                <div>
-                    <span class="eyebrow">Faciliteter</span>
-                    <h2>@lead.Name</h2>
-                    @if (!string.IsNullOrEmpty(lead.Description))
-                    {
-                        <p>@lead.Description</p>
-                    }
-                </div>
-            </div>
-        </div>
-    </section>
-
-    if (rest.Count > 0)
-    {
-        <section class="section section--warm">
-            <div class="container">
-                <div class="section__head">
-                    <span class="eyebrow">Fler faciliteter</span>
-                    <h2>Övriga faciliteter på gården</h2>
-                </div>
-                <div class="fac-grid">
-                    @for (var i = 0; i < rest.Count; i++)
-                    {
-                        var facility = rest[i];
-                        var cardClass = i == 0 ? "fac-card fac-card--wide" : "fac-card";
-
-                        <article class="@cardClass">
-                            <div class="fac-card__img">
-                                @if (FacilityImagePath.ToDisplayPath(facility.ImageUrl) is { } facilityImage)
-                                {
-                                    <img src="@facilityImage" alt="@facility.Name" />
-                                }
-                                else
-                                {
-                                    <span class="photo-tag">Foto</span>
-                                }
-                            </div>
-                            <div class="fac-card__body">
-                                <h3>@facility.Name</h3>
-                                @if (!string.IsNullOrEmpty(facility.Description))
-                                {
-                                    <p>@facility.Description</p>
-                                }
-                            </div>
-                        </article>
-                    }
-                </div>
-            </div>
-        </section>
-    }
-}
-
-<section class="section">
+<section class="section" id="boende">
     <div class="container">
         <div class="section__head">
             <span class="eyebrow">Boende</span>
-            <h2>Åtta hus att bo i</h2>
+            <h2>Var ni sover</h2>
+            <p>Ni hyr hela hus, inte enstaka sängar. Öppna ett hus för att se rummen och hur sängarna är fördelade.</p>
         </div>
-        @if (lodgingGroups.Count == 0)
+        @if (lodging.Groups.Count == 0)
         {
             <p>Inget boende är tillagt för närvarande.</p>
         }
         else
         {
-            @foreach (var group in lodgingGroups)
+            @foreach (var group in lodging.Groups)
             {
                 <div class="lodging-group">
                     <div class="lodging-group__head">
-                        <h3>@group.PhysicalBuildingName</h3>
-                        <span>@group.Buildings.Count hus</span>
+                        <h3>@group.Name</h3>
+                        <span>@group.Houses.Count hus · @Beds(group.Beds)</span>
                     </div>
-                    <div class="lodging-list">
-                        @foreach (var building in group.Buildings)
+                    <div class="house-grid">
+                        @foreach (var house in group.Houses)
                         {
-                            <div class="lodging-item">
-                                <div class="lodging-item__mark"></div>
-                                <div class="lodging-item__body">
-                                    <h4>@building.Name</h4>
-                                    @if (!string.IsNullOrEmpty(building.Description))
+                            var building = house.Building;
+                            <article class="house-card">
+                                <div class="house-card__img">
+                                    @if (ImagePath.ToDisplayPath(building.ImageName) is { } houseImage)
                                     {
-                                        <p>@building.Description</p>
+                                        <img src="@houseImage" alt="@building.Name" loading="lazy" />
+                                    }
+                                    else
+                                    {
+                                        <span class="photo-tag">Foto</span>
+                                    }
+                                </div>
+                                <div class="house-card__body">
+                                    <h4>@building.Name</h4>
+                                    <p class="house-card__meta">@house.Rooms.Count rum · @Beds(house.Beds)</p>
+                                    @if (!string.IsNullOrEmpty(building.SharedFacilities))
+                                    {
+                                        <p>@building.SharedFacilities</p>
                                     }
                                     @if (building.IsAccessible)
                                     {
-                                        <span class="lodging-item__tag">Tillgänglighetsanpassad</span>
+                                        <span class="lodging-tag">Tillgänglighetsanpassad</span>
                                     }
                                 </div>
-                            </div>
+                                <details class="rooms">
+                                    <summary>@(house.Rooms.Count == 1 ? "Visa rummet" : $"Visa de {house.Rooms.Count} rummen")</summary>
+                                    <ul class="room-grid">
+                                        @foreach (var room in house.Rooms)
+                                        {
+                                            <li class="room-tile">
+                                                <div class="room-tile__img">
+                                                    @if (ImagePath.ToDisplayPath(room.ImageName) is { } roomImage)
+                                                    {
+                                                        <img src="@roomImage" alt="@room.Name i @building.Name" loading="lazy" />
+                                                    }
+                                                    else
+                                                    {
+                                                        <span class="photo-tag">Foto</span>
+                                                    }
+                                                </div>
+                                                <h5>@room.Name</h5>
+                                                <p>@RoomLine(room)</p>
+                                            </li>
+                                        }
+                                    </ul>
+                                </details>
+                            </article>
                         }
                     </div>
                 </div>
@@ -144,25 +117,73 @@ else
     </div>
 </section>
 
-<section class="section section--warm">
+<section class="section section--warm" id="lokaler">
     <div class="container">
-        <div class="closing-line">
-            <p>Vilket sällskap ni än är — det finns en plats för er här.</p>
+        <div class="section__head">
+            <span class="eyebrow">Lokaler och aktiviteter</span>
+            <h2>Där ni samlas</h2>
+        </div>
+        @if (facilities.Count == 0)
+        {
+            <p>Inga faciliteter finns för närvarande.</p>
+        }
+        else
+        {
+            @* One even grid, every card alike — it reads the same with one facility or ten. *@
+            <div class="fac-grid">
+                @foreach (var facility in facilities)
+                {
+                    <article class="fac-card">
+                        <div class="fac-card__img">
+                            @if (ImagePath.ToDisplayPath(facility.ImageName) is { } facilityImage)
+                            {
+                                <img src="@facilityImage" alt="@facility.Name" loading="lazy" />
+                            }
+                            else
+                            {
+                                <span class="photo-tag">Foto</span>
+                            }
+                        </div>
+                        <div class="fac-card__body">
+                            <h3>@facility.Name</h3>
+                            @if (!string.IsNullOrEmpty(facility.Description))
+                            {
+                                <p>@facility.Description</p>
+                            }
+                        </div>
+                    </article>
+                }
+            </div>
+        }
+    </div>
+</section>
+
+<section class="cta-band section">
+    <div class="container">
+        <h2>Passar gården ert sällskap?</h2>
+        <p>Skicka en förfrågan så hör vi av oss och bekräftar tillgänglighet. Inget bindande — bara ett första steg.</p>
+        <div class="cta-band__actions">
+            <a href="/boka" class="btn">Skicka förfrågan</a>
+            <a href="/kalender" class="btn-ghost">Se tillgänglighet</a>
         </div>
     </div>
 </section>
 
 @code {
     private List<Facility> facilities = [];
-    private List<Building> buildings = [];
-    private List<LodgingGroup> lodgingGroups = [];
+    private LodgingOverview lodging = new([], new LodgingCapacity(0, 0, 0));
 
     protected override async Task OnInitializedAsync()
     {
         facilities = await FacilityService.GetActiveAsync();
-        buildings = await BuildingService.GetActiveAsync();
-        var physicalBuildings = await PhysicalBuildingService.GetActiveAsync();
-
-        lodgingGroups = BuildingService.GroupByPhysicalBuilding(buildings, physicalBuildings);
+        lodging = await BuildingService.GetLodgingOverviewAsync();
     }
+
+    private static string Beds(int count) => count == 1 ? "1 bädd" : $"{count} bäddar";
+
+    /// <summary>"4 bäddar · 2 våningssängar" — the count always, the setup when the admin gave one.</summary>
+    private static string RoomLine(Room room) =>
+        string.IsNullOrWhiteSpace(room.BedConfiguration)
+            ? Beds(room.BedCount)
+            : $"{Beds(room.BedCount)} · {room.BedConfiguration}";
 }

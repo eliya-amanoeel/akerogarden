@@ -104,7 +104,8 @@ public static class AkeroServiceCollectionExtensions
         return services;
     }
 
-    /// <summary>Facility-image blob storage (FR-27) — admin upload side only.</summary>
+    /// <summary>Image blob storage for facilities, lodging buildings and rooms (FR-27, FR-13, FR-17). Both
+    /// hosts: admin uploads, both serve /bilder/{name}, and the reference-data services clean up replaced images.</summary>
     public static IServiceCollection AddAkeroImageStorage(this IServiceCollection services, IConfiguration configuration)
     {
         services.Configure<BlobOptions>(configuration.GetSection("Blob"));

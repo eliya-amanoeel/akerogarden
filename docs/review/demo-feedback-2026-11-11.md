@@ -30,7 +30,7 @@ brackets is the client's original numbering.
 | 10 | [13] Deposit: 14 days, reminder inside the period, admin notified | **Dropped** 2026-11-13 — overdue deposit made visible instead; ✅ built, awaiting deploy | S |
 | 11 | [12] New cancellation terms | Locked rule — **3+1 questions open with client** | M–L |
 | 12 | [5] One menu — any dish at any sitting | ✅ **Done** 2026-11-13 (with 6) — awaiting deploy | L (migration) |
-| 13 | [2] One image per building and per room | Locked — layout by HTML mockup first | L (migration) |
+| 13 | [2] One image per building and per room | ✅ **Done** 2026-11-13 — widened to a rebuilt `/faciliteter`; awaiting deploy | L (migration) |
 | 14 | [9] Participants via Excel upload | ✅ **Done** 2026-11-13 — awaiting deploy | L |
 | 15 | [15] Image gallery | Future — not designed | — |
 | 16 | "Anländ" status | Recorded only — added 2026-11-13, not yet discussed | — |
@@ -189,6 +189,16 @@ Agreed from an HTML mockup. **Docs.** FR-116, handbook. **Terms / privacy.** Non
 
 **Docs.** FR for buildings/rooms, §8 entities, `erd.md`, `design.md`. **Azure cost.** Negligible — a few MB more in the existing Blob container. **Terms / privacy.** None.
 
+**Widened 2026-11-13 (maintainer's call): the whole `/faciliteter` page was rebuilt**, agreed from an HTML mockup. Two of five facilities being deactivated had left the old layout (lead feature + "wide" first card, tuned for about five) lopsided, and the page answered the database's structure rather than a group's questions. What was built:
+- **Order:** counted facts (bäddar · hus · rum) → **Boende** first → **Lokaler och aktiviteter** → the home page's request-or-dates band (the old quiet sign-off line deliberately replaced — the reasoning is in `design.md`).
+- **Houses:** photo beside the text at every width (an empty photo frame costs a strip, not a screen); rooms behind a native "Visa de N rummen" disclosure, two tiles across on a phone. A physical building with several houses is a group under its name; houses alone in theirs share **Fristående stugor**. A house with no active room is not listed.
+- **Facilities:** one even grid, all cards alike.
+- **Every capacity number is counted from the active rooms** — on `/faciliteter`, the home page (hero, trust strip, "Åtta hus, en gård") and Om oss — never typed into copy. The home teaser's "Sex bostadshus och två stugor" and Om oss's "Sex bostadshus + två stugor" became count-free wording.
+- **`Building.Description` dropped** (migration `ImagesForLodging`): the house's public text is now *Gemensamma utrymmen*, and the room/bed count the description restated is counted. **Lossy — see the deploy steps.**
+- **One image mechanism for all three** (`ImageUpload`, `ImagePath`, the admin `ImageField`); `Facility.ImageUrl` → `ImageName`; the Blob container `facility-images` → `images` (maintainer's call: a facility-named container holding house and room photos is the old rule left standing).
+
+**Deploy steps:** the Beskrivning check and the container copy are in § *Production deploy — manual steps, in order* (steps 2, 5, 9 and 12).
+
 ## 14. [9] Participants via Excel upload
 
 **Request.** For large groups, filling in every participant is a pain: send an Excel template, the guest fills it in and uploads it (maybe also PDF). Does it raise Azure costs?
@@ -245,6 +255,32 @@ Agreed from an HTML mockup. **Docs.** FR-116, handbook. **Terms / privacy.** Non
 **Docs.** §5.1, §5.2, FR-57, FR-58, §8.5, `erd.md`. **Terms / privacy.** None — neither names an age band; the policy's "ålderskategori" stays true. **Azure cost.** None.
 
 ---
+
+## Production deploy — manual steps, in order
+
+Everything the next production deploy needs by hand, in the order it has to happen. Production runs `a903db5`; this deploy carries every item marked *awaiting deploy* above and **three migrations**: `OneMenuWithDishDiet`, `TwoAgeGroups`, `ImagesForLodging`. Tick as you go; delete this section once the deploy is verified.
+
+**Before the evening**
+- [ ] 1. **Manual test pass** — § *Manual test before the prod deploy* below, all blocks. The staging checks need a temporary IP rule (`infra/ops/staging-access-runbook.md`).
+- [ ] 2. **Read every house's *Beskrivning*** in production Admin → Byggnader (item 13). `ImagesForLodging` deletes the field. If one says something its *Gemensamma utrymmen* does not, copy it there now.
+- [ ] 3. **Privacy policy date.** Both `PrivacyPolicy.razor` and `docs/legal/Integritetspolicy.md` say *Senast uppdaterad: 12 november 2026*; it must equal the production deploy day. If later, change both in one commit (`LegalTextCopyTests` fails on any difference), plus the date in the `.md` header line, and merge it before deploying.
+
+**Staging — the rehearsal** (staging deploys itself when the branch merges)
+- [ ] 4. Apply `main.bicep` to staging — what-if first. It creates the `images` container (item 13).
+- [ ] 5. Copy every blob from `facility-images` to `images` in the staging storage account, list `images` and check the count matches, check staging's `/faciliteter` shows the facility photos, then delete `facility-images`. Until the copy, staging's facility photos are blank — the new app already reads `images`. Blob data-plane access is not something your account holds by default: grant yourself *Storage Blob Data Contributor* on the account temporarily, as with Key Vault, and remove it after.
+- [ ] 6. The staging blocks of the manual test.
+
+**Production — deploy night, ~22:00, finished well clear of 03:00** (the nightly jobs run inside admin; a restart across 03:00 skips that night)
+- [ ] 7. Temporary Key Vault *get/list* policy for yourself on `jmk-ag-prod-kv`. Read the four secrets into shell variables without printing them: `postgresAdminPassword`, `postgresAppPassword`, `smtpUsername`, `smtpPassword`; `seedAdminPassword=''`. The parameter files hold `REPLACE_AT_DEPLOY` placeholders — always override them (`infra/azure/README.md`).
+- [ ] 8. **What-if against production**, then apply `main.bicep` to production. What-if cannot show app-setting changes, so afterwards check with `az webapp config appsettings list` on both sites: `Site__PublicBaseUrl` / `Site__AdminBaseUrl` present, every `BookingEmail__…` gone. **From here until step 10 lands, links in any email sent are broken** — the running app still reads `BookingEmail__…`, so move straight on.
+- [ ] 9. Copy every blob from `facility-images` to `images` in the production storage account (temporary data-plane role as in step 5); list `images` and check the count matches. Production still reads `facility-images` until step 10, so nothing breaks in between.
+- [ ] 10. **Approve the production deploy** in Azure DevOps. Admin runs the three migrations at startup — allow ~15 minutes; a few public 500s in the first minutes are the known window before admin has migrated.
+- [ ] 11. Remove the temporary Key Vault policy and the data-plane role; `unset` the secret variables.
+- [ ] 12. Verify: `/faciliteter` shows Kapellet, Konferensrum and Utflykt with their photos; `/` and `/om-oss` say 79; Admin → Matalternativ has the Kost column; one approval email's links open the right sites. **Then** delete the production `facility-images` container.
+
+**After**
+- [ ] 13. Next morning: Admin → **Jobbhistorik**, the 03:00 run — all four jobs *Lyckades*.
+- [ ] 14. Delete the shipped blocks from the manual test below, mark the items *Deployed* in the table, and do the client to-dos at the end of this file.
 
 ## Manual test before the prod deploy
 
@@ -333,13 +369,22 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] Open the template link with the token changed by one character → the not-found page. Same after the first booking was submitted → not-found.
 - [ ] Admin → **Handbok**: the contents list *När gästen fyller i deltagarna i Excel*, and the section reads as the feature behaves.
 
+**Item 13 — `/faciliteter` rebuilt, one image per house and room** (branch `feat/facilities-page-images`). Upload test photos as JPEG or WebP; any landscape photo will do.
+- [ ] **Migration, before reseeding.** On `main`, start admin → **Faciliteter** → give *Kapellet* a photo → **Spara**; **Byggnader** → *Blidö* → type *Test* in **Beskrivning** → **Spara**. Stop admin, switch to this branch, start admin **without** `DemoSeed__Reset` → it starts (the migration ran). **Faciliteter**: Kapellet's **Bild** column still reads **Ja** (its photo itself is in the old local container, so the preview is empty — expected locally; staging rehearses the copy). **Byggnader** → *Blidö*: no **Beskrivning** field.
+- [ ] Start admin with `DemoSeed__Reset=true`. `/faciliteter` at a wide window: heading **Boende och lokaler**; facts **79 bäddar · 8 hus · 28 rum**; under *Var ni sover* the groups **Lilla bostadslängan** (*4 hus · 55 bäddar*), **Stora bostadslängan** (*2 hus · 16 bäddar*), **Fristående stugor** (*2 hus · 8 bäddar*, Smedjan then Tallstugan); then *Där ni samlas* with **Kapellet, Konferensrum, Utflykt - gården, Husvagn, Tält** as equal cards; last the band **Passar gården ert sällskap?** whose buttons open `/boka` and `/kalender`.
+- [ ] Same page: **Ljusterö** reads *4 rum · 17 bäddar*, *Delar allrum, 1 dusch- och städrum, 1 toalett.* and the pill **Tillgänglighetsanpassad**. Click **Visa de 4 rummen** → *Rum 1 · 3 bäddar · 3 enkelsängar*, *Rum 2 · 6 bäddar · 3 våningssängar*, *Rum 3* and *Rum 4 · 4 bäddar · 2 våningssängar*. **Smedjan** says **Visa rummet**. With the keyboard: Tab to a *Visa …* line, Enter opens and closes it.
+- [ ] At **phone width** (360 px): house photo frames sit left of the text; the pill is on one line; opened rooms sit **two across**; no sideways scrolling. **Boendet ↓** and **Lokaler och aktiviteter ↓** jump to their sections and stay on `/faciliteter`.
+- [ ] Admin → **Byggnader** → *Ljusterö*: fields Namn, Fysisk byggnad, **Gemensamma utrymmen** (with the hint about the website), Tillgänglighetsanpassad, Visningsordning, **Bild** with *"…ladda helst upp 1200 × 900 pixlar."* Choose a photo → *"Vald bild: … Den laddas upp när du klickar Spara."* → close the panel with ✕ → reopen *Ljusterö*: no image. Choose it again → **Spara** → `/faciliteter`: Ljusterö shows the photo.
+- [ ] Admin → *Ljusterö* → *Rum 2* → **Bild** → a photo → **Spara** → `/faciliteter` → Ljusterö → **Visa de 4 rummen**: Rum 2 shows it. Back in admin → *Rum 2* → **Ta bort bild** → **Spara** → the tile is the green **Foto** box again. Choose a `.gif` → *"Bilden måste vara i formatet JPEG, PNG eller WebP."*
+- [ ] Admin → **Faciliteter** → *Kapellet* → a photo → **Spara** → `/faciliteter`: Kapellet's card shows it (the same field as before, now shared).
+- [ ] Admin → **Byggnader** → *Tallstugan* → **Inaktivera**. `/faciliteter`: **75 bäddar · 7 hus · 27 rum**, *Fristående stugor* has only Smedjan. Home `/`: hero *"…till 75 gäster…"*, trust strip **Upp till 75**, teaser heading **Sju hus, en gård**. `/om-oss`: *"Gården har sju hus att bo i, med sammanlagt plats för upp till 75 gäster…"*, facts **7 hus** and **Upp till 75**. **Aktivera** Tallstugan → back to 79 / åtta / 8.
+- [ ] Admin → **Handbok** → *Bilder på faciliteter, byggnader och rum*: names all three, the 4:3 shape and 1200 × 900; the **Byggnader** row mentions the counts and *Gemensamma utrymmen*.
+- [ ] **Staging, after the deploy** (temporary IP rule) — the production rehearsal: *Production deploy* steps 4–5, then `/faciliteter` shows staging's facility photos from the `images` container.
+
 ## To-do lists
 
 **Client:** rename "Husvagn" in admin (item 2); deactivate duplicate dishes after item 12 is deployed (e.g. the second *Wokade grönsaker med nudlar*), and renumber Visningsordning if wanted; optionally a photo of the caravan pitch; answer item 11's four questions; be told that the admin's summary email shows participants and allergies as counts, not names (item 8).
 
 **Maintainer:** one.com access for the client, with the DNS warning (item 1).
 
-**Deploy order for this branch (site addresses).** The app now reads `Site__PublicBaseUrl` / `Site__AdminBaseUrl`; the App Service settings are still named `BookingEmail__…` until `main.bicep` is applied. Whichever lands first, the other half runs for a few minutes with an empty site address — links in any email sent in that window are broken. So apply the Bicep and the app deploy back to back, per environment:
-- ✅ **Staging:** done 2026-11-12 — `main.bicep` applied right after the staging deploy (Succeeded, settings verified).
-- **Production:** apply `main.bicep` to production immediately before approving the production deploy, at ~22:00 and well clear of 03:00. Run what-if against production first.
-- The same apply also drops the unused `BookingEmail__ContactEmail` setting.
+**Deploy:** every manual step for the next production deploy is in § *Production deploy — manual steps, in order*.

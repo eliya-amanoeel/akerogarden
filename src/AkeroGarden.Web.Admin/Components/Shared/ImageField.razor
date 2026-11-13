@@ -1,0 +1,128 @@
+@* The one image field in admin — a facility's, a lodging building's and a room's (FR-27, FR-13,
+   FR-17). Same rules for all three (ImageUpload), one picture shape for all three: the public page
+   crops every frame to landscape 4:3.
+
+   Nothing about the image changes until the form is saved. Choosing a file only holds it in memory;
+   the page's save calls CommitAsync, which uploads it. Removing only clears the form's value; the
+   service deletes the old blob after the record is saved. So closing the panel without saving
+   leaves storage exactly as it was (raised by the maintainer 2026-09-09 — uploading on selection
+   orphaned a blob on every cancelled panel). *@
+
+<div class="form-group">
+    <label for="@Id">Bild (JPEG, PNG eller WebP, max 5 MB)</label>
+    <InputFile id="@Id" OnChange="OnImageSelected" accept="@ImageUpload.Accept" />
+    <p class="form-hint">Bilden visas liggande i formatet 4:3 — ladda helst upp 1200 × 900 pixlar.</p>
+    @if (_error is not null)
+    {
+        <p role="alert">@_error</p>
+    }
+    @if (_pending is not null)
+    {
+        @* Deliberately no thumbnail: rendering the bytes back down the Blazor circuit as a data: URL
+           would push megabytes over the WebSocket for no real gain. Naming the file and stating that
+           it is not saved yet is clearer anyway. *@
+        <p class="form-hint">
+            Vald bild: <strong>@_pending.FileName</strong> (@_pending.SizeLabel).
+            Den laddas upp när du klickar Spara.
+        </p>
+    }
+    @if (ImagePath.ToDisplayPath(ImageName) is { } preview)
+    {
+        <p>@(_pending is null ? "Uppladdad bild:" : "Nuvarande bild (ersätts vid Spara):")</p>
+        <img src="@preview" alt="Förhandsvisning av @Subject" width="200" />
+        <p>
+            <button type="button" class="btn-ghost btn-sm" @onclick="RemoveImage">Ta bort bild</button>
+        </p>
+    }
+</div>
+
+@code {
+    /// <summary>The file input's id, unique on the page.</summary>
+    [Parameter, EditorRequired] public string Id { get; set; } = string.Empty;
+
+    /// <summary>The stored image name on the form being edited. Bind with <c>@bind-ImageName</c>.</summary>
+    [Parameter] public string? ImageName { get; set; }
+
+    [Parameter] public EventCallback<string?> ImageNameChanged { get; set; }
+
+    /// <summary>What the image is of — the preview's alt text.</summary>
+    [Parameter] public string Subject { get; set; } = string.Empty;
+
+    [Inject] private IImageStorage ImageStorage { get; set; } = default!;
+
+    private PendingImage? _pending;
+    private string? _error;
+
+    /// <summary>
+    /// Uploads the chosen file, if any, and sets <see cref="ImageName"/> to it. The page calls this
+    /// first thing in its save. False when the upload failed: the field then shows why, keeps the
+    /// file selected, and the page must not save — nothing is saved and nothing is orphaned.
+    /// </summary>
+    public async Task<bool> CommitAsync()
+    {
+        if (_pending is null)
+            return true;
+
+        try
+        {
+            using var buffer = new MemoryStream(_pending.Content);
+            var name = await ImageStorage.UploadImageAsync(buffer, _pending.FileName, _pending.ContentType);
+            _pending = null;
+            await ImageNameChanged.InvokeAsync(name);
+            return true;
+        }
+        catch (Exception)
+        {
+            _error = "Bilden kunde inte laddas upp. Försök igen.";
+            return false;
+        }
+    }
+
+    /// <summary>Drops a chosen-but-unsaved file and any message. The page calls this when its panel closes.</summary>
+    public void Reset()
+    {
+        _pending = null; // never uploaded, so nothing to clean up
+        _error = null;
+    }
+
+    private async Task RemoveImage()
+    {
+        _pending = null;
+        _error = null;
+        await ImageNameChanged.InvokeAsync(null);
+    }
+
+    private async Task OnImageSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+
+        // Validate format/size before reading the stream.
+        var error = ImageUpload.Validate(file.ContentType, file.Size);
+        if (error is not null)
+        {
+            _error = error;
+            _pending = null;
+            return;
+        }
+
+        _error = null;
+        try
+        {
+            await using var source = file.OpenReadStream(ImageUpload.MaxBytes);
+            using var buffer = new MemoryStream();
+            await source.CopyToAsync(buffer);
+            _pending = new PendingImage(buffer.ToArray(), file.Name, file.ContentType);
+        }
+        catch (Exception)
+        {
+            _error = "Bilden kunde inte läsas. Försök igen.";
+            _pending = null;
+        }
+    }
+
+    /// <summary>A chosen-but-not-yet-saved image. Discarded if the panel closes without saving.</summary>
+    private sealed record PendingImage(byte[] Content, string FileName, string ContentType)
+    {
+        public string SizeLabel => $"{Content.Length / 1024d / 1024d:0.0} MB";
+    }
+}

@@ -41,8 +41,8 @@ public class Participant
 
     public ParticipantType ParticipantType { get; set; }
 
-    /// <summary>Age tier — drives the accommodation pricing tier (Adult/Child paid, Infant free)
-    /// as reference data only; no total is computed (C8, §5.1/5.2).</summary>
+    /// <summary>Age group — Adult (4+) pays the per-person rate, Child (0–3) is free; reference for
+    /// the admin only, no total is computed (C8, §5.1/5.2).</summary>
     public AgeCategory AgeCategory { get; set; }
 
     /// <summary>Day guests only — the single date attended (§4.2, I12). Null for overnight

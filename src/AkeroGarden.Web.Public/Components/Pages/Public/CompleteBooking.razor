@@ -197,7 +197,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                             <input class="inp prow__name" name="Form.Overnight[@index].FullName" value="@entry.FullName"
                                    maxlength="200" placeholder="Namn" aria-label="Namn för deltagare @(index + 1)" data-progress-name />
                             <select class="inp prow__age" name="Form.Overnight[@index].AgeCategory" aria-label="Ålderskategori för deltagare @(index + 1)">
-                                @foreach (var age in AgeCategories)
+                                @foreach (var age in Enum.GetValues<AgeCategory>())
                                 {
                                     <option value="@age" selected="@(entry.AgeCategory == age)">@AgeLabel(age)</option>
                                 }
@@ -270,7 +270,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                     <div class="form-group">
                                         <label for="d@(di)-age">Ålderskategori</label>
                                         <select id="d@(di)-age" name="Form.DayGuests[@di].AgeCategory">
-                                            @foreach (var age in AgeCategories)
+                                            @foreach (var age in Enum.GetValues<AgeCategory>())
                                             {
                                                 <option value="@age" selected="@(dg.AgeCategory == age)">@AgeLabel(age)</option>
                                             }
@@ -479,7 +479,6 @@ else
     private IReadOnlyList<string> _errors = [];
     private bool _conferenceCleaningApplicable;
 
-    private static readonly AgeCategory[] AgeCategories = [AgeCategory.Adult, AgeCategory.Child, AgeCategory.Infant];
     // Allergies only. Vegetarian/vegan are portion counts on the booking now (§4.6) — a preference
     // is not a medical constraint and does not belong on a named person.
     private static readonly Allergy[] AllergyOptions =
@@ -632,13 +631,7 @@ else
     private static string Capitalize(string value) =>
         string.IsNullOrEmpty(value) ? value : char.ToUpper(value[0], Sv) + value[1..];
 
-    private static string AgeLabel(AgeCategory age) => age switch
-    {
-        AgeCategory.Adult => "Vuxen (13+)",
-        AgeCategory.Child => "Barn (4–12)",
-        AgeCategory.Infant => "Barn (0–3)",
-        _ => age.ToString(),
-    };
+    private static string AgeLabel(AgeCategory age) => BookingDisplay.AgeLabel(age);
 
     private static string AllergyLabel(Allergy allergy) => BookingDisplay.AllergyLabel(allergy);
 

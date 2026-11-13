@@ -99,7 +99,7 @@ erDiagram
         guid BookingId FK
         string FullName
         enum ParticipantType "Overnight | DayGuest"
-        enum AgeCategory "Adult | Child | Infant"
+        enum AgeCategory "Adult | Child"
         date AttendanceDate "day guests only"
         array Allergies "medical only; GDPR art. 9 (§4.6)"
         string AllergyNotes "free text; required with OTHER, may stand alone"

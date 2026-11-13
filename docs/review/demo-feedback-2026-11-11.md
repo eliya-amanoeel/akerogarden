@@ -34,6 +34,7 @@ brackets is the client's original numbering.
 | 14 | [9] Participants via Excel upload | Locked | L |
 | 15 | [15] Image gallery | Future — not designed | — |
 | 16 | "Anländ" status | Recorded only — added 2026-11-13, not yet discussed | — |
+| 17 | Two age groups | ✅ **Done** 2026-11-13 — awaiting deploy | S (migration) |
 
 ---
 
@@ -209,6 +210,18 @@ Agreed from an HTML mockup. **Docs.** FR-116, handbook. **Terms / privacy.** Non
 
 **Recorded only, not yet discussed** — added by the maintainer on 2026-11-13. Today a group on site has the status `Active`, shown as **"På plats"** (§2.5).
 
+## 17. Two age groups
+
+**Raised 2026-11-13** by the maintainer while planning item 14, and settled with the client the same day.
+
+**Today (§8.5, FR-57/58).** Three age categories: *Vuxen (13+)*, *Barn (4–12)*, *Barn (0–3)*. The free/paid line is age 4; the 4–12 band was said to serve the kitchen's portion planning, but nothing uses it — no price is computed from age (C8), and the kitchen list counts dishes, not ages (FR-45). The age shows only as a label: the completion form, the admin's booking page, the participant list and the guest's summary email.
+
+**Decision (client).** Two groups: **Barn (0–3)**, free, and **Vuxen (4+)**, the standard per-person rate. The line the client prices by is unchanged, so **no price changes** — only the unused 4–12 band goes.
+
+**Built.** `AgeCategory` is `Adult` / `Child`; `Infant` is gone and `Child` now means 0–3, the client's own word. The labels live once, in `BookingDisplay.AgeLabel` — the completion form and the admin page each kept their own copy, now delegating to it — and both age dropdowns list the enum (`Enum.GetValues`) rather than a hand-kept array. Data migration `TwoAgeGroups`: the old 4–12 rows become `Adult` first, then the old `Infant` rows become `Child`; exact, because the 0–3 band is the same on both sides. The SRS §5.1/5.2 note claimed the tier "is derived from" the age category, which read as if the system priced by age; it now says the admin reads it off the participant list (C8).
+
+**Docs.** §5.1, §5.2, FR-57, FR-58, §8.5, `erd.md`. **Terms / privacy.** None — neither names an age band; the policy's "ålderskategori" stays true. **Azure cost.** None.
+
 ---
 
 ## Manual test before the prod deploy
@@ -279,6 +292,13 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] `/boka`: request **2027-09-06 → 2027-09-08**. Admin → open it, tick a building, **Godkänn** → the dialog says *"Slutförandelänken skickas automatiskt 21 dagar före ankomst."*; after confirming, the toast says the same. Mailpit: the approval email has **no link** and says *"…skickas till er 21 dagar före ankomst. Fram till dess behöver ni inte göra något."*
 - [ ] Admin → open **Johan Bergström** (17 days out): the rail shows a live link valid to **14 days before** his check-in. Open **Per Holmgren** (9 days out): the rail shows *"Kort varsel — 9 dagar till incheckning"*. **Godkänn** with any price → the dialog promises the link *"med slutförandelänk"*; the toast says the link is shortened; Mailpit: the approval email carries the link, valid to **3 days before** his check-in.
 - [ ] Admin → **Handbok**: *Godkänna en förfrågan* says the link comes with the confirmation when at most **21 dagar** remain, otherwise at 21 dagar; *Mejlen systemet skickar*: the **Bokningsbekräftelse** and **Länk till formuläret** rows say **21 dagar**.
+
+**Item 17 — two age groups** (branch `feat/two-age-groups`)
+- [ ] **Migration, before switching branch.** On `main`, start admin with `DemoSeed__Reset=true` → open **Anna Sjöberg**'s booking → Deltagare → **✎ Redigera** *Olle Sjöberg* → **Barn (0–3)** → **Klar**. *Maja Sjöberg* stays **Barn (4–12)**. Stop admin, switch to this branch, start admin **without** `DemoSeed__Reset` → same booking: *Anna*, *Erik* and *Maja* read **Vuxen (4+)**, *Olle* reads **Barn (0–3)**.
+- [ ] Same booking → **✎ Redigera** any participant: the Ålderskategori dropdown has exactly **Vuxen (4+)** and **Barn (0–3)**.
+- [ ] `/boka`: request **2027-10-04 → 2027-10-06**, full board, 2 guests. Admin → open it, tick a building, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit: each participant's age dropdown has exactly **Vuxen (4+)** (selected) and **Barn (0–3)**. Set the second to **Barn (0–3)**, fill the rest, submit → acknowledgement.
+- [ ] Mailpit, **Vi har tagit emot era uppgifter**: the second participant reads **Barn (0–3)**. Admin → that booking → **Deltagarlista** PDF and Excel: Ålder column **Vuxen (4+)** / **Barn (0–3)**.
+- [ ] **Staging, after the deploy** (temporary IP rule): open a booking with participants → ages read **Vuxen (4+)** / **Barn (0–3)**, none blank.
 
 ## To-do lists
 

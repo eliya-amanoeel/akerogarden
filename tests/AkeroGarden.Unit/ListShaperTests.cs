@@ -82,6 +82,21 @@ public class ListShaperTests
         Assert.Equal("2026-08-02", data.Participants[1].Attendance);
     }
 
+    /// <summary>The participant list is where the admin reads who stays free when working out the
+    /// price (§5.6, C8), so each row names the age group together with its band: the client prices
+    /// by one line — 0–3 free, 4 and over at the standard rate (§8.5).</summary>
+    [Fact]
+    public void ParticipantRow_ShowsTheAgeGroupWithItsBand()
+    {
+        var anna = Overnight("Anna");
+        var bo = Overnight("Bo");
+        bo.AgeCategory = AgeCategory.Child;
+
+        var data = ListShaper.Shape(Booking(anna, bo));
+
+        Assert.Equal(new[] { "Vuxen (4+)", "Barn (0–3)" }, data.Participants.Select(p => p.Age).ToArray());
+    }
+
     // ── Kitchen prep summary (FR-45) ──────────────────────────────────────────────
 
     [Fact]

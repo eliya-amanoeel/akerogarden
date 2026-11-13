@@ -220,7 +220,8 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
             { huvudZone, lillaZone, storaZone, smedjanZone, tallstuganZone, konferensZone, helaZone };
 
         // Real Åkerögården rate card (client-provided). No age-tiered discount beyond the
-        // system's own Infant-free rule (0–3 år) — 4 år and over all bill at the standard rate.
+        // client's one line: a Child (0–3 år) stays free, an Adult (4 år and over) bills at the
+        // standard rate (§8.5).
         var prices = new List<PriceRule>
         {
             Price("Lägerlogi med mat (helpension)", 550m, VatAccommodation, "per person och dygn", null),
@@ -493,7 +494,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddBuilding(details, singo);
         AddOvernight(details, "Anna Sjöberg", AgeCategory.Adult, [Allergy.Lactose], null);
         AddOvernight(details, "Erik Sjöberg", AgeCategory.Adult, [], null);
-        AddOvernight(details, "Maja Sjöberg", AgeCategory.Child, [Allergy.Nut], null);
+        AddOvernight(details, "Maja Sjöberg", AgeCategory.Adult, [Allergy.Nut], null);
         AddOvernight(details, "Olle Sjöberg", AgeCategory.Child, [], null);
         AddDayGuest(details, "Britt Sjöberg", AgeCategory.Adult, details.CheckIn!.Value.AddDays(1), [], null);
         // The group stayed for lunch on its departure day rather than the standard breakfast-only —
@@ -542,7 +543,7 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddOvernight(completed, "Margareta Holm", AgeCategory.Adult, [], null);
         AddOvernight(completed, "Gustav Holm", AgeCategory.Adult, [], null);
         AddOvernight(completed, "Elin Holm", AgeCategory.Adult, [], null);
-        AddOvernight(completed, "Nils Holm", AgeCategory.Child, [], null);
+        AddOvernight(completed, "Nils Holm", AgeCategory.Adult, [], null);
         AddOvernight(completed, "Alva Holm", AgeCategory.Child, [], null);
         AddDayGuest(completed, "Kerstin Ek", AgeCategory.Adult, completed.CheckIn!.Value.AddDays(1), [], null);
         AddDayGuest(completed, "Bengt Ek", AgeCategory.Adult, completed.CheckIn!.Value.AddDays(1),
@@ -573,8 +574,8 @@ public class DemoDataSeeder(ApplicationDbContext db, ILogger<DemoDataSeeder> log
         AddOvernight(reminderDue, "Ingrid Påminnelse", AgeCategory.Adult, [], null);
         AddOvernight(reminderDue, "Bertil Påminnelse", AgeCategory.Adult, [Allergy.Lactose], null);
         AddOvernight(reminderDue, "Stina Påminnelse", AgeCategory.Adult, [], null);
-        AddOvernight(reminderDue, "Karl Påminnelse", AgeCategory.Child, [], null);
-        AddOvernight(reminderDue, "Ester Påminnelse", AgeCategory.Child, [], null);
+        AddOvernight(reminderDue, "Karl Påminnelse", AgeCategory.Adult, [], null);
+        AddOvernight(reminderDue, "Ester Påminnelse", AgeCategory.Adult, [], null);
         AddOvernight(reminderDue, "Hugo Påminnelse", AgeCategory.Child, [], null);
         AddDayGuest(reminderDue, "Gunnel Vän", AgeCategory.Adult, today.AddDays(15), [], null);
         AddDayGuest(reminderDue, "Torsten Vän", AgeCategory.Adult, today.AddDays(15), [Allergy.Nut], null);

@@ -119,9 +119,8 @@ public static class BookingDisplay
 
     public static string AgeLabel(AgeCategory age) => age switch
     {
-        AgeCategory.Adult => "Vuxen (13+)",
-        AgeCategory.Child => "Barn (4–12)",
-        AgeCategory.Infant => "Barn (0–3)",
+        AgeCategory.Adult => "Vuxen (4+)",
+        AgeCategory.Child => "Barn (0–3)",
         _ => age.ToString()
     };
 

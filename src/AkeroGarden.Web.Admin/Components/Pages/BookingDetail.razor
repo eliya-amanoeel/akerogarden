@@ -355,7 +355,7 @@ else
                                     <div class="form-group">
                                         <label>Ålderskategori</label>
                                         <select @bind="edit.AgeCategory" @bind:after="SaveParticipants">
-                                            @foreach (var age in AgeCategories)
+                                            @foreach (var age in Enum.GetValues<AgeCategory>())
                                             {
                                                 <option value="@age">@AgeLabel(age)</option>
                                             }
@@ -935,8 +935,6 @@ else
         }
     }
 
-    private static readonly AgeCategory[] AgeCategories =
-        [AgeCategory.Adult, AgeCategory.Child, AgeCategory.Infant];
     // Allergies only — vegetarian/vegan are booking-level portion counts now, not per-person (§4.6).
     private static readonly Allergy[] AllergyOptions =
         [Allergy.Gluten, Allergy.Lactose, Allergy.Nut, Allergy.Other];
@@ -1094,13 +1092,7 @@ else
         await Load();
     }
 
-    private static string AgeLabel(AgeCategory age) => age switch
-    {
-        AgeCategory.Adult => "Vuxen (13+)",
-        AgeCategory.Child => "Barn (4–12)",
-        AgeCategory.Infant => "Barn (0–3)",
-        _ => age.ToString(),
-    };
+    private static string AgeLabel(AgeCategory age) => BookingDisplay.AgeLabel(age);
 
     private static string AllergyLabel(Allergy allergy) => BookingDisplay.AllergyLabel(allergy);
 

@@ -436,10 +436,10 @@ Pricing is **per person per night** based on the number of guests declared in th
 
 | Guest category | Price ex. VAT | Per |
 |---|---|---|
-| Adults and children aged 4 and over | 550 kr | Per person per night |
-| Children aged 3 and under | Free | Per night |
+| Adults — everyone aged 4 and over (`Adult`) | 550 kr | Per person per night |
+| Children aged 0–3 (`Child`) | Free | Per night |
 
-> The applicable tier (standard rate vs free infant) is derived from each overnight participant's `AgeCategory` (Section 8.5).
+> Which rate applies to whom is each overnight participant's `AgeCategory` (Section 8.5). The system computes nothing from it (C8): the admin reads it off the participant list (FR-44) when working out the price they enter (§5.6).
 
 ### 5.2 Accommodation Without Meals (Self-Catering)
 
@@ -447,11 +447,11 @@ Applies when the booking's `MealPlan` is `SelfCateringAll` (§4.1).
 
 | Guest category | Price ex. VAT | Per |
 |---|---|---|
-| Adults and children aged 4 and over | 250 kr | Per person per night |
-| Children aged 3 and under | Free | Per night |
+| Adults — everyone aged 4 and over (`Adult`) | 250 kr | Per person per night |
+| Children aged 0–3 (`Child`) | Free | Per night |
 | Kitchen use (self-catering guests) | 100 kr per person | Per day |
 
-> As in 5.1, the standard-rate vs free-infant tier is derived from each overnight participant's `AgeCategory` (Section 8.5).
+> As in 5.1, which rate applies to whom is each overnight participant's `AgeCategory` (Section 8.5), read by the admin — not computed (C8).
 
 ### 5.3 Cabins
 
@@ -672,8 +672,8 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | FR-54 | The completion page requires no account — the URL token is the sole authentication |
 | FR-55 | The completion form shall present meal options drawn from the current active admin-managed meal list, once per sitting for the whole group (FR-105). A `SelfCateringAll` booking has no meal selection section at all |
 | FR-56 | *(Removed 2026-08-06 — per-participant room assignment is withdrawn entirely. Who sleeps in which room is not information the property uses; the admin instead assigns whole lodging buildings before approval (FR-103) and the group divides itself among the rooms. This removes the room picker, the room-conflict detection and the `GuestChoosesRooms` flag. The guest is still shown which buildings and rooms are theirs — only the record of who occupies which room is dropped.)* |
-| FR-57 | The completion form shall collect per overnight participant, entered by the booking's contact person on everyone's behalf (not by each participant individually): full name (required for fire-safety/headcount purposes), age category (`Adult` / `Child` / `Infant`), and **allergies** (§4.6). Meal selection is **not** per participant — it is made once for the whole group (FR-105) — and dietary **preferences** are captured as counts on the booking, not per person (§4.6) |
-| FR-58 | The completion form shall collect per day guest: full name, age category (`Adult` / `Child` / `Infant`), attendance date (the single day they attend), and allergies (§4.6). Day guests make **no meal selection of their own** — they eat what the group eats (FR-105) — and **which meals day guests attend is one setting for the whole booking**, not per day guest (§4.2) |
+| FR-57 | The completion form shall collect per overnight participant, entered by the booking's contact person on everyone's behalf (not by each participant individually): full name (required for fire-safety/headcount purposes), age category (`Adult` / `Child`, §8.5), and **allergies** (§4.6). Meal selection is **not** per participant — it is made once for the whole group (FR-105) — and dietary **preferences** are captured as counts on the booking, not per person (§4.6) |
+| FR-58 | The completion form shall collect per day guest: full name, age category (`Adult` / `Child`, §8.5), attendance date (the single day they attend), and allergies (§4.6). Day guests make **no meal selection of their own** — they eat what the group eats (FR-105) — and **which meals day guests attend is one setting for the whole booking**, not per day guest (§4.2) |
 | FR-59 | *(Removed 2026-08-06 — obsolete once meal selection became group-level. This required a "Standard för hela gruppen" default that cascaded one choice across every participant, with per-participant override. Under FR-105 the choice **is** group-level by construction: there is nothing to cascade from and nothing to override. The "same for all days" shortcut it also described was retired on its own terms a day later — see §4.1.)* |
 | FR-60 | The completion form shall collect org/invoice details if applicable |
 | FR-61 | On submission the admin shall receive a summary of what the guest entered: the booking reference; the contact person's name, email and phone; the stated arrival and departure times and the assigned lodging building(s) and the meals day by day, **rendered by the same code as the guest's copy (FR-107)** so the two cannot describe the submission differently; and the group as **counts** — overnight participants, day guests, each kind of allergy with the number of participants who have it (a free-text note with no box ticked counts as "Annat", as on the kitchen list), and the dietary-preference counts — followed by a reminder to download the lists and a link to the booking in the admin panel. **No participant name and no allergy note appear in it.** *Why counts:* the email lands in the `info@` mailbox, which nothing deletes automatically and One.com cannot be set to; a named person's allergy there would be health data (GDPR art. 9) outliving the booking indefinitely, whereas a count tied to no name is not about anyone — the same reasoning that keeps dietary preferences as counts (§4.6). Who has which allergy is in the admin panel and the lists (FR-44/45), where it is deleted with the booking. It leaves out what is addressed to the guest only: the property's street address and the "contact us / the link is single-use" line |
@@ -916,7 +916,7 @@ Cleaning is priced **per physical building** (§8.14). Each cleaning zone links 
 | `BookingId` | GUID | Foreign key → Booking |
 | `FullName` | string | Required |
 | `ParticipantType` | Enum | `Overnight` \| `DayGuest` |
-| `AgeCategory` | Enum | `Adult \| Child \| Infant` — fixed system values. Age bands: `Infant` = 0–3 years (free), `Child` = 4–12, `Adult` = 13+. Pricing tier: `Adult` and `Child` bill at the standard per-person rate, `Infant` is free (the free/paid line is age 4). The Child/Adult split is for kitchen portion planning only and does not affect price |
+| `AgeCategory` | Enum | `Adult \| Child` — fixed system values, shown as *Vuxen (4+)* and *Barn (0–3)*. `Child` = 0–3 years and stays free; `Adult` = 4 and over and bills at the standard per-person rate (§5.1/5.2). **Two groups because the client prices by one line, at age 4** (client, 2026-11-13): a 4–12 band existed for kitchen portion planning, but nothing used it — the kitchen list counts dishes, not ages (FR-45) — so it was folded into `Adult` |
 | `AttendanceDate` | date? | Day guests only — the single date this day guest attends; null for overnight participants. A visitor attending multiple days is entered as one day-guest record per date (I12) |
 | `Allergies` | Enum[] | Multi-select — medical constraints only (§4.6). Special-category health data under GDPR art. 9; never duplicated into the audit trail (NFR-37) |
 | `AllergyNotes` | string | Free text, max 200 chars. Required when `OTHER` is ticked; may also stand alone or qualify another allergy. **A note is a declared allergy whether or not a box is ticked** (FR-110), so every screen, list and email that shows allergies shows it — beside "Annat" when that is ticked, otherwise appended |

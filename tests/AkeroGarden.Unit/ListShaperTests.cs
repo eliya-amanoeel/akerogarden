@@ -275,6 +275,22 @@ public class ListShaperTests
         Assert.Equal("—", ListShaper.Shape(Booking(p)).Participants[0].Dietary);
     }
 
+    // One rule for "declares an allergy" (§8.5, FR-110): the consent gate, the consent timestamp,
+    // the kitchen list and the admin view all read it, and it must agree with the summary — a
+    // participant is declared exactly when the summary is not "—". Allergy.None declares nothing.
+    [Theory]
+    [InlineData(new Allergy[0], null, false)]
+    [InlineData(new Allergy[0], "  ", false)]
+    [InlineData(new[] { Allergy.None }, null, false)]
+    [InlineData(new[] { Allergy.Nut }, null, true)]
+    [InlineData(new Allergy[0], "selleri", true)]
+    [InlineData(new[] { Allergy.Other }, "selleri", true)]
+    public void DeclaresAllergy_AgreesWithTheSummary(Allergy[] allergies, string? notes, bool expected)
+    {
+        Assert.Equal(expected, BookingDisplay.DeclaresAllergy(allergies, notes));
+        Assert.Equal(expected, BookingDisplay.AllergySummary(allergies, notes) != "—");
+    }
+
     // ── Dietary-preference counts (§4.6, FR-45) ───────────────────────────────────
 
     [Fact]

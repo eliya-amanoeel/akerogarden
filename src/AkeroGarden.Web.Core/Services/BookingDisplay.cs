@@ -167,8 +167,20 @@ public static class BookingDisplay
         return char.ToUpper(text[0], Sv) + text[1..];
     }
 
+    /// <summary>
+    /// Whether a participant declares an allergy at all: a ticked allergy, or a written note with or
+    /// without one (§8.5 — a note is a declared allergy whether or not a box is ticked). The one
+    /// rule behind the allergy consent (FR-110), the consent timestamp, the kitchen list's
+    /// special-diet rows (FR-45) and the admin's participant view, so none of them can disagree with
+    /// <see cref="AllergySummary"/>, which shows "—" exactly when this is false.
+    /// <see cref="Allergy.None"/> is not a declaration. <c>completion-form.js</c> applies the same
+    /// rule in the browser, only to decide when to show the consent box.
+    /// </summary>
+    public static bool DeclaresAllergy(IEnumerable<Allergy>? allergies, string? notes) =>
+        (allergies?.Any(a => a != Allergy.None) ?? false) || !string.IsNullOrWhiteSpace(notes);
+
     /// <summary>Joined Swedish allergy summary for a participant — the one rendering every screen,
-    /// list and email uses. Returns "—" only when nothing is declared.
+    /// list and email uses. Returns "—" only when nothing is declared (<see cref="DeclaresAllergy"/>).
     ///
     /// <para><b>A written note is always shown.</b> A note is a declared allergy whether or not a
     /// box is ticked (the completion form treats it so, FR-110), so it is folded into "Annat" when

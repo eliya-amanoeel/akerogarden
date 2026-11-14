@@ -227,8 +227,8 @@ public static class ParticipantTemplate
 
         // Name: text only, within the form's limit.
         var name = ws.Range(first, NameColumn, last, NameColumn).CreateDataValidation();
-        name.Custom($"AND(ISTEXT({Address(first, NameColumn)}),LEN({Address(first, NameColumn)})<={CompletionNormalizer.NameMaxLength})");
-        Explain(name, "Namn", $"Skriv namnet som text, högst {CompletionNormalizer.NameMaxLength} tecken.");
+        name.Custom($"AND(ISTEXT({Address(first, NameColumn)}),LEN({Address(first, NameColumn)})<={Participant.NameMaxLength})");
+        Explain(name, "Namn", $"Skriv namnet som text, högst {Participant.NameMaxLength} tecken.");
 
         var age = ws.Range(first, AgeColumn, last, AgeColumn).CreateDataValidation();
         age.List(lists.Ages, true);
@@ -246,8 +246,8 @@ public static class ParticipantTemplate
         Explain(allergies, "Allergi", $"Välj \"{Yes}\" eller lämna tomt.");
 
         var notes = ws.Range(first, NotesColumn(dayGuest), last, NotesColumn(dayGuest)).CreateDataValidation();
-        notes.TextLength.EqualOrLessThan(CompletionNormalizer.NoteMaxLength);
-        Explain(notes, "Allergianteckning", $"Högst {CompletionNormalizer.NoteMaxLength} tecken.");
+        notes.TextLength.EqualOrLessThan(Participant.NoteMaxLength);
+        Explain(notes, "Allergianteckning", $"Högst {Participant.NoteMaxLength} tecken.");
 
         // Red while a required cell is empty. Every overnight row is required; a day-guest row only
         // once something on it has been filled in, so the 100 spare rows stay white.

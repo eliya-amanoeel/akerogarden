@@ -34,9 +34,18 @@ public class Participant
 
     public Booking? Booking { get; set; }
 
+    /// <summary>The longest name a participant can have — the column's size, and the limit the
+    /// completion form, the admin's participant edit, the Excel template (FR-118) and the submit's
+    /// validation all apply. One number, so no input can accept a name the database refuses. The
+    /// attribute messages below must say the same number; a unit test holds them to it.</summary>
+    public const int NameMaxLength = 200;
+
+    /// <summary>The longest allergy note — the column's size, applied wherever a note is entered.</summary>
+    public const int NoteMaxLength = 200;
+
     /// <summary>Required for fire-safety/headcount purposes (FR-57).</summary>
     [Required(ErrorMessage = "Namn krävs.")]
-    [StringLength(200, ErrorMessage = "Namnet får vara högst 200 tecken.")]
+    [StringLength(NameMaxLength, ErrorMessage = "Namnet får vara högst 200 tecken.")]
     public string FullName { get; set; } = string.Empty;
 
     public ParticipantType ParticipantType { get; set; }
@@ -57,7 +66,8 @@ public class Participant
     /// (NFR-37).</para></summary>
     public List<Allergy> Allergies { get; set; } = [];
 
-    /// <summary>Free text for <see cref="Allergy.Other"/> (§4.6) — max 200 chars.</summary>
-    [StringLength(200, ErrorMessage = "Allergianteckningen får vara högst 200 tecken.")]
+    /// <summary>Free text (§4.6, §8.5) — required with <see cref="Allergy.Other"/>, and may also
+    /// stand alone or qualify another allergy; either way it is a declared allergy.</summary>
+    [StringLength(NoteMaxLength, ErrorMessage = "Allergianteckningen får vara högst 200 tecken.")]
     public string? AllergyNotes { get; set; }
 }

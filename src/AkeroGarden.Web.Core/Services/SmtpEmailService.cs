@@ -112,7 +112,7 @@ public class SmtpEmailService(
         var contactEmail = WebUtility.HtmlEncode(ContactDetails.Email);
         var siteUrl = _site.PublicBaseUrl.TrimEnd('/');
         var siteName = WebUtility.HtmlEncode(Uri.TryCreate(siteUrl, UriKind.Absolute, out var site) ? site.Host : siteUrl);
-        var privacyUrl = WebUtility.HtmlEncode($"{siteUrl}/integritetspolicy");
+        var privacyUrl = WebUtility.HtmlEncode(_site.PublicUrl("/integritetspolicy"));
         siteUrl = WebUtility.HtmlEncode(siteUrl);
 
         return htmlBody +

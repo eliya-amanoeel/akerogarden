@@ -80,6 +80,19 @@ public class ParticipantImportTests
         return stream.ToArray();
     }
 
+    /// <summary>A file with one more part added, as a guest's Excel or a crafted file might carry.</summary>
+    private static byte[] WithPart(byte[] file, string part, byte[] content)
+    {
+        var stream = new MemoryStream();
+        stream.Write(file);
+        using (var zip = new ZipArchive(stream, ZipArchiveMode.Update, leaveOpen: true))
+        {
+            using var entry = zip.CreateEntry(part).Open();
+            entry.Write(content);
+        }
+        return stream.ToArray();
+    }
+
     private static string Only(ParticipantImportResult result)
     {
         Assert.False(result.Succeeded);
@@ -465,5 +478,35 @@ public class ParticipantImportTests
         });
 
         Assert.Equal(ParticipantImport.Unreadable, Only(ParticipantImport.Read(file, Shape())));
+    }
+
+    [Fact]
+    public void A_dtd_in_a_part_not_named_xml_is_refused_too()
+    {
+        // Which parts are XML is judged by content, not name: a VML drawing is XML under its own
+        // extension, and a crafted file can name a part anything. Whitespace padding must not push
+        // the DTD past the check either. The next test proves an added part leaves the workbook
+        // readable, so this refusal comes from our check, not from the parser choking on the part.
+        var file = Filled(Shape(), (overnight, _) => Complete(overnight, 3));
+        var dtd = Encoding.UTF8.GetBytes(new string(' ', 500)
+            + "<!DOCTYPE xml [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]><xml>&xxe;</xml>");
+
+        Assert.Equal(ParticipantImport.Unreadable,
+            Only(ParticipantImport.Read(WithPart(file, "xl/drawings/vmlDrawing1.vml", dtd), Shape())));
+    }
+
+    [Fact]
+    public void A_binary_part_does_not_make_a_good_file_unreadable()
+    {
+        // Excel writes printer settings as a binary part that begins with a UTF-16 device name, so
+        // the XML check must leave non-XML parts alone rather than refuse an ordinary file.
+        var file = Filled(Shape(), (overnight, _) => Complete(overnight, 3));
+        var printerSettings = Encoding.Unicode.GetBytes("HP LaserJet").Concat(new byte[200]).ToArray();
+
+        var result = ParticipantImport.Read(
+            WithPart(file, "xl/printerSettings/printerSettings1.bin", printerSettings), Shape());
+
+        Assert.True(result.Succeeded);
+        Assert.Equal(3, result.Overnight.Count);
     }
 }

@@ -329,7 +329,7 @@ else
                                         <div class="participant-view__meta">
                                             @AgeLabel(edit.AgeCategory)
                                         </div>
-                                        @if (edit.Allergies.Count > 0 || !string.IsNullOrWhiteSpace(edit.AllergyNotes))
+                                        @if (BookingDisplay.DeclaresAllergy(edit.Allergies, edit.AllergyNotes))
                                         {
                                             <div class="participant-view__diet">
                                                 @foreach (var allergy in edit.Allergies)
@@ -349,7 +349,7 @@ else
                                     @* Text fields save when you leave them, not on every keystroke. *@
                                     <div class="form-group">
                                         <label>Namn</label>
-                                        <input @bind="edit.FullName" @bind:after="SaveParticipants" maxlength="200" />
+                                        <input @bind="edit.FullName" @bind:after="SaveParticipants" maxlength="@Participant.NameMaxLength" />
                                     </div>
 
                                     <div class="form-group">
@@ -376,7 +376,7 @@ else
 
                                     <div class="form-group">
                                         <label>Allergianteckning</label>
-                                        <input @bind="edit.AllergyNotes" @bind:after="SaveParticipants" maxlength="200" />
+                                        <input @bind="edit.AllergyNotes" @bind:after="SaveParticipants" maxlength="@Participant.NoteMaxLength" />
                                     </div>
 
                                     <button type="button" class="btn-outline btn-sm" @onclick="() => ToggleParticipantEdit(edit.Id)">Klar</button>

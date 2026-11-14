@@ -1,6 +1,9 @@
 using System.Text.RegularExpressions;
 using AkeroGarden.E2E.Infrastructure;
+using AkeroGarden.Web.Core.Data.Entities;
+using AkeroGarden.Web.Core.Services;
 using Deque.AxeCore.Playwright;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.Playwright;
 
 namespace AkeroGarden.E2E;
@@ -183,5 +186,67 @@ public class HomePageTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
             if (captureDir is not null)
                 await Page.ScreenshotAsync(new() { Path = Path.Combine(captureDir, $"home-{name}.png"), FullPage = true });
         }
+    }
+
+    [Fact]
+    public async Task Home_and_om_oss_count_the_lodging_rather_than_state_it()
+    {
+        // FR-81: every bed and house count on the public site is counted from the active rooms,
+        // never written into the copy. A typed number would survive this: the test adds one house
+        // with a known number of beds and requires all five places on the two pages to move by
+        // exactly that. The baseline is read off the page and checked for agreement first, so the
+        // test does not depend on what else the shared database holds.
+        const int addedBeds = 7;
+        var (beds, houses) = await ReadCapacityAsync();
+        await ExpectCapacityAsync(beds, houses);
+
+        var pb = new PhysicalBuilding { Id = Guid.NewGuid(), Name = $"E2E Räknehus {Guid.NewGuid():N}", IsActive = true };
+        var house = new Building { Id = Guid.NewGuid(), Name = "E2E Räknestuga", PhysicalBuildingId = pb.Id, IsActive = true };
+        house.Rooms.Add(new Room { Id = Guid.NewGuid(), BuildingId = house.Id, Name = "Rum 1", BedCount = addedBeds, IsActive = true });
+
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.PhysicalBuildings.Add(pb);
+            db.Buildings.Add(house);
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await ExpectCapacityAsync(beds + addedBeds, houses + 1);
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Rooms.Where(r => r.BuildingId == house.Id).ExecuteDeleteAsync();
+            await db.Buildings.Where(b => b.Id == house.Id).ExecuteDeleteAsync();
+            await db.PhysicalBuildings.Where(p => p.Id == pb.Id).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>The counts Om oss shows in its fact strip — "N hus" and "Upp till N".</summary>
+    private async Task<(int Beds, int Houses)> ReadCapacityAsync()
+    {
+        await Page.GotoAsync("/om-oss");
+        var nums = await Page.Locator(".facts .facts__num").AllInnerTextsAsync();
+        var houses = int.Parse(Regex.Match(nums.Single(n => n.EndsWith(" hus", StringComparison.Ordinal)), @"\d+").Value);
+        var beds = int.Parse(Regex.Match(nums.Single(n => n.StartsWith("Upp till", StringComparison.Ordinal)), @"\d+").Value);
+        return (beds, houses);
+    }
+
+    /// <summary>All five places that state the capacity, on both pages, say these numbers.</summary>
+    private async Task ExpectCapacityAsync(int beds, int houses)
+    {
+        await Page.GotoAsync("/");
+        await Assertions.Expect(Page.Locator(".hero__sub")).ToContainTextAsync($"till {beds} gäster");
+        await Assertions.Expect(Page.Locator(".trust-strip__num", new() { HasText = "Upp till" })).ToHaveTextAsync($"Upp till {beds}");
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = $"{SwedishNumbers.CapitalisedWord(houses)} hus, en gård" }))
+            .ToBeVisibleAsync();
+
+        await Page.GotoAsync("/om-oss");
+        await Assertions.Expect(Page.Locator("p", new() { HasText = "hus att bo i" }))
+            .ToContainTextAsync($"Gården har {SwedishNumbers.Word(houses)} hus att bo i, med sammanlagt plats för upp till {beds} gäster");
+        await Assertions.Expect(Page.Locator(".facts .facts__num", new() { HasText = " hus" })).ToHaveTextAsync($"{houses} hus");
+        await Assertions.Expect(Page.Locator(".facts .facts__num", new() { HasText = "Upp till" })).ToHaveTextAsync($"Upp till {beds}");
     }
 }

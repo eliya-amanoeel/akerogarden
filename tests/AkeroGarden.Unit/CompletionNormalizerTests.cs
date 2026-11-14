@@ -511,4 +511,33 @@ public class CompletionNormalizerTests
 
         Assert.Equal("Kerstin", Assert.Single(participants).FullName);
     }
+
+    // One limit per field, held on Participant: the column, the form's maxlength, the template and
+    // this validation all read the constant. Only the attribute's message has to spell the number
+    // out (an int cannot go into a constant string), so it is held to the constant here.
+    [Theory]
+    [InlineData(nameof(Participant.FullName), Participant.NameMaxLength)]
+    [InlineData(nameof(Participant.AllergyNotes), Participant.NoteMaxLength)]
+    public void Participant_column_limit_and_its_message_say_the_same_number(string property, int limit)
+    {
+        var attribute = typeof(Participant).GetProperty(property)!
+            .GetCustomAttributes(typeof(System.ComponentModel.DataAnnotations.StringLengthAttribute), false)
+            .Cast<System.ComponentModel.DataAnnotations.StringLengthAttribute>()
+            .Single();
+
+        Assert.Equal(limit, attribute.MaximumLength);
+        Assert.Contains($"högst {limit} tecken", attribute.ErrorMessage);
+    }
+
+    [Fact]
+    public void A_name_one_over_the_limit_is_refused_and_one_at_it_is_not()
+    {
+        var atLimit = CompletionNormalizer.ValidateOvernightEntry(
+            new OvernightParticipantEntry { FullName = new string('a', Participant.NameMaxLength) }, "Deltagare 1");
+        var overLimit = CompletionNormalizer.ValidateOvernightEntry(
+            new OvernightParticipantEntry { FullName = new string('a', Participant.NameMaxLength + 1) }, "Deltagare 1");
+
+        Assert.Empty(atLimit);
+        Assert.Equal($"Deltagare 1: namnet får vara högst {Participant.NameMaxLength} tecken.", Assert.Single(overLimit));
+    }
 }

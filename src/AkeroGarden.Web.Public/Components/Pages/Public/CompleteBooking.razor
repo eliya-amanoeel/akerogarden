@@ -184,8 +184,10 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                    comes back on the Excel side with its errors, a successful one on the rows with
                    the names filled in for checking. A refused submit always lands on the rows, so
                    errors about them are never hidden behind the other choice. The radios post a
-                   value the binder ignores. *@
-                <div class="entry-switch">
+                   value the binder ignores. The bare <div> is load-bearing: the switch pairs radios
+                   and tracks by position among siblings (design.md), so they need a parent of their
+                   own; it needs no class. *@
+                <div>
                     <input class="track-radio" type="radio" name="__entry" id="entry-manual" checked="@(!_excelActive)" />
                     <input class="track-radio" type="radio" name="__entry" id="entry-excel" checked="@_excelActive" />
                     <div class="segmented">
@@ -221,7 +223,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                        error banner be the single source of truth (consistent with the inquiry
                                        form), rather than a native browser bubble that suppresses our message. *@
                                     <input class="inp prow__name" name="Form.Overnight[@index].FullName" value="@entry.FullName"
-                                           maxlength="200" placeholder="Namn" aria-label="Namn för deltagare @(index + 1)" data-progress-name />
+                                           maxlength="@Participant.NameMaxLength" placeholder="Namn" aria-label="Namn för deltagare @(index + 1)" data-progress-name />
                                     <select class="inp prow__age" name="Form.Overnight[@index].AgeCategory" aria-label="Ålderskategori för deltagare @(index + 1)">
                                         @foreach (var age in Enum.GetValues<AgeCategory>())
                                         {
@@ -255,7 +257,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
 
                                     <div class="form-group">
                                         <label for="p@(index)-notes">Allergianteckning (om "Annat" eller övrigt)</label>
-                                        <textarea id="p@(index)-notes" name="Form.Overnight[@index].AllergyNotes" maxlength="200">@entry.AllergyNotes</textarea>
+                                        <textarea id="p@(index)-notes" name="Form.Overnight[@index].AllergyNotes" maxlength="@Participant.NoteMaxLength">@entry.AllergyNotes</textarea>
                                     </div>
                                 </div>
                             </div>
@@ -279,7 +281,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                                         <div class="form-row">
                                             <div class="form-group">
                                                 <label for="d@(di)-name">Namn</label>
-                                                <input id="d@(di)-name" name="Form.DayGuests[@di].FullName" value="@dg.FullName" maxlength="200" />
+                                                <input id="d@(di)-name" name="Form.DayGuests[@di].FullName" value="@dg.FullName" maxlength="@Participant.NameMaxLength" />
                                             </div>
                                             <div class="form-group">
                                                 <label for="d@(di)-age">Ålderskategori</label>
@@ -319,7 +321,7 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
 
                                         <div class="form-group">
                                             <label for="d@(di)-notes">Allergianteckning (om "Annat" eller övrigt)</label>
-                                            <textarea id="d@(di)-notes" name="Form.DayGuests[@di].AllergyNotes" maxlength="200">@dg.AllergyNotes</textarea>
+                                            <textarea id="d@(di)-notes" name="Form.DayGuests[@di].AllergyNotes" maxlength="@Participant.NoteMaxLength">@dg.AllergyNotes</textarea>
                                         </div>
                                     </div>
                                     <div class="pcard__actions">

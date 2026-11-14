@@ -19,7 +19,7 @@ brackets is the client's original numbering.
 | # | Change | Status | Size |
 |---|---|---|---|
 | 1 | [4] One.com access for the client | Recorded — maintainer does it, no code | none |
-| 2 | [6] "Husvagn" is a powered caravan pitch | Locked — client renames in admin; SRS wording only | none |
+| 2 | [6] "Husvagn" is a powered caravan pitch | Locked — client renames in admin; SRS wording ✅ done 2026-11-15 | none |
 | 3 | [3] New phone number | ✅ **Done** 2026-11-12 — awaiting deploy | XS |
 | 4 | [14] Sender shows as "Info" | ✅ **Done** 2026-11-12 — awaiting deploy | S |
 | 5 | [8] Remove the extra cleaning day | ✅ **Done** 2026-11-12 — awaiting deploy | S |
@@ -117,7 +117,7 @@ brackets is the client's original numbering.
 
 **Decision.** The admin gets **the guest's full summary** — participants with allergies, dietary counts, meals per day, lodging, times, address — **plus** the contact person's name, email and phone and the "Öppna bokningen i adminpanelen" link, **minus** the guest-only lines ("Behöver något ändras?…" and the single-use-link note). Subject unchanged: "Bokningsuppgifter inskickade (AG-…)".
 
-**Context.** `info@` is a One.com mailbox in the EU.
+**Context.** `info@` is a One.com mailbox in the EU. **The forward of `info@` to a Gmail account is gone, and the copies it had already forwarded are deleted** — confirmed by the maintainer 2026-11-15. That is what makes the privacy policy's §4/§5 true without the Gmail paragraph, which PR 116 removed; if `info@` is ever forwarded outside the EU again, the policy must say so first.
 
 **Privacy — check when built.** The email puts named participants' **allergies (health data, art. 9)** in the `info@` mailbox. The policy says allergy data is shared only with the staff who plan meals (via their system accounts) and is deleted with the booking; email in `info@` is not auto-deleted (§5). Policy wording needs to cover this. **Docs.** FR-61, FR-107, handbook. **Azure cost.** None.
 
@@ -225,7 +225,7 @@ Agreed from an HTML mockup. **Docs.** FR-116, handbook. **Terms / privacy.** Non
 - **Size:** a file over **1 MB** is refused (a filled template for 300 people is ~20–30 KB). *Corrected while building:* this was planned as a request limit on the endpoint, but the upload posts the whole form, so a guest who picked a photo by mistake would have landed on an error page and lost everything typed. The page checks the file's size before reading a byte and answers with a message instead; the server's built-in 30 MB request cap stays the hard ceiling, and a file part that large is buffered to disk by the framework, not memory. Because an `.xlsx` is a zip, what it **actually** unpacks to is counted **before** ClosedXML opens it and anything over **10 MB** is refused (zip bomb; a B1 instance must not lose the public site to one upload). At most **1,000 rows** per file — the form's own bound of 1,000 participants (§4.2, added by the gate below). The endpoint is only reachable with a valid completion link. *Corrected while building:* there is **no** rate limit on the completion form — NFR-04 covers the inquiry form only; the link is the gate.
 - **Macros:** never executed. VBA runs only in desktop Excel; ClosedXML reads XML. Macros are a danger only to whoever opens the file, and nobody does: it is read in memory and discarded, never stored, forwarded or emailed.
 - **Formulas:** never evaluated. A cell holding a formula is an error on that row.
-- **XML external entities:** not left to the library. Every XML part of the package is read once with DTDs prohibited before ClosedXML opens the workbook, so an entity declaration is refused by our own code; a test file carrying an external entity proves it.
+- **XML external entities:** not left to the library. Every XML part of the package — which parts are XML judged by their first bytes, not their names (completion gate 2026-11-15: the check first went by `.xml`/`.rels` and skipped e.g. a `.vml` drawing) — is read once with DTDs prohibited before ClosedXML opens the workbook, so an entity declaration is refused by our own code; a test file carrying an external entity proves it.
 - **Formula injection into the admin's Excel lists** (a name like `=HYPERLINK(…)`): this already exists today with typed input. Check that the list export writes text, never a formula, and add a test either way.
 - **The token in the template URL:** `/slutfor/{token}/mall.xlsx` and the upload endpoint must be covered by `TelemetryUrlRedactor`, or the bearer token reaches Application Insights (the post-launch review's finding).
 - **No file contents in logs:** errors carry row number and problem only, never a cell's value (allergies are health data).
@@ -290,7 +290,7 @@ Everything the next production deploy needs by hand, in the order it has to happ
 
 **Production — deploy night, ~22:00, finished well clear of 03:00** (the nightly jobs run inside admin; a restart across 03:00 skips that night)
 - [ ] 7. Temporary Key Vault *get/list* policy for yourself on `jmk-ag-prod-kv`. Read the four secrets into shell variables without printing them: `postgresAdminPassword`, `postgresAppPassword`, `smtpUsername`, `smtpPassword`; `seedAdminPassword=''`. The parameter files hold `REPLACE_AT_DEPLOY` placeholders — always override them (`infra/azure/README.md`).
-- [ ] 8. **What-if against production**, then apply `main.bicep` to production. What-if cannot show app-setting changes, so afterwards check with `az webapp config appsettings list` on both sites: `Site__PublicBaseUrl` / `Site__AdminBaseUrl` present, every `BookingEmail__…` gone. **From here until step 10 lands, links in any email sent are broken** — the running app still reads `BookingEmail__…`, so move straight on.
+- [ ] 8. **What-if against production**, then apply `main.bicep` to production. What-if cannot show app-setting changes, so afterwards check with `az webapp config appsettings list` on both sites: `Site__PublicBaseUrl` / `Site__AdminBaseUrl` present; `BookingEmail__PublicBaseUrl`, `BookingEmail__AdminBaseUrl` and `BookingEmail__ContactEmail` gone; **`BookingEmail__AdminNotificationEmail` still there** (`info@akerogarden.se`) — the app needs it, and without it no admin notification is sent. **From here until step 10 lands, links in any email sent are broken** — the running app still reads `BookingEmail__…`, so move straight on.
 - [ ] 9. Copy every blob from `facility-images` to `images` in the production storage account (temporary data-plane role as in step 5); list `images` and check the count matches. Production still reads `facility-images` until step 10, so nothing breaks in between.
 - [ ] 10. **Approve the production deploy** in Azure DevOps. Admin runs the three migrations at startup — allow ~15 minutes; a few public 500s in the first minutes are the known window before admin has migrated.
 - [ ] 11. Remove the temporary Key Vault policy and the data-plane role; `unset` the secret variables.
@@ -406,6 +406,13 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] **Ladda upp Excel-fil** → upload a PDF renamed to .xlsx → the page comes back on **Ladda upp Excel-fil** with the red error. Upload a good file with an allergy → the page comes back on **Skriv in här** with the blue note, the names filled in, and the allergy consent shown straight away.
 - [ ] Submit with a participant name empty → the red summary at the top, and the page is on **Skriv in här**.
 - [ ] `/boka`: **Boka en vistelse** / **Ställ en fråga** still switch as before (same switch, now shared).
+
+**Completion-gate fixes, 2026-11-15** (branch `fix/completion-gate-findings`) — mostly the same behaviour from one rule; these check nothing moved.
+- [ ] `/boka`: request **2027-12-06 → 2027-12-08**, full board, 2 guests. Admin → open it, tick a building, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit: give participant 2 **no box ticked**, only the note *selleri*, leave the consent unticked → **Skicka in uppgifter** → refused with *"Ni har angett allergier. Godkänn…"*. Tick the consent → acknowledgement.
+- [ ] Admin → that booking → **Deltagare**: participant 2 shows the chip *selleri*; participant 1 shows none. **Matlista**: participant 2 is listed under kostbehov with *selleri*.
+- [ ] Mailpit, any email: the signature's **Integritetspolicy** link opens `/integritetspolicy` on the public site.
+- [ ] Completion form → **Ladda upp Excel-fil** → **Ladda ner mall (Excel)**. In **Excel**, fill both rows, change **Utskriftsformat** to *Liggande* (page setup — Excel then stores printer settings in the file), save, upload → the blue note and the names filled in, not *"Filen kunde inte läsas"*.
+- [ ] Completion form at phone width and wide: the **Skriv in här** / **Ladda upp Excel-fil** switch still shows one side at a time.
 
 ## To-do lists
 

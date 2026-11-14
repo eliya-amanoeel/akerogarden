@@ -338,7 +338,7 @@ public class BookingService(
         // consent to processing that is not happening. `nowUtc` is the caller's clock, never
         // DateTime.UtcNow read here.
         var participantsDeclareAllergy = participants.Any(p =>
-            p.Allergies.Count > 0 || !string.IsNullOrWhiteSpace(p.AllergyNotes));
+            BookingDisplay.DeclaresAllergy(p.Allergies, p.AllergyNotes));
         booking.AllergyConsentAt = participantsDeclareAllergy ? nowUtc : null;
 
         // Persist the meal occasions the selections were built against, so the stored flags and the

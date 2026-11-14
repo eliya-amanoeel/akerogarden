@@ -9,7 +9,8 @@ namespace AkeroGarden.Web.Core.Services;
 /// (NFR-26, §6.6): the group's meal selections, the participant roster, and the booking-level
 /// dietary-preference counts. Mirrors <see cref="InquiryNormalizer"/> — the browser shows and hides
 /// controls, but these rules re-apply on the server regardless of what the client posts. A meal
-/// option of the wrong type, or one that is not currently active, is dropped; meals are accepted
+/// option that is not currently active is dropped (any active dish may be chosen at any sitting,
+/// §4.5); meals are accepted
 /// only for the sittings <see cref="MealOccasionResolver"/> resolved for the booking; a
 /// self-catering booking gets no meals at all. Snapshots
 /// (<see cref="BookingMealSelection.MealOptionSnapshot"/>) are captured here at build time (NFR-15).
@@ -21,13 +22,6 @@ namespace AkeroGarden.Web.Core.Services;
 /// </summary>
 public static class CompletionNormalizer
 {
-    /// <summary>The longest name a participant may have — the form's <c>maxlength</c> and the
-    /// participant template's text rule (FR-118) say the same.</summary>
-    public const int NameMaxLength = 200;
-
-    /// <summary>The longest allergy note a participant may have.</summary>
-    public const int NoteMaxLength = 200;
-
     /// <summary>
     /// Validates the submitted form against the booking's expected overnight count and the resolved
     /// meal occasions. Returns Swedish error messages (empty ⇒ valid). Kept separate from the
@@ -109,10 +103,8 @@ public static class CompletionNormalizer
         return [];
     }
 
-    /// <summary>Whether an entry declares any allergy at all — a ticked allergy or a written note.
-    /// The note counts: "Annat" plus free text is a declared allergy even with no box ticked.</summary>
     private static bool HasAllergy(IAllergyEntry entry) =>
-        (entry.Allergies?.Count ?? 0) > 0 || !string.IsNullOrWhiteSpace(entry.AllergyNotes);
+        BookingDisplay.DeclaresAllergy(entry.Allergies, entry.AllergyNotes);
 
     /// <summary>
     /// The dietary-preference counts are portions, so they cannot exceed the people present (§4.6),
@@ -213,8 +205,8 @@ public static class CompletionNormalizer
     {
         if (string.IsNullOrWhiteSpace(entry.FullName))
             yield return $"{label}: namn krävs.";
-        else if (entry.FullName.Trim().Length > NameMaxLength)
-            yield return $"{label}: namnet får vara högst {NameMaxLength} tecken.";
+        else if (entry.FullName.Trim().Length > Participant.NameMaxLength)
+            yield return $"{label}: namnet får vara högst {Participant.NameMaxLength} tecken.";
 
         foreach (var error in ValidateAllergies(entry, label))
             yield return error;
@@ -227,8 +219,8 @@ public static class CompletionNormalizer
     {
         if (string.IsNullOrWhiteSpace(entry.FullName))
             yield return $"{label}: namn krävs.";
-        else if (entry.FullName.Trim().Length > NameMaxLength)
-            yield return $"{label}: namnet får vara högst {NameMaxLength} tecken.";
+        else if (entry.FullName.Trim().Length > Participant.NameMaxLength)
+            yield return $"{label}: namnet får vara högst {Participant.NameMaxLength} tecken.";
 
         if (!TryParseDate(entry.AttendanceDate, out var date))
             yield return $"{label}: välj vilken dag gästen deltar.";
@@ -275,8 +267,8 @@ public static class CompletionNormalizer
         if (entry.Allergies?.Contains(Allergy.Other) == true && string.IsNullOrWhiteSpace(entry.AllergyNotes))
             yield return $"{label}: beskriv allergin i fältet för 'Annat'.";
 
-        if (!string.IsNullOrEmpty(entry.AllergyNotes) && entry.AllergyNotes.Length > NoteMaxLength)
-            yield return $"{label}: allergianteckningen får vara högst {NoteMaxLength} tecken.";
+        if (!string.IsNullOrEmpty(entry.AllergyNotes) && entry.AllergyNotes.Length > Participant.NoteMaxLength)
+            yield return $"{label}: allergianteckningen får vara högst {Participant.NoteMaxLength} tecken.";
     }
 
     /// <summary>A day-guest row with neither a name nor a date is treated as not filled in.</summary>

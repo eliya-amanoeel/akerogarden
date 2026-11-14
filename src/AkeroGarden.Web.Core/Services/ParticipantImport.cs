@@ -85,6 +85,17 @@ public static class ParticipantImport
     // The legacy binary .xls format (an OLE compound file) starts with these bytes.
     private static readonly byte[] OleSignature = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1];
 
+    // How an XML part can begin (see IsXml). UTF-8's byte-order mark, which is followed by text:
+    private static readonly byte[] Utf8Bom = [0xEF, 0xBB, 0xBF];
+
+    // The wide encodings, each conclusive on its own: the UTF-16 LE/BE and UTF-32 BE marks (UTF-32
+    // LE's begins FF FE), then '<' in UTF-16 LE/BE and UTF-32 BE (UTF-32 LE's begins 3C 00).
+    private static readonly byte[][] WideXmlStarts =
+    [
+        [0xFF, 0xFE], [0xFE, 0xFF], [0x00, 0x00, 0xFE, 0xFF],
+        [0x3C, 0x00], [0x00, 0x3C], [0x00, 0x00, 0x00, 0x3C],
+    ];
+
     public static ParticipantImportResult Read(byte[] file, ParticipantTemplateShape shape)
     {
         if (file.Length == 0)
@@ -164,17 +175,17 @@ public static class ParticipantImport
 
             // Every XML part is read once under our own settings before ClosedXML parses it, so a
             // DTD — the carrier of entity expansion and external entities (XXE) — is refused here,
-            // whatever the library underneath would have done with it.
+            // whatever the library underneath would have done with it. Which parts are XML is
+            // judged by their content (IsXml), never their names.
             foreach (var entry in zip.Entries)
             {
-                if (entry.FullName.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)
-                    || entry.FullName.EndsWith(".rels", StringComparison.OrdinalIgnoreCase))
+                if (!IsXml(entry))
+                    continue;
+
+                using var stream = entry.Open();
+                using var reader = XmlReader.Create(stream, SafeXml);
+                while (reader.Read())
                 {
-                    using var stream = entry.Open();
-                    using var reader = XmlReader.Create(stream, SafeXml);
-                    while (reader.Read())
-                    {
-                    }
                 }
             }
 
@@ -187,6 +198,38 @@ public static class ParticipantImport
         catch (XmlException)
         {
             return Unreadable;   // includes a DTD, which is prohibited below
+        }
+    }
+
+    /// <summary>
+    /// Whether a part is XML, judged by its first bytes. Not by its name: the file's author chooses
+    /// names, a VML drawing (<c>.vml</c>) is XML under another extension, and a part may be called
+    /// anything. Not "every part" either: Excel also writes binary parts — printer settings (which
+    /// begin with a UTF-16 device name), images, a thumbnail — and reading those as XML would refuse
+    /// an ordinary file. A part is XML when it begins with a UTF-16/32 byte-order mark or a
+    /// 16/32-bit '&lt;', or else — UTF-8 — with an optional mark, any amount of whitespace, and '&lt;'.
+    /// The whitespace is skipped without a cap, so padding cannot push a DTD past the look; the
+    /// package's unpacked size is already bounded when this runs.
+    /// </summary>
+    private static bool IsXml(ZipArchiveEntry entry)
+    {
+        using var stream = entry.Open();
+        var head = new byte[4];
+        var length = stream.ReadAtLeast(head, head.Length, throwOnEndOfStream: false);
+        var start = head.AsSpan(0, length);
+        foreach (var wide in WideXmlStarts)
+        {
+            if (start.StartsWith(wide))
+                return true;
+        }
+
+        var position = start.StartsWith(Utf8Bom) ? Utf8Bom.Length : 0;
+        while (true)
+        {
+            var b = position < length ? head[position++] : stream.ReadByte();
+            if (b is 0x20 or 0x09 or 0x0D or 0x0A)   // space, tab, CR, LF
+                continue;
+            return b == 0x3C;                          // '<'; -1 (empty, or only whitespace) is not XML
         }
     }
 

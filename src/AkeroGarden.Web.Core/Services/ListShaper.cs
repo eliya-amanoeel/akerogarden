@@ -161,7 +161,7 @@ public static class ListShaper
     /// list is <i>who</i> and <i>which days</i>.</para></summary>
     private static IReadOnlyList<SpecialDietRow> BuildSpecialDiets(IReadOnlyList<Participant> ordered) =>
         ordered
-            .Where(HasAllergy)
+            .Where(p => BookingDisplay.DeclaresAllergy(p.Allergies, p.AllergyNotes))
             .Select(p => new SpecialDietRow(
                 Name: p.FullName,
                 Type: BookingDisplay.ParticipantTypeLabel(p.ParticipantType),
@@ -170,10 +170,6 @@ public static class ListShaper
                     ? MealDateHeader(d)
                     : "Hela vistelsen"))
             .ToList();
-
-    private static bool HasAllergy(Participant p) =>
-        (p.Allergies?.Any(a => a != Allergy.None) ?? false)
-        || !string.IsNullOrWhiteSpace(p.AllergyNotes);
 
     /// <summary>Compact day label, e.g. "Mån 1/6".</summary>
     public static string MealDateHeader(DateOnly date)

@@ -33,7 +33,7 @@ brackets is the client's original numbering.
 | 13 | [2] One image per building and per room | ✅ **Done** 2026-11-13 — widened to a rebuilt `/faciliteter`; awaiting deploy | L (migration) |
 | 14 | [9] Participants via Excel upload | ✅ **Done** 2026-11-13 — awaiting deploy | L |
 | 15 | [15] Image gallery | Future — not designed | — |
-| 16 | "Anländ" status | Recorded only — added 2026-11-13, not yet discussed | — |
+| 16 | Remove the `Active` ("På plats") status | Future — analysed 2026-11-14, not scheduled | M (migration) |
 | 17 | Two age groups | ✅ **Done** 2026-11-13 — awaiting deploy | S (migration) |
 
 ---
@@ -238,9 +238,27 @@ Agreed from an HTML mockup. **Docs.** FR-116, handbook. **Terms / privacy.** Non
 
 **Recorded only, not designed.** When it comes up: it builds on item 13's upload and Blob storage (item 13 deliberately stays at one image per object so it doesn't become the gallery). Open then: where it lives, who curates it, how many images.
 
-## 16. "Anländ" status
+## 16. Remove the `Active` ("På plats") status — future
 
-**Recorded only, not yet discussed** — added by the maintainer on 2026-11-13. Today a group on site has the status `Active`, shown as **"På plats"** (§2.5).
+**Raised by the maintainer** on 2026-11-13 (first recorded as "Anländ", after the button *Markera anländ*), analysed 2026-11-14. **Not scheduled** — the maintainer leans towards removing the status entirely, provided it leaves no hole. Nothing is built.
+
+**Today (§2.5).** The admin moves `DetailsComplete` → `Active` with *Markera anländ*. Everywhere the system acts, `Active` is treated exactly as `DetailsComplete` — calendar occupancy (FR-10), cancellation and its notice (FR-76), the 14-day reminder, the completion link ("already submitted"), the Samordnare lists (FR-104), retention (FR-91). It changes only three things: the badge, one audit entry (`BookingMarkedArrived`), and it is the only way to reach *Markera avslutad*. No email, no job. It records by hand what the dates already say, and if the click is forgotten the booking reads "Uppgifter klara" through the stay.
+
+**The holes removal would leave, and their fixes (from the 2026-11-14 sweep).**
+- **Premature completion.** Neither click checks a date today — an admin can mark a stay months ahead arrived and finished, which sends the thank-you email and starts the 2-year retention clock. Without `Active` that is one click. Fix: the service refuses `Completed` before a date and the button appears only from it — proposed **check-out day** (the thank-you email says *tack för besöket*; retention runs from check-out either way). *Open: check-out or check-in day.*
+- **Stored rows.** `Status` is stored as text, so a production `Active` row would fail to load once the value is gone. Fix: a hand-written data migration `Active` → `DetailsComplete` (the `TwoAgeGroups` pattern); nothing is lost — the audit entry keeps the arrival.
+- **Audit history.** `AuditAction` is stored by name and the log is append-only. Keep `BookingMarkedArrived`, commented as no longer written.
+- **"På plats" becomes derived, not stored:** `DetailsComplete` with check-in ≤ today ≤ check-out, in the existing `BookingDisplay.StatusLabel/StatusBadgeClass(booking, today)` that every badge already goes through (item 10's overdue deposit is the same pattern). The badge token stays. It leaves the Bokningar status filter, as *Handpenning förfallen* is not in it.
+
+**Checked, no hole:** calendar, cancellation and its notices, reminders, completion link, Samordnare lists, retention, no-show (still a cancellation). **Terms / privacy:** none — the terms speak of *ankomst* as a date and neither text names a status. **Azure cost:** none.
+
+**Touches when built:** `BookingStatus`, `BookingStateMachine` (`DetailsComplete` → `Completed`), `BookingService` (`MarkArrivedAsync` goes, date gate on `MarkCompletedAsync`), `BookingDisplay`, `BookingDetail.razor`, `OccupancyProvider`, `ReminderSchedule`/`ReminderJob`, `CompletionAccessPolicy`, `ListShaper`, the demo seed's on-site booking, ~10 test files; SRS §2.5, FR-10, FR-76, FR-91, FR-102, FR-104; `booking-lifecycle-timeline.md`; the handbook (three places); `design.md`.
+
+**Two adjacent gaps, older than this item — decide whether they come with it:**
+- **A forgotten *Markera avslutad*** leaves the booking in a live state, never deleted (FR-91). Candidate: a derived "Utcheckad" label from the day after check-out, so it is noticed.
+- **A group that arrived without submitting details** stays `Approved` — it cannot be completed, only cancelled, and cancelling sends a cancellation email.
+
+**Optional input:** a count of *Bokningen markerades som anländ.* entries in the production audit log shows whether the client uses the button today — a routine change if they do, none if they don't. It does not block the decision.
 
 ## 17. Two age groups
 
@@ -380,6 +398,14 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] Admin → **Byggnader** → *Tallstugan* → **Inaktivera**. `/faciliteter`: **75 bäddar · 7 hus · 27 rum**, *Fristående stugor* has only Smedjan. Home `/`: hero *"…till 75 gäster…"*, trust strip **Upp till 75**, teaser heading **Sju hus, en gård**. `/om-oss`: *"Gården har sju hus att bo i, med sammanlagt plats för upp till 75 gäster…"*, facts **7 hus** and **Upp till 75**. **Aktivera** Tallstugan → back to 79 / åtta / 8.
 - [ ] Admin → **Handbok** → *Bilder på faciliteter, byggnader och rum*: names all three, the 4:3 shape and 1200 × 900; the **Byggnader** row mentions the counts and *Gemensamma utrymmen*.
 - [ ] **Staging, after the deploy** (temporary IP rule) — the production rehearsal: *Production deploy* steps 4–5, then `/faciliteter` shows staging's facility photos from the `images` container.
+
+**Smoke-test findings, 2026-11-14** (branch `fix/smoke-test-findings`)
+- [ ] `/boka`: request **2027-06-02 → 2027-06-05** and approve it (or use any taken dates). Request **2027-05-30 → 2027-06-02** → after **Skicka bokningsförfrågan** the page comes back with the red *"Datumet 2 juni är tyvärr upptaget…"* in the middle of the screen and the cursor in **Incheckning** — no scrolling.
+- [ ] Completion form (any approved booking → **Skicka slutförandelänk nu** → the link from Mailpit): the consent *"Jag godkänner att Åkerögården behandlar de allergier…"* is **not shown**. Open participant 1 → tick **Nötallergi** → it appears above *Skicka in uppgifter*; untick → it goes. Type *selleri* in the note → it appears; clear it → it goes.
+- [ ] Same form: under **Deltagare** the switch **Skriv in här** / **Ladda upp Excel-fil**; the rows show by default, no upload panel. **Ladda upp Excel-fil** → only the three steps, the template link and the file field; back → only the rows. *Vilka måltider deltar dagsgästerna på?* shows under the switch either way (full board).
+- [ ] **Ladda upp Excel-fil** → upload a PDF renamed to .xlsx → the page comes back on **Ladda upp Excel-fil** with the red error. Upload a good file with an allergy → the page comes back on **Skriv in här** with the blue note, the names filled in, and the allergy consent shown straight away.
+- [ ] Submit with a participant name empty → the red summary at the top, and the page is on **Skriv in här**.
+- [ ] `/boka`: **Boka en vistelse** / **Ställ en fråga** still switch as before (same switch, now shared).
 
 ## To-do lists
 

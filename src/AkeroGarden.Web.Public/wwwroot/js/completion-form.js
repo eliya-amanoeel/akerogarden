@@ -79,6 +79,34 @@
         update();
     });
 
+    // Allergy consent (FR-110) is needed only once an allergy is declared — a ticked box or a
+    // written note, for any participant or day guest — so it is shown only then. Delegated on the
+    // document so day-guest rows added by a postback are covered, and run on load so a form the
+    // server re-renders with allergies (an Excel upload, a refused submit) shows it at once. The
+    // server enforces the rule; showing it a little too eagerly is harmless, hiding it never is,
+    // so this errs on the side of showing.
+    var consent = document.getElementById("allergy-consent");
+    if (consent) {
+        function declaresAllergy() {
+            if (document.querySelector('input[type="checkbox"][name$="].Allergies"]:checked')) {
+                return true;
+            }
+            var notes = document.querySelectorAll('textarea[name$="].AllergyNotes"]');
+            for (var i = 0; i < notes.length; i++) {
+                if (notes[i].value.trim() !== "") {
+                    return true;
+                }
+            }
+            return false;
+        }
+        function syncConsent() {
+            consent.style.display = declaresAllergy() ? "" : "none";
+        }
+        document.addEventListener("change", syncConsent);
+        document.addEventListener("input", syncConsent);
+        syncConsent();
+    }
+
     // Show the organisation invoice fields only when "Fakturera en organisation" is checked
     // (mirrors inquiry-form.js). The server ignores these fields unless the box is checked
     // (SubmitCompletionAsync), so a JS-disabled submit with the panel always visible is still correct.

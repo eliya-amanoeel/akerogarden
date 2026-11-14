@@ -147,6 +147,29 @@ public class FunnelTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Taken_dates_are_refused_and_the_refusal_is_brought_into_view()
+    {
+        // Only the server can tell that dates are taken, so this refusal is a real post and the
+        // page reloads at the top. It used to leave the message mid-page, out of sight below the
+        // contact fields (smoke test 2026-11-14). The fixture's Approved completion bookings hold
+        // today+30 through today+32; +31 is held whichever side of midnight either clock reads.
+        await Page.GotoAsync("/boka");
+        await FillValidStayFormAsync(Page);
+        var checkIn = DateTime.UtcNow.Date.AddDays(31);
+        await Page.FillAsync("#s-checkin", checkIn.ToString("yyyy-MM-dd"));
+        await Page.FillAsync("#s-checkout", checkIn.AddDays(2).ToString("yyyy-MM-dd"));
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
+
+        // "upptaget" for one taken date, "upptagna" for several — the subject here is where the
+        // message lands, not its wording, so either form will do.
+        var refusal = Page.Locator(".form-error[role='alert']", new() { HasText = "tyvärr upptag" });
+        await Assertions.Expect(refusal).ToBeVisibleAsync();
+        await Assertions.Expect(refusal).ToBeInViewportAsync();
+        await Assertions.Expect(Page.Locator("#s-checkin")).ToBeFocusedAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Tack!" })).Not.ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task Organisation_without_a_name_is_blocked()
     {
         // OrgName is Conditional (§8): ticking "for an organisation" makes naming it required.

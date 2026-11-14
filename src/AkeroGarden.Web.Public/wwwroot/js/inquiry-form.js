@@ -200,4 +200,20 @@
 
     enhanceForm('StayModel', stayFields);
     enhanceForm('GeneralModel', generalFields);
+
+    // Bring a server-side refusal into view. Everything above stops a wrong field before it posts,
+    // but some checks only the server can make — chiefly whether the dates are free — and a refused
+    // post reloads the page at the top, leaving the message mid-page below the contact fields
+    // (smoke test 2026-11-14). On load, take the first message the server rendered, centre it and
+    // put the cursor in the field it is about, the same way a client-side refusal does.
+    function revealServerError() {
+        var err = document.querySelector('form .form-error[role="alert"], form .validation-message:not(:empty)');
+        if (!err) return;
+        var group = err.closest('.form-group');
+        var scope = group || err.previousElementSibling;
+        var input = scope && scope.querySelector('input:not([type="hidden"]), select, textarea');
+        if (input) input.focus({ preventScroll: true });
+        err.scrollIntoView({ block: 'center' });
+    }
+    revealServerError();
 })();

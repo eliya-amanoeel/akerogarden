@@ -175,115 +175,205 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                     </div>
                 }
 
-                <h2 id="deltagare">Deltagare med övernattning</h2>
-                <p class="sec-note">Namn krävs för alla deltagare. Fäll ut en person bara om hen har en allergi att anmäla.</p>
+                <h2 id="deltagare">Deltagare</h2>
+                <p class="sec-note">Fyll i dem här, eller i en Excel-fil om ni är många.</p>
 
-                @* Participants by Excel (FR-118). The upload is one more round trip of this same form,
-                   like adding a day guest: it fills the rows below and never submits. Everything else
-                   the guest has entered posts with it and comes back unchanged. *@
-                <div class="group-default">
-                    <h3>Många deltagare? Fyll i en Excel-fil</h3>
-                    <p>
-                        Ladda ner mallen, fyll i alla deltagare@(_dayGuestsApplicable ? " och dagsgäster" : "")
-                        och ladda upp den här. Uppgifterna fylls i formuläret nedan — inget skickas förrän du
-                        trycker på <b>Skicka in uppgifter</b>. En uppladdning ersätter alla deltagare@(_dayGuestsApplicable ? " och dagsgäster" : "")
-                        som redan står i formuläret.
-                    </p>
-                    <p><a href="@($"/slutfor/{Token}/mall.xlsx")" download>Ladda ner mall (Excel)</a></p>
-
-                    @if (_importErrors.Count > 0)
-                    {
-                        <div class="alert alert--error alert--stacked" role="alert">
-                            <strong>Inget har fyllts i. Rätta följande i filen och ladda upp den igen:</strong>
-                            <ul class="alert__list">
-                                @foreach (var error in _importErrors)
-                                {
-                                    <li>@error</li>
-                                }
-                            </ul>
-                        </div>
-                    }
-                    else if (_importNotice is not null)
-                    {
-                        <div class="alert alert--info" role="status">
-                            <span class="alert__ic" aria-hidden="true">i</span>
-                            <span>@_importNotice</span>
-                        </div>
-                    }
-
-                    <div class="form-group">
-                        <label for="participant-file">Ifylld mall</label>
-                        <input id="participant-file" type="file" name="Upload"
-                               accept=".xlsx,@ParticipantTemplate.ContentType" />
+                @* Two ways to enter the participants, one shown at a time (smoke test 2026-11-14 —
+                   with both on screen the guest could not tell which to use). The /boka segmented
+                   switch, CSS-only so it works without JS. The rows are the default; a failed upload
+                   comes back on the Excel side with its errors, a successful one on the rows with
+                   the names filled in for checking. A refused submit always lands on the rows, so
+                   errors about them are never hidden behind the other choice. The radios post a
+                   value the binder ignores. *@
+                <div class="entry-switch">
+                    <input class="track-radio" type="radio" name="__entry" id="entry-manual" checked="@(!_excelActive)" />
+                    <input class="track-radio" type="radio" name="__entry" id="entry-excel" checked="@_excelActive" />
+                    <div class="segmented">
+                        <label class="segmented__btn" for="entry-manual">Skriv in här</label>
+                        <label class="segmented__btn" for="entry-excel">Ladda upp Excel-fil</label>
                     </div>
-                    <button type="submit" name="Action" value="import"
-                            formaction="@($"/slutfor/{Token}#deltagare")" class="btn-outline" formnovalidate>Fyll i från filen</button>
-                </div>
 
-                <p class="completion-rowcount">@_form.Overnight.Count deltagare</p>
+                    <div class="track track--manual">
+                        @if (_importNotice is not null)
+                        {
+                            <div class="alert alert--info" role="status">
+                                <span class="alert__ic" aria-hidden="true">i</span>
+                                <span>@_importNotice</span>
+                            </div>
+                        }
 
-                @for (var i = 0; i < _form.Overnight.Count; i++)
-                {
-                    var index = i;
-                    var entry = _form.Overnight[index];
-                    <div class="prow" role="group" aria-label="Deltagare @(index + 1)">
-                        @* Collapse toggle (CSS-only, SSR-safe). Focusable so keyboard users can expand;
-                           the visual label shows the focus ring. Name + age stay outside the collapse. *@
-                        <input class="prow__toggle-cb" type="checkbox" id="exp-@index"
-                               aria-label="Visa allergier för deltagare @(index + 1)" />
-                        <div class="prow__head">
-                            <span class="prow__badge">@(index + 1)</span>
-                            @* No native `required`: let the server-side CompletionNormalizer + the styled
-                               error banner be the single source of truth (consistent with the inquiry
-                               form), rather than a native browser bubble that suppresses our message. *@
-                            <input class="inp prow__name" name="Form.Overnight[@index].FullName" value="@entry.FullName"
-                                   maxlength="200" placeholder="Namn" aria-label="Namn för deltagare @(index + 1)" data-progress-name />
-                            <select class="inp prow__age" name="Form.Overnight[@index].AgeCategory" aria-label="Ålderskategori för deltagare @(index + 1)">
-                                @foreach (var age in Enum.GetValues<AgeCategory>())
-                                {
-                                    <option value="@age" selected="@(entry.AgeCategory == age)">@AgeLabel(age)</option>
-                                }
-                            </select>
-                            @* The closed row must say whether an allergy is recorded. Hiding a
-                               safety field behind a toggle that looks identical either way is how a
-                               nut allergy gets entered, collapsed, and never seen again. Rendered
-                               server-side so it survives a postback; completion-form.js keeps it in
-                               step as boxes are ticked. *@
-                            <label class="prow__toggle" for="exp-@index" data-allergy-label="@index">
-                                <span class="chev" aria-hidden="true">›</span>
-                                <span data-allergy-summary="@index">@AllergyToggleText(entry)</span>
-                            </label>
-                        </div>
-                        <div class="prow__body">
-                            <div class="form-group">
-                                <span class="field-label">Allergier</span>
-                                <div class="diet">
-                                    @foreach (var allergy in AllergyOptions)
-                                    {
-                                        <label>
-                                            <input type="checkbox" name="Form.Overnight[@index].Allergies" value="@allergy"
-                                                   checked="@entry.Allergies.Contains(allergy)" />
-                                            @AllergyLabel(allergy)
-                                        </label>
-                                    }
+                        <h3>Deltagare med övernattning</h3>
+                        <p class="sec-note">Namn krävs för alla deltagare. Fäll ut en person bara om hen har en allergi att anmäla.</p>
+                        <p class="completion-rowcount">@_form.Overnight.Count deltagare</p>
+
+                        @for (var i = 0; i < _form.Overnight.Count; i++)
+                        {
+                            var index = i;
+                            var entry = _form.Overnight[index];
+                            <div class="prow" role="group" aria-label="Deltagare @(index + 1)">
+                                @* Collapse toggle (CSS-only, SSR-safe). Focusable so keyboard users can expand;
+                                   the visual label shows the focus ring. Name + age stay outside the collapse. *@
+                                <input class="prow__toggle-cb" type="checkbox" id="exp-@index"
+                                       aria-label="Visa allergier för deltagare @(index + 1)" />
+                                <div class="prow__head">
+                                    <span class="prow__badge">@(index + 1)</span>
+                                    @* No native `required`: let the server-side CompletionNormalizer + the styled
+                                       error banner be the single source of truth (consistent with the inquiry
+                                       form), rather than a native browser bubble that suppresses our message. *@
+                                    <input class="inp prow__name" name="Form.Overnight[@index].FullName" value="@entry.FullName"
+                                           maxlength="200" placeholder="Namn" aria-label="Namn för deltagare @(index + 1)" data-progress-name />
+                                    <select class="inp prow__age" name="Form.Overnight[@index].AgeCategory" aria-label="Ålderskategori för deltagare @(index + 1)">
+                                        @foreach (var age in Enum.GetValues<AgeCategory>())
+                                        {
+                                            <option value="@age" selected="@(entry.AgeCategory == age)">@AgeLabel(age)</option>
+                                        }
+                                    </select>
+                                    @* The closed row must say whether an allergy is recorded. Hiding a
+                                       safety field behind a toggle that looks identical either way is how a
+                                       nut allergy gets entered, collapsed, and never seen again. Rendered
+                                       server-side so it survives a postback; completion-form.js keeps it in
+                                       step as boxes are ticked. *@
+                                    <label class="prow__toggle" for="exp-@index" data-allergy-label="@index">
+                                        <span class="chev" aria-hidden="true">›</span>
+                                        <span data-allergy-summary="@index">@AllergyToggleText(entry)</span>
+                                    </label>
+                                </div>
+                                <div class="prow__body">
+                                    <div class="form-group">
+                                        <span class="field-label">Allergier</span>
+                                        <div class="diet">
+                                            @foreach (var allergy in AllergyOptions)
+                                            {
+                                                <label>
+                                                    <input type="checkbox" name="Form.Overnight[@index].Allergies" value="@allergy"
+                                                           checked="@entry.Allergies.Contains(allergy)" />
+                                                    @AllergyLabel(allergy)
+                                                </label>
+                                            }
+                                        </div>
+                                    </div>
+
+                                    <div class="form-group">
+                                        <label for="p@(index)-notes">Allergianteckning (om "Annat" eller övrigt)</label>
+                                        <textarea id="p@(index)-notes" name="Form.Overnight[@index].AllergyNotes" maxlength="200">@entry.AllergyNotes</textarea>
+                                    </div>
                                 </div>
                             </div>
+                        }
+
+                        @if (_dayGuestsApplicable)
+                        {
+                            <h3 id="dagsgaster">Dagsgäster</h3>
+                            <p class="sec-note">Deltar endast på måltider (ingen övernattning). Lägg till en rad per person och dag. De äter samma rätt som gruppen.</p>
+
+                            @for (var d = 0; d < _form.DayGuests.Count; d++)
+                            {
+                                var di = d;
+                                var dg = _form.DayGuests[di];
+                                <div class="pcard" role="group" aria-label="Dagsgäst @(di + 1)">
+                                    <div class="pcard__head">
+                                        <span class="pcard__badge pcard__badge--day">D@(di + 1)</span>
+                                        <span class="pcard__title">Dagsgäst @(di + 1)</span>
+                                    </div>
+                                    <div class="pcard__body">
+                                        <div class="form-row">
+                                            <div class="form-group">
+                                                <label for="d@(di)-name">Namn</label>
+                                                <input id="d@(di)-name" name="Form.DayGuests[@di].FullName" value="@dg.FullName" maxlength="200" />
+                                            </div>
+                                            <div class="form-group">
+                                                <label for="d@(di)-age">Ålderskategori</label>
+                                                <select id="d@(di)-age" name="Form.DayGuests[@di].AgeCategory">
+                                                    @foreach (var age in Enum.GetValues<AgeCategory>())
+                                                    {
+                                                        <option value="@age" selected="@(dg.AgeCategory == age)">@AgeLabel(age)</option>
+                                                    }
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="d@(di)-date">Dag</label>
+                                            <select id="d@(di)-date" name="Form.DayGuests[@di].AttendanceDate">
+                                                <option value="">– välj dag –</option>
+                                                @foreach (var date in _stayDates)
+                                                {
+                                                    var iso = date.ToString("yyyy-MM-dd");
+                                                    <option value="@iso" selected="@(dg.AttendanceDate == iso)">@BookingDisplay.DayLabel(date)</option>
+                                                }
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <span class="field-label">Allergier</span>
+                                            <div class="diet">
+                                                @foreach (var allergy in AllergyOptions)
+                                                {
+                                                    <label>
+                                                        <input type="checkbox" name="Form.DayGuests[@di].Allergies" value="@allergy" checked="@dg.Allergies.Contains(allergy)" />
+                                                        @AllergyLabel(allergy)
+                                                    </label>
+                                                }
+                                            </div>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label for="d@(di)-notes">Allergianteckning (om "Annat" eller övrigt)</label>
+                                            <textarea id="d@(di)-notes" name="Form.DayGuests[@di].AllergyNotes" maxlength="200">@dg.AllergyNotes</textarea>
+                                        </div>
+                                    </div>
+                                    <div class="pcard__actions">
+                                        <button type="submit" name="Action" value="remove-dayguest:@di"
+                                                formaction="@($"/slutfor/{Token}#dagsgaster")" class="btn-ghost" formnovalidate>Ta bort dagsgäst</button>
+                                    </div>
+                                </div>
+                            }
+
+                            <button type="submit" name="Action" value="add-dayguest"
+                                    formaction="@($"/slutfor/{Token}#dagsgaster")" class="btn-outline" formnovalidate>+ Lägg till dagsgäst</button>
+                        }
+                    </div>
+
+                    @* Participants by Excel (FR-118). The upload is one more round trip of this same
+                       form, like adding a day guest: it fills the rows and never submits. Everything
+                       else the guest has entered posts with it and comes back unchanged. *@
+                    <div class="track track--excel">
+                        <div class="group-default">
+                            <ol>
+                                <li><a href="@($"/slutfor/{Token}/mall.xlsx")" download>Ladda ner mall (Excel)</a> — den är gjord för just er bokning.</li>
+                                <li>Fyll i alla deltagare@(_dayGuestsApplicable ? " och dagsgäster" : "") och spara filen.</li>
+                                <li>Ladda upp den här. Namnen fylls i under <b>Skriv in här</b>, där ni kontrollerar dem innan något skickas. En uppladdning ersätter alla deltagare@(_dayGuestsApplicable ? " och dagsgäster" : "") som redan står där.</li>
+                            </ol>
+
+                            @if (_importErrors.Count > 0)
+                            {
+                                <div class="alert alert--error alert--stacked" role="alert">
+                                    <strong>Inget har fyllts i. Rätta följande i filen och ladda upp den igen:</strong>
+                                    <ul class="alert__list">
+                                        @foreach (var error in _importErrors)
+                                        {
+                                            <li>@error</li>
+                                        }
+                                    </ul>
+                                </div>
+                            }
 
                             <div class="form-group">
-                                <label for="p@(index)-notes">Allergianteckning (om "Annat" eller övrigt)</label>
-                                <textarea id="p@(index)-notes" name="Form.Overnight[@index].AllergyNotes" maxlength="200">@entry.AllergyNotes</textarea>
+                                <label for="participant-file">Ifylld mall</label>
+                                <input id="participant-file" type="file" name="Upload"
+                                       accept=".xlsx,@ParticipantTemplate.ContentType" />
                             </div>
+                            <button type="submit" name="Action" value="import"
+                                    formaction="@($"/slutfor/{Token}#deltagare")" class="btn-outline" formnovalidate>Fyll i från filen</button>
                         </div>
                     </div>
-                }
+                </div>
 
                 @if (_dayGuestsApplicable)
                 {
-                    <h2 id="dagsgaster">Dagsgäster</h2>
-                    <p class="sec-note">Deltar endast på måltider (ingen övernattning). Lägg till en rad per person och dag. De äter samma rätt som gruppen.</p>
-
                     @* Which meals day guests attend is one setting for the whole booking (§4.2) —
-                       the property does not see cases where one day guest eats more than another. *@
+                       the property does not see cases where one day guest eats more than another.
+                       Outside the switch: it is not in the Excel file, so it is asked either way. *@
                     <div class="form-group">
                         <span class="field-label">Vilka måltider deltar dagsgästerna på?</span>
                         <p class="sec-note">Gäller alla dagsgäster, oavsett vilken dag de kommer.</p>
@@ -293,72 +383,6 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                             <label><input type="checkbox" name="Form.DayGuestDinner" value="true" checked="@_form.DayGuestDinner" /><input type="hidden" name="Form.DayGuestDinner" value="false" /> Middag</label>
                         </div>
                     </div>
-
-                    @for (var d = 0; d < _form.DayGuests.Count; d++)
-                    {
-                        var di = d;
-                        var dg = _form.DayGuests[di];
-                        <div class="pcard" role="group" aria-label="Dagsgäst @(di + 1)">
-                            <div class="pcard__head">
-                                <span class="pcard__badge pcard__badge--day">D@(di + 1)</span>
-                                <span class="pcard__title">Dagsgäst @(di + 1)</span>
-                            </div>
-                            <div class="pcard__body">
-                                <div class="form-row">
-                                    <div class="form-group">
-                                        <label for="d@(di)-name">Namn</label>
-                                        <input id="d@(di)-name" name="Form.DayGuests[@di].FullName" value="@dg.FullName" maxlength="200" />
-                                    </div>
-                                    <div class="form-group">
-                                        <label for="d@(di)-age">Ålderskategori</label>
-                                        <select id="d@(di)-age" name="Form.DayGuests[@di].AgeCategory">
-                                            @foreach (var age in Enum.GetValues<AgeCategory>())
-                                            {
-                                                <option value="@age" selected="@(dg.AgeCategory == age)">@AgeLabel(age)</option>
-                                            }
-                                        </select>
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="d@(di)-date">Dag</label>
-                                    <select id="d@(di)-date" name="Form.DayGuests[@di].AttendanceDate">
-                                        <option value="">– välj dag –</option>
-                                        @foreach (var date in _stayDates)
-                                        {
-                                            var iso = date.ToString("yyyy-MM-dd");
-                                            <option value="@iso" selected="@(dg.AttendanceDate == iso)">@BookingDisplay.DayLabel(date)</option>
-                                        }
-                                    </select>
-                                </div>
-
-                                <div class="form-group">
-                                    <span class="field-label">Allergier</span>
-                                    <div class="diet">
-                                        @foreach (var allergy in AllergyOptions)
-                                        {
-                                            <label>
-                                                <input type="checkbox" name="Form.DayGuests[@di].Allergies" value="@allergy" checked="@dg.Allergies.Contains(allergy)" />
-                                                @AllergyLabel(allergy)
-                                            </label>
-                                        }
-                                    </div>
-                                </div>
-
-                                <div class="form-group">
-                                    <label for="d@(di)-notes">Allergianteckning (om "Annat" eller övrigt)</label>
-                                    <textarea id="d@(di)-notes" name="Form.DayGuests[@di].AllergyNotes" maxlength="200">@dg.AllergyNotes</textarea>
-                                </div>
-                            </div>
-                            <div class="pcard__actions">
-                                <button type="submit" name="Action" value="remove-dayguest:@di"
-                                        formaction="@($"/slutfor/{Token}#dagsgaster")" class="btn-ghost" formnovalidate>Ta bort dagsgäst</button>
-                            </div>
-                        </div>
-                    }
-
-                    <button type="submit" name="Action" value="add-dayguest"
-                            formaction="@($"/slutfor/{Token}#dagsgaster")" class="btn-outline" formnovalidate>+ Lägg till dagsgäst</button>
                 }
 
                 <h2>Städning</h2>
@@ -416,14 +440,16 @@ else if (_access == CompletionAccess.Valid && _booking is not null && _form is n
                    existed, that statement was simply untrue: allergies were collected here with no
                    consent control and no link to the policy anywhere on this page.
 
-                   Always rendered, required only when an allergy is actually declared
-                   (CompletionNormalizer.ValidateAllergyConsent). It is not hidden until an allergy is
-                   entered: the allergy fields are inside collapsed per-participant panels, so a
-                   checkbox appearing somewhere further down the page as a side effect of expanding
-                   one of them is a worse experience than one that is simply always there.
+                   Required only when an allergy is actually declared
+                   (CompletionNormalizer.ValidateAllergyConsent), so it is shown only then:
+                   completion-form.js hides it until a box is ticked or a note written, and runs on
+                   load, so a form filled from an Excel file with allergies shows it at once. A consent
+                   box nobody needs to tick reads as one everybody must (smoke test 2026-11-14).
+                   Rendered by the server either way, so without JS it is simply always there and can
+                   never be missing when it is needed.
 
                    Server-only gate — completion-form.js validates nothing, by design. *@
-                <div class="form-section">
+                <div class="form-section" id="allergy-consent">
                     <div class="form-group form-group--checkbox">
                         <label>
                             @* The hidden false companion is this page's idiom for every bool (see
@@ -527,6 +553,10 @@ else
     private IReadOnlyList<string> _errors = [];
     private IReadOnlyList<string> _importErrors = [];
     private string? _importNotice;
+
+    /// <summary>Which way of entering participants is shown: the Excel side only when an upload
+    /// was just refused, so its errors are in view; otherwise the rows.</summary>
+    private bool _excelActive => _importErrors.Count > 0;
     private bool _conferenceCleaningApplicable;
 
     // Allergies only. Vegetarian/vegan are portion counts on the booking now (§4.6) — a preference

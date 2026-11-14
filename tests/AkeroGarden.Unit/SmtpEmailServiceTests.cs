@@ -98,6 +98,7 @@ public class SmtpEmailServiceTests
 
         var html = svc.BuildMessage("ny.admin@example.se", "Ny Admin", "Ämne", "<p>Brödtext</p>").HtmlBody;
 
+        Assert.NotNull(html);
         Assert.StartsWith("<p>Brödtext</p><hr>", html);
         Assert.Equal(html.IndexOf("<p>Brödtext</p>", StringComparison.Ordinal),
             html.LastIndexOf("<p>Brödtext</p>", StringComparison.Ordinal));
@@ -127,6 +128,7 @@ public class SmtpEmailServiceTests
         Assert.False(string.IsNullOrEmpty(logo.ContentId));
         Assert.Contains($"<img src=\"cid:{logo.ContentId}\"", message.HtmlBody);
 
+        Assert.NotNull(logo.Content);
         using var bytes = new MemoryStream();
         logo.Content.DecodeTo(bytes);
         Assert.Equal(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A }, bytes.ToArray()[..8]);

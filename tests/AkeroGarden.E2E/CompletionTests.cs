@@ -95,6 +95,31 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Allergy_consent_is_shown_only_while_an_allergy_is_declared()
+    {
+        // FR-110: consent is required only when an allergy is declared, so it is shown only then —
+        // an always-visible consent nobody needs to tick read as one everybody must (smoke test
+        // 2026-11-14). Both kinds of declaration count: a ticked box and a written note.
+        await Page.GotoAsync(CompletionUrl);
+        var consent = Page.Locator("#allergy-consent");
+        var row = Page.Locator(".prow[aria-label='Deltagare 1']");
+        await Assertions.Expect(consent).Not.ToBeVisibleAsync();
+
+        await row.Locator(".prow__toggle").ClickAsync();
+        await row.Locator("input[value='Nut']").CheckAsync();
+        await Assertions.Expect(consent).ToBeVisibleAsync();
+
+        await row.Locator("input[value='Nut']").UncheckAsync();
+        await Assertions.Expect(consent).Not.ToBeVisibleAsync();
+
+        await row.Locator("textarea").FillAsync("selleri");
+        await Assertions.Expect(consent).ToBeVisibleAsync();
+
+        await row.Locator("textarea").FillAsync("");
+        await Assertions.Expect(consent).Not.ToBeVisibleAsync();
+    }
+
+    [Fact]
     public async Task Organisation_invoice_fields_are_hidden_until_the_checkbox_is_ticked()
     {
         // Regression for the smoke-test bug: the org invoice fields rendered regardless of the
@@ -226,12 +251,37 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task Typing_and_uploading_are_two_choices_shown_one_at_a_time()
+    {
+        // Smoke test 2026-11-14: with the upload panel and the rows both on screen the guest could
+        // not tell which to use. The rows are the default; choosing Excel shows only the upload.
+        await Page.GotoAsync(CompletionUrl);
+        var rows = Page.Locator(".prow[aria-label='Deltagare 1']");
+        var upload = Page.Locator("#participant-file");
+
+        await Assertions.Expect(rows).ToBeVisibleAsync();
+        await Assertions.Expect(upload).Not.ToBeVisibleAsync();
+
+        await ChooseExcelAsync();
+        await Assertions.Expect(upload).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Link, new() { Name = "Ladda ner mall (Excel)" })).ToBeVisibleAsync();
+        await Assertions.Expect(rows).Not.ToBeVisibleAsync();
+
+        await Page.Locator(".segmented__btn[for='entry-manual']").ClickAsync();
+        await Assertions.Expect(rows).ToBeVisibleAsync();
+        await Assertions.Expect(upload).Not.ToBeVisibleAsync();
+    }
+
+    private Task ChooseExcelAsync() => Page.Locator(".segmented__btn[for='entry-excel']").ClickAsync();
+
+    [Fact]
     public async Task Uploading_the_filled_template_fills_the_form_and_the_form_then_submits()
     {
         // FR-118, the whole journey: the guest downloads this booking's template from the form, fills
         // it in, uploads it, sees the rows filled, and submits through the ordinary validation. The
         // upload itself submits nothing — asserted by the form still being there afterwards.
         await Page.GotoAsync(Url(E2EFixture.CompletionUploadToken));
+        await ChooseExcelAsync();
 
         var download = await Page.RunAndWaitForDownloadAsync(() =>
             Page.GetByRole(AriaRole.Link, new() { Name = "Ladda ner mall (Excel)" }).ClickAsync());
@@ -262,6 +312,9 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
             await Page.Locator("#participant-file").SetInputFilesAsync(filled);
             await Page.GetByRole(AriaRole.Button, new() { Name = "Fyll i från filen" }).ClickAsync();
 
+            // A successful upload lands on the rows, filled in, so the guest checks them there.
+            await Assertions.Expect(Page.Locator(".track--manual")).ToBeVisibleAsync();
+            await Assertions.Expect(Page.Locator(".track--excel")).Not.ToBeVisibleAsync();
             await Assertions.Expect(Page.Locator(".alert--info"))
                 .ToContainTextAsync("2 deltagare och 1 dagsgäst har fyllts i från filen");
             await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name")).ToHaveValueAsync("Anna Andersson");
@@ -291,6 +344,7 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
         // read-only token.
         await Page.GotoAsync(CompletionUrl);
         await Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name").FillAsync("Redan Skriven");
+        await ChooseExcelAsync();
 
         await Page.Locator("#participant-file").SetInputFilesAsync(new FilePayload
         {
@@ -302,6 +356,9 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
 
         await Assertions.Expect(Page.Locator(".alert--error")).ToContainTextAsync("Inget har fyllts i.");
         await Assertions.Expect(Page.Locator(".alert--error")).ToContainTextAsync(ParticipantImport.NotExcel);
+        // A refused upload stays on the Excel side, its errors in view; the rows are untouched.
+        await Assertions.Expect(Page.Locator(".track--excel .alert--error")).ToBeVisibleAsync();
+        await Page.Locator(".segmented__btn[for='entry-manual']").ClickAsync();
         await Assertions.Expect(Page.Locator(".prow[aria-label='Deltagare 1'] .prow__name")).ToHaveValueAsync("Redan Skriven");
     }
 
@@ -309,6 +366,7 @@ public class CompletionTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     public async Task Pressing_upload_without_a_file_asks_for_one()
     {
         await Page.GotoAsync(CompletionUrl);
+        await ChooseExcelAsync();
 
         await Page.GetByRole(AriaRole.Button, new() { Name = "Fyll i från filen" }).ClickAsync();
 

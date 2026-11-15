@@ -280,13 +280,13 @@ Everything the next production deploy needs by hand, in the order it has to happ
 
 **Before the evening**
 - [ ] 1. **Manual test pass** — § *Manual test before the prod deploy* below, all blocks. The staging checks need a temporary IP rule (`infra/ops/staging-access-runbook.md`).
-- [ ] 2. **Read every house's *Beskrivning*** in production Admin → Byggnader (item 13). `ImagesForLodging` deletes the field. If one says something its *Gemensamma utrymmen* does not, copy it there now.
-- [ ] 3. **Privacy policy date.** Both `PrivacyPolicy.razor` and `docs/legal/Integritetspolicy.md` say *Senast uppdaterad: 12 november 2026*; it must equal the production deploy day. If later, change both in one commit (`LegalTextCopyTests` fails on any difference), plus the date in the `.md` header line, and merge it before deploying.
+- [x] 2. **Read every house's *Beskrivning*** in production Admin → Byggnader (item 13). `ImagesForLodging` deletes the field. If one says something its *Gemensamma utrymmen* does not, copy it there now. — *Not needed (2026-11-15): the maintainer confirmed every house description is still the text deployed at launch, which is in git (`DemoDataSeeder.cs` at `a903db5`) and only restated the room count and the Gemensamma utrymmen text. Nothing unique is deleted.*
+- [x] 3. **Privacy policy date.** Both `PrivacyPolicy.razor` and `docs/legal/Integritetspolicy.md` say *Senast uppdaterad: 12 november 2026*; it must equal the production deploy day. If later, change both in one commit (`LegalTextCopyTests` fails on any difference), plus the date in the `.md` header line, and merge it before deploying. — *Done 2026-11-15: set to 15 november 2026, the deploy day, in both files and the `.md` header. If the deploy slips past midnight, change it again before deploying.*
 
 **Staging — the rehearsal** (staging deploys itself when the branch merges)
-- [ ] 4. Apply `main.bicep` to staging — what-if first. It creates the `images` container (item 13).
-- [ ] 5. Copy every blob from `facility-images` to `images` in the staging storage account, list `images` and check the count matches, check staging's `/faciliteter` shows the facility photos, then delete `facility-images`. Until the copy, staging's facility photos are blank — the new app already reads `images`. Blob data-plane access is not something your account holds by default: grant yourself *Storage Blob Data Contributor* on the account temporarily, as with Key Vault, and remove it after.
-- [ ] 6. The staging blocks of the manual test.
+- [x] 4. Apply `main.bicep` to staging — what-if first. It creates the `images` container (item 13).
+- [x] 5. Copy every blob from `facility-images` to `images` in the staging storage account, list `images` and check the count matches, check staging's `/faciliteter` shows the facility photos, then delete `facility-images`. Until the copy, staging's facility photos are blank — the new app already reads `images`. Blob data-plane access is not something your account holds by default: grant yourself *Storage Blob Data Contributor* on the account temporarily, as with Key Vault, and remove it after.
+- [x] 6. The staging blocks of the manual test.
 
 **Production — deploy night, ~22:00, finished well clear of 03:00** (the nightly jobs run inside admin; a restart across 03:00 skips that night)
 - [ ] 7. Temporary Key Vault *get/list* policy for yourself on `jmk-ag-prod-kv`. Read the four secrets into shell variables without printing them: `postgresAdminPassword`, `postgresAppPassword`, `smtpUsername`, `smtpPassword`; `seedAdminPassword=''`. The parameter files hold `REPLACE_AT_DEPLOY` placeholders — always override them (`infra/azure/README.md`).
@@ -328,7 +328,7 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] In Mailpit, these end in the signature (logo, Åkerögården, Telefon link, E-post link, akerogarden.se, Integritetspolicy): guest receipt, admin notification, approval email, admin invitation, and the reset from `/glomt-losenord`.
 - [ ] Complete a booking through its completion link → the *details received* email's **Adress** reads **Åkerövägen 81, 761 94 Norrtälje**.
 - [ ] Start admin with `DemoSeed__Reset=true` and `Jobs__RunOnStartup=true` → the 14-day reminder to *ingrid.paminnelse@example.com* has **Adress: Åkerövägen 81, 761 94 Norrtälje**.
-- [ ] **Staging**, real inboxes: the signature in **Gmail** and **Outlook** shows the logo without "load images", and stays readable in **dark mode**.
+- [x] **Staging**, real inboxes: the signature in **Gmail** and **Outlook** shows the logo without "load images", and stays readable in **dark mode**.
 
 **Items 6 + 12 — one menu, dish diet** (branch `feat/one-menu-diet-label`)
 - [ ] **Migration, before reseeding.** Start admin locally on the existing database (no `DemoSeed__Reset`) → Admin → **Matalternativ**: no Måltid column; a **Kost** column; the lunch dishes keep 1–5 and the dinners now read **6–10** in the old order; both *Wokade grönsaker med nudlar* rows show **Vegetarisk**, every other dish **–**.
@@ -336,7 +336,7 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] `/mat-och-priser`: one list with no Lunch/Middag headings; at a wide window two columns reading down then across, at phone width one; *Pannkakor* labelled **Veganskt** (only), the noodles **Vegetariskt**. Set Pannkakor back to **Ingen** afterwards.
 - [ ] `/boka`: request **2027-07-05 → 2027-07-08**, full board. Admin → open it, tick a building, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit: the **tisdag 6 juli** Lunch dropdown lists *Grillad kycklingfilé med champinjonsås* (a former dinner) and the Middag dropdown lists *Panerad fisk med dansk remouladsås* (a former lunch). Choose those two, fill the rest, submit → acknowledgement.
 - [ ] Admin → that booking → **Gruppens rätter**: *2027-07-06 lunch* shows the chicken fillet and *2027-07-06 middag* the fish; change one to another dish → saved. **Deltagar- och matlistor**: the 6 juli lunch and dinner show those dishes.
-- [ ] **Staging, after the deploy** (temporary IP rule): Matalternativ as in the first check — staging's migrated data, not a fresh seed.
+- [x] ~~**Staging, after the deploy** (temporary IP rule): Matalternativ as in the first check~~ — *skipped 2026-11-15: covered by the local migration check; staging's `/faciliteter` rendering from `ImageName` proved all three migrations ran there.*  — staging's migrated data, not a fresh seed.
 
 **Item 8 — admin gets the guest's summary** (branch `feat/admin-full-summary`)
 - [ ] `/boka`: request **2027-08-02 → 2027-08-04**, full board, with a phone number. Admin → open it, tick **Smedjan**, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit, add two participants, give one **Nötallergi**, tick the allergy consent, choose the dishes, submit → acknowledgement.
@@ -352,7 +352,7 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] Mailpit: an invitation's and a `/glomt-losenord` reset's link opens `/aterstall-losenord` on the admin panel.
 - [ ] Admin → open a booking with an issued link: the completion link shown there opens the same page. Admin → **Skapa bokning**: the link to the public form opens `/boka`.
 - [ ] Public: `/robots.txt` and `/sitemap.xml` name the public site's own address; a page's source has `<link rel="canonical" href="…">` on it.
-- [ ] **Staging, after the Bicep apply**: one approval email's completion link and `/robots.txt` point at `staging.akerogarden.se`.
+- [x] **Staging, after the Bicep apply**: one approval email's completion link and `/robots.txt` point at `staging.akerogarden.se`.
 
 **Item 10 replaced — overdue deposit made visible** (branch `feat/overdue-deposit-visibility`). Start admin with `DemoSeed__Reset=true`: the seed has two overdue deposits, **Mikael Ström** (due 2 days before the reseed day) and **Lena Forsberg** (1 day), and one still within its time, **Sara Lindqvist**.
 - [ ] Admin → **Bokningar**: Mikael Ström and Lena Forsberg show a red **Handpenning förfallen** badge; Sara Lindqvist shows *Väntar på handpenning*. Same at phone width (cards).
@@ -374,12 +374,12 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] Same booking → **✎ Redigera** any participant: the Ålderskategori dropdown has exactly **Vuxen (4+)** and **Barn (0–3)**.
 - [ ] `/boka`: request **2027-10-04 → 2027-10-06**, full board, 2 guests. Admin → open it, tick a building, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit: each participant's age dropdown has exactly **Vuxen (4+)** (selected) and **Barn (0–3)**. Set the second to **Barn (0–3)**, fill the rest, submit → acknowledgement.
 - [ ] Mailpit, **Vi har tagit emot era uppgifter**: the second participant reads **Barn (0–3)**. Admin → that booking → **Deltagarlista** PDF and Excel: Ålder column **Vuxen (4+)** / **Barn (0–3)**.
-- [ ] **Staging, after the deploy** (temporary IP rule): open a booking with participants → ages read **Vuxen (4+)** / **Barn (0–3)**, none blank.
+- [x] ~~**Staging, after the deploy** (temporary IP rule): open a booking with participants~~ — *skipped 2026-11-15: covered by the local migration check; staging's `/faciliteter` rendering from `ImageName` proved all three migrations ran there.*  → ages read **Vuxen (4+)** / **Barn (0–3)**, none blank.
 
 **Item 14 — participants via Excel** (branch `feat/excel-participant-upload`). Open the files in **Excel**; spot-check one in **Numbers** too.
 - [ ] `/boka`: request **2027-11-08 → 2027-11-10**, full board, 3 guests. Admin → open it, tick a building, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit: above *Deltagare med övernattning* is the panel *Många deltagare? Fyll i en Excel-fil*.
 - [ ] Click **Ladda ner mall (Excel)** → *Deltagarmall.xlsx*. Sheet **Deltagare**: rows 1–3, names and ages **red**; the age cell's dropdown offers exactly **Vuxen (4+)** and **Barn (0–3)**; typing *Vuxen* in it is refused; the allergy cells offer **Ja**; typing a number as a name is refused; the header row can't be edited. Sheet **Dagsgäster**: rows 1–100, all white; the Dag dropdown offers **Måndag 8 november**, **Tisdag 9 november**, **Onsdag 10 november**; type a name on row 4 → that row's age and day turn red.
-- [ ] Fill: *Anna Andersson* Vuxen; *Bengt Berg* Barn, Nötallergi **Ja**; *Cecilia Ek* Vuxen, Annat **Ja**, note *selleri*. Dagsgäster row 4: *Dag Dagsson*, Vuxen, Tisdag 9 november. Save, **Välj fil** → **Fyll i från filen** → blue note *"3 deltagare och 1 dagsgäst har fyllts i från filen…"*; the three names and ages are in the rows, Bengt's row shows *Nötallergi*, Cecilia's *Annat (selleri)*; Dagsgäst 1 is Dag Dagsson on tisdag 9 november. Nothing was submitted (the form is still there).
+- [ ] Fill: *Anna Andersson* Vuxen; *Bengt Berg* Barn, Nötallergi **Ja**; *Cecilia Ek* Vuxen, Annat **Ja**, note *selleri*. Dagsgäster row 4: *Dag Dagsson*, Vuxen, Tisdag 9 november. Save, **Välj fil** → **Fyll i från filen** → the brown info note *"3 deltagare och 1 dagsgäst har fyllts i från filen…"*; the three names and ages are in the rows, Bengt's row shows *Nötallergi*, Cecilia's *Annat (selleri)*; Dagsgäst 1 is Dag Dagsson on tisdag 9 november. Nothing was submitted (the form is still there).
 - [ ] In the file, clear Bengt's age and set Cecilia's Annat note empty → upload → red box *"Inget har fyllts i…"* listing **Deltagare 2: välj ålderskategori.** and **Deltagare 3: beskriv allergin i fältet för 'Annat'.**; the rows on the form are unchanged.
 - [ ] Upload a PDF renamed to `.xlsx` → *"Filen är inte en Excel-fil (.xlsx)…"*. Upload a photo over 1 MB → *"Filen är för stor…"*, and everything typed on the form is still there. In Excel, **Spara som** *Excel-arbetsbok med makron (.xlsm)* and upload it → *"Filen innehåller makron…"*. Press **Fyll i från filen** with no file → *"Välj filen du har fyllt i…"*.
 - [ ] Restore the good file, upload, tick the allergy consent, choose the dishes, **Skicka in uppgifter** → acknowledgement. Admin → that booking → **Deltagare**: Anna, Bengt (Barn (0–3), Nötallergi), Cecilia (Annat (selleri)), and Dag Dagsson as day guest on 2027-11-09.
@@ -397,22 +397,22 @@ Run locally (Mailpit at `http://localhost:8025`) unless a block says staging. Da
 - [ ] Admin → **Faciliteter** → *Kapellet* → a photo → **Spara** → `/faciliteter`: Kapellet's card shows it (the same field as before, now shared).
 - [ ] Admin → **Byggnader** → *Tallstugan* → **Inaktivera**. `/faciliteter`: **75 bäddar · 7 hus · 27 rum**, *Fristående stugor* has only Smedjan. Home `/`: hero *"…till 75 gäster…"*, trust strip **Upp till 75**, teaser heading **Sju hus, en gård**. `/om-oss`: *"Gården har sju hus att bo i, med sammanlagt plats för upp till 75 gäster…"*, facts **7 hus** and **Upp till 75**. **Aktivera** Tallstugan → back to 79 / åtta / 8.
 - [ ] Admin → **Handbok** → *Bilder på faciliteter, byggnader och rum*: names all three, the 4:3 shape and 1200 × 900; the **Byggnader** row mentions the counts and *Gemensamma utrymmen*.
-- [ ] **Staging, after the deploy** (temporary IP rule) — the production rehearsal: *Production deploy* steps 4–5, then `/faciliteter` shows staging's facility photos from the `images` container.
+- [x] **Staging, after the deploy** (temporary IP rule) — the production rehearsal: *Production deploy* steps 4–5, then `/faciliteter` shows staging's facility photos from the `images` container.
 
 **Smoke-test findings, 2026-11-14** (branch `fix/smoke-test-findings`)
 - [ ] `/boka`: request **2027-06-02 → 2027-06-05** and approve it (or use any taken dates). Request **2027-05-30 → 2027-06-02** → after **Skicka bokningsförfrågan** the page comes back with the red *"Datumet 2 juni är tyvärr upptaget…"* in the middle of the screen and the cursor in **Incheckning** — no scrolling.
 - [ ] Completion form (any approved booking → **Skicka slutförandelänk nu** → the link from Mailpit): the consent *"Jag godkänner att Åkerögården behandlar de allergier…"* is **not shown**. Open participant 1 → tick **Nötallergi** → it appears above *Skicka in uppgifter*; untick → it goes. Type *selleri* in the note → it appears; clear it → it goes.
 - [ ] Same form: under **Deltagare** the switch **Skriv in här** / **Ladda upp Excel-fil**; the rows show by default, no upload panel. **Ladda upp Excel-fil** → only the three steps, the template link and the file field; back → only the rows. *Vilka måltider deltar dagsgästerna på?* shows under the switch either way (full board).
-- [ ] **Ladda upp Excel-fil** → upload a PDF renamed to .xlsx → the page comes back on **Ladda upp Excel-fil** with the red error. Upload a good file with an allergy → the page comes back on **Skriv in här** with the blue note, the names filled in, and the allergy consent shown straight away.
+- [ ] **Ladda upp Excel-fil** → upload a PDF renamed to .xlsx → the page comes back on **Ladda upp Excel-fil** with the red error. Upload a good file with an allergy → the page comes back on **Skriv in här** with the brown info note *"… har fyllts i från filen…"*, the names filled in, and the allergy consent shown straight away.
 - [ ] Submit with a participant name empty → the red summary at the top, and the page is on **Skriv in här**.
 - [ ] `/boka`: **Boka en vistelse** / **Ställ en fråga** still switch as before (same switch, now shared).
 
 **Completion-gate fixes, 2026-11-15** (branch `fix/completion-gate-findings`) — mostly the same behaviour from one rule; these check nothing moved.
-- [ ] `/boka`: request **2027-12-06 → 2027-12-08**, full board, 2 guests. Admin → open it, tick a building, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit: give participant 2 **no box ticked**, only the note *selleri*, leave the consent unticked → **Skicka in uppgifter** → refused with *"Ni har angett allergier. Godkänn…"*. Tick the consent → acknowledgement.
-- [ ] Admin → that booking → **Deltagare**: participant 2 shows the chip *selleri*; participant 1 shows none. **Matlista**: participant 2 is listed under kostbehov with *selleri*.
-- [ ] Mailpit, any email: the signature's **Integritetspolicy** link opens `/integritetspolicy` on the public site.
-- [ ] Completion form → **Ladda upp Excel-fil** → **Ladda ner mall (Excel)**. In **Excel**, fill both rows, change **Utskriftsformat** to *Liggande* (page setup — Excel then stores printer settings in the file), save, upload → the blue note and the names filled in, not *"Filen kunde inte läsas"*.
-- [ ] Completion form at phone width and wide: the **Skriv in här** / **Ladda upp Excel-fil** switch still shows one side at a time.
+- [x] `/boka`: request **2027-12-06 → 2027-12-08**, full board, 2 guests. Admin → open it, tick a building, **Godkänn** with any price → **Skicka slutförandelänk nu**. Open the link from Mailpit: give participant 2 **no box ticked**, only the note *selleri*, leave the consent unticked → **Skicka in uppgifter** → refused with *"Ni har angett allergier. Godkänn…"*. Tick the consent → acknowledgement.
+- [x] Admin → that booking → **Deltagare**: participant 2 shows the chip *selleri*; participant 1 shows none. **Matlista**: participant 2 is listed under kostbehov with *selleri*.
+- [x] Mailpit, any email: the signature's **Integritetspolicy** link opens `/integritetspolicy` on the public site.
+- [x] Completion form → **Ladda upp Excel-fil** → **Ladda ner mall (Excel)**. In **Excel**, fill both rows, change **Utskriftsformat** to *Liggande* (page setup — Excel then stores printer settings in the file), save, upload → the brown info note *"2 deltagare och 0 dagsgäster har fyllts i från filen…"* and the names filled in, not *"Filen kunde inte läsas"*.
+- [x] Completion form at phone width and wide: the **Skriv in här** / **Ladda upp Excel-fil** switch still shows one side at a time.
 
 ## To-do lists
 

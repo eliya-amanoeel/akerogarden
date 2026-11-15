@@ -685,7 +685,7 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2023-05-01' = {
 // deployment, not first upload. Named 'images' since 2026-11 (client review item 13); it was
 // 'facility-images' while facilities were the only thing with a picture. Bicep never deletes a
 // container it stops declaring, so the old one was copied across and deleted by hand
-// (docs/review/demo-feedback-2026-11-11.md, the deploy steps for item 13).
+// (docs/archive/demo-feedback-2026-11-11.md, the deploy steps for item 13).
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2023-05-01' = {
   parent: storageAccount
   name: 'default'

@@ -176,6 +176,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | [`docs/archive/deposit-flow-2026-10-07.md`](docs/archive/deposit-flow-2026-10-07.md) | Decision record for the deposit-before-confirmation requirement (FR-115/116) and the estimated price — the reasoning behind it. Closed, archived 2026-10-11 |
 | [`docs/review/post-launch-security-review.md`](docs/review/post-launch-security-review.md) | Post-launch security & architecture review and its remediation tracker |
 | [`docs/archive/demo-feedback-2026-08-05.md`](docs/archive/demo-feedback-2026-08-05.md) | Decision record for the 2026-08-05 client demo. Closed, archived 2026-10-11 |
+| [`docs/archive/demo-feedback-2026-11-11.md`](docs/archive/demo-feedback-2026-11-11.md) | Decision record for the 2026-11-11 client review. Closed, archived 2026-11-15 |
 | [`Handbook.razor`](src/AkeroGarden.Web.Admin/Components/Pages/Handbook.razor) | The admin handbook (Swedish), served at `/handbok` in the admin panel; Samordnare read their part at `/handbok/samordnare` (FR-117). Replaced `docs/handover/admin-manual.html` in 2026-10 — change it in the same PR as the behaviour it describes |
 | [`infra/ops/`](infra/ops/) | Operational runbooks |
 

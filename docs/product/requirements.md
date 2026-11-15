@@ -1146,6 +1146,8 @@ All emails sent in Swedish, from `info@akerogarden.se`. Every email a guest rece
 - **Audit-trail admin view (FR-97)** — the backend audit capture + retention (FR-95/96/98, §6.9, §8.15) ships in Phase 11; the admin-facing UI (a per-booking "Aktivitetslogg" panel and a global, filterable audit-log page — by actor, action, and date range) is deferred to a future release. Until it is built, the trail is queryable directly against the database. FR-97 remains a live numbered requirement (§6.9); this entry tracks its deferral, it is not a removal
 - **"Händelser" — operational state at admin handover** *(raised 2026-08-10)*. Related to FR-97 above but a different question: not *who did what*, but *did the behind-the-scenes machinery do its job*. The driving case is two admins sharing the system — one takes time off, the second takes over and needs to see whether a nudge never went out, whether an automated email failed, and whether anything is waiting on them. Roughly half of that is already served by the dashboard's "Väntar på slutförande" / "Väntar på svar" cards and by the two alerts already pushed to the admin mailbox (FR-63, FR-66). The remaining three gaps are: the `CompletionLinkSentAt` / `CompletionNudgeSentAt` / `ReminderEmailSentAt` markers are recorded but displayed nowhere (§8.1); a **failed** email is logged and swallowed (NFR-13) so it leaves no trace in the data at all; and a job run leaves no record either. **The order matters and is the reason this is not simply a page:** built over today's data, such a page would answer the first and be silent on the other two — the failure cases, which are the only reason it would be opened. Recording comes first. Automated-email entries can reuse the existing `AuditLog` with a `System` actor and need no schema change; whether job-run health belongs in a page at all, rather than in the Phase 11 alerts that work unattended, is an open question. The full findings were written into the implementation plan's Phase 11 narrative by PR 38 (`d7539f8`, 2026-08-10, when the plan was still `docs/product/implementation-plan.md`); that narrative has since been collapsed, so read them in that commit. **Partly built (FR-114, 2026-10):** job runs are now recorded (`JobRun`, §8.17), the jobs' emails — including failed ones (`EmailSendFailed`) — are audit entries tagged with their run, and the *Jobbhistorik* page shows them. Still open: the admin-triggered emails' failures, and the `…SentAt` markers on the booking page.
 - **Whole-physical-building blocking (`BlockedPeriod` `PhysicalBuilding` scope)** — a fourth blocking scope that would block every lodging unit of a physical building (e.g. all of Stora bostadslängan, which holds Vätö 1 + Vätö 2) in a single action, reducing effective calendar capacity (FR-10) and preventing those buildings from being assigned (FR-102). The `PhysicalBuilding` entity (§8.14) already permits it. Deferred because it is only an ergonomic shortcut over blocking each lodging building separately, for a low-frequency operation, and adds a permanent fourth `BlockScope` value to every blocking path. To be built only on confirmation from the client that it is a recurring real need; if built, sync §8.10 (`Scope` enum + `PhysicalBuildingId`), §3.3, and FR-21/FR-40 in step.
+- **Image gallery** *(client review 2026-11-11, item 15)* — more than one photo per facility, house or room. Not designed. It would build on the single-image upload and Blob storage of FR-13/17/27, which deliberately stop at one image per object so they do not become the gallery by accident. Open when it comes up: where the gallery lives, who curates it, and how many images.
+- **Remove the `Active` ("På plats") status** *(raised by the maintainer 2026-11-13, analysed 2026-11-14)* — the maintainer leans towards removing it, provided it leaves no hole. Today `Active` is set by hand (*Markera anländ*) and everywhere the system acts it is treated exactly as `DetailsComplete` (FR-10, FR-76, the 14-day reminder, the completion link, FR-104, FR-91); it changes only the badge, one audit entry (`BookingMarkedArrived`), and it is the only way to reach *Markera avslutad*. It records by hand what the dates already say. The holes removal would leave, with their fixes: **premature completion** — neither click checks a date, so a stay months ahead can be marked finished, sending the thank-you email and starting the 2-year retention clock; fix: the service refuses `Completed` before a date and the button appears only from it (*open: check-out day, proposed, or check-in day*); **stored rows** — `Status` is stored as text, so a hand-written data migration `Active` → `DetailsComplete` is needed; **audit history** — keep `BookingMarkedArrived` in the enum, marked as no longer written; **"På plats" becomes derived** — `DetailsComplete` with check-in ≤ today ≤ check-out, through `BookingDisplay.StatusLabel(booking, today)` as the overdue deposit already is (FR-116). Checked with no hole: calendar, cancellation and its notices, reminders, completion link, `Samordnare` lists, retention, no-show. Terms and privacy policy unaffected (neither names a status). Two older gaps to decide alongside it: a forgotten *Markera avslutad* leaves a booking live and never deleted (FR-91) — candidate: a derived "Utcheckad" label from the day after check-out; and a group that arrived without submitting its details stays `Approved`, can only be cancelled, and cancelling sends a cancellation email. Full sweep: `docs/archive/demo-feedback-2026-11-11.md` item 16.
 - Automated invoice generation
 - Room-based pricing model
 - **External scheduler for the daily jobs** — evaluate replacing the in-process hosted `BackgroundService` + Always On (v1 mechanism for the reminder/retention jobs) with an external Azure scheduler (Azure Functions timer trigger, or a Logic App calling a protected trigger endpoint). Benefits to assess: survives app idle without Always On, decouples scheduling from the web process, and scales cleanly to multiple instances (the in-process loop assumes a single B1 instance). Costs to weigh: a new Azure resource, its own deploy/secret story, and a callable trigger surface. Not required for v1's volume; captured for a future study.
@@ -1196,16 +1198,45 @@ The system uses four environments. Production is the table above; the others:
 
 ## 12. Open Questions
 
-No questions are waiting on the client. The last three — cancellation 8 to 4 weeks before arrival,
-bed linen and towels, and the VAT basis of the published prices — were answered on 2026-10-09: the
-deposit only, not included, and excluding VAT at 12 % (lodging and food) / 25 % (cleaning and add-ons).
-They are carried by the booking terms (§7, §12), FR-64 and FR-82.
+### New cancellation terms — four questions waiting on the client (client review 2026-11-11, item 11)
+
+**The client's request.** Cancelled **8 weeks or more** before arrival: nothing is charged and a paid
+deposit is refunded. **Less than 8 weeks**: a paid deposit is kept; if no deposit was paid, Åkerögården
+may bill **20 % of the total**. Reflected in all email communication.
+
+**What stands until the answers come.** Nothing is built. The booking terms §7 still apply — the deposit
+is never refunded; more than 4 weeks before arrival nothing beyond it; 4–2 weeks 75 %; under 2 weeks
+100 %; no-show 100 % — and the emails still only point to the terms (FR-79).
+
+**Decided, for when it is built.** Because the system knows the days to arrival, whether a deposit was
+asked for, and the price (20 % is the deposit amount, §5.6), the cancellation email will state **what
+applies to this cancellation** ("…mer än 8 veckor före ankomst, handpenningen på X kr återbetalas")
+rather than a general scale; FR-79 is rewritten accordingly.
+
+**The questions:**
+1. **Late cancellations.** Today a cancellation 2 days before arrival costs 100 %; under the new rule at most the deposit (20 %). Intended?
+2. **No-show.** What applies?
+3. **Existing bookings.** Old or new terms? (Terms §32: the terms in force when the booking was confirmed apply.)
+4. **Åkerögården cancels for a missing deposit (FR-116).** Does the 20 % apply, or does today's "the booking was never confirmed, nothing is owed" stand?
+
+**What the answers change.** The booking terms §7 and the "never refunded" line (page and `.md`); the
+deposit request email ("återbetalas inte vid avbokning"), the guest cancellation email and the
+admin-cancellation variant; FR-79, FR-115 and §5.6. No Azure cost. The full record is
+`docs/archive/demo-feedback-2026-11-11.md` item 11.
+
+### Answered
+
+The three questions before these — cancellation 8 to 4 weeks before arrival, bed linen and towels, and
+the VAT basis of the published prices — were answered on 2026-10-09: the deposit only, not included, and
+excluding VAT at 12 % (lodging and food) / 25 % (cleaning and add-ons). They are carried by the booking
+terms (§7, §12), FR-64 and FR-82.
 
 The decisions behind the deposit-before-confirmation requirement (FR-115/116) and the client's answers
 that settled it are in `docs/archive/deposit-flow-2026-10-07.md`, including the 2026-10 decision that the
 admin enters the estimated price and the emails state it (§5.6) — a maintainer's decision, not a client question.
-Feature ideas that would only start on the client's request — guest reviews, whole-physical-building
-blocking — are in Section 10, not here: nobody is waiting on an answer to them.
+Feature ideas that would only start on a request — guest reviews, whole-physical-building blocking, an
+image gallery, removing the `Active` status — are in Section 10, not here: nobody is waiting on an answer
+to them.
 
 ---
 

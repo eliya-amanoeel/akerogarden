@@ -45,6 +45,53 @@ public sealed class E2EFixture : IAsyncLifetime
     public ApplicationDbContext NewDbContext() =>
         new(new DbContextOptionsBuilder<ApplicationDbContext>().UseNpgsql(_db.GetConnectionString()).Options);
 
+    private int _seededBookings;
+
+    /// <summary>
+    /// A Pending stay request of the test's own, removed when the returned handle is disposed
+    /// (<c>await using var booking = await Fixture.SeedPendingStayRequestAsync();</c>).
+    ///
+    /// <para><b>Why each test makes its own</b> rather than sharing one seeded at start-up: the admin lists
+    /// that show it are cut — the dashboard's "Väntar på svar" queue shows the six newest Pending
+    /// bookings, and /bokningar 25 rows a page, newest first. A booking seeded at start-up is among the
+    /// oldest in the run, so every test that submits a form pushes it further down, and a test looking
+    /// for it passed only while the rest of the suite happened to create few enough newer ones. One
+    /// created by the test itself is the newest by construction (2026-11-19).</para>
+    ///
+    /// <para>The name carries a fixed-width number — <c>Familjen Pendlar 007</c> — so no name is a prefix
+    /// of another and a lookup by name finds only its own row. Digits, not a GUID fragment: the admin
+    /// pages are scanned for English words (NFR-32), and hex can spell one.</para>
+    ///
+    /// <para>The contact address is <see cref="LongContactEmail"/>, the widest thing the booking detail
+    /// ever holds. The stay is check-in +35 to +37 days, 12 guests, full board, no building assigned.</para>
+    /// </summary>
+    public async Task<SeededBooking> SeedPendingStayRequestAsync()
+    {
+        var id = Guid.NewGuid();
+        var name = $"Familjen Pendlar {Interlocked.Increment(ref _seededBookings):D3}";
+        var checkIn = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(35);
+
+        await using var db = NewDbContext();
+        db.Bookings.Add(new Booking
+        {
+            Id = id,
+            BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
+            BookingType = BookingType.StayRequest,
+            Status = BookingStatus.Pending,
+            ContactName = name,
+            ContactEmail = LongContactEmail,
+            CheckIn = checkIn,
+            CheckOut = checkIn.AddDays(2),
+            OvernightGuestCount = 12,
+            MealPlan = MealPlan.FullBoardAll,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow,
+            DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),
+        });
+        await db.SaveChangesAsync();
+        return new SeededBooking(this, id, name, checkIn);
+    }
+
     public async Task InitializeAsync()
     {
         await _db.StartAsync();
@@ -132,11 +179,13 @@ public sealed class E2EFixture : IAsyncLifetime
 
     /// <summary>Credentials for the admin user AdminSeeder creates on boot (Seed:AdminEmail/Password
     /// passed via env below). The admin E2E tests log in with these before hitting the dashboard.</summary>
-    /// <summary>The Pending stay request's contact address. Deliberately long and deliberately a
-    /// single unbreakable token — it is the subject of
-    /// <c>Booking_detail_does_not_overflow_horizontally_on_mobile</c>, not incidental seed data.
-    /// A constant rather than a literal in two places so shortening the seed cannot quietly
-    /// disarm that test while leaving it green.</summary>
+    /// <summary>The contact address of every <see cref="SeedPendingStayRequestAsync"/> booking.
+    /// Deliberately long and deliberately a single unbreakable token: the admin booking detail renders
+    /// it inside `.kv`, an email address is the widest thing that grid ever holds, and a short seed
+    /// address made `.kv` look fine at any text size while a real one did not fit — the same class of
+    /// false green that `Tillgänglighetsanpassad` produced on /faciliteter. It is the subject of
+    /// <c>Booking_detail_does_not_overflow_horizontally_on_mobile</c>, not incidental seed data; a
+    /// constant so shortening it in one place cannot quietly disarm that test while leaving it green.</summary>
     public const string LongContactEmail = "forestandare.familjen-pendlar@samfallighetsforeningen.example.se";
 
     public const string AdminEmail = "e2e-admin@akerogarden.test";
@@ -322,32 +371,6 @@ public sealed class E2EFixture : IAsyncLifetime
         }
         ctx.Bookings.Add(ConferenceCompletionBooking(ConferenceCompletionToken));
         ctx.Bookings.Add(ConferenceCompletionBooking(ConferenceCompletionSubmitToken));
-
-        // One Pending stay request for the admin tests that open a Pending booking's detail page from
-        // /bokningar (the completion bookings above are Approved). Not for the dashboard's "Väntar på
-        // svar" queue: that shows only the six newest Pending bookings, and every submitting test
-        // pushes this one further down — Login_lands_on_operational_dashboard seeds its own.
-        ctx.Bookings.Add(new Booking
-        {
-            Id = Guid.NewGuid(),
-            BookingReference = $"AG-E2E-{Guid.NewGuid():N}"[..20],
-            BookingType = BookingType.StayRequest,
-            Status = BookingStatus.Pending,
-            ContactName = "Familjen Pendlar",
-            // Deliberately long, and deliberately a single unbreakable token: the admin booking
-            // detail renders the contact email inside `.kv`, and an email address is the widest
-            // thing that grid ever holds. A short seed address made `.kv` look fine at any text
-            // size while a real one did not fit — the same class of false green that
-            // `Tillgänglighetsanpassad` produced on /faciliteter (see the facilities seed above).
-            ContactEmail = LongContactEmail,
-            CheckIn = checkIn.AddDays(5),
-            CheckOut = checkIn.AddDays(7),
-            OvernightGuestCount = 12,
-            MealPlan = MealPlan.FullBoardAll,
-            CreatedAt = DateTime.UtcNow,
-            UpdatedAt = DateTime.UtcNow,
-            DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),
-        });
 
         await ctx.SaveChangesAsync();
     }
@@ -539,5 +562,20 @@ public sealed class E2EFixture : IAsyncLifetime
         var port = ((System.Net.IPEndPoint)listener.LocalEndpoint).Port;
         listener.Stop();
         return port;
+    }
+}
+
+/// <summary>A booking a test seeded for itself (<see cref="E2EFixture.SeedPendingStayRequestAsync"/>).
+/// Disposing it deletes the booking, so the shared app is left as the test found it.</summary>
+public sealed class SeededBooking(E2EFixture fixture, Guid id, string name, DateOnly checkIn) : IAsyncDisposable
+{
+    public Guid Id => id;
+    public string Name => name;
+    public DateOnly CheckIn => checkIn;
+
+    public async ValueTask DisposeAsync()
+    {
+        await using var db = fixture.NewDbContext();
+        await db.Bookings.Where(b => b.Id == id).ExecuteDeleteAsync();
     }
 }

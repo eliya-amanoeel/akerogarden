@@ -100,9 +100,9 @@ public class TextDerivedWidthTests(E2EFixture fixture) : AdminE2ETestBase(fixtur
     {
         await Page.SetViewportSizeAsync(Wide.Width, Wide.Height);
 
+        await using var booking = await Fixture.SeedPendingStayRequestAsync();
         await LoginAsync();
-        await Page.GotoAsync("/bokningar");
-        await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+        await Page.GotoAsync($"/bokningar/{booking.Id}");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
         var atDefault = await WidthAsync(Page, ".detail-grid .detail-rail");
 

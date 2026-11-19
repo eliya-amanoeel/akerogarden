@@ -374,8 +374,8 @@ public class AdminTextScalingTests(E2EFixture fixture) : AdminE2ETestBase(fixtur
         // this page in the collapsed layout and there would be no sticky rail to assert on.
         await Page.SetViewportSizeAsync(1440, 520);
 
-        await Page.GotoAsync("/bokningar");
-        await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+        await using var booking = await Fixture.SeedPendingStayRequestAsync();
+        await Page.GotoAsync($"/bokningar/{booking.Id}");
 
         var rail = Page.Locator(".detail-grid .detail-rail");
         await Assertions.Expect(rail).ToBeVisibleAsync();

@@ -119,53 +119,24 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     [Fact]
     public async Task Login_lands_on_operational_dashboard()
     {
-        // The "Väntar på svar" queue shows the six newest Pending bookings. This test used to look for
-        // the fixture's seeded "Familjen Pendlar" there — the *oldest* Pending booking in the run — so
-        // it passed only while the rest of the suite happened to create at most five newer ones, and
-        // went red the day a test submitted one more (2026-11-19). It now creates the booking it looks
-        // for, newest by construction, and removes it afterwards so the shared app is left as found.
-        var id = Guid.NewGuid();
-        var name = $"Kö {id:N}"[..14];
-        await using (var db = Fixture.NewDbContext())
-        {
-            db.Bookings.Add(new Booking
-            {
-                Id = id,
-                BookingReference = $"AG-E2E-{id:N}"[..20],
-                BookingType = BookingType.GeneralInquiry,
-                Status = BookingStatus.Pending,
-                ContactName = name,
-                ContactEmail = "ko@example.se",
-                Message = "Översiktens kö",
-                CreatedAt = DateTime.UtcNow,
-                UpdatedAt = DateTime.UtcNow,
-                DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),
-            });
-            await db.SaveChangesAsync();
-        }
+        // The "Väntar på svar" queue shows only the six newest Pending bookings, so the test creates the
+        // one it looks for — newest by construction (see E2EFixture.SeedPendingStayRequestAsync).
+        await using var booking = await Fixture.SeedPendingStayRequestAsync();
 
-        try
-        {
-            await LoginAsync();
+        await LoginAsync();
 
-            // The dashboard topbar + the three operational queues.
-            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Översikt" })).ToBeVisibleAsync();
-            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Väntar på svar" })).ToBeVisibleAsync();
-            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Kommande ankomster" })).ToBeVisibleAsync();
+        // The dashboard topbar + the three operational queues.
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Översikt" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Väntar på svar" })).ToBeVisibleAsync();
+        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Kommande ankomster" })).ToBeVisibleAsync();
 
-            // A new Pending booking surfaces in the "Väntar på svar" queue…
-            await Assertions.Expect(Page.GetByRole(AriaRole.Link, new() { Name = name }).First).ToBeVisibleAsync();
+        // A new Pending booking surfaces in the "Väntar på svar" queue…
+        await Assertions.Expect(Page.GetByRole(AriaRole.Link, new() { Name = booking.Name, Exact = true }).First).ToBeVisibleAsync();
 
-            // …and drives the sidebar count badge.
-            await Assertions.Expect(Page.Locator(".admin-nav a .count")).ToBeVisibleAsync();
+        // …and drives the sidebar count badge.
+        await Assertions.Expect(Page.Locator(".admin-nav a .count")).ToBeVisibleAsync();
 
-            await CaptureAsync("admin-dashboard");
-        }
-        finally
-        {
-            await using var db = Fixture.NewDbContext();
-            await db.Bookings.Where(b => b.Id == id).ExecuteDeleteAsync();
-        }
+        await CaptureAsync("admin-dashboard");
     }
 
     /// <summary>Optional visual capture for manual review (no pixel diffing). No-op unless
@@ -232,15 +203,16 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     [Fact]
     public async Task Whole_property_block_over_the_dates_shows_as_a_refusal_not_a_warning()
     {
-        // The seeded Pending "Familjen Pendlar" booking (12 guests, one 40-bed room, no block). Seed a
+        // A Pending stay of the test's own (12 guests, one 40-bed room, no block). Seed a
         // whole-property block over its dates (directly, as test setup): the dates are then unavailable
         // (FR-10) and ApproveAsync refuses the stay (FR-113), so the detail page must show it in the
         // red refusal box — not in the amber advisory list it used to sit in, under a "du kan ändå
         // godkänna" line that was false for it. The block is removed afterwards so the shared E2E app
         // is left as we found it.
+        await using var booking = await Fixture.SeedPendingStayRequestAsync();
         var blockId = Guid.NewGuid();
-        var start = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(33);
-        var end = DateOnly.FromDateTime(DateTime.UtcNow).AddDays(39);
+        var start = booking.CheckIn.AddDays(-2);
+        var end = booking.CheckIn.AddDays(4);
 
         await using (var db = Fixture.NewDbContext())
         {
@@ -259,8 +231,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         try
         {
             await LoginAsync();
-            await Page.GotoAsync("/bokningar");
-            await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+            await Page.GotoAsync($"/bokningar/{booking.Id}");
+            await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
             var refusal = Page.Locator(".alert.alert--error");
             await Assertions.Expect(refusal).ToContainTextAsync("Kan inte godkännas än");
@@ -281,6 +253,9 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     [Fact]
     public async Task Bookings_list_shows_status_badges()
     {
+        // Its own Pending booking: /bokningar shows 25 rows a page, newest first, so one seeded at
+        // start-up could be on any page by the time this runs.
+        await using var booking = await Fixture.SeedPendingStayRequestAsync();
         await LoginAsync();
         // The sidebar "Bokningar" link points at the list…
         await Assertions.Expect(Page.Locator(".admin-nav").GetByRole(AriaRole.Link, new() { Name = "Bokningar" }))
@@ -288,8 +263,9 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await Page.GotoAsync("/bokningar");
 
         await Assertions.Expect(Page.Locator("table.admin-table")).ToBeVisibleAsync();
-        // The Pending booking carries the coloured status badge.
-        await Assertions.Expect(Page.Locator(".badge.badge--pending").First).ToBeVisibleAsync();
+        // The Pending booking's row carries the coloured status badge.
+        var row = Page.Locator("table.admin-table tbody tr").Filter(new() { HasText = booking.Name });
+        await Assertions.Expect(row.Locator(".badge.badge--pending")).ToBeVisibleAsync();
 
         await CaptureAsync("admin-bookings-list");
     }
@@ -297,9 +273,10 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     [Fact]
     public async Task Booking_detail_has_action_rail()
     {
+        await using var booking = await Fixture.SeedPendingStayRequestAsync();
         await LoginAsync();
-        await Page.GotoAsync("/bokningar");
-        await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+        await Page.GotoAsync($"/bokningar/{booking.Id}");
+        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         // Two-column detail with the sticky action rail; a Pending stay offers Approve.
         await Assertions.Expect(Page.Locator(".detail-grid .detail-rail")).ToBeVisibleAsync();
@@ -352,14 +329,14 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         await AssertNoSeriousAxeViolationsAsync(path);
     }
 
-    /// <summary>Booking detail is axe-checked via a real navigation (list → row) so it renders
-    /// against the seeded Pending booking's {id} rather than a synthetic route.</summary>
+    /// <summary>Booking detail is axe-checked against a real Pending booking's {id} rather than a
+    /// synthetic route — one the test seeds for itself.</summary>
     [Fact]
     public async Task Booking_detail_has_no_serious_accessibility_violations()
     {
+        await using var booking = await Fixture.SeedPendingStayRequestAsync();
         await LoginAsync();
-        await Page.GotoAsync("/bokningar");
-        await Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First.ClickAsync();
+        await Page.GotoAsync($"/bokningar/{booking.Id}");
         await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
 
         await AssertNoSeriousAxeViolationsAsync("booking detail");
@@ -2483,6 +2460,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     [Fact]
     public async Task Bookings_list_swaps_the_table_for_cards_on_mobile()
     {
+        // Its own booking, the newest — so it is on the first page of the list (25 rows, newest first).
+        await using var booking = await Fixture.SeedPendingStayRequestAsync();
         await LoginAsync();
         await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
         await Page.GotoAsync("/bokningar");
@@ -2492,8 +2471,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         var cards = Page.Locator(".data-cards .data-card");
         await Assertions.Expect(cards.First).ToBeVisibleAsync();
 
-        var pendlarCard = cards.Filter(new() { HasText = "Familjen Pendlar" }).First;
-        await Assertions.Expect(pendlarCard.Locator(".badge")).ToBeVisibleAsync();
+        var card = cards.Filter(new() { HasText = booking.Name });
+        await Assertions.Expect(card.Locator(".badge")).ToBeVisibleAsync();
 
         // Measured BEFORE navigating away — this test is about the list, and until 2026-09-10 this
         // assertion ran after the click and was silently measuring the booking *detail* page while
@@ -2503,8 +2482,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             $"Bookings list overflows horizontally at {Mobile.Width}px: scrollWidth={docScrollWidth}.");
 
         // The card itself is the tap target — same navigation the desktop row link offers.
-        await pendlarCard.ClickAsync();
-        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/bokningar/[0-9a-fA-F-]+$"));
+        await card.ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex($@"/bokningar/{booking.Id}$"));
     }
 
     /// <summary>The booking detail page must not scroll sideways on a phone. Its subject is the
@@ -2514,13 +2493,10 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     [Fact]
     public async Task Booking_detail_does_not_overflow_horizontally_on_mobile()
     {
+        await using var booking = await Fixture.SeedPendingStayRequestAsync();
         await LoginAsync();
         await Page.SetViewportSizeAsync(Mobile.Width, Mobile.Height);
-        await Page.GotoAsync("/bokningar");
-        await Page.WaitForLoadStateAsync(LoadState.NetworkIdle);
-
-        await Page.Locator(".data-cards .data-card").Filter(new() { HasText = "Familjen Pendlar" }).First.ClickAsync();
-        await Assertions.Expect(Page).ToHaveURLAsync(new System.Text.RegularExpressions.Regex(@"/bokningar/[0-9a-fA-F-]+$"));
+        await Page.GotoAsync($"/bokningar/{booking.Id}");
 
         // The URL is NOT enough to measure against. This is the Interactive Server host: navigation
         // updates the address, then the circuit patches the DOM, and the page renders "Laddar…"
@@ -2529,7 +2505,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         // green: the same overflow flipped red only when the measurement happened to land late
         // (CI, 2026-09-09). Anchor on the loaded content instead, and on the email specifically,
         // since the email is what this test is about.
-        await Assertions.Expect(Page.Locator(".admin-detail-head h1")).ToHaveTextAsync("Familjen Pendlar");
+        await Assertions.Expect(Page.Locator(".admin-detail-head h1")).ToHaveTextAsync(booking.Name);
         var email = Page.Locator(".kv dd").Filter(new() { HasText = "@" }).First;
         await Assertions.Expect(email).ToContainTextAsync(E2EFixture.LongContactEmail);
 

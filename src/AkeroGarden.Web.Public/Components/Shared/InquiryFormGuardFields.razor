@@ -1,0 +1,21 @@
+@* The bot check's two fields (NFR-04, InquiryFormGuard). Goes inside an EditForm whose page binds an
+   InquiryFormGuardInput property called Name under the same FormName, so these post as Name.Stamp and
+   Name.Extra and bind to it.
+
+   The trap is hidden with display:none from site.css — not the hidden attribute or type=hidden, which
+   a form-filling bot reads and skips, and not an off-screen trick, which leaves it focusable. A
+   display:none field is out of reach of the keyboard, screen readers and browser autofill, so a person
+   never sends a value in it. The value is always rendered empty, including on a redraw. *@
+<input type="hidden" name="@($"{Name}.Stamp")" value="@Stamp" />
+<div class="form-trap">
+    <label for="@($"{Name}-extra")">Lämna det här fältet tomt</label>
+    <input type="text" id="@($"{Name}-extra")" name="@($"{Name}.Extra")" value="" tabindex="-1" autocomplete="off" />
+</div>
+
+@code {
+    /// <summary>The name of the page's bound <c>InquiryFormGuardInput</c> property.</summary>
+    [Parameter, EditorRequired] public string Name { get; set; } = "";
+
+    /// <summary>The stamp to post, from <c>InquiryFormGuard.StampFor</c>.</summary>
+    [Parameter, EditorRequired] public string Stamp { get; set; } = "";
+}

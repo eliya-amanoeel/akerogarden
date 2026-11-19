@@ -103,8 +103,9 @@ builder.Services.AddScoped<IAuditActorAccessor, SystemAuditActorAccessor>();
 // holds the data-plane role; Bicep now supplies Blob__ServiceUri to this site too.
 builder.Services.AddAkeroImageStorage(builder.Configuration);
 
-// ── Public-only concern: distributed inquiry rate limiting (NFR-04) ───────────────────────────
+// ── Public-only concern: distributed inquiry rate limiting and the bot check (NFR-04) ─────────
 builder.Services.AddAkeroInquiryRateLimiting(builder.Configuration);
+builder.Services.AddAkeroInquiryFormGuard(builder.Configuration);
 
 // ── Uploaded files stay in memory (FR-118) ────────────────────────────────────
 // The participant file holds allergies (health data). ASP.NET's default writes any uploaded file

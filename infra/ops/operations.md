@@ -70,6 +70,10 @@ instrumentation) that ties together the request, its logs, and any dependency ca
   each logs the booking's GUID and the transition, never the guest's name or email.
 - **Rate limiter** (`RedisInquiryRateLimiter`): a warning when the inquiry rate limit is hit,
   with the request count only — not the client IP, which is personal data under GDPR.
+- **Bot check** (`BookInquiry`, `InquiryFormGuard`): a warning when an inquiry submission is
+  refused — `Inquiry submission refused by the bot check: {Verdict}`, where the verdict is
+  `TrapFilled`, `StampMissing`, `StampInvalid`, `TooFast` or `Expired`. Nothing about the visitor.
+  Count them per verdict to see whether bots are still getting past it (NFR-04).
 - **Email delivery** (`SmtpEmailService`): retry/failure warnings log the recipient's domain
   only (`***@example.com`), not the full address.
 - Nothing logs guest names, phone numbers, or full email addresses — consistent with NFR-05

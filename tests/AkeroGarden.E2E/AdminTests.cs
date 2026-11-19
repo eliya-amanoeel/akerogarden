@@ -119,20 +119,53 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
     [Fact]
     public async Task Login_lands_on_operational_dashboard()
     {
-        await LoginAsync();
+        // The "Väntar på svar" queue shows the six newest Pending bookings. This test used to look for
+        // the fixture's seeded "Familjen Pendlar" there — the *oldest* Pending booking in the run — so
+        // it passed only while the rest of the suite happened to create at most five newer ones, and
+        // went red the day a test submitted one more (2026-11-19). It now creates the booking it looks
+        // for, newest by construction, and removes it afterwards so the shared app is left as found.
+        var id = Guid.NewGuid();
+        var name = $"Kö {id:N}"[..14];
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Bookings.Add(new Booking
+            {
+                Id = id,
+                BookingReference = $"AG-E2E-{id:N}"[..20],
+                BookingType = BookingType.GeneralInquiry,
+                Status = BookingStatus.Pending,
+                ContactName = name,
+                ContactEmail = "ko@example.se",
+                Message = "Översiktens kö",
+                CreatedAt = DateTime.UtcNow,
+                UpdatedAt = DateTime.UtcNow,
+                DeleteAfter = DateOnly.FromDateTime(DateTime.UtcNow).AddYears(1),
+            });
+            await db.SaveChangesAsync();
+        }
 
-        // The dashboard topbar + the three operational queues.
-        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Översikt" })).ToBeVisibleAsync();
-        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Väntar på svar" })).ToBeVisibleAsync();
-        await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Kommande ankomster" })).ToBeVisibleAsync();
+        try
+        {
+            await LoginAsync();
 
-        // The seeded Pending booking surfaces in the "Väntar på svar" queue.
-        await Assertions.Expect(Page.GetByRole(AriaRole.Link, new() { Name = "Familjen Pendlar" }).First).ToBeVisibleAsync();
+            // The dashboard topbar + the three operational queues.
+            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Översikt" })).ToBeVisibleAsync();
+            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Väntar på svar" })).ToBeVisibleAsync();
+            await Assertions.Expect(Page.GetByRole(AriaRole.Heading, new() { Name = "Kommande ankomster" })).ToBeVisibleAsync();
 
-        // …and drives the sidebar count badge.
-        await Assertions.Expect(Page.Locator(".admin-nav a .count")).ToBeVisibleAsync();
+            // A new Pending booking surfaces in the "Väntar på svar" queue…
+            await Assertions.Expect(Page.GetByRole(AriaRole.Link, new() { Name = name }).First).ToBeVisibleAsync();
 
-        await CaptureAsync("admin-dashboard");
+            // …and drives the sidebar count badge.
+            await Assertions.Expect(Page.Locator(".admin-nav a .count")).ToBeVisibleAsync();
+
+            await CaptureAsync("admin-dashboard");
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Bookings.Where(b => b.Id == id).ExecuteDeleteAsync();
+        }
     }
 
     /// <summary>Optional visual capture for manual review (no pixel diffing). No-op unless

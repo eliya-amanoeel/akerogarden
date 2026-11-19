@@ -15,13 +15,18 @@ public class BookingEmailService(IEmailService email, IOptions<BookingEmailOptio
     private readonly SiteOptions _site = site.Value;
 
     /// <summary>Guest acknowledgement immediately after an inquiry is submitted (FR-05).
-    /// Content differs by booking type.</summary>
+    /// Content differs by booking type.
+    ///
+    /// <para>Carries nothing the sender typed — not in the body and not in the To header either, which
+    /// every other guest email fills with the guest's name. This is the one email that goes to an address
+    /// nobody has checked, so a name copied into it would let anyone put their own text in front of anyone,
+    /// in an email from Åkerögården's domain (FR-05).</para></summary>
     public Task<bool> SendInquiryAcknowledgementAsync(Booking booking)
     {
         var content = booking.BookingType == BookingType.StayRequest
-            ? BookingEmailTemplates.StayRequestAcknowledgement(booking.ContactName, booking.BookingReference)
-            : BookingEmailTemplates.GeneralInquiryAcknowledgement(booking.ContactName, booking.BookingReference);
-        return SendToGuestAsync(booking, content);
+            ? BookingEmailTemplates.StayRequestAcknowledgement(booking.BookingReference)
+            : BookingEmailTemplates.GeneralInquiryAcknowledgement(booking.BookingReference);
+        return email.SendAsync(booking.ContactEmail, toName: string.Empty, content.Subject, content.HtmlBody);
     }
 
     /// <summary>Admin notification of a new inquiry with a direct link to the booking (FR-06).

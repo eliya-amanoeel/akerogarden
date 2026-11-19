@@ -15,11 +15,13 @@ public class BookingEmailTemplatesTests
     private const string TermsUrl = "https://akerogarden.se/bokningsvillkor";
 
     [Fact]
-    public void StayRequestAcknowledgement_IsSwedish_AndGreetsGuest()
+    public void StayRequestAcknowledgement_IsSwedish_AndGreetsWithoutAName()
     {
-        var c = BookingEmailTemplates.StayRequestAcknowledgement("Anna", Ref);
+        // FR-05: the acknowledgement goes to an address nobody has checked, so it greets with a fixed
+        // "Hej!" — the template takes no name at all, so none can be passed in.
+        var c = BookingEmailTemplates.StayRequestAcknowledgement(Ref);
         Assert.Contains("bokningsförfrågan", c.Subject);
-        Assert.Contains("Hej Anna", c.HtmlBody);
+        Assert.Contains("<p>Hej!</p>", c.HtmlBody);
         Assert.Contains("Åkerögården", c.HtmlBody);
         Assert.Contains(Ref, c.HtmlBody);
         // "Bekräftat", not "godkänt": on the deposit path a booking is confirmed only once the deposit
@@ -30,10 +32,11 @@ public class BookingEmailTemplatesTests
     [Fact]
     public void GeneralInquiryAcknowledgement_DiffersFromStayRequest()
     {
-        var general = BookingEmailTemplates.GeneralInquiryAcknowledgement("Anna", Ref);
+        var general = BookingEmailTemplates.GeneralInquiryAcknowledgement(Ref);
         Assert.Contains("meddelande", general.Subject);
         Assert.DoesNotContain("bokningsförfrågan", general.Subject);
         Assert.Contains(Ref, general.HtmlBody);
+        Assert.Contains("<p>Hej!</p>", general.HtmlBody);
     }
 
     [Fact]

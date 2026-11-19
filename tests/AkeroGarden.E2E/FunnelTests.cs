@@ -388,6 +388,64 @@ public class FunnelTests(E2EFixture fixture) : PublicE2ETestBase(fixture)
     }
 
     [Fact]
+    public async Task A_form_with_the_trap_field_filled_is_refused_saves_nothing_and_keeps_what_was_typed()
+    {
+        // NFR-04: the bot check. A form-filling bot fills in every field it finds in the markup, the
+        // hidden trap included; a person never sees it. Filled here through the DOM, because it is
+        // display:none — which is exactly why a person cannot.
+        await Page.GotoAsync("/boka");
+        await Page.Locator(".segmented__btn[for='track-general']").ClickAsync();
+        await Assertions.Expect(Page.Locator("#GeneralGuard-extra")).ToBeHiddenAsync();
+
+        var email = $"falla-{Guid.NewGuid():N}@example.se";
+        await Page.FillAsync("#g-name", "ulgdnuezut");
+        await Page.FillAsync("#g-email", email);
+        await Page.FillAsync("#g-email-confirm", email);
+        await Page.FillAsync("#g-message", "vjfljxhdxdlkirznqioqwgkpjsynfk");
+        await Page.Locator(".track--general label:has-text('integritetspolicyn') input[type=checkbox]").CheckAsync();
+        await Page.EvalOnSelectorAsync("#GeneralGuard-extra", "el => el.value = 'ulgdnuezut'");
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka meddelande" }).ClickAsync();
+
+        await Assertions.Expect(Page.GetByText("Vi kunde inte ta emot formuläret. Kontrollera uppgifterna och skicka igen."))
+            .ToBeVisibleAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/boka$"));
+        // Redrawn on the general track with what was typed, and the trap empty again.
+        await Assertions.Expect(Page.Locator("#g-email")).ToHaveValueAsync(email);
+        await Assertions.Expect(Page.Locator("#g-message")).ToHaveValueAsync("vjfljxhdxdlkirznqioqwgkpjsynfk");
+        await Assertions.Expect(Page.Locator("#GeneralGuard-extra")).ToHaveValueAsync("");
+
+        // Nothing saved — and the acknowledgement and admin notification are only ever sent for a saved
+        // booking (BookingService.CreateGeneralInquiryAsync), so nothing was sent either.
+        await using var db = Fixture.NewDbContext();
+        Assert.Equal(0, await db.Bookings.CountAsync(b => b.ContactEmail == email));
+
+        // The same page, sent again without the trap filled, goes through: a person caught by mistake loses nothing.
+        await Page.Locator(".track--general label:has-text('integritetspolicyn') input[type=checkbox]").CheckAsync();
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka meddelande" }).ClickAsync();
+        await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/kontakt/tack$"));
+        await using var db2 = Fixture.NewDbContext();
+        Assert.Equal(1, await db2.Bookings.CountAsync(b => b.ContactEmail == email));
+    }
+
+    [Fact]
+    public async Task A_form_posted_without_the_pages_stamp_is_refused()
+    {
+        // NFR-04: a bot that posts straight to the form without rendering our page has no signed stamp.
+        // Emptied through the DOM, which is what such a post amounts to.
+        await Page.GotoAsync("/boka");
+        await FillValidStayFormAsync(Page);
+        await Page.EvalOnSelectorAsync("input[name='StayGuard.Stamp']", "el => el.value = ''");
+
+        await Page.GetByRole(AriaRole.Button, new() { Name = "Skicka bokningsförfrågan" }).ClickAsync();
+
+        await Assertions.Expect(Page.GetByText("Vi kunde inte ta emot formuläret. Kontrollera uppgifterna och skicka igen."))
+            .ToBeVisibleAsync();
+        await Assertions.Expect(Page.Locator("#s-email")).ToHaveValueAsync("anna@example.se");
+        await Assertions.Expect(Page.Locator("input[name='StayGuard.Stamp']")).Not.ToHaveValueAsync("");
+    }
+
+    [Fact]
     public async Task A_sent_form_restored_from_the_page_cache_is_unlocked()
     {
         // submit-once.js locks a form the moment it is sent. A page the browser later restores from its

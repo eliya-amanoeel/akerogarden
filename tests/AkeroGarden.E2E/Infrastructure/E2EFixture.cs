@@ -323,8 +323,10 @@ public sealed class E2EFixture : IAsyncLifetime
         ctx.Bookings.Add(ConferenceCompletionBooking(ConferenceCompletionToken));
         ctx.Bookings.Add(ConferenceCompletionBooking(ConferenceCompletionSubmitToken));
 
-        // One Pending stay request so the admin dashboard's "Väntar på svar" queue and the nav
-        // count badge have something to render (the completion bookings above are Approved).
+        // One Pending stay request for the admin tests that open a Pending booking's detail page from
+        // /bokningar (the completion bookings above are Approved). Not for the dashboard's "Väntar på
+        // svar" queue: that shows only the six newest Pending bookings, and every submitting test
+        // pushes this one further down — Login_lands_on_operational_dashboard seeds its own.
         ctx.Bookings.Add(new Booking
         {
             Id = Guid.NewGuid(),
@@ -432,6 +434,14 @@ public sealed class E2EFixture : IAsyncLifetime
         // in RateLimiterIntegrationTests, which is where that assertion belongs.
         psi.Environment["RateLimit__KeyPrefix"] = $"ratelimit:e2e:{Guid.NewGuid():N}:";
         psi.Environment["RateLimit__MaxRequests"] = "1000";
+
+        // The bot check's minimum fill time (NFR-04) refuses a form sent within three seconds of the
+        // page rendering — and Playwright fills and sends one in well under that, so at the production
+        // value every submitting test would be refused as a bot. Off here; the rest of the check (the
+        // signed stamp, the trap field) stays on, and FunnelTests drives the trap through the real page.
+        // The timing itself is asserted to the tick in InquiryFormGuardTests against a fake clock, which
+        // is where a boundary belongs.
+        psi.Environment["InquiryFormGuard__MinimumFillSeconds"] = "0";
 
         // The admin login throttle (post-launch security review, finding #8) has exactly the same
         // collision with this suite, for the same reason: every admin test signs in through the real

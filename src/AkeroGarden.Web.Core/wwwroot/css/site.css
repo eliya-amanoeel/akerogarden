@@ -896,6 +896,12 @@ fieldset.form-group legend { font-weight: 700; font-size: 0.9rem; color: var(--c
 /* Alongside a submit button the hint is already spaced by the row's gap. */
 .form-hint--flush { margin: 0; }
 
+/* The inquiry form's trap field (NFR-04, InquiryFormGuardFields). display:none and nothing else: it
+   takes the field away from the keyboard, screen readers and browser autofill, so only a bot that fills
+   in every field it finds in the markup ever sends a value. Not the .track-radio trick — that one keeps
+   its input focusable on purpose. */
+.form-trap { display: none; }
+
 /* "Från kalender" prefill chip */
 .prefill { font-size: 0.66rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--color-primary-ink); background: rgba(113, 176, 2, 0.14); padding: 0.12rem 0.5rem; border-radius: 1rem; margin-left: 0.4rem; vertical-align: middle; }
 

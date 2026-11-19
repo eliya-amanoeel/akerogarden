@@ -205,6 +205,11 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
         // Sender name: the guest's own on the admin notification, none (→ "Åkerögården") on the guest's.
         Assert.Equal("Anna Andersson", adminNotification.FromName);
         Assert.Null(guestAck.FromName);
+        // FR-05: the acknowledgement goes to an address nobody has checked, so nothing the sender typed
+        // is in it — not in the To header (every other guest email puts the name there) and not in the body.
+        Assert.Equal(string.Empty, guestAck.ToName);
+        Assert.DoesNotContain("Anna", guestAck.HtmlBody);
+        Assert.DoesNotContain("Anna", guestAck.Subject);
     }
 
     [Fact]
@@ -258,6 +263,10 @@ public class BookingInquiryIntegrationTests : IClassFixture<DbFixture>
         // Sender name: the guest's own on the admin notification, none (→ "Åkerögården") on the guest's.
         Assert.Equal("David", adminNotification.FromName);
         Assert.Null(guestAck.FromName);
+        // FR-05: nothing the sender typed reaches the unchecked address — name or message.
+        Assert.Equal(string.Empty, guestAck.ToName);
+        Assert.DoesNotContain("David", guestAck.HtmlBody);
+        Assert.DoesNotContain("Har ni ledigt", guestAck.HtmlBody);
         // FR-92: general inquiries get a reference too, not just stay requests.
         Assert.Matches(@"^AG-\d{4}-\d{4}$", booking.BookingReference);
     }

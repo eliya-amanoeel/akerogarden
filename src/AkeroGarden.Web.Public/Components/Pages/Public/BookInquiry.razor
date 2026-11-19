@@ -9,6 +9,7 @@
 @inject TimeProvider Clock
 @inject NavigationManager Nav
 @inject IInquiryRateLimiter RateLimiter
+@inject InquiryFormGuard Guard
 @inject ILogger<BookInquiry> Logger
 
 <PageTitle>Skicka förfrågan — Åkerögården</PageTitle>
@@ -29,6 +30,10 @@
         @if (_rateLimited)
         {
             <p class="form-error" role="alert">Du har skickat för många förfrågningar. Försök igen om en stund.</p>
+        }
+        @if (_guardRefused)
+        {
+            <p class="form-error" role="alert">Vi kunde inte ta emot formuläret. Kontrollera uppgifterna och skicka igen.</p>
         }
 
         <div class="alert alert--info reassure">
@@ -53,6 +58,7 @@
         <div class="track track--stay">
             <EditForm Model="StayModel" OnValidSubmit="HandleStayRequest" FormName="stayrequest" method="post">
                 <DataAnnotationsValidator />
+                <InquiryFormGuardFields Name="StayGuard" Stamp="@_stayStamp" />
 
                 <div class="form-section">
                     <h2>Kontaktuppgifter</h2>
@@ -254,6 +260,7 @@
         <div class="track track--general">
             <EditForm Model="GeneralModel" OnValidSubmit="HandleGeneralInquiry" FormName="generalinquiry" method="post">
                 <DataAnnotationsValidator />
+                <InquiryFormGuardFields Name="GeneralGuard" Stamp="@_generalStamp" />
 
                 <div class="form-section">
                     <p class="sec-note">Har du en fråga? Skicka ett meddelande så återkommer vi.</p>
@@ -324,6 +331,14 @@
     [SupplyParameterFromForm(FormName = "generalinquiry")]
     private GeneralInquiryInput? GeneralModel { get; set; }
 
+    // The bot check's fields (NFR-04), one set per form. Bound beside the models, not inside them — the
+    // models are also the admin panel's create-booking input, where no bot check belongs.
+    [SupplyParameterFromForm(FormName = "stayrequest")]
+    private InquiryFormGuardInput? StayGuard { get; set; }
+
+    [SupplyParameterFromForm(FormName = "generalinquiry")]
+    private InquiryFormGuardInput? GeneralGuard { get; set; }
+
     [SupplyParameterFromQuery(Name = "incheckning")]
     private string? CheckInParam { get; set; }
 
@@ -333,7 +348,10 @@
     private List<Facility> _facilities = [];
 
     private bool _rateLimited;
+    private bool _guardRefused;
     private string? _dateError;
+    private string _stayStamp = "";
+    private string _generalStamp = "";
 
     // Floor for the native date pickers. `min` is the only control the browser gives us over which
     // dates a native picker offers — individual days cannot be disabled — so it keeps the obvious
@@ -359,6 +377,9 @@
         StayModel ??= new();
         GeneralModel ??= new();
 
+        _stayStamp = Guard.StampFor(StayGuard?.Stamp);
+        _generalStamp = Guard.StampFor(GeneralGuard?.Stamp);
+
         // Pre-select the standard times (§2.8) so the ordinary case is one fewer decision. Only when
         // nothing was posted — a re-render after failed validation must keep what the guest chose.
         StayModel.CheckInTime ??= StatedTimePolicy.Display(MealOccasionResolver.StandardCheckInTime);
@@ -382,6 +403,7 @@
 
     private async Task HandleStayRequest()
     {
+        if (!PassesGuard(StayGuard)) return;
         if (!await AllowedByRateLimitAsync()) return;
 
         // Availability is re-checked server-side on every post, never trusted from the calendar the
@@ -417,9 +439,24 @@
 
     private async Task HandleGeneralInquiry()
     {
+        if (!PassesGuard(GeneralGuard)) return;
         if (!await AllowedByRateLimitAsync()) return;
         await BookingService.CreateGeneralInquiryAsync(GeneralModel!);
         Nav.NavigateTo(InquiryThanks.MessagePath);
+    }
+
+    // NFR-04: the bot check, before the rate limit so a bot never spends a real guest's quota. A refusal
+    // saves nothing and sends nothing, and redraws the form with everything the visitor typed: a person
+    // wrongly caught (an autofill quirk, a tab left open overnight) sends again; a bot gets nothing. One
+    // message for every reason — the reason is logged, never shown.
+    private bool PassesGuard(InquiryFormGuardInput? posted)
+    {
+        var verdict = Guard.Check(posted);
+        if (verdict == InquiryFormGuardVerdict.Accepted)
+            return true;
+        Logger.LogWarning("Inquiry submission refused by the bot check: {Verdict}", verdict);
+        _guardRefused = true;
+        return false;
     }
 
     // NFR-04: rate-limit per client IP. Fails open (allows) if Redis is unreachable, so an

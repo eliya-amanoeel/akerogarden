@@ -11,7 +11,8 @@ namespace AkeroGarden.Web.Core.Services;
 /// <list type="bullet">
 ///   <item><see cref="AddAkeroCommon"/>, <see cref="AddAkeroDatabase"/>, <see cref="AddAkeroReferenceDataServices"/>,
 ///     <see cref="AddAkeroBookingEngine"/>, <see cref="AddAkeroEmail"/>, <see cref="AddAkeroAudit"/> — both hosts.</item>
-///   <item><see cref="AddAkeroInquiryRateLimiting"/> — public only (only the inquiry form is throttled).</item>
+///   <item><see cref="AddAkeroInquiryRateLimiting"/>, <see cref="AddAkeroInquiryFormGuard"/> — public only (only the
+///     inquiry form is throttled and bot-checked).</item>
 ///   <item><see cref="AddAkeroImageStorage"/>, <see cref="AddAkeroAdminInvites"/>, <see cref="AddAkeroScheduledJobs"/>,
 ///     <see cref="AddAkeroSeeding"/> — admin only.</item>
 /// </list>
@@ -163,6 +164,17 @@ public static class AkeroServiceCollectionExtensions
         services.AddScoped<IJobRunRecorder, JobRunRecorder>();
         services.AddScoped<JobHistoryService>();
         services.AddHostedService<DailyJobRunner>();
+        return services;
+    }
+
+    /// <summary>
+    /// The inquiry form's bot check (NFR-04) — public only. Singleton: it holds no per-request state, and
+    /// its stamps are protected with the host's Data Protection key ring.
+    /// </summary>
+    public static IServiceCollection AddAkeroInquiryFormGuard(this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<InquiryFormGuardOptions>(configuration.GetSection("InquiryFormGuard"));
+        services.AddSingleton<InquiryFormGuard>();
         return services;
     }
 

@@ -15,22 +15,24 @@ public static class BookingEmailTemplates
 {
     private static readonly CultureInfo Sv = CultureInfo.GetCultureInfo("sv-SE");
 
-    /// <summary>Guest acknowledgement for a stay request (§9, FR-05).</summary>
-    public static EmailContent StayRequestAcknowledgement(string contactName, string bookingReference)
+    /// <summary>Guest acknowledgement for a stay request (§9, FR-05). Takes no name, and nothing else the
+    /// sender typed: see <see cref="AcknowledgementGreeting"/>.</summary>
+    public static EmailContent StayRequestAcknowledgement(string bookingReference)
     {
         var body = new StringBuilder();
-        body.Append(Greeting(contactName));
+        body.Append(AcknowledgementGreeting);
         body.Append("<p>Tack för din bokningsförfrågan! Vi har tagit emot din förfrågan om att boka en vistelse hos oss på Åkerögården.</p>");
         body.Append(ReferenceLine(bookingReference));
         body.Append("<p>Vi går igenom din förfrågan och återkommer normalt inom några dagar med besked. Observera att förfrågan inte är en bekräftad bokning förrän vi har bekräftat den.</p>");
         return new EmailContent(WithReference("Vi har tagit emot din bokningsförfrågan", bookingReference), body.ToString());
     }
 
-    /// <summary>Guest acknowledgement for a general inquiry (§9, FR-05).</summary>
-    public static EmailContent GeneralInquiryAcknowledgement(string contactName, string bookingReference)
+    /// <summary>Guest acknowledgement for a general inquiry (§9, FR-05). Takes no name, and nothing else
+    /// the sender typed: see <see cref="AcknowledgementGreeting"/>.</summary>
+    public static EmailContent GeneralInquiryAcknowledgement(string bookingReference)
     {
         var body = new StringBuilder();
-        body.Append(Greeting(contactName));
+        body.Append(AcknowledgementGreeting);
         body.Append("<p>Tack för ditt meddelande! Vi har tagit emot din förfrågan och återkommer så snart vi kan.</p>");
         body.Append(ReferenceLine(bookingReference));
         return new EmailContent(WithReference("Vi har tagit emot ditt meddelande", bookingReference), body.ToString());
@@ -631,6 +633,15 @@ public static class BookingEmailTemplates
 
     // ── Helpers ─────────────────────────────────────────────────────────────────
     private static string Greeting(string contactName) => $"<p>Hej {Enc(contactName)},</p>";
+
+    /// <summary>
+    /// The acknowledgements' fixed greeting (FR-05). They are the only emails that go to an address nobody
+    /// has checked — anyone can type anyone's address into the public form — so they carry nothing the
+    /// sender typed: a name of up to 200 characters, copied into an email from our domain, would let a
+    /// stranger send their own text to anyone in Åkerögården's name. Every later guest email is sent only
+    /// after an admin has acted on the booking, and greets by name.
+    /// </summary>
+    private const string AcknowledgementGreeting = "<p>Hej!</p>";
 
     /// <summary>Renders the shared "Referensnummer: AG-2026-0042" line every guest email carries so
     /// the guest can quote it on a support call (FR-92). "Referensnummer" rather than

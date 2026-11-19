@@ -7,6 +7,8 @@
 @inject BuildingService BuildingService
 @inject RoomService RoomService
 @inject TimeProvider Clock
+@inject NavigationManager Nav
+@inject IJSRuntime JS
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
 <PageTitle>Blockeringar — Åkerögården Admin</PageTitle>
@@ -64,6 +66,7 @@ else
             </AdminDataCard>
         }
     </div>
+    <AdminPager Page="_page" TotalPages="_totalPages" OnPageChanged="GoToPage" />
 }
 
 <EditForm Model="_form" OnValidSubmit="Save">
@@ -161,6 +164,9 @@ else
 
 @code {
     private List<BlockedPeriod>? _blocks;
+    private readonly OneAtATime _loads = new();
+    private int _page = 1;
+    private int _totalPages = 1;
     private BlockedPeriod _form = new();
     private Guid? _editingId;
     private bool _isCreating;
@@ -177,15 +183,28 @@ else
     protected override async Task OnInitializedAsync()
     {
         _form = NewForm(); // here, not in the field initializer: it reads the injected clock
-        _buildings = await BuildingService.GetAllAsync();
-        foreach (var b in _buildings) _buildingNames[b.Id] = b.Name;
-        await Load();
+        await _loads.RunAsync(async () =>
+        {
+            _buildings = await BuildingService.GetAllAsync();
+            foreach (var b in _buildings) _buildingNames[b.Id] = b.Name;
+            // The page in the address (ListAddress), so a reload keeps it.
+            await FetchAsync((await ListAddress.ReadAsync(JS, Nav, RendererInfo.IsInteractive)).Page);
+        });
     }
 
-    private async Task Load()
+    private async Task GoToPage(int page)
     {
-        _blocks = await BlockedPeriodService.GetAllAsync();
-        // Resolve room names for any room-scoped blocks (small set).
+        await _loads.RunAsync(() => FetchAsync(page));
+        await ListAddress.ReplaceAsync(JS, Nav, _page);
+    }
+
+    private async Task FetchAsync(int page)
+    {
+        var blocks = await BlockedPeriodService.GetPageAsync(page);
+        _blocks = [.. blocks.Items];
+        _page = blocks.Page;
+        _totalPages = blocks.TotalPages;
+        // Resolve room names for the room-scoped blocks on this page.
         foreach (var p in _blocks.Where(p => p.RoomId is not null && !_roomNames.ContainsKey(p.RoomId!.Value)))
         {
             var room = await RoomService.GetAsync(p.RoomId!.Value);
@@ -285,8 +304,12 @@ else
         }
 
         _message = ToastMessage.Ok(_isCreating ? "Blockeringen har lagts till." : "Blockeringen har uppdaterats.");
+        // To the page that holds the saved block: a new block, or one moved to other dates, can sort
+        // onto a page the admin is not looking at, and the toast alone would leave them hunting for it.
+        // (The service gives a new block its id on _form.)
+        var savedId = _form.Id;
         ClosePanel();
-        await Load();
+        await GoToPage(await BlockedPeriodService.PageOfAsync(savedId));
     }
 
     private BlockedPeriod? EditingBlock => _isCreating ? null : _blocks?.FirstOrDefault(x => x.Id == _editingId);
@@ -317,7 +340,8 @@ else
         await BlockedPeriodService.DeleteAsync(p.Id);
         _message = ToastMessage.Ok("Blockeringen har tagits bort.");
         ClosePanel();
-        await Load();
+        // Stay on this page; the service moves back a page when the last block on the last page went.
+        await GoToPage(_page);
     }
 
     private string TargetLabel(BlockedPeriod p) => p.Scope switch

@@ -24,9 +24,29 @@ public class BlockedPeriodService(ApplicationDbContext db)
     private static readonly BookingStatus[] LiveStatuses =
         [BookingStatus.Pending, .. OccupancyProvider.OccupyingStatuses];
 
-    /// <summary>All blocks, soonest start first — for the admin list and calendar (FR-37/40).</summary>
-    public async Task<List<BlockedPeriod>> GetAllAsync() =>
-        await db.BlockedPeriods.OrderBy(p => p.StartDate).ThenBy(p => p.EndDate).ToListAsync();
+    /// <summary>
+    /// One page of the admin block list (FR-40), in <see cref="ListOrder"/>.
+    /// </summary>
+    public async Task<ListPage<BlockedPeriod>> GetPageAsync(int page = 1, int pageSize = ListPage.RowsPerPage) =>
+        await ListPage.FromAsync(ListOrder(), page, pageSize);
+
+    /// <summary>
+    /// The page of the admin block list that holds block <paramref name="id"/> — where the list goes
+    /// after a save, so a block just added or moved to other dates is on screen rather than on a
+    /// page the admin is not looking at. Page 1 if it no longer exists. Only the ids are read: the
+    /// position is the block's index in the same order the pages are cut from.
+    /// </summary>
+    public async Task<int> PageOfAsync(Guid id, int pageSize = ListPage.RowsPerPage)
+    {
+        var index = (await ListOrder().Select(p => p.Id).ToListAsync()).IndexOf(id);
+        return index < 0 ? 1 : (index / pageSize) + 1;
+    }
+
+    // Latest start first. No job deletes a finished block, so the list only grows — and the ones that
+    // matter are those still ahead: soonest-first would put years of finished blocks on the first
+    // page. The id breaks a tie so a page boundary never shows a block twice or skips it.
+    private IOrderedQueryable<BlockedPeriod> ListOrder() =>
+        db.BlockedPeriods.OrderByDescending(p => p.StartDate).ThenByDescending(p => p.EndDate).ThenBy(p => p.Id);
 
     public async Task<BlockedPeriod?> GetAsync(Guid id) =>
         await db.BlockedPeriods.FindAsync(id);

@@ -5,6 +5,7 @@
 @using AkeroGarden.Web.Core.Services
 @inject BookingService BookingService
 @inject NavigationManager Nav
+@inject IJSRuntime JS
 @inject TimeProvider Clock
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
@@ -16,10 +17,14 @@
 
 <p class="form-hint">Alla förfrågningar och bokningar. Filtrera på status, typ och datum, eller sök på referensnummer.</p>
 
+@* Inert until the list has taken its state from the address (OnInitializedAsync). On the live
+   circuit that waits on the browser, and a filter changed in the meantime was overwritten when
+   the address was applied — one state, two writers (E2E, 2026-11-19). Prerendering finishes
+   before any HTML is sent, so the served page never shows them disabled. *@
 <div class="admin-filters">
     <div class="form-group">
         <label for="f-status">Status</label>
-        <select id="f-status" @bind="_status" @bind:after="Load">
+        <select id="f-status" disabled="@(!_ready)" @bind="_status" @bind:after="Load">
             <option value="">Alla</option>
             @foreach (var s in Enum.GetValues<BookingStatus>())
             {
@@ -29,7 +34,7 @@
     </div>
     <div class="form-group">
         <label for="f-type">Typ</label>
-        <select id="f-type" @bind="_type" @bind:after="Load">
+        <select id="f-type" disabled="@(!_ready)" @bind="_type" @bind:after="Load">
             <option value="">Alla</option>
             @foreach (var t in Enum.GetValues<BookingType>())
             {
@@ -39,21 +44,21 @@
     </div>
     <div class="form-group">
         <label for="f-from">Incheckning fr.o.m.</label>
-        <input id="f-from" type="date" @bind="_from" @bind:after="Load" />
+        <input id="f-from" type="date" disabled="@(!_ready)" @bind="_from" @bind:after="Load" />
     </div>
     <div class="form-group">
         <label for="f-to">Incheckning t.o.m.</label>
-        <input id="f-to" type="date" @bind="_to" @bind:after="Load" />
+        <input id="f-to" type="date" disabled="@(!_ready)" @bind="_to" @bind:after="Load" />
     </div>
     <div class="form-group">
         <label for="f-ref">Referensnummer</label>
-        <input id="f-ref" type="search" placeholder="t.ex. AG-2026-0042" @bind="_reference" @bind:after="Load" />
+        <input id="f-ref" type="search" placeholder="t.ex. AG-2026-0042" disabled="@(!_ready)" @bind="_reference" @bind:after="Load" />
     </div>
     @* The browser's date field has no clear button, so a chosen date could only be removed by
        deleting it part by part. Shown only while a filter is active (same on /jobbhistorik). *@
     @if (HasFilters)
     {
-        <button type="button" class="btn-ghost btn-sm" @onclick="ClearFilters">Återställ filter</button>
+        <button type="button" class="btn-ghost btn-sm" disabled="@(!_ready)" @onclick="ClearFilters">Återställ filter</button>
     }
 </div>
 
@@ -141,10 +146,15 @@ else
             </AdminDataCard>
         }
     </div>
+    <AdminPager Page="_page" TotalPages="_totalPages" OnPageChanged="GoToPage" />
 }
 
 @code {
     private List<Booking>? _bookings;
+    private readonly OneAtATime _loads = new();
+    private bool _ready;
+    private int _page = 1;
+    private int _totalPages = 1;
     private string _status = "";
     private string _type = "";
     private DateOnly? _from;
@@ -152,7 +162,18 @@ else
     private string _reference = "";
     private DateOnly _today;
 
-    protected override async Task OnInitializedAsync() => await Load();
+    // Arriving — from the menu, a reload, or Back from a booking — the list is what the address
+    // says (ListAddress). The page and filters only, never the reference search (NFR-05).
+    protected override Task OnInitializedAsync() => _loads.RunAsync(async () =>
+    {
+        var address = await ListAddress.ReadAsync(JS, Nav, RendererInfo.IsInteractive);
+        _status = address.EnumName<BookingStatus>("status");
+        _type = address.EnumName<BookingType>("typ");
+        _from = address.Date("fran");
+        _to = address.Date("till");
+        await FetchAsync(address.Page);
+        _ready = true;
+    });
 
     private void GoToBooking(Guid id) => Nav.NavigateTo($"/bokningar/{id}");
 
@@ -169,11 +190,25 @@ else
         return Load();
     }
 
-    private async Task Load()
+    // A changed filter starts again from the first page; the service keeps any page inside the
+    // pages that exist (same as /jobbhistorik).
+    private Task Load() => GoToPage(1);
+
+    private async Task GoToPage(int page)
+    {
+        await _loads.RunAsync(() => FetchAsync(page));
+        await ListAddress.ReplaceAsync(JS, Nav, _page,
+            ("status", _status), ("typ", _type), ("fran", ListAddress.Date(_from)), ("till", ListAddress.Date(_to)));
+    }
+
+    private async Task FetchAsync(int page)
     {
         BookingStatus? status = Enum.TryParse<BookingStatus>(_status, out var s) ? s : null;
         BookingType? type = Enum.TryParse<BookingType>(_type, out var t) ? t : null;
         _today = StockholmTime.Today(Clock);
-        _bookings =await BookingService.GetBookingsAsync(status, type, _from, _to, _reference);
+        var bookings = await BookingService.GetBookingsPageAsync(status, type, _from, _to, _reference, page);
+        _bookings = [.. bookings.Items];
+        _page = bookings.Page;
+        _totalPages = bookings.TotalPages;
     }
 }

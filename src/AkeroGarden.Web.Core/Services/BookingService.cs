@@ -529,16 +529,30 @@ public class BookingService(
     }
 
     /// <summary>
-    /// The admin booking list, filterable by status, type, check-in date range, and searchable by
-    /// booking reference (FR-36/FR-92). Newest first. The date range matches a stay's check-in;
-    /// general inquiries (no dates) are excluded when a date range is supplied.
+    /// The bookings with a status and/or of a type, newest first — for the views that show a slice of
+    /// them in full (the dashboard's queues, the calendar). The admin booking list is paged instead:
+    /// <see cref="GetBookingsPageAsync"/>.
     /// </summary>
-    public async Task<List<Booking>> GetBookingsAsync(
+    public async Task<List<Booking>> GetBookingsAsync(BookingStatus? status = null, BookingType? type = null) =>
+        await NewestFirst(FilterBookings(status, type)).ToListAsync();
+
+    /// <summary>
+    /// One page of the admin booking list, filterable by status, type, check-in date range, and
+    /// searchable by booking reference (FR-36/FR-92). Newest first. The date range matches a stay's
+    /// check-in; general inquiries (no dates) are excluded when a date range is supplied.
+    /// </summary>
+    public async Task<ListPage<Booking>> GetBookingsPageAsync(
         BookingStatus? status = null,
         BookingType? type = null,
         DateOnly? from = null,
         DateOnly? to = null,
-        string? reference = null)
+        string? reference = null,
+        int page = 1,
+        int pageSize = ListPage.RowsPerPage) =>
+        await ListPage.FromAsync(NewestFirst(FilterBookings(status, type, from, to, reference)), page, pageSize);
+
+    private IQueryable<Booking> FilterBookings(
+        BookingStatus? status, BookingType? type, DateOnly? from = null, DateOnly? to = null, string? reference = null)
     {
         var query = db.Bookings.AsQueryable();
 
@@ -549,21 +563,30 @@ public class BookingService(
         if (!string.IsNullOrWhiteSpace(reference))
             query = query.Where(b => EF.Functions.ILike(b.BookingReference, $"%{reference.Trim()}%"));
 
-        return await query.OrderByDescending(b => b.CreatedAt).ToListAsync();
+        return query;
     }
 
+    // The reference is unique, so two bookings sent in the same instant still have one order and a
+    // page boundary never shows a row twice or skips it.
+    private static IOrderedQueryable<Booking> NewestFirst(IQueryable<Booking> query) =>
+        query.OrderByDescending(b => b.CreatedAt).ThenByDescending(b => b.BookingReference);
+
     /// <summary>
-    /// Bookings that have downloadable lists (FR-44/45) — the only bookings the
+    /// One page of the bookings that have downloadable lists (FR-44/45), latest check-in first — the
+    /// only bookings the
     /// <see cref="Data.AdminRoles.Coordinator"/> role may see at all (FR-104). Filtering happens in
     /// SQL rather than in the page so a pending, denied or cancelled booking is never loaded into a
     /// process that would render it; the status set is <see cref="ListShaper.AvailableStatuses"/>,
-    /// the same one the download endpoints enforce.
+    /// the same one the download endpoints enforce. The reference breaks a tie between two stays
+    /// that start the same day, so a page boundary never shows one twice or skips it.
     /// </summary>
-    public async Task<List<Booking>> GetBookingsWithListsAsync() =>
-        await db.Bookings
-            .Where(b => ListShaper.AvailableStatuses.Contains(b.Status))
-            .OrderByDescending(b => b.CheckIn)
-            .ToListAsync();
+    public async Task<ListPage<Booking>> GetBookingsWithListsPageAsync(int page = 1, int pageSize = ListPage.RowsPerPage) =>
+        await ListPage.FromAsync(
+            db.Bookings
+                .Where(b => ListShaper.AvailableStatuses.Contains(b.Status))
+                .OrderByDescending(b => b.CheckIn)
+                .ThenByDescending(b => b.BookingReference),
+            page, pageSize);
 
     /// <summary>
     /// A single booking that has downloadable lists, or null. The status gate is part of the query

@@ -141,11 +141,11 @@ public class JobHistoryIntegrationTests : IClassFixture<DbFixture>
 
         // The filter narrows the runs, so the night holds only the run that touched the booking —
         // not the other run started the same moment.
-        var night = Assert.Single(page.Nights);
+        var night = Assert.Single(page.Items);
         var found = Assert.Single(night.Runs);
         Assert.Equal(touching, found.Run.Id);
         Assert.Equal(2, found.EntryCount);
-        Assert.DoesNotContain(page.Nights.SelectMany(n => n.Runs), r => r.Run.Id == notTouching);
+        Assert.DoesNotContain(page.Items.SelectMany(n => n.Runs), r => r.Run.Id == notTouching);
         Assert.Equal(2, (await history.GetEntriesAsync([touching])).Count);
     }
 
@@ -192,25 +192,25 @@ public class JobHistoryIntegrationTests : IClassFixture<DbFixture>
         var first = await history.GetNightsAsync();
         Assert.Equal(1, first.Page);
         Assert.Equal(4, first.TotalPages);
-        Assert.Equal(Enumerable.Range(1, 10).Select(i => today.AddDays(-i)), first.Nights.Select(n => n.Date));
-        Assert.Equal(3, first.Nights[0].Runs.Count);
-        Assert.Equal(3, first.Nights[1].Runs.Count);
-        Assert.Equal(2, first.Nights[2].Runs.Count);
+        Assert.Equal(Enumerable.Range(1, 10).Select(i => today.AddDays(-i)), first.Items.Select(n => n.Date));
+        Assert.Equal(3, first.Items[0].Runs.Count);
+        Assert.Equal(3, first.Items[1].Runs.Count);
+        Assert.Equal(2, first.Items[2].Runs.Count);
         // Newest run first inside a night too.
-        Assert.True(first.Nights[1].Runs[0].Run.StartedAt > first.Nights[1].Runs[1].Run.StartedAt);
+        Assert.True(first.Items[1].Runs[0].Run.StartedAt > first.Items[1].Runs[1].Run.StartedAt);
 
         var last = await history.GetNightsAsync(page: 4);
-        Assert.Equal(new[] { today.AddDays(-31), today.AddDays(-32) }, last.Nights.Select(n => n.Date));
+        Assert.Equal(new[] { today.AddDays(-31), today.AddDays(-32) }, last.Items.Select(n => n.Date));
 
         // A page past the end is kept inside the pages that exist, never an empty page.
         var beyond = await history.GetNightsAsync(page: 9);
         Assert.Equal(4, beyond.Page);
-        Assert.Equal(last.Nights.Select(n => n.Date), beyond.Nights.Select(n => n.Date));
+        Assert.Equal(last.Items.Select(n => n.Date), beyond.Items.Select(n => n.Date));
 
         // One date is that night alone, by the Swedish clock: the 23:30 run is in, the next
         // morning's 00:30 run is not.
         var oneNight = await history.GetNightsAsync(date: today.AddDays(-2));
-        var night2 = Assert.Single(oneNight.Nights);
+        var night2 = Assert.Single(oneNight.Items);
         Assert.Equal(today.AddDays(-2), night2.Date);
         Assert.Equal(3, night2.Runs.Count);
         Assert.Equal(1, oneNight.TotalPages);
@@ -241,24 +241,24 @@ public class JobHistoryIntegrationTests : IClassFixture<DbFixture>
         var history = read.ServiceProvider.GetRequiredService<JobHistoryService>();
 
         var all = await history.GetNightsAsync();
-        Assert.Equal(JobRunOutcome.Failed, all.Nights.Single(n => n.Date == bad).Outcome);
-        Assert.Equal(1, all.Nights.Single(n => n.Date == bad).NotSucceededCount);
-        Assert.Equal(JobRunOutcome.Succeeded, all.Nights.Single(n => n.Date == good).Outcome);
-        Assert.Null(all.Nights.Single(n => n.Date == unfinished).Outcome);
+        Assert.Equal(JobRunOutcome.Failed, all.Items.Single(n => n.Date == bad).Outcome);
+        Assert.Equal(1, all.Items.Single(n => n.Date == bad).NotSucceededCount);
+        Assert.Equal(JobRunOutcome.Succeeded, all.Items.Single(n => n.Date == good).Outcome);
+        Assert.Null(all.Items.Single(n => n.Date == unfinished).Outcome);
 
         var failed = await history.GetNightsAsync(result: JobRunResult.Failed);
-        var failedNight = Assert.Single(failed.Nights);
+        var failedNight = Assert.Single(failed.Items);
         Assert.Equal(bad, failedNight.Date);
         Assert.Equal(JobRunOutcome.Failed, Assert.Single(failedNight.Runs).Run.Outcome);
 
         var notFinished = await history.GetNightsAsync(result: JobRunResult.Unfinished);
-        var unfinishedNight = Assert.Single(notFinished.Nights);
+        var unfinishedNight = Assert.Single(notFinished.Items);
         Assert.Equal(unfinished, unfinishedNight.Date);
         Assert.Null(Assert.Single(unfinishedNight.Runs).Run.Outcome);
 
         // Every night had one job that succeeded; filtered to those, each night shows only that job.
         var succeeded = await history.GetNightsAsync(result: JobRunResult.Succeeded);
-        Assert.Equal(new[] { bad, good, unfinished }, succeeded.Nights.Select(n => n.Date));
-        Assert.All(succeeded.Nights, n => Assert.Equal(JobRunOutcome.Succeeded, Assert.Single(n.Runs).Run.Outcome));
+        Assert.Equal(new[] { bad, good, unfinished }, succeeded.Items.Select(n => n.Date));
+        Assert.All(succeeded.Items, n => Assert.Equal(JobRunOutcome.Succeeded, Assert.Single(n.Runs).Run.Outcome));
     }
 }

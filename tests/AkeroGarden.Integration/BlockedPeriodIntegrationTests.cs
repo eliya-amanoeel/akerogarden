@@ -41,7 +41,7 @@ public class BlockedPeriodIntegrationTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Create_WholeProperty_Persists()
     {
-        var service = NewService(out var scope, out _);
+        var service = NewService(out var scope, out var db);
         using var _s = scope;
 
         var result = await service.TryCreateAsync(new BlockedPeriod
@@ -53,7 +53,7 @@ public class BlockedPeriodIntegrationTests : IClassFixture<DbFixture>
         });
 
         Assert.True(result.Succeeded);
-        Assert.Single(await service.GetAllAsync(), p => p.Reason == "Underhåll");
+        Assert.Single(db.BlockedPeriods, p => p.Reason == "Underhåll");
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class BlockedPeriodIntegrationTests : IClassFixture<DbFixture>
     [Fact]
     public async Task Delete_RemovesBlock()
     {
-        var service = NewService(out var scope, out _);
+        var service = NewService(out var scope, out var db);
         using var _s = scope;
 
         await service.TryCreateAsync(new BlockedPeriod
@@ -141,11 +141,11 @@ public class BlockedPeriodIntegrationTests : IClassFixture<DbFixture>
             EndDate = new DateOnly(2026, 9, 2),
             Reason = "DeleteMe"
         });
-        var created = (await service.GetAllAsync()).First(p => p.Reason == "DeleteMe");
+        var created = db.BlockedPeriods.First(p => p.Reason == "DeleteMe");
 
         await service.DeleteAsync(created.Id);
 
-        Assert.DoesNotContain(await service.GetAllAsync(), p => p.Id == created.Id);
+        Assert.DoesNotContain(db.BlockedPeriods, p => p.Id == created.Id);
     }
 
     // ── FR-102 in reverse: an assigned building cannot be blocked ────────────────
@@ -215,7 +215,7 @@ public class BlockedPeriodIntegrationTests : IClassFixture<DbFixture>
             $"Byggnaden {building.Name} är tilldelad {booking.BookingReference} under perioden. "
                 + "Avmarkera byggnaden på bokningen innan du blockerar den.",
             result.Error);
-        Assert.DoesNotContain(await service.GetAllAsync(), p => p.BuildingId == building.Id);
+        Assert.DoesNotContain(db.BlockedPeriods, p => p.BuildingId == building.Id);
     }
 
     [Theory]

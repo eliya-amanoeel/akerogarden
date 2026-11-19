@@ -11,7 +11,7 @@
    Administratör only. Samordnare get Del B on its own page (/handbok/samordnare); the part is one
    shared component (HandbookCoordinatorPart), so it cannot drift between the two.
 
-   Deliberately Static SSR, like /listor: it is reading matter, so it needs no circuit.
+   Deliberately Static SSR: it is reading matter, so it needs no circuit.
 
    Every in-page link is written "/handbok#…", never a bare "#…": App.razor sets <base href="/">,
    which resolves a bare fragment against "/", so "#avboka" took the reader to the dashboard
@@ -110,6 +110,7 @@
 
                 <h3 id="ny-forfragan">När en förfrågan kommer in</h3>
                 <p>En gäst som fyller i formuläret på webbplatsen hamnar direkt i <b>Bokningar</b> med status <b>Väntar</b>. Ni får samtidigt ett mejl till <b>@ContactDetails.Email</b>. Gästen får en automatisk bekräftelse på att förfrågan är mottagen — det är inte en bokning, bara en kvittens.</p>
+                <p><b>Bokningar</b> visar de senast inkomna först, 25 per sida; bläddra med sidnumren under listan. Söker ni en viss bokning går det fortare att skriva referensnumret i sökrutan. Ändrar ni ett filter börjar listan om från sida 1. Går ni in på en bokning och sedan <b>Tillbaka</b> i webbläsaren kommer ni till samma sida med samma filter — utom sökningen på referensnummer, som inte sparas.</p>
                 <p>Det finns två sorters förfrågningar: <b>bokningsförfrågan</b> (någon vill boka en vistelse) och <b>allmän förfrågan</b> (någon undrar något). En allmän förfrågan går inte att godkänna — ni svarar gästen på vanligt sätt och klickar sedan <b>Markera som besvarad</b>.</p>
 
                 <h3 id="godkanna">Godkänna en förfrågan</h3>
@@ -311,7 +312,7 @@
                         <li>Klicka <b>Spara</b>.</li>
                     </ol>
                 </div>
-                <p>En blockering av <b>hela gården</b> syns som upptagen i gästernas kalender på webbplatsen. En blockering av en enskild byggnad eller ett enskilt rum syns <b>inte</b> i gästkalendern — gården hyrs ut till en grupp i taget, och ett rum ur drift stänger inte gården. Den blockerade byggnaden går däremot inte att tilldela en grupp under de datumen. För att ändra eller ta bort en blockering: klicka på raden eller <b>Redigera</b>, ändra och <b>Spara</b> — eller <b>Ta bort</b>.</p>
+                <p>En blockering av <b>hela gården</b> syns som upptagen i gästernas kalender på webbplatsen. En blockering av en enskild byggnad eller ett enskilt rum syns <b>inte</b> i gästkalendern — gården hyrs ut till en grupp i taget, och ett rum ur drift stänger inte gården. Den blockerade byggnaden går däremot inte att tilldela en grupp under de datumen. För att ändra eller ta bort en blockering: klicka på raden eller <b>Redigera</b>, ändra och <b>Spara</b> — eller <b>Ta bort</b>. Listan visar de blockeringar som börjar senast först, 25 per sida — gamla, passerade blockeringar hamnar på de sista sidorna. När ni sparar visas sidan där blockeringen hamnade.</p>
                 <div class="alert alert--info">
                     <span class="alert__ic" aria-hidden="true">i</span>
                     <div>
@@ -325,7 +326,7 @@
                     <li><b>Deltagarlista</b> — vilka som kommer. Används bland annat som underlag vid brandlarm.</li>
                     <li><b>Matlista</b> — en sammanställning för köket: hur många som äter vid varje måltid, och vilka allergier och specialkoster som anmälts.</li>
                 </ul>
-                <p>Listorna finns när gästen skickat in sina uppgifter — när bokningen har status <b>Uppgifter klara</b>, <b>På plats</b> eller <b>Avslutad</b>.</p>
+                <p>Listorna finns när gästen skickat in sina uppgifter — när bokningen har status <b>Uppgifter klara</b>, <b>På plats</b> eller <b>Avslutad</b>. Bokningarna visas med senaste ankomstdatum först, 25 per sida; bläddra med sidnumren under listan.</p>
 
                 <h3 id="konton">Administratörskonton</h3>
                 <p>Under <b>Administratörskonton</b> hanterar ni vilka som får logga in.</p>

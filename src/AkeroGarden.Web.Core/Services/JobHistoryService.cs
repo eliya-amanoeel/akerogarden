@@ -23,7 +23,7 @@ public class JobHistoryService(ApplicationDbContext db)
     /// get it?" question). <paramref name="page"/> is 1-based and kept inside the pages that exist,
     /// so a filter that leaves fewer pages never strands the reader on an empty one.
     /// </summary>
-    public async Task<JobNightPage> GetNightsAsync(
+    public async Task<ListPage<JobNight>> GetNightsAsync(
         string? jobName = null, string? bookingReference = null, JobRunResult? result = null,
         DateOnly? date = null, int page = 1, int pageSize = NightsPerPage)
     {
@@ -68,8 +68,7 @@ public class JobHistoryService(ApplicationDbContext db)
             .Distinct()
             .OrderByDescending(d => d)
             .ToList();
-        var totalPages = Math.Max(1, (dates.Count + pageSize - 1) / pageSize);
-        var current = Math.Clamp(page, 1, totalPages);
+        var (current, totalPages) = ListPage.Clamp(dates.Count, page, pageSize);
         var shown = dates.Skip((current - 1) * pageSize).Take(pageSize).ToHashSet();
         var ids = starts.Where(s => shown.Contains(StockholmTime.DateOf(s.StartedAt))).Select(s => s.Id).ToList();
 
@@ -85,7 +84,7 @@ public class JobHistoryService(ApplicationDbContext db)
             .Select(g => new JobNight(g.Key, g.ToList()))
             .ToList();
 
-        return new JobNightPage(grouped, current, totalPages);
+        return new ListPage<JobNight>(grouped, current, totalPages);
     }
 
     /// <summary>The audit entries the given runs wrote, in the order they were written — one query
@@ -121,9 +120,6 @@ public record JobNight(DateOnly Date, IReadOnlyList<JobRunListItem> Runs)
 
     public int EntryCount => Runs.Sum(r => r.EntryCount);
 }
-
-/// <summary>One page of nights: which page it is (1-based) and how many there are.</summary>
-public record JobNightPage(IReadOnlyList<JobNight> Nights, int Page, int TotalPages);
 
 /// <summary>The job history's result filter: a run's outcome, with a run that never finished — no
 /// outcome recorded, still running or stopped midway — as a value of its own.</summary>

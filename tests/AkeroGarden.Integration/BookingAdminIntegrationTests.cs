@@ -775,7 +775,7 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
     }
 
     [Fact]
-    public async Task GetBookingsAsync_FiltersByReference_FR36_92()
+    public async Task GetBookingsPageAsync_FiltersByReference_FR36_92()
     {
         var provider = NewProvider(out _);
         var wantedId = await CreatePendingStayAsync(provider);
@@ -785,15 +785,14 @@ public class BookingAdminIntegrationTests : IClassFixture<DbFixture>
         var svc = scope.ServiceProvider.GetRequiredService<BookingService>();
         var wanted = await ReloadAsync(provider, wantedId);
 
-        var exact = await svc.GetBookingsAsync(reference: wanted.BookingReference);
-        Assert.Single(exact);
-        Assert.Equal(wantedId, exact[0].Id);
+        var exact = (await svc.GetBookingsPageAsync(reference: wanted.BookingReference)).Items;
+        Assert.Equal(wantedId, Assert.Single(exact).Id);
 
         // Partial match (what an admin would actually type) also finds it.
-        var partial = await svc.GetBookingsAsync(reference: wanted.BookingReference[..^2]);
+        var partial = (await svc.GetBookingsPageAsync(reference: wanted.BookingReference[..^2])).Items;
         Assert.Contains(partial, b => b.Id == wantedId);
 
-        var none = await svc.GetBookingsAsync(reference: "AG-9999-9999");
+        var none = (await svc.GetBookingsPageAsync(reference: "AG-9999-9999")).Items;
         Assert.Empty(none);
     }
 }

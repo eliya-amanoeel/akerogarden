@@ -14,6 +14,8 @@
 @using AkeroGarden.Web.Core.Data.Entities
 @using AkeroGarden.Web.Core.Services
 @inject JobHistoryService JobHistoryService
+@inject NavigationManager Nav
+@inject IJSRuntime JS
 @inject Microsoft.Extensions.Options.IOptions<JobOptions> RunOptions
 @attribute [Authorize(Roles = AdminRoles.Administrator)]
 
@@ -25,10 +27,14 @@
    state a time the jobs no longer run at. *@
 <p class="form-hint">De schemalagda jobben körs varje natt kl. @($"{RunOptions.Value.DailyRunHourLocal:00}:00"). Varje natt är en rad — klicka på den för att se vad varje jobb gjorde. Sök på referensnummer för att se om en viss bokning har fått sitt mejl.</p>
 
+@* Inert until the list has taken its state from the address (OnInitializedAsync). On the live
+   circuit that waits on the browser, and a filter changed in the meantime was overwritten when
+   the address was applied — one state, two writers (E2E, 2026-11-19). Prerendering finishes
+   before any HTML is sent, so the served page never shows them disabled. *@
 <div class="admin-filters">
     <div class="form-group">
         <label for="f-job">Jobb</label>
-        <select id="f-job" @bind="_jobName" @bind:after="Load">
+        <select id="f-job" disabled="@(!_ready)" @bind="_jobName" @bind:after="Load">
             <option value="">Alla</option>
             @foreach (var name in _jobNames)
             {
@@ -41,7 +47,7 @@
         @* Bound to a string holding the enum's name and parsed on load, as /bokningar does its
            status — not to a bool: Blazor converts a bound bool only from a checkbox, so a select
            bound to one silently never filtered (caught by the E2E test, 2026-10-14). *@
-        <select id="f-result" @bind="_result" @bind:after="Load">
+        <select id="f-result" disabled="@(!_ready)" @bind="_result" @bind:after="Load">
             <option value="">Alla</option>
             @foreach (var r in Enum.GetValues<JobRunResult>())
             {
@@ -51,17 +57,17 @@
     </div>
     <div class="form-group">
         <label for="f-date">Datum</label>
-        <input id="f-date" type="date" @bind="_date" @bind:after="Load" />
+        <input id="f-date" type="date" disabled="@(!_ready)" @bind="_date" @bind:after="Load" />
     </div>
     <div class="form-group">
         <label for="f-ref">Referensnummer</label>
-        <input id="f-ref" type="search" placeholder="t.ex. AG-2026-0042" @bind="_reference" @bind:after="Load" />
+        <input id="f-ref" type="search" placeholder="t.ex. AG-2026-0042" disabled="@(!_ready)" @bind="_reference" @bind:after="Load" />
     </div>
     @* The browser's date field has no clear button, so a chosen date could only be removed by
        deleting it part by part. Shown only while a filter is active (same on /bokningar). *@
     @if (HasFilters)
     {
-        <button type="button" class="btn-ghost btn-sm" @onclick="ClearFilters">Återställ filter</button>
+        <button type="button" class="btn-ghost btn-sm" disabled="@(!_ready)" @onclick="ClearFilters">Återställ filter</button>
     }
 </div>
 
@@ -177,6 +183,8 @@ else
 
 @code {
     private List<JobNight>? _nights;
+    private readonly OneAtATime _loads = new();
+    private bool _ready;
     private int _page = 1;
     private int _totalPages = 1;
     private List<string> _jobNames = [];
@@ -187,11 +195,19 @@ else
     private JobNight? _selected;
     private List<AuditLog>? _entries;
 
-    protected override async Task OnInitializedAsync()
+    // Arriving — from the menu, a reload, or Back from a booking an entry links to — the list is
+    // what the address says (ListAddress); never the reference search (NFR-05). A job name the
+    // history does not hold is no filter.
+    protected override Task OnInitializedAsync() => _loads.RunAsync(async () =>
     {
         _jobNames = await JobHistoryService.GetJobNamesAsync();
-        await Load();
-    }
+        var address = await ListAddress.ReadAsync(JS, Nav, RendererInfo.IsInteractive);
+        _jobName = address["jobb"] is { } job && _jobNames.Contains(job) ? job : "";
+        _result = address.EnumName<JobRunResult>("resultat");
+        _date = address.Date("datum");
+        await FetchAsync(address.Page);
+        _ready = true;
+    });
 
     // A changed filter starts again from the first page; the service keeps any page inside the
     // pages that exist.
@@ -211,9 +227,16 @@ else
 
     private async Task GoToPage(int page)
     {
+        await _loads.RunAsync(() => FetchAsync(page));
+        await ListAddress.ReplaceAsync(JS, Nav, _page,
+            ("jobb", _jobName), ("resultat", _result), ("datum", ListAddress.Date(_date)));
+    }
+
+    private async Task FetchAsync(int page)
+    {
         JobRunResult? result = Enum.TryParse<JobRunResult>(_result, out var r) ? r : null;
         var nights = await JobHistoryService.GetNightsAsync(_jobName, _reference, result, _date, page);
-        _nights = [.. nights.Nights];
+        _nights = [.. nights.Items];
         _page = nights.Page;
         _totalPages = nights.TotalPages;
     }

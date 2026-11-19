@@ -1,14 +1,18 @@
 @* Restricted list view (FR-104) — the Samordnare landing page, and the same view an
    Administratör can open to see exactly what the coordinator sees.
 
-   Deliberately Static SSR: it lists and links, nothing more, so it needs no circuit.
+   Interactive Server, like every other admin list, since it became paged: the pager's page buttons
+   need a circuit. (It was Static SSR while it only listed and linked.)
    Deliberately free of guest contact data — no Sällskap column, no email, no phone (D4). The
    booking reference and the dates are what you need to pick the right booking; the names live
    inside the downloaded lists, which is the whole point of the role. *@
 @page "/listor"
 @layout AdminLayout
+@rendermode InteractiveServer
 @using AkeroGarden.Web.Core.Data.Entities
 @inject BookingService BookingService
+@inject NavigationManager Nav
+@inject IJSRuntime JS
 @attribute [Authorize(Roles = AdminRoles.Both)]
 
 <PageTitle>Deltagar- och matlistor — Åkerögården Admin</PageTitle>
@@ -65,16 +69,35 @@ else
             </AdminDataCard>
         }
     </div>
+    <AdminPager Page="_page" TotalPages="_totalPages" OnPageChanged="GoToPage" />
 }
 
 @code {
     private List<Booking>? _bookings;
+    private readonly OneAtATime _loads = new();
+    private int _page = 1;
+    private int _totalPages = 1;
 
     private static string DateRange(Booking b) =>
         b.CheckIn is not null && b.CheckOut is not null
             ? $"{b.CheckIn:yyyy-MM-dd} – {b.CheckOut:yyyy-MM-dd}"
             : "—";
 
-    protected override async Task OnInitializedAsync() =>
-        _bookings = await BookingService.GetBookingsWithListsAsync();
+    // The page in the address (ListAddress), so Back from a booking's lists returns to it.
+    protected override Task OnInitializedAsync() => _loads.RunAsync(async () =>
+        await FetchAsync((await ListAddress.ReadAsync(JS, Nav, RendererInfo.IsInteractive)).Page));
+
+    private async Task GoToPage(int page)
+    {
+        await _loads.RunAsync(() => FetchAsync(page));
+        await ListAddress.ReplaceAsync(JS, Nav, _page);
+    }
+
+    private async Task FetchAsync(int page)
+    {
+        var bookings = await BookingService.GetBookingsWithListsPageAsync(page);
+        _bookings = [.. bookings.Items];
+        _page = bookings.Page;
+        _totalPages = bookings.TotalPages;
+    }
 }

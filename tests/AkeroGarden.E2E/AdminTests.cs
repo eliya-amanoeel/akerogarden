@@ -582,6 +582,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         const string password = "E2e-Samordnare-Pass1!";
         var bookingId = Guid.NewGuid();
         var reference = $"AG-E2E-{Guid.NewGuid():N}"[..20];
+        var laterIds = Enumerable.Range(0, 25).Select(_ => Guid.NewGuid()).ToList();
 
         try
         {
@@ -617,6 +618,12 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
                         }
                     }
                 });
+                // 25 more bookings with lists, decades out, so they fill page 1 and this booking is
+                // on page 2: the coordinator has to page to find it, which is the pager tested as
+                // the role whose landing page this is (FR-104, design.md "Pager").
+                db.Bookings.AddRange(laterIds.Select((id, i) => PagingBooking(
+                    $"{reference[..15]}-{i + 1:D2}", BookingStatus.DetailsComplete, DateTime.UtcNow,
+                    DateOnly.FromDateTime(DateTime.UtcNow).AddYears(40).AddDays(-7 * i), id)));
                 await db.SaveChangesAsync();
             }
 
@@ -691,13 +698,31 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
 
             // 6. What the role is *for*: find the booking and actually get the file out.
             await Page.GotoAsync("/listor");
-            await Assertions.Expect(Page.GetByText(reference).First).ToBeVisibleAsync();
+            // Page 1 is the 25 later stays, latest check-in first; this booking is on page 2.
+            var rows = Page.Locator("table.admin-table tbody tr");
+            var pager = Page.GetByRole(AriaRole.Navigation, new() { Name = "Sidor" });
+            await Assertions.Expect(rows).ToHaveCountAsync(25);
+            await Assertions.Expect(rows.First).ToContainTextAsync($"{reference[..15]}-01");
+            await Assertions.Expect(rows.Last).ToContainTextAsync($"{reference[..15]}-25");
+            await Assertions.Expect(Page.GetByText(reference)).ToHaveCountAsync(0);
+            await GoToListPageAsync(pager, 2);
+            var row = rows.Filter(new() { HasText = reference });
+            await Assertions.Expect(row).ToHaveCountAsync(1);
 
             // No guest contact data on the way to the download (D4).
             await Assertions.Expect(Page.GetByText("karin@example.se")).ToHaveCountAsync(0);
             await Assertions.Expect(Page.GetByText("Karin Karlsson")).ToHaveCountAsync(0);
 
-            await Page.GetByRole(AriaRole.Link, new() { Name = "Öppna →" }).First.ClickAsync();
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/listor\?sida=2$"));
+
+            // Into the booking's lists and Back: page 2 again, where this booking is.
+            await row.GetByRole(AriaRole.Link, new() { Name = "Öppna →" }).ClickAsync();
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex($"/listor/{bookingId}$"));
+            await Page.GoBackAsync();
+            await Assertions.Expect(row).ToHaveCountAsync(1);
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Sida 2" })).ToHaveAttributeAsync("aria-current", "page");
+
+            await row.GetByRole(AriaRole.Link, new() { Name = "Öppna →" }).ClickAsync();
             await Assertions.Expect(Page).ToHaveURLAsync(
                 new System.Text.RegularExpressions.Regex($"/listor/{bookingId}"));
 
@@ -717,7 +742,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
         {
             await using var db = Fixture.NewDbContext();
             await db.Participants.Where(p => p.BookingId == bookingId).ExecuteDeleteAsync();
-            await db.Bookings.Where(b => b.Id == bookingId).ExecuteDeleteAsync();
+            await db.Bookings.Where(b => b.Id == bookingId || laterIds.Contains(b.Id)).ExecuteDeleteAsync();
             await db.Users.Where(u => u.Email == email).ExecuteDeleteAsync();
         }
     }
@@ -1539,6 +1564,8 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await pager.GetByRole(AriaRole.Button, new() { Name = "Nästa ›" }).ClickAsync();
             await Assertions.Expect(rows.First).ToContainTextAsync(today.AddDays(-11).ToString("yyyy-MM-dd"));
             await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Sida 2" })).ToHaveAttributeAsync("aria-current", "page");
+            // The page is in the address; the reference search, an ID, is not (NFR-05).
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/jobbhistorik\?sida=2$"));
 
             await pager.GetByRole(AriaRole.Button, new() { Name = "Sida 4" }).ClickAsync();
             await Assertions.Expect(rows).ToHaveCountAsync(1);
@@ -1550,6 +1577,7 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await Assertions.Expect(rows).ToHaveCountAsync(1);
             await Assertions.Expect(rows.First).ToContainTextAsync(today.AddDays(-5).ToString("yyyy-MM-dd"));
             await Assertions.Expect(pager).ToHaveCountAsync(0);
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex($@"/jobbhistorik\?datum={today.AddDays(-5):yyyy-MM-dd}$"));
 
             // "Återställ filter" empties every filter at once — the date field has no clear button of its
             // own — and the full history, at least these 31 nights, is paged again.
@@ -1565,6 +1593,184 @@ public class AdminTests(E2EFixture fixture) : AdminE2ETestBase(fixture)
             await using var db = Fixture.NewDbContext();
             await db.AuditLogs.Where(a => a.JobRunId != null && runIds.Contains(a.JobRunId.Value)).ExecuteDeleteAsync();
             await db.JobRuns.Where(r => runIds.Contains(r.Id)).ExecuteDeleteAsync();
+        }
+    }
+
+    /// <summary>
+    /// Goes to a page of a paged admin list by its number, until the server has drawn that page as
+    /// the current one. A click that lands before the circuit connects is lost; clicking a page
+    /// number again is harmless (the current page ignores it), so retrying is safe — "Nästa ›" is not.
+    /// </summary>
+    private Task GoToListPageAsync(ILocator pager, int page) =>
+        UntilTheServerHasItAsync(
+            () => pager.GetByRole(AriaRole.Button, new() { Name = $"Sida {page}" }).ClickAsync(),
+            pager.Locator($"button[aria-current='page'][aria-label='Sida {page}']"));
+
+    private static Booking PagingBooking(string reference, BookingStatus status, DateTime createdAt, DateOnly checkIn, Guid? id = null) => new()
+    {
+        Id = id ?? Guid.NewGuid(),
+        BookingReference = reference,
+        BookingType = BookingType.StayRequest,
+        Status = status,
+        ContactName = "Sidtest",
+        ContactEmail = "sidtest@example.se",
+        CheckIn = checkIn,
+        CheckOut = checkIn.AddDays(2),
+        OvernightGuestCount = 10,
+        MealPlan = MealPlan.SelfCateringAll,
+        CreatedAt = createdAt,
+        UpdatedAt = createdAt,
+    };
+
+    [Fact]
+    public async Task Booking_list_pages_25_at_a_time_keeps_page_and_filters_in_the_address_and_back_returns_to_them()
+    {
+        // 26 bookings checking in on one day of their own, so the check-in filter isolates them from
+        // every other booking in the shared database: pages of 25 and 1. Created a minute apart, -01
+        // newest. The check-in filter, not the reference search, because the reference is the one
+        // filter that is deliberately kept out of the address (NFR-05) and would not survive Back.
+        var prefix = $"AG-E2E-{Guid.NewGuid():N}"[..15];
+        var now = DateTime.UtcNow;
+        var checkIn = StockholmTime.Today(TimeProvider.System).AddYears(15).AddDays(Random.Shared.Next(0, 3650));
+        var day = checkIn.ToString("yyyy-MM-dd");
+        var bookings = Enumerable.Range(1, 26)
+            .Select(n => PagingBooking($"{prefix}-{n:D2}", BookingStatus.Pending, now.AddMinutes(-n), checkIn))
+            .ToList();
+        var ids = bookings.Select(b => b.Id).ToList();
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.Bookings.AddRange(bookings);
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/bokningar");
+            // The proof needs BOTH dates on the server: with only one, the newest booking in the whole
+            // database heads the list, not -01. ("Återställ filter" appears for either date alone, so
+            // a fill lost before the circuit connected went unnoticed behind it — 2026-11-19.)
+            var rows = Page.Locator("table.admin-table tbody tr");
+            await UntilTheServerHasItAsync(async () =>
+            {
+                await Page.FillAsync("#f-from", day);
+                await Page.FillAsync("#f-to", day);
+            }, rows.First.Filter(new() { HasText = $"{prefix}-01" }));
+
+            var pager = Page.GetByRole(AriaRole.Navigation, new() { Name = "Sidor" });
+            await Assertions.Expect(rows).ToHaveCountAsync(25);
+            await Assertions.Expect(rows.First).ToContainTextAsync($"{prefix}-01");
+            await Assertions.Expect(rows.Last).ToContainTextAsync($"{prefix}-25");
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Sida 1" })).ToHaveAttributeAsync("aria-current", "page");
+            // The filters are in the address; page 1 is not (the bare list is page 1).
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex($@"/bokningar\?fran={day}&till={day}$"));
+
+            await GoToListPageAsync(pager, 2);
+            await Assertions.Expect(rows).ToHaveCountAsync(1);
+            await Assertions.Expect(rows.First).ToContainTextAsync($"{prefix}-26");
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Nästa ›" })).ToBeDisabledAsync();
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex($@"/bokningar\?sida=2&fran={day}&till={day}$"));
+
+            // Into a booking and Back: the same page of the same filtered list, not page 1 of everything.
+            await rows.First.GetByRole(AriaRole.Link, new() { Name = "Öppna →" }).ClickAsync();
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex($"/bokningar/{ids[25]}$"));
+            await Page.GoBackAsync();
+            await Assertions.Expect(rows).ToHaveCountAsync(1);
+            await Assertions.Expect(rows.First).ToContainTextAsync($"{prefix}-26");
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Sida 2" })).ToHaveAttributeAsync("aria-current", "page");
+            await Assertions.Expect(Page.Locator("#f-from")).ToHaveValueAsync(day);
+            await Assertions.Expect(Page.Locator("#f-to")).ToHaveValueAsync(day);
+
+            // The checks above are satisfied by the prerendered page alone. This step is what proves the
+            // live circuit arrived with the same filters: it answers the change from its own state, and
+            // a circuit that read a stale address (NavigationManager, before a replaceState) answered
+            // with the dates gone — every Pending booking, newest first (E2E, 2026-11-19).
+            // A changed filter starts again from page 1, rather than leaving the reader on page 2 of
+            // a different list — and the address says so. The page came back from the address, so its
+            // controls are proven live only once the server has drawn page 1.
+            var pageOne = pager.Locator("button[aria-current='page'][aria-label='Sida 1']");
+            await UntilTheServerHasItAsync(
+                () => Page.SelectOptionAsync("#f-status", new SelectOptionValue { Label = "Väntar" }),
+                pageOne);
+            await Assertions.Expect(rows).ToHaveCountAsync(25);
+            await Assertions.Expect(rows.First).ToContainTextAsync($"{prefix}-01");
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex($@"/bokningar\?status=Pending&fran={day}&till={day}$"));
+
+            // The reference search narrows the list but never enters the address (NFR-05).
+            await Page.FillAsync("#f-ref", $"{prefix}-26");
+            await Page.PressAsync("#f-ref", "Enter");
+            await Assertions.Expect(rows).ToHaveCountAsync(1);
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex($@"/bokningar\?status=Pending&fran={day}&till={day}$"));
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.Bookings.Where(b => ids.Contains(b.Id)).ExecuteDeleteAsync();
+        }
+    }
+
+    [Fact]
+    public async Task Block_list_pages_25_at_a_time_and_a_saved_block_is_shown_on_its_page()
+    {
+        // No filter on this page: 26 whole-property blocks decades out, beyond any stay another test
+        // books, start later than any other block and fill page 1 themselves (Block 01 latest).
+        var tag = Guid.NewGuid().ToString("N")[..8];
+        var latest = StockholmTime.Today(TimeProvider.System).AddYears(40);
+        var blocks = Enumerable.Range(1, 26).Select(n => new BlockedPeriod
+        {
+            Id = Guid.NewGuid(),
+            Scope = BlockScope.WholeProperty,
+            StartDate = latest.AddDays(-7 * n),
+            EndDate = latest.AddDays(-7 * n + 1),
+            Reason = $"Sidtest {tag} {n:D2}",
+        }).ToList();
+        var ids = blocks.Select(b => b.Id).ToList();
+        await using (var db = Fixture.NewDbContext())
+        {
+            db.BlockedPeriods.AddRange(blocks);
+            await db.SaveChangesAsync();
+        }
+
+        try
+        {
+            await LoginAsync();
+            await Page.GotoAsync("/blockeringar");
+
+            var rows = Page.Locator("table.admin-table tbody tr");
+            var pager = Page.GetByRole(AriaRole.Navigation, new() { Name = "Sidor" });
+            await Assertions.Expect(rows).ToHaveCountAsync(25);
+            await Assertions.Expect(rows.First).ToContainTextAsync($"Sidtest {tag} 01");
+            await Assertions.Expect(rows.Last).ToContainTextAsync($"Sidtest {tag} 25");
+
+            await GoToListPageAsync(pager, 2);
+            await Assertions.Expect(rows.First).ToContainTextAsync($"Sidtest {tag} 26");
+
+            // Back on page 1, add a block that starts before all 26: it sorts onto page 2, and saving
+            // must take the admin there rather than leave them on a page it is not on.
+            await GoToListPageAsync(pager, 1);
+            await Page.GetByRole(AriaRole.Button, new() { Name = "+ Lägg till blockering" }).ClickAsync();
+            var panel = Page.Locator(".admin-panel");
+            await Assertions.Expect(panel).ToHaveClassAsync(new Regex("is-open"));
+            var newStart = latest.AddDays(-7 * 30);
+            await Page.FillAsync("#start", newStart.ToString("yyyy-MM-dd"));
+            await Page.FillAsync("#end", newStart.AddDays(1).ToString("yyyy-MM-dd"));
+            await Page.FillAsync("#reason", $"Sidtest {tag} ny");
+            await panel.GetByRole(AriaRole.Button, new() { Name = "Spara" }).ClickAsync();
+
+            await Assertions.Expect(Page.GetByText("Blockeringen har lagts till.")).ToBeVisibleAsync();
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Sida 2" })).ToHaveAttributeAsync("aria-current", "page");
+            await Assertions.Expect(rows.Filter(new() { HasText = $"Sidtest {tag} ny" })).ToHaveCountAsync(1);
+
+            // The page is in the address, so a reload comes back to it rather than to page 1.
+            await Assertions.Expect(Page).ToHaveURLAsync(new Regex(@"/blockeringar\?sida=2$"));
+            await Page.ReloadAsync();
+            await Assertions.Expect(pager.GetByRole(AriaRole.Button, new() { Name = "Sida 2" })).ToHaveAttributeAsync("aria-current", "page");
+            await Assertions.Expect(rows.Filter(new() { HasText = $"Sidtest {tag} ny" })).ToHaveCountAsync(1);
+        }
+        finally
+        {
+            await using var db = Fixture.NewDbContext();
+            await db.BlockedPeriods.Where(p => ids.Contains(p.Id) || p.Reason == $"Sidtest {tag} ny").ExecuteDeleteAsync();
         }
     }
 

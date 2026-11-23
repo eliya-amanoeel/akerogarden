@@ -2,9 +2,12 @@
 
 > **Archived 2026-11-15 — nothing in here is open.** Every item is built, dropped, or moved out: the
 > cancellation-terms questions (item 11) to SRS §12, and the image gallery (15) and removing `Active` (16)
-> to SRS §10. The to-dos and the remaining production deploy steps are with the maintainer. The deploy
-> steps below are the record as it stood when steps 1–6 were done. This file is the record of *why*; the
-> SRS is the authority on behaviour.
+> to SRS §10, and the to-dos still open to [`docs/open-items.md`](../open-items.md).
+>
+> **Deployed to production 2026-11-15 (`2bec869`).** Every deploy step and every manual-test block below
+> passed. The body is left as it stood when deploy steps 1–6 were done — so its unticked boxes, the
+> table's *awaiting deploy* and the To-do lists are that day's state, not open work. This file is the
+> record of *why*; the SRS is the authority on behaviour.
 
 The client's wished changes after two months of live use, each discussed and locked on 2026-11-12. This is a
 decision record, not a requirements document: **the SRS (`docs/product/requirements.md`) stays the authority on

@@ -1,5 +1,11 @@
 # Åkerögården — Post-Launch Architecture & Security Review (Phase 11)
 
+> **Archived 2026-11-22 — nothing in here is open.** Every finding was already fixed, closed or parked by
+> 2026-09-10. What was still waiting — the parked #13 and #16, the deferred `AddDbContextFactory` fix in #2,
+> and the logging-faults observation with its 2026-10-13 deploy-window update — moved to
+> [`docs/open-items.md`](../open-items.md), which is where their triggers are now kept. The triage table's
+> verdicts are frozen as of that date and are no longer updated here.
+
 **Date:** 2026-09-08
 **Reviewed against:** production as it was actually running, `main` at `aaf0604` (PR !65)
 **Scope:** the whole running system after go-live — the two hosts' composition roots, the security-header middleware, authentication/authorisation, the completion-token and scheduled-job engines, email dispatch, secrets at rest, the Bicep templates, and the live Azure resource configuration in `akerogarden-prod`.

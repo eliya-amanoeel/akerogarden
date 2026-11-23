@@ -4,7 +4,7 @@ Read-only. **Nothing in this folder is a source of truth about how the system be
 nothing here is waiting on anyone.
 
 For current truth read [`docs/product/requirements.md`](../product/requirements.md). For what is
-still to be done, ask the maintainer — it is not tracked in here.
+still to be done, read [`docs/open-items.md`](../open-items.md) — it is not tracked in here.
 
 ---
 
@@ -26,8 +26,7 @@ Documents that were deliberately **not** archived, and why:
 
 | Kept in place | Why |
 |---|---|
-| `docs/review/post-launch-security-review.md` | Still the tracker for two parked findings with explicit re-open triggers — #16 "re-open if it rises or reaches a user", #13 "close it opportunistically" — and for the deferred `AddDbContextFactory` fix, whose trigger conditions are written into finding #2 |
-| SRS §12 (Open Questions) | Where any question waiting on the client is recorded — none since 2026-10-09. The client forms themselves (`klientfragor-*.html`) were working copies, never tracked, and were deleted on 2026-10-10; their questions and answers live in the decision records and the SRS |
+| SRS §12 (Open Questions) | Where any question waiting on the client is recorded. The client forms themselves (`klientfragor-*.html`) were working copies, never tracked, and were deleted on 2026-10-10; their questions and answers live in the decision records and the SRS |
 
 ---
 
@@ -42,9 +41,10 @@ Documents that were deliberately **not** archived, and why:
 | [`known-conflicts-at-launch.md`](known-conflicts-at-launch.md) | What was knowingly carried across the 2026-09-07 launch line in the legal texts — the jurist review that never happened, the client's replacement terms, the email/terms cancellation conflict, VAT pricing, check-in times — and how each was settled. Every item resolved by 2026-10-09 (the deposit work and the client's answers); archived the same day |
 | [`klientfragor-juridiska-underlag.md`](klientfragor-juridiska-underlag.md) | The first, prose version of the client questions (mid-August 2026), written for a jurist review that never happened. Replaced by the plain-language forms; its last open part — the points routed to the jurist — was decided on 2026-10-07. Archived the same day; outcomes live in `known-conflicts-at-launch.md`, archived beside it |
 | [`demo-feedback-2026-08-05.md`](demo-feedback-2026-08-05.md) | Decision record for the client demo of 2026-08-05: every change request, the decision on each and its reasoning, two design corrections of our own (§7) and a conflict audit (§8). Kept in `docs/review/` until 2026-10-11 as "consulted, not merely remembered" — which is what this folder is for. Its two deferred items (1b name upload, 5a reviews) live in SRS §10. Archived 2026-10-11 |
-| [`demo-feedback-2026-11-11.md`](demo-feedback-2026-11-11.md) | Decision record for the client review of 2026-11-11, after two months of live use: 17 change requests, the decision on each and its reasoning, the completion gate's fixes and the staging rehearsal of the deploy. Its open parts moved out — item 11's client questions to SRS §12, items 15 (image gallery) and 16 (removing `Active`) to SRS §10. Archived 2026-11-15, the day its changes were deployed |
+| [`demo-feedback-2026-11-11.md`](demo-feedback-2026-11-11.md) | Decision record for the client review of 2026-11-11, after two months of live use: 17 change requests, the decision on each and its reasoning, the completion gate's fixes and the staging rehearsal of the deploy. Its open parts moved out — item 11's client questions to SRS §12, items 15 (image gallery) and 16 (removing `Active`) to SRS §10, the remaining to-dos to `docs/open-items.md`. Archived 2026-11-15, the day its changes were deployed |
 | [`deposit-flow-2026-10-07.md`](deposit-flow-2026-10-07.md) | Decision record for the deposit before confirmation (FR-115/116, live 2026-10-09) and the estimated price (D22–D27, live 2026-10-11): design, rejected alternatives, every decision and whose it was. Nothing open; archived 2026-10-11, the day its last decision went live |
 | [`security-review.md`](security-review.md) | The Phase 7 security gate deliverable, 2026-07-08. No vulnerabilities found; its three items deferred to live Azure verification were all closed during the 2026-09-08/09 post-launch review |
+| [`post-launch-security-review.md`](post-launch-security-review.md) | The 2026-09-08/09 security & architecture review of production as it ran, and the tracker of its own remediation: 26 findings, every one fixed, closed or parked by 2026-09-10. Kept in `docs/review/` while its parked items lived in it; archived 2026-11-22 when they — #13, #16, the deferred `AddDbContextFactory` fix in #2 and the logging-faults observation — moved to `docs/open-items.md` |
 
 Nothing here is retro-edited. Paths inside a body are as they were on the day — files since renamed or
 moved (`docs/legal/klientsvar.md` → `Bokningsvillkor.md`, `docs/legal/` and `docs/review/` → here) are not

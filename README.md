@@ -48,7 +48,7 @@ docs/
   product/                  SRS, ERD, architecture, lifecycle diagrams — current truth
   ux/                       Design system, logo, imagery
   legal/                    Privacy policy + booking terms — published and live; no jurist review (cancelled, see docs/archive/known-conflicts-at-launch.md)
-  review/                   Review artefacts that still carry open items
+  open-items.md             The one list of open work — to do, planned, ideas, parked with their triggers
   archive/                  Closed history — read-only, nothing waiting on it (see docs/archive/README.md)
 ```
 
@@ -167,6 +167,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | Document | What it is |
 |---|---|
 | [`docs/product/requirements.md`](docs/product/requirements.md) | The SRS — single source of truth. Unversioned living document |
+| [`docs/open-items.md`](docs/open-items.md) | The one list of open work: to do, planned, ideas, and parked items with what reopens them |
 | [`docs/product/erd.md`](docs/product/erd.md) | Entity-relationship diagram (16 entities) |
 | [`docs/product/booking-lifecycle-timeline.md`](docs/product/booking-lifecycle-timeline.md) | Status transitions and their emails, what the nightly run decides, and dated link-issuance scenarios |
 | [`docs/product/architecture.md`](docs/product/architecture.md) | App-level architecture — surfaces, hosting, external services |
@@ -174,7 +175,7 @@ These are enforced, not stylistic. The full list lives in `.claude/CLAUDE.md` an
 | [`docs/ux/design.md`](docs/ux/design.md) | Design system — tokens, type scale, components |
 | [`docs/archive/known-conflicts-at-launch.md`](docs/archive/known-conflicts-at-launch.md) | What was knowingly carried across the launch line in the legal texts, and how each item was settled — all resolved, archived 2026-10-09 |
 | [`docs/archive/deposit-flow-2026-10-07.md`](docs/archive/deposit-flow-2026-10-07.md) | Decision record for the deposit-before-confirmation requirement (FR-115/116) and the estimated price — the reasoning behind it. Closed, archived 2026-10-11 |
-| [`docs/review/post-launch-security-review.md`](docs/review/post-launch-security-review.md) | Post-launch security & architecture review and its remediation tracker |
+| [`docs/archive/post-launch-security-review.md`](docs/archive/post-launch-security-review.md) | Post-launch security & architecture review and its remediation tracker. Closed, archived 2026-11-22 — its parked items are in `docs/open-items.md` |
 | [`docs/archive/demo-feedback-2026-08-05.md`](docs/archive/demo-feedback-2026-08-05.md) | Decision record for the 2026-08-05 client demo. Closed, archived 2026-10-11 |
 | [`docs/archive/demo-feedback-2026-11-11.md`](docs/archive/demo-feedback-2026-11-11.md) | Decision record for the 2026-11-11 client review. Closed, archived 2026-11-15 |
 | [`Handbook.razor`](src/AkeroGarden.Web.Admin/Components/Pages/Handbook.razor) | The admin handbook (Swedish), served at `/handbok` in the admin panel; Samordnare read their part at `/handbok/samordnare` (FR-117). Replaced `docs/handover/admin-manual.html` in 2026-10 — change it in the same PR as the behaviour it describes |
